@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "slug": "sunset-camel-safari",
+  "title": "Sunset Camel Safari in Jaisalmer",
+  "eyebrow": "Desert experience",
+  "category": "desert",
+  "seo": {
+    "title": "Sunset Camel Safari in Jaisalmer",
+    "description": "A sunset camel safari draft from Jaisalmer with a desert route, camel ride, sunset refreshments and dinner. Confirm current details before publishing."
+  },
+  "status": "draft",
+  "summary": "A same-evening desert outing described in the legacy site, with a route through local stops, a camel ride, sunset refreshments and dinner.",
+  "bestFor": "Guests who want to explore a desert sunset and camel experience without an overnight stay (legacy description; verify).",
+  "duration": "Afternoon to evening (legacy wording; owner verification required)",
+  "overnight": false,
+  "transport": "Jeep transport (legacy source; owner verification required)",
+  "startingPoint": "Jaisalmer; exact meeting and pickup arrangement must be confirmed",
+  "timingNote": "The legacy source describes an afternoon-to-evening sequence. Exact departure and sunset timing vary by season; confirm the current route, schedule, operator, inclusions and availability with the hotel.",
+  "timeline": [
+    {
+      "step": 1,
+      "timeOfDay": "Departure — to be confirmed",
+      "title": "Leave Jaisalmer",
+      "description": "The legacy itinerary describes travelling by jeep from Jaisalmer towards the desert route."
+    },
+    {
+      "step": 2,
+      "timeOfDay": "Route stop — confirm current operation",
+      "title": "Khuldhara and the local route",
+      "description": "The legacy itinerary lists a visit to the abandoned village of Khuldhara before continuing towards the desert."
+    },
+    {
+      "step": 3,
+      "timeOfDay": "Route stop — confirm current operation",
+      "title": "Natural pond and nomadic village",
+      "description": "The legacy itinerary lists stops at a natural pond and a nomadic village. The current route and access must be reconfirmed."
+    },
+    {
+      "step": 4,
+      "timeOfDay": "Before sunset — approximate sequence",
+      "title": "Camel ride towards the dunes",
+      "description": "The legacy itinerary includes meeting camel riders and continuing into the dunes by camel."
+    },
+    {
+      "step": 5,
+      "timeOfDay": "Sunset — season-dependent",
+      "title": "Watch the light change over the dunes",
+      "description": "The legacy itinerary describes tea, coffee and snacks while watching the sunset. Confirm what is served and where."
+    },
+    {
+      "step": 6,
+      "timeOfDay": "Evening — confirm current arrangements",
+      "title": "Dinner and return to Jaisalmer",
+      "description": "The legacy itinerary describes dinner prepared in the desert before returning to town the same evening."
+    }
+  ],
+  "included": [
+    "Jeep transport (legacy source; verify)",
+    "Visit to the abandoned village of Khuldhara (legacy source; verify)",
+    "Drive to a natural pond (legacy source; verify)",
+    "Visit to a nomadic village (legacy source; verify)",
+    "Camel riding (legacy source; verify)",
+    "Tea, coffee and snacks at sunset (legacy source; verify)",
+    "Dinner prepared in the desert (legacy source; verify)"
+  ],
+  "notIncluded": [
+    "Personal expenses (legacy source; verify)",
+    "Anything not specifically listed in the final, owner-confirmed package"
+  ],
+  "practicalNotes": [
+    "This record was migrated from the legacy PHP repository and is a draft, not a confirmed current offer.",
+    "Confirm price, date-specific availability, transport, pickup, current route, departure window, food arrangements, exclusions and cancellation terms before publication.",
+    "No exact clock times are published because the legacy content says timing varies by season and sunset."
+  ],
+  "faqs": [
+    {
+      "question": "What is the current price?",
+      "answer": "Not verified in this draft. Ask the hotel to confirm the price for the travel date and party."
+    },
+    {
+      "question": "Are the departure and sunset times fixed?",
+      "answer": "The legacy source says timing varies by season and sunset. Confirm the current departure window for the travel date."
+    },
+    {
+      "question": "What is included?",
+      "answer": "The lists on this draft page are copied from legacy content and have not been confirmed as current. Ask the hotel for the final inclusions and exclusions."
+    }
+  ],
+  "relatedTours": [
+    "cultural-safari",
+    "sleep-under-the-stars",
+    "swiss-tent-safari"
+  ],
+  "relatedBlogs": [
+    "jaisalmer-fort-guide",
+    "jaisalmer-desert-safari-packing-list"
+  ],
+  "enquiry": {
+    "mode": "whatsapp",
+    "label": "Ask about the Sunset Camel Safari"
+  },
+  "factsConfirmed": false,
+  "factSources": [],
+  "lastVerified": null
+}
