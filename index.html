@@ -35,7 +35,7 @@
     <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" aria-label="Open navigation"><span></span><span></span></button>
     <nav id="primary-navigation" class="primary-nav" aria-label="Primary navigation">
       <a class="is-active" href="index.html">Stay</a><a href="rooms.html">Rooms</a><a href="experiences.html">Experiences</a><a href="dining.html">Dining</a><a href="about.html">Our story</a><a href="directions.html">Find us</a>
-      <a class="nav-book" href="https://wa.me/917727047567?text=Namaste%20Garh%20Jaisal%20Haveli%2C%20I%27d%20like%20to%20check%20room%20availability." target="_blank" rel="noopener">Enquire to book <span aria-hidden="true">↗</span></a>
+      <a class="nav-book" href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to make an enquiry. Please share the current details." aria-disabled="true" aria-describedby="contact-status">Enquire to book <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
 
@@ -60,8 +60,8 @@
         <label class="field"><span>Arrival</span><input type="date" name="arrival" required aria-label="Arrival date"></label>
         <label class="field"><span>Departure</span><input type="date" name="departure" required aria-label="Departure date"></label>
         <label class="field field--guests"><span>Guests</span><select name="guests" aria-label="Number of guests"><option value="1">1 guest</option><option value="2" selected>2 guests</option><option value="3">3 guests</option><option value="4">4 guests</option><option value="5+">5+ guests</option></select></label>
-        <button class="button button--dark booking-form__submit" type="submit">Check availability <span aria-hidden="true">↗</span></button>
-        <p class="booking-form__note" data-booking-note>Opens WhatsApp to confirm availability. No payment is taken here.</p>
+        <button class="button button--dark booking-form__submit" type="submit" data-booking-submit disabled>Check availability <span aria-hidden="true">↗</span></button>
+        <p class="booking-form__note" data-booking-note>Direct enquiry is temporarily unavailable while contact details are being verified. Your travel details will not be sent. No reservation or payment is completed on this page.</p>
       </form>
     </section>
 
@@ -124,15 +124,16 @@
     </section>
 
     <section class="final-cta">
-      <div class="final-cta__ornament" aria-hidden="true">✳</div><p class="eyebrow eyebrow--light">Your Rajasthan story, your way</p><h2 class="display-title display-title--light">The Golden City<br>is calling. <em>Come feel it.</em></h2><p>Tell us when you’re coming. We’ll help you take the next step towards a stay inside the fort.</p><a class="button button--gold" href="https://wa.me/917727047567?text=Namaste%20Garh%20Jaisal%20Haveli%2C%20I%27m%20planning%20a%20trip%20to%20Jaisalmer%20and%20would%20like%20to%20enquire%20about%20a%20stay." target="_blank" rel="noopener">Start a booking conversation <span aria-hidden="true">↗</span></a><span class="final-cta__note">No pressure. Just local help, directly from our team.</span>
+      <div class="final-cta__ornament" aria-hidden="true">✳</div><p class="eyebrow eyebrow--light">Your Rajasthan story, your way</p><h2 class="display-title display-title--light">The Golden City<br>is calling. <em>Come feel it.</em></h2><p>Tell us when you’re coming. We’ll help you take the next step towards a stay inside the fort.</p><a class="button button--gold" href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to make an enquiry. Please share the current details." aria-disabled="true" aria-describedby="contact-status">Start a booking conversation <span aria-hidden="true">↗</span></a><span class="final-cta__note">No pressure. Just local help, directly from our team.</span>
     </section>
   </main>
 
+  <div class="contact-status-banner wrap" id="contact-status" role="status" aria-live="polite"><strong>Some contact channels are unavailable.</strong> The hotel must verify each endpoint before this page can open it or send your travel details. Unverified contact details are not used.</div>
   <footer class="site-footer">
-    <div class="site-footer__main wrap"><div class="footer-brand"><a class="brand brand--footer" href="index.html"><span class="brand__mark" aria-hidden="true">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a><p>A family-run heritage stay inside the historic walls of Jaisalmer Fort. Rooted in the Golden City, open to the world.</p></div><div class="footer-column"><h2>Explore</h2><a href="rooms.html">Rooms</a><a href="experiences.html">Experiences</a><a href="dining.html">Rooftop dining</a><a href="about.html">Our story</a></div><div class="footer-column"><h2>Plan your visit</h2><a href="directions.html">Getting here</a><a href="directions.html#faq">Arrival FAQs</a><a href="https://wa.me/917727047567" target="_blank" rel="noopener">WhatsApp us ↗</a><a href="tel:+917727047567">+91 77270 47567</a></div><div class="footer-address"><h2>Find the haveli</h2><p>Kotari Para, inside Jaisalmer Fort<br>Jaisalmer, Rajasthan 345001, India</p><a href="https://maps.google.com/?q=Garh+Jaisal+Haveli+Jaisalmer" target="_blank" rel="noopener" class="text-link text-link--light">Open map ↗</a></div></div>
+    <div class="site-footer__main wrap"><div class="footer-brand"><a class="brand brand--footer" href="index.html"><span class="brand__mark" aria-hidden="true">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a><p>A family-run heritage stay inside the historic walls of Jaisalmer Fort. Rooted in the Golden City, open to the world.</p></div><div class="footer-column"><h2>Explore</h2><a href="rooms.html">Rooms</a><a href="experiences.html">Experiences</a><a href="dining.html">Rooftop dining</a><a href="about.html">Our story</a></div><div class="footer-column"><h2>Plan your visit</h2><a href="directions.html">Getting here</a><a href="directions.html#faq">Arrival FAQs</a><a href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to make an enquiry. Please share the current details." aria-disabled="true" aria-describedby="contact-status">WhatsApp us ↗</a><a href="#contact-status" data-contact-phone data-contact-prefix="" aria-disabled="true" aria-describedby="contact-status">Phone contact pending verification</a></div><div class="footer-address"><h2>Find the haveli</h2><p>Kotari Para, inside Jaisalmer Fort<br>Jaisalmer, Rajasthan 345001, India</p><a href="https://maps.google.com/?q=Garh+Jaisal+Haveli+Jaisalmer" target="_blank" rel="noopener" class="text-link text-link--light">Open map ↗</a></div></div>
     <div class="site-footer__bottom wrap"><span>© <span data-current-year>2026</span> Garh Jaisal Haveli</span><span>Made with a sense of place in Jaisalmer, Rajasthan.</span><a href="#main">Back to top ↑</a></div>
   </footer>
-  <div class="mobile-booking-bar"><span>Inside the Golden Fort</span><a href="https://wa.me/917727047567?text=Namaste%20Garh%20Jaisal%20Haveli%2C%20please%20share%20room%20availability%20and%20rates." target="_blank" rel="noopener">Enquire ↗</a></div>
+  <div class="mobile-booking-bar"><span>Inside the Golden Fort</span><a href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to make an enquiry. Please share the current details." aria-disabled="true" aria-describedby="contact-status">Enquire ↗</a></div>
   <script src="assets/site.js" defer></script>
 </body>
 </html>

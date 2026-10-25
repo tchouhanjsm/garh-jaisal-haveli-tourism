@@ -93,7 +93,7 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 The first architecture and marketing plan is in [Tour and Blog Content Strategy](docs/TOUR-BLOG-CONTENT-STRATEGY.md); the migration and Studio integration contract is in [Content Migration and Studio Plan](docs/CONTENT-MIGRATION-AND-STUDIO-PLAN.md).
 
 - `content/paths.json` is the planned single source of truth for allowed content types, output routes, image folders, SEO rules and sitemap behavior.
-- `content/site-config.json` records booking/contact endpoints recovered from the legacy repository, marked **unverified** until the owner tests them.
+- `content/site-config.json` keeps unverified booking/contact endpoint values empty. Public CTAs remain inactive until the owner verifies the channel and explicitly marks the configuration as owner-verified.
 - `content/schemas/` defines the initial tour, blog and curated-gallery record shapes.
 - `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json` are draft-only migrations demonstrating the new record shapes. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
 
