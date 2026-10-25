@@ -41,7 +41,23 @@ jobs:
       - name: Inspect existing site baseline
         run: ./scripts/check-site.sh
 
+      - name: Avoid duplicating an automation PR awaiting owner review
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          count="$(gh pr list --repo "$GH_REPO" --state open --base main --json headRefName --jq '[.[] | select(.headRefName | startswith("automation/agent-run-"))] | length')"
+          if [[ "$count" -gt 0 ]]; then
+            echo "run_agent=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping the model run: an autonomous proposal is still open for owner review."
+            exit 0
+          fi
+          echo "run_agent=true" >> "$GITHUB_OUTPUT"
+
       - name: Run bounded development orchestrator
+        if: steps.gate.outputs.run_agent == 'true'
         id: codex
         uses: openai/codex-action@v1
         with:
@@ -49,10 +65,10 @@ jobs:
           prompt-file: prompts/development-orchestrator.md
           output-file: ${{ runner.temp }}/agent-summary.md
           permission-profile: ":workspace"
-          model: gpt-5-codex
           effort: medium
 
       - name: Collect and guard proposal
+        if: steps.gate.outputs.run_agent == 'true'
         id: collect
         env:
           BASE_SHA: ${{ steps.baseline.outputs.sha }}
@@ -156,7 +172,13 @@ jobs:
             printf 'Workflow run: https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$GITHUB_RUN_ID"
             printf '\nPlease inspect the diff, required checks, and owner-review items before merging.\n'
           } > "$RUNNER_TEMP/pr-body.md"
-          gh pr create             --repo "$GH_REPO"             --base main             --head "$branch"             --draft             --title "Autonomous website improvement (run ${GITHUB_RUN_ID})"             --body-file "$RUNNER_TEMP/pr-body.md"
+          gh pr create \
+            --repo "$GH_REPO" \
+            --base main \
+            --head "$branch" \
+            --draft \
+            --title "Autonomous website improvement (run ${GITHUB_RUN_ID})" \
+            --body-file "$RUNNER_TEMP/pr-body.md"
 
       - name: Report publisher completion
         if: success()
