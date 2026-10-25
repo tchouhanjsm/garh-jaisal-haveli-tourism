@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "verificationStatus": "legacy-source-unverified",
+  "site": {
+    "legacyProductionUrl": "https://www.hotelgarhjaisal.com",
+    "newStaticSiteCanonicalHost": "https://hotelgarhjaisal.com",
+    "canonicalHostApproved": false
+  },
+  "booking": {
+    "legacyBookingEngineUrl": "https://asiatech.in/booking_engine/index3?token=NjA2Ng==",
+    "status": "owner-verification-required",
+    "primaryLabel": "Check availability"
+  },
+  "contact": {
+    "whatsappBaseUrl": "https://wa.me/917727047567",
+    "primaryPhoneDisplay": "+91 77270 47567",
+    "alternatePhoneDisplay": "+91 2992 253836",
+    "email": "info@hotelgarhjaisal.com",
+    "status": "owner-verification-required"
+  },
+  "rules": [
+    "Values sourced from the legacy repository; verify they are active before enabling production CTAs.",
+    "Never claim that an enquiry is a confirmed reservation.",
+    "Use WhatsApp enquiry as a fallback if the booking gateway is unavailable or the guest asks about tours.",
+    "Do not include server secrets or hosting credentials in this file."
+  ]
+}

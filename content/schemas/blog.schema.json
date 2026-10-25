@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hotelgarhjaisal.com/schemas/blog.schema.json",
+  "title": "Garh Jaisal Editorial Content",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "slug",
+    "title",
+    "seo",
+    "status",
+    "lede",
+    "sections",
+    "sources",
+    "lastReviewed"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 90
+    },
+    "seo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "description"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "minLength": 110,
+          "maxLength": 160
+        },
+        "ogImage": {
+          "type": "string",
+          "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-og-01\\.(webp|avif)$"
+        }
+      }
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "ready_for_review",
+        "approved_for_release",
+        "live",
+        "hidden"
+      ]
+    },
+    "lede": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 600
+    },
+    "tableOfContents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      }
+    },
+    "heroImage": {
+      "type": "string",
+      "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-hero-01\\.(webp|avif)$"
+    },
+    "heroAlt": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 200
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "heading",
+          "body"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "heading": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 180
+          },
+          "body": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 5
+            }
+          },
+          "image": {
+            "type": "string"
+          },
+          "imageAlt": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "url"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "lastReviewed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "publishedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "relatedTours": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "relatedBlogs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    },
+    "enquiryCta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "mode"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "mode": {
+          "enum": [
+            "whatsapp",
+            "booking_gateway",
+            "contact"
+          ]
+        }
+      }
+    }
+  }
+}
