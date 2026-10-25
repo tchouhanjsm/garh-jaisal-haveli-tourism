@@ -1,21 +1,20 @@
 #!/usr/bin/env node
 'use strict';
 
-// Local-only content contract validator. Uses Node built-ins; no network or paid services.
+// Local-only validator for the static site's content registry and draft records.
 const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTENT_TYPES = Object.freeze({
+const TYPES = Object.freeze({
   tour: { schema: 'tour.schema.json' },
   blog: { schema: 'blog.schema.json' },
   gallery: { schema: 'gallery.schema.json' },
 });
 
 function safeRelativePath(value) {
-  if (typeof value !== 'string' || value.length === 0 || value.includes('\\') || path.isAbsolute(value)) return false;
-  const segments = value.split('/');
-  return segments.every(segment => segment !== '' && segment !== '.' && segment !== '..');
+  if (typeof value !== 'string' || !value || value.includes('\\') || path.isAbsolute(value)) return false;
+  return value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
 }
 
 function matchesType(type, value) {
@@ -31,7 +30,7 @@ function matchesType(type, value) {
 }
 
 function isValidDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + 'T00:00:00Z');
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
@@ -45,6 +44,7 @@ function isValidHttpUrl(value) {
   }
 }
 
+// Supports the subset of JSON Schema used by the checked-in tour/blog/gallery schemas.
 function validateAgainstSchema(schema, value, location = '$') {
   const findings = [];
   const add = (message, at = location) => findings.push({ path: at, message });
@@ -75,10 +75,12 @@ function validateAgainstSchema(schema, value, location = '$') {
       if (!Object.prototype.hasOwnProperty.call(value, required)) add('missing required property: ' + required);
     }
     if (schema.additionalProperties === false) {
-      for (const key of Object.keys(value)) if (!schema.properties || !Object.prototype.hasOwnProperty.call(schema.properties, key)) add('unexpected property: ' + key, location + '.' + key);
+      for (const key of Object.keys(value)) {
+        if (!schema.properties || !Object.prototype.hasOwnProperty.call(schema.properties, key)) add('unexpected property: ' + key, location + '.' + key);
+      }
     }
-    for (const [key, propertySchema] of Object.entries(schema.properties || {})) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) findings.push(...validateAgainstSchema(propertySchema, value[key], location + '.' + key));
+    for (const [key, childSchema] of Object.entries(schema.properties || {})) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) findings.push(...validateAgainstSchema(childSchema, value[key], location + '.' + key));
     }
   }
   return findings;
@@ -119,8 +121,13 @@ function visitAssetPaths(value, location, root, findings) {
     if (['image', 'src', 'heroImage', 'ogImage'].includes(key) && typeof child === 'string' && child.startsWith('assets/')) {
       if (!safeRelativePath(child) || !isInsideRoot(root, child)) {
         findings.push({ path: childLocation, message: 'unsafe asset path' });
-      } else if (!fs.existsSync(path.resolve(root, child)) || !fs.statSync(path.resolve(root, child)).isFile()) {
-        findings.push({ path: childLocation, message: 'referenced local asset does not exist: ' + child });
+        continue;
+      }
+      const absolute = path.resolve(root, child);
+      let stat;
+      try { stat = fs.lstatSync(absolute); } catch (_) { stat = null; }
+      if (!stat || stat.isSymbolicLink() || !stat.isFile()) {
+        findings.push({ path: childLocation, message: 'referenced local asset is missing, not a regular file, or is a symlink: ' + child });
       }
     } else {
       visitAssetPaths(child, childLocation, root, findings);
@@ -145,101 +152,26 @@ function validateRecordPolicy(type, record, root, registry, siteConfig, findings
     if (record.factsConfirmed !== true) findings.push({ path: sourcePath, message: 'live tour requires factsConfirmed: true' });
     if (!record.lastVerified || !isValidDate(record.lastVerified)) findings.push({ path: sourcePath, message: 'live tour requires a valid lastVerified date' });
   }
-  if (type === 'blog' && status === 'live') {
-    if (!record.lastReviewed || !isValidDate(record.lastReviewed)) findings.push({ path: sourcePath, message: 'live article requires a valid lastReviewed date' });
+  if (type === 'blog' && status === 'live' && (!record.lastReviewed || !isValidDate(record.lastReviewed))) {
+    findings.push({ path: sourcePath, message: 'live article requires a valid lastReviewed date' });
   }
-  if (type === 'gallery' && status === 'live') {
-    for (const [index, image] of (record.images || []).entries()) {
-      if (image.approved !== true) findings.push({ path: sourcePath + '.images[' + index + ']', message: 'live gallery images must be owner-approved' });
-    }
-  }
-  const typeConfig = registry.contentTypes[type];
-  if (!typeConfig || type === 'gallery') {
-    visitAssetPaths(record, '
-  if (status !== 'live' && fs.existsSync(path.resolve(root, publicPath))) {
-    findings.push({ path: publicPath, message: 'draft/hidden record has a public output file' });
-  }
-  if (status === 'live') {
-    if (siteConfig.site.canonicalHostApproved !== true) findings.push({ path: 'content/site-config.json', message: 'live content requires owner approval of the canonical host' });
-    if (!fs.existsSync(path.resolve(root, publicPath))) findings.push({ path: publicPath, message: 'live record has no generated public page' });
-    const sitemapPath = path.resolve(root, 'sitemap.xml');
-    const canonicalHost = String(siteConfig.site.newStaticSiteCanonicalHost || '').replace(/\/+$/, '');
-    if (!fs.existsSync(sitemapPath) || !fs.readFileSync(sitemapPath, 'utf8').includes(canonicalHost + '/' + publicPath)) {
-      findings.push({ path: 'sitemap.xml', message: 'live content URL is missing from sitemap.xml' });
-    }
-  }
-  visitAssetPaths(record, '$', root, findings);
-}
-
-function validateRepository(root = ROOT) {
-  const findings = [];
-  const registry = readJson(path.resolve(root, 'content/paths.json'), findings, 'content/paths.json');
-  const siteConfig = readJson(path.resolve(root, 'content/site-config.json'), findings, 'content/site-config.json');
-  if (!registry || !siteConfig) return { ok: false, findings, records: 0, schemas: 0 };
-  if (registry.schemaVersion !== 1) findings.push({ path: 'content/paths.json', message: 'unsupported schemaVersion' });
-  if (!registry.site || registry.site.engine !== 'static-html') findings.push({ path: 'content/paths.json', message: 'site.engine must be static-html' });
-  if (!siteConfig.verificationStatus) findings.push({ path: 'content/site-config.json', message: 'verificationStatus must be explicit' });
-  for (const assetPath of [registry.site && registry.site.sharedStylesheet, registry.site && registry.site.sharedScript]) {
-    if (!safeRelativePath(assetPath) || !isInsideRoot(root, assetPath) || !fs.existsSync(path.resolve(root, assetPath))) {
-      findings.push({ path: 'content/paths.json', message: 'shared asset path is invalid or missing: ' + assetPath });
-    }
-  }
-  let schemaCount = 0;
-  let recordCount = 0;
-  for (const [type, info] of Object.entries(CONTENT_TYPES)) {
-    const typeConfig = registry.contentTypes && registry.contentTypes[type];
-    if (!typeConfig) {
-      findings.push({ path: 'content/paths.json', message: 'missing content type: ' + type });
-      continue;
-    }
-    let safePaths = true;
-    for (const field of ['recordDirectory', 'assetDirectory']) {
-      if (!safeRelativePath(typeConfig[field])) {
-        findings.push({ path: 'content/paths.json', message: type + '.' + field + ' is not a safe repository-relative path' });
-        safePaths = false;
+  if (type === 'gallery') {
+    if (status === 'live') {
+      for (const [index, image] of (record.images || []).entries()) {
+        if (image.approved !== true) findings.push({ path: sourcePath + '.images[' + index + ']', message: 'live gallery images must be owner-approved' });
       }
     }
-    if (type !== 'gallery' && (!safeRelativePath(typeConfig.outputDirectory) || !/^\\.[a-z0-9]+$/.test(typeConfig.outputExtension || ''))) {
-      findings.push({ path: 'content/paths.json', message: type + ' output route configuration is unsafe' });
-      safePaths = false;
-    }
-    if (!safePaths) continue;
-    if (typeConfig.recordDirectory && !fs.existsSync(path.resolve(root, typeConfig.recordDirectory))) {
-      findings.push({ path: typeConfig.recordDirectory, message: 'record directory is missing' });
-      continue;
-    }
-    const schemaRelative = path.posix.join('content/schemas', info.schema);
-    const schema = readJson(path.resolve(root, schemaRelative), findings, schemaRelative);
-    if (schema) schemaCount += 1;
-    for (const name of listJsonFiles(path.resolve(root, typeConfig.recordDirectory))) {
-      const relative = path.posix.join(typeConfig.recordDirectory, name);
-      const record = readJson(path.resolve(root, relative), findings, relative);
-      if (!record || !schema) continue;
-      recordCount += 1;
-      findings.push(...validateAgainstSchema(schema, record, relative));
-      validateRecordPolicy(type, record, root, registry, siteConfig, findings, relative);
-    }
+    visitAssetPaths(record, '$', root, findings);
+    return;
   }
-  for (const type of Object.keys(registry.contentTypes || {})) {
-    if (!Object.prototype.hasOwnProperty.call(CONTENT_TYPES, type)) findings.push({ path: 'content/paths.json', message: 'unsupported content type: ' + type });
-  }
-  return { ok: findings.length === 0, findings, records: recordCount, schemas: schemaCount };
-}
 
-if (require.main === module) {
-  const result = validateRepository();
-  for (const finding of result.findings) console.error('FAIL ' + finding.path + ': ' + finding.message);
-  if (!result.ok) {
-    console.error('Content contract failed: ' + result.findings.length + ' finding(s).');
-    process.exitCode = 1;
-  } else {
-    console.log('PASS: content contract; ' + result.schemas + ' schema(s), ' + result.records + ' record(s).');
-    if (result.records === 0) console.log('NOTE: no tour/blog/gallery records exist yet; validation covered the registry and schema files only.');
+  const typeConfig = registry.contentTypes[type];
+  if (!typeConfig) {
+    findings.push({ path: 'content/paths.json', message: 'missing registry config for content type: ' + type });
+    return;
   }
-}
-
-module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy };
-, root, findings);
+  if (!safeRelativePath(typeConfig.outputDirectory) || typeConfig.outputExtension !== '.html') {
+    findings.push({ path: 'content/paths.json', message: type + ' output route configuration is unsafe or unsupported' });
     return;
   }
   const publicPath = path.posix.join(typeConfig.outputDirectory, slug + typeConfig.outputExtension);
@@ -247,10 +179,11 @@ module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, 
     findings.push({ path: publicPath, message: 'draft/hidden record has a public output file' });
   }
   if (status === 'live') {
-    if (siteConfig.site.canonicalHostApproved !== true) findings.push({ path: 'content/site-config.json', message: 'live content requires owner approval of the canonical host' });
+    const site = siteConfig.site || {};
+    if (site.canonicalHostApproved !== true) findings.push({ path: 'content/site-config.json', message: 'live content requires owner approval of the canonical host' });
     if (!fs.existsSync(path.resolve(root, publicPath))) findings.push({ path: publicPath, message: 'live record has no generated public page' });
     const sitemapPath = path.resolve(root, 'sitemap.xml');
-    const canonicalHost = String(siteConfig.site.newStaticSiteCanonicalHost || '').replace(/\/+$/, '');
+    const canonicalHost = String(site.newStaticSiteCanonicalHost || '').replace(/\/+$/, '');
     if (!fs.existsSync(sitemapPath) || !fs.readFileSync(sitemapPath, 'utf8').includes(canonicalHost + '/' + publicPath)) {
       findings.push({ path: 'sitemap.xml', message: 'live content URL is missing from sitemap.xml' });
     }
@@ -266,14 +199,16 @@ function validateRepository(root = ROOT) {
   if (registry.schemaVersion !== 1) findings.push({ path: 'content/paths.json', message: 'unsupported schemaVersion' });
   if (!registry.site || registry.site.engine !== 'static-html') findings.push({ path: 'content/paths.json', message: 'site.engine must be static-html' });
   if (!siteConfig.verificationStatus) findings.push({ path: 'content/site-config.json', message: 'verificationStatus must be explicit' });
+
   for (const assetPath of [registry.site && registry.site.sharedStylesheet, registry.site && registry.site.sharedScript]) {
     if (!safeRelativePath(assetPath) || !isInsideRoot(root, assetPath) || !fs.existsSync(path.resolve(root, assetPath))) {
       findings.push({ path: 'content/paths.json', message: 'shared asset path is invalid or missing: ' + assetPath });
     }
   }
+
   let schemaCount = 0;
   let recordCount = 0;
-  for (const [type, info] of Object.entries(CONTENT_TYPES)) {
+  for (const [type, info] of Object.entries(TYPES)) {
     const typeConfig = registry.contentTypes && registry.contentTypes[type];
     if (!typeConfig) {
       findings.push({ path: 'content/paths.json', message: 'missing content type: ' + type });
@@ -286,19 +221,21 @@ function validateRepository(root = ROOT) {
         safePaths = false;
       }
     }
-    if (type !== 'gallery' && (!safeRelativePath(typeConfig.outputDirectory) || !/^\\.[a-z0-9]+$/.test(typeConfig.outputExtension || ''))) {
-      findings.push({ path: 'content/paths.json', message: type + ' output route configuration is unsafe' });
+    if (type !== 'gallery' && (!safeRelativePath(typeConfig.outputDirectory) || typeConfig.outputExtension !== '.html')) {
+      findings.push({ path: 'content/paths.json', message: type + ' output route configuration is unsafe or unsupported' });
       safePaths = false;
     }
     if (!safePaths) continue;
-    if (typeConfig.recordDirectory && !fs.existsSync(path.resolve(root, typeConfig.recordDirectory))) {
+
+    const recordDirectory = path.resolve(root, typeConfig.recordDirectory);
+    if (!fs.existsSync(recordDirectory) || !fs.statSync(recordDirectory).isDirectory()) {
       findings.push({ path: typeConfig.recordDirectory, message: 'record directory is missing' });
       continue;
     }
     const schemaRelative = path.posix.join('content/schemas', info.schema);
     const schema = readJson(path.resolve(root, schemaRelative), findings, schemaRelative);
     if (schema) schemaCount += 1;
-    for (const name of listJsonFiles(path.resolve(root, typeConfig.recordDirectory))) {
+    for (const name of listJsonFiles(recordDirectory)) {
       const relative = path.posix.join(typeConfig.recordDirectory, name);
       const record = readJson(path.resolve(root, relative), findings, relative);
       if (!record || !schema) continue;
@@ -308,7 +245,7 @@ function validateRepository(root = ROOT) {
     }
   }
   for (const type of Object.keys(registry.contentTypes || {})) {
-    if (!Object.prototype.hasOwnProperty.call(CONTENT_TYPES, type)) findings.push({ path: 'content/paths.json', message: 'unsupported content type: ' + type });
+    if (!Object.prototype.hasOwnProperty.call(TYPES, type)) findings.push({ path: 'content/paths.json', message: 'unsupported content type: ' + type });
   }
   return { ok: findings.length === 0, findings, records: recordCount, schemas: schemaCount };
 }
