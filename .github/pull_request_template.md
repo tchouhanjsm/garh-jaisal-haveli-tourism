@@ -15,7 +15,7 @@
 
 ## Validation evidence
 
-- [ ] `./scripts/check-pr-quality.sh` passes locally, or any unavailable environment is explained.
+- [ ] `bash scripts/check-pr-quality.sh` passes locally, or any unavailable environment is explained.
 - [ ] The **latest PR head SHA** has a successful `Website quality gates / required-checks` result when that workflow is available.
 - [ ] Any failed check was investigated to the first meaningful failing step, fixed on this branch, and rerun.
 - [ ] Browser/mobile/accessibility checks are included when the change affects rendering or interaction.
