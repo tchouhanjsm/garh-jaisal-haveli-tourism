@@ -33,9 +33,9 @@
         try {
           const url = new URL(contact.whatsappBaseUrl);
           if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me'
-              && /^\\/\\d{8,15}\\/?$/.test(url.pathname)
+              && /^\/\d{8,15}\/?$/.test(url.pathname)
               && !url.username && !url.password && !url.search && !url.hash) {
-            whatsappBaseUrl = url.origin + url.pathname.replace(/\\/$/, '');
+            whatsappBaseUrl = url.origin + url.pathname.replace(/\/$/, '');
           }
         } catch (_) {
           // Invalid or incomplete owner configuration keeps every WhatsApp action disabled.
@@ -44,9 +44,9 @@
       activeWhatsAppBaseUrl = whatsappBaseUrl;
 
       const phoneE164 = ownerVerified && typeof contact.primaryPhoneE164 === 'string'
-        && /^\\+[1-9]\\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
+        && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
       const phoneDisplay = ownerVerified && typeof contact.primaryPhoneDisplay === 'string'
-        && contact.primaryPhoneDisplay.trim() && !/[<>\\r\\n]/.test(contact.primaryPhoneDisplay)
+        && contact.primaryPhoneDisplay.trim() && !/[<>\r\n]/.test(contact.primaryPhoneDisplay)
         ? contact.primaryPhoneDisplay.trim() : '';
 
       enquiryLinks.forEach(link => {
