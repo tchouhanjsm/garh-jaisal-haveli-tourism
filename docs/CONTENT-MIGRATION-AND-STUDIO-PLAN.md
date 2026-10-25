@@ -257,6 +257,10 @@ Known legacy Studio limitation: the old runbook states that optional `images` me
 - Sitemap/canonical/robots updated after hosting and domain approval.
 - Staging/phone UAT, backups/rollback, owner launch approval.
 
-## Recommended immediate engineering scope
+## Recommended next bulk phase
 
-While an older PR is open, do not open another PR. Extend the current PR branch only with a cohesive, low-risk architecture/content contract; no runtime rewrite or bulk media copy. The first content feature PR after the current PR is resolved should establish `content/paths.json`, JSON schemas and a deterministic content index, then add one tour page and one article as an end-to-end proof. Do not attempt to migrate all 11 tour records and 12 blog records in one unreviewable change.
+This PR establishes the content path registry and schemas, adds the local-only content validator and unit tests, reserves the required directories, and includes two **draft-only** source migrations: `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json`. Both remain unpublished because their legacy operational details have not been re-confirmed and there is no public content renderer yet.
+
+The next bulk phase should implement one deterministic static renderer used by both Studio preview and release generation, plus `tours/index.html`, `blogs/index.html`, individual output pages, internal-link validation, and sitemap generation driven only by approved `live` records. Draft preview must be explicit and local-only; no draft route should be written into public output or the sitemap. After that, run a full tour/blog vertical slice from the Studio pack through local validation and rendered-page checks before migrating the remaining legacy records.
+
+Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches once the renderer, asset manifest, owner-approval gates and local validation have been demonstrated.
