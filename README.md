@@ -88,6 +88,17 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 - `docs/TESTIMONIAL-COLLECTION.md` — how to add authentic guest proof without inventing quotes
 
 
+## Tours, articles, galleries and Content Studio
+
+The first architecture and marketing plan is in [Tour and Blog Content Strategy](docs/TOUR-BLOG-CONTENT-STRATEGY.md); the migration and Studio integration contract is in [Content Migration and Studio Plan](docs/CONTENT-MIGRATION-AND-STUDIO-PLAN.md).
+
+- `content/paths.json` is the planned single source of truth for allowed content types, output routes, image folders, SEO rules and sitemap behavior.
+- `content/site-config.json` records booking/contact endpoints recovered from the legacy repository, marked **unverified** until the owner tests them.
+- `content/schemas/` defines the initial tour, blog and curated-gallery record shapes.
+- `content/tours/` and `content/blogs/` are reserved for Studio-generated records. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
+
+**This is a foundation, not a complete renderer.** Content files are not yet automatically transformed into public HTML pages or a sitemap. Keep existing root pages and routes unchanged until a tested static renderer and an approved canonical/URL migration are in place. Never publish draft content or unverified tour facts.
+
 ## Branch, PR and quality-gate workflow
 
 Use the branch-first process documented in [Development Workflow](docs/DEVELOPMENT-WORKFLOW.md): create a feature branch from current `main`, make focused commits, open a PR, and wait for the required checks on the latest PR head SHA. If a check fails, inspect its actual logs, fix the root cause on the same branch, and rerun checks before asking for merge approval.
