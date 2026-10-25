@@ -48,6 +48,8 @@ for filename in images:
             if converted.format != "WEBP":
                 raise RuntimeError(f"unexpected output format for {temporary}")
             converted.verify()
+        if temporary.stat().st_size >= source.stat().st_size:
+            raise RuntimeError(f"WebP is not smaller than its JPG source: {filename}")
         temporary.replace(target)
     except Exception:
         temporary.unlink(missing_ok=True)
