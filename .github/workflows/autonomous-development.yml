@@ -1,0 +1,163 @@
+name: Autonomous development orchestrator
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: autonomous-development-orchestrator
+  cancel-in-progress: false
+
+jobs:
+  develop:
+    if: vars.AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      checks: read
+      actions: read
+    outputs:
+      changed: ${{ steps.collect.outputs.changed }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out default branch revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Record baseline revision
+        id: baseline
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect existing site baseline
+        run: ./scripts/check-site.sh
+
+      - name: Run bounded development orchestrator
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: prompts/development-orchestrator.md
+          output-file: ${{ runner.temp }}/agent-summary.md
+          permission-profile: ":workspace"
+          model: gpt-5-codex
+          effort: medium
+
+      - name: Collect and guard proposal
+        id: collect
+        env:
+          BASE_SHA: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git add -N -A
+          if git diff --quiet "$BASE_SHA" --; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No code or state changes proposed."
+            exit 0
+          fi
+          python3 scripts/guard-agent-diff.py "$BASE_SHA"
+          git diff --check "$BASE_SHA" --
+          git diff --binary "$BASE_SHA" -- > "$RUNNER_TEMP/agent.patch"
+          if [[ ! -s "$RUNNER_TEMP/agent-summary.md" ]]; then
+            printf '%s\n' "The orchestrator produced a diff but no summary. Review the patch carefully." > "$RUNNER_TEMP/agent-summary.md"
+          fi
+          printf '%s\n' "$BASE_SHA" > "$RUNNER_TEMP/base-sha.txt"
+          cp "$RUNNER_TEMP/agent-summary.md" "$RUNNER_TEMP/summary.md"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload proposal for publishing or manual review
+        if: steps.collect.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-proposal-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/agent.patch
+            ${{ runner.temp }}/base-sha.txt
+            ${{ runner.temp }}/summary.md
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-proposal:
+    needs: develop
+    if: ${{ vars.AUTOMATION_ENABLED == 'true' && vars.AUTOMATION_PUBLISH_PR == 'true' && needs.develop.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Require the separately scoped publisher token
+        env:
+          PUBLISH_TOKEN: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$PUBLISH_TOKEN" ]]; then
+            echo "::error::Add the AUTOMATION_GITHUB_TOKEN secret before enabling AUTOMATION_PUBLISH_PR."
+            exit 1
+          fi
+
+      - name: Check out current default branch
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Download guarded proposal
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-proposal-${{ github.run_id }}
+          path: ${{ runner.temp }}/agent-proposal
+
+      - name: Verify baseline and prepare draft PR
+        id: proposal
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EXPECTED_SHA_FILE: ${{ runner.temp }}/agent-proposal/base-sha.txt
+          PATCH_FILE: ${{ runner.temp }}/agent-proposal/agent.patch
+          SUMMARY_FILE: ${{ runner.temp }}/agent-proposal/summary.md
+        run: |
+          set -euo pipefail
+          expected="$(cat "$EXPECTED_SHA_FILE")"
+          git fetch origin main
+          current="$(git rev-parse origin/main)"
+          if [[ "$current" != "$expected" ]]; then
+            echo "::warning::Default branch moved during the agent run. Refusing to publish a stale patch; a later run can rebase its decision."
+            exit 1
+          fi
+          branch="automation/agent-run-${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git apply --index "$PATCH_FILE"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "::error::The proposal patch did not apply any changes."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: propose website improvement run ${GITHUB_RUN_ID}"
+          git push origin "$branch"
+          {
+            printf '## Autonomous development proposal\n\n'
+            printf 'This is a **draft PR** generated from a bounded proposal. It was not merged automatically.\n\n'
+            cat "$SUMMARY_FILE"
+            printf '\n\n---\n'
+            printf 'Base revision: `%s`\n' "$expected"
+            printf 'Workflow run: https://github.com/%s/actions/runs/%s\n' "$GH_REPO" "$GITHUB_RUN_ID"
+            printf '\nPlease inspect the diff, required checks, and owner-review items before merging.\n'
+          } > "$RUNNER_TEMP/pr-body.md"
+          gh pr create             --repo "$GH_REPO"             --base main             --head "$branch"             --draft             --title "Autonomous website improvement (run ${GITHUB_RUN_ID})"             --body-file "$RUNNER_TEMP/pr-body.md"
+
+      - name: Report publisher completion
+        if: success()
+        run: echo "Guarded proposal pushed as a draft PR. Human review and merge are still required."
