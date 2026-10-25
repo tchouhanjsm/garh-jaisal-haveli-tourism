@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "slug": "jaisalmer-fort-guide",
+  "title": "Jaisalmer Fort Guide | Staying Inside the Living Fort",
+  "seo": {
+    "title": "Jaisalmer Fort Visitor Guide",
+    "description": "A practical Jaisalmer Fort guide covering arrival, walking inside the fort, guided tours, heritage stays and desert planning. Verify travel details before your visit."
+  },
+  "status": "draft",
+  "lede": "A practical Jaisalmer Fort guide from Garh Jaisal Haveli, covering arrival, walking inside the fort, guided tours, heritage stays and combining the Fort with the desert.",
+  "tableOfContents": [
+    {
+      "id": "overview",
+      "label": "Jaisalmer Fort as a living part of the city"
+    },
+    {
+      "id": "arrive",
+      "label": "Plan the final walk into the fort"
+    },
+    {
+      "id": "explore",
+      "label": "Explore the fort at a comfortable pace"
+    },
+    {
+      "id": "stay",
+      "label": "Understand the experience of staying inside"
+    },
+    {
+      "id": "desert",
+      "label": "Combine the Fort with a desert experience"
+    },
+    {
+      "id": "plan",
+      "label": "Plan a realistic short stay"
+    }
+  ],
+  "sections": [
+    {
+      "id": "overview",
+      "heading": "Jaisalmer Fort is a living part of the city",
+      "body": [
+        "The legacy article describes Jaisalmer Fort as a place where people live and work, not simply a monument that visitors see and leave. Its lanes are part of everyday Jaisalmer, and the feel of a visit changes with the time of day.",
+        "Garh Jaisal Haveli's legacy guest guide focused on practical questions: how to arrive, how to explore the fort, what to combine with a fort visit, and where a desert excursion might fit into a short stay. The specific hotel and service details in this draft need owner review before publication."
+      ]
+    },
+    {
+      "id": "arrive",
+      "heading": "Plan the final walk into the fort",
+      "body": [
+        "The legacy article states that vehicles cannot enter the narrow fort lanes and describes guests continuing on foot from Fort Parking. Confirm the current arrival route, parking arrangements and any luggage assistance with the hotel before travel; do not rely on unconfirmed meet-and-assist services.",
+        "The legacy article quotes approximate walking distances of about 300 metres / 5–6 minutes from Fort Parking and about 200 metres / 3–4 minutes from the fort entrance. These figures are retained as unverified source notes and must be checked before they are shown to guests.",
+        "Confirm current reception, check-in and check-out arrangements with the hotel. The final route, surfaces and steps are useful accessibility information to communicate clearly."
+      ]
+    },
+    {
+      "id": "explore",
+      "heading": "Explore the fort at a comfortable pace",
+      "body": [
+        "The legacy guide recommends starting with orientation: the lanes around the accommodation, architecture, viewpoints and the areas most active during the day. A second walk can provide a different view as light and activity change.",
+        "Travellers who want more context may consider a guided Jaisalmer tour. The new site's available routes and offerings must be verified before this article links to a specific tour page."
+      ]
+    },
+    {
+      "id": "stay",
+      "heading": "Understand the experience of staying inside",
+      "body": [
+        "The defining point of an inside-the-fort stay is location: guests are among the lanes and sandstone buildings rather than returning to accommodation outside the fort after sightseeing.",
+        "Room names, room count, facilities, restaurant availability and current guest arrangements have not been independently reconfirmed in this migration. They must be reviewed by the hotel before this section is expanded or published.",
+        "The legacy article also mentions rooftop dining and planning a special trip as a couple. Add current dining details only after the hotel confirms what is available on the guest's dates."
+      ]
+    },
+    {
+      "id": "desert",
+      "heading": "Combine the Fort with a desert experience",
+      "body": [
+        "The legacy guide presents a fort visit and a desert outing as complementary parts of a Jaisalmer stay: explore the city and heritage lanes, then consider a separately arranged desert experience.",
+        "The legacy repository lists a sunset camel safari, a cultural desert evening, sleeping under the stars and an overnight Swiss tent option. The current operator, route, availability, accommodation, schedule, prices and inclusions must be confirmed before promoting any of these as current offers."
+      ]
+    },
+    {
+      "id": "plan",
+      "heading": "Plan a realistic short stay",
+      "body": [
+        "A draft planning sequence is to allow time to arrive and settle in, explore the fort, add a guided heritage route if it suits your interests, and then choose between a relaxed evening in town or a confirmed desert outing.",
+        "Treat this as a planning framework rather than a fixed itinerary. Leave room for travel, weather and operator confirmation, and check the current route, opening/access rules and arrangements close to departure."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "Rajasthan Tourism Development Corporation — Travel Tips",
+      "url": "https://rtdc.tourism.rajasthan.gov.in/Pages/TravelTips.aspx"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedTours": [
+    "sunset-camel-safari",
+    "half-day-jaisalmer-tour",
+    "full-day-jaisalmer-tour"
+  ],
+  "relatedBlogs": [
+    "how-to-reach-jaisalmer",
+    "jaisalmer-2-day-itinerary"
+  ],
+  "enquiryCta": {
+    "label": "Ask about planning your stay",
+    "mode": "whatsapp"
+  }
+}
