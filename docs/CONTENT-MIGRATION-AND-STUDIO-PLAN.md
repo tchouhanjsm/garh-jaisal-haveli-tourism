@@ -249,7 +249,7 @@ Known legacy Studio limitation: the old runbook states that optional `images` me
 - Applying the pack in dry-run mode yields exactly the manifest file set; hashes and file paths verify.
 - No existing page/assets change unless explicitly listed as approved.
 - Human approval required before publishing content.
-- A successful PR check run on the final SHA plus full local site checks; no unreported check treated as green.
+- Full local validation must pass on the final checked-out SHA; GitHub status runs are informational only because CI is not used. Any check that cannot run in the available local environment is marked not run, never passed.
 
 **Gate 4 — marketing launch**
 - Curated image gallery and service links.
