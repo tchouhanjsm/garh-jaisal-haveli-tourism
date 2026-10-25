@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 echo "== Static website integrity =="
-./scripts/check-site.sh
+bash scripts/check-site.sh
 
 # Keep both regression suites covered when PR branches modify the same
 # check-site.sh dispatcher independently. Do not run a suite twice if the
