@@ -86,3 +86,8 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 - `docs/CONTENT-AND-CONVERSION.md` — message hierarchy, sections and service-page copy
 - `docs/LAUNCH-CHECKLIST.md` — QA, SEO, accessibility, speed and deployment checklist
 - `docs/TESTIMONIAL-COLLECTION.md` — how to add authentic guest proof without inventing quotes
+
+
+## Scheduled engineering workflows (opt-in)
+
+The repository includes a guarded 30-minute development orchestrator, a two-hour read-only strategy audit, and lightweight pull-request checks. The scheduled agent workflows are **disabled by default** and require deliberate GitHub Actions variables and secrets. Read [docs/AUTOMATION-SETUP.md](docs/AUTOMATION-SETUP.md) before enabling them; API usage and runner minutes are separate from a ChatGPT subscription. The development agent can propose changes only through a draft PR; the owner remains responsible for reviewing and merging.
