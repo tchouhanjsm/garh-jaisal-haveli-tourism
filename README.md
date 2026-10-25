@@ -95,7 +95,7 @@ The first architecture and marketing plan is in [Tour and Blog Content Strategy]
 - `content/paths.json` is the planned single source of truth for allowed content types, output routes, image folders, SEO rules and sitemap behavior.
 - `content/site-config.json` records booking/contact endpoints recovered from the legacy repository, marked **unverified** until the owner tests them.
 - `content/schemas/` defines the initial tour, blog and curated-gallery record shapes.
-- `content/tours/` and `content/blogs/` are reserved for Studio-generated records. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
+- `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json` are draft-only migrations demonstrating the new record shapes. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
 
 **This is a foundation, not a complete renderer.** Content files are not yet automatically transformed into public HTML pages or a sitemap. Keep existing root pages and routes unchanged until a tested static renderer and an approved canonical/URL migration are in place. Never publish draft content or unverified tour facts.
 
