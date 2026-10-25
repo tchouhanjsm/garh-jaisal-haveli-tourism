@@ -1,33 +1,34 @@
 ## Purpose
 
-<!-- What user-visible problem or engineering risk does this PR address? -->
+<!-- What user-facing outcome or engineering risk does this PR address? -->
 
 ## Scope
 
-<!-- Summarize the coherent changes. Call out anything deliberately not included. -->
+<!-- Summarize the coherent changes and call out what is deliberately not included. -->
 
 ## Acceptance criteria
 
-- [ ] Acceptance criteria are explicit and met.
+- [ ] Acceptance criteria are explicit.
 - [ ] No unrelated refactoring or generated files are included.
-- [ ] Property facts, prices, availability, amenities and testimonials are verified.
+- [ ] Property facts, prices, availability, amenities, tour details and testimonials are verified or clearly marked as drafts.
 - [ ] No secrets, credentials, guest data or private operational details are included.
+- [ ] Content paths, image paths, internal links and publication status follow the content registry.
 
-## Validation evidence
+## Local validation evidence
 
-- [ ] `bash scripts/check-pr-quality.sh` passes locally, or any unavailable environment is explained.
-- [ ] The **latest PR head SHA** has a successful `Website quality gates / required-checks` result when that workflow is available.
-- [ ] Any failed check was investigated to the first meaningful failing step, fixed on this branch, and rerun.
-- [ ] Browser/mobile/accessibility checks are included when the change affects rendering or interaction.
+- [ ] Exact local commands and outcomes are listed in the PR description.
+- [ ] `bash scripts/check-pr-quality.sh` was run against a complete checkout, or its exact blocker is explained.
+- [ ] Relevant targeted tests and content/schema validations were run.
+- [ ] Browser/mobile/accessibility/performance checks are included when they affect this change, or marked not run.
 - [ ] Unexecuted checks are clearly marked as not run; they are not described as passed.
+- [ ] The final diff was re-fetched and reviewed after the last commit.
 
-## Review and merge readiness
+## Review and release readiness
 
 - [ ] Target branch is `main`.
-- [ ] PR is not a duplicate of existing work.
-- [ ] Latest head is mergeable and has no conflicts.
-- [ ] Required checks are green for the latest head SHA.
-- [ ] Required approvals are present and blocking review comments are resolved.
-- [ ] The final diff and release impact have been reviewed.
+- [ ] PR is not duplicating another open PR.
+- [ ] Latest branch head is mergeable and has no unresolved conflicts.
+- [ ] Owner review and approval are complete.
+- [ ] Production/configuration/launch risks are documented and no deployment is performed by this PR.
 
-**Do not enable auto-merge or merge this PR just because the PR is marked mergeable.** Auto-merge may be considered only after repository rules require the quality check and appropriate approvals. The repository owner retains final merge authority.
+**Do not merge or deploy automatically.** The repository owner retains final review, merge and release authority.
