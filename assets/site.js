@@ -32,7 +32,7 @@
       if (ownerVerified) {
         try {
           const url = new URL(contact.whatsappBaseUrl);
-          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me'
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me' && url.port === ''
               && /^\/\d{8,15}\/?$/.test(url.pathname)
               && !url.username && !url.password && !url.search && !url.hash) {
             whatsappBaseUrl = url.origin + url.pathname.replace(/\/$/, '');

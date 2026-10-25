@@ -228,6 +228,18 @@ async function main() {
   invalid.form.dispatch('submit');
   assert.equal(invalid.window.location.href, 'https://example.test/rooms.html');
 
+  const invalidPort = await boot(makeConfig({
+    verified: true,
+    whatsapp: 'https://wa.me:444/15551234567',
+    phone: '+15551234567',
+    display: '+1 555 123 4567'
+  }));
+  assert.equal(invalidPort.enquiryLink.getAttribute('aria-disabled'), 'true');
+  assert.equal(invalidPort.submit.disabled, true);
+  assert.equal(invalidPort.status.hidden, false);
+  invalidPort.form.dispatch('submit');
+  assert.equal(invalidPort.window.location.href, 'https://example.test/rooms.html');
+
   const fetchFailure = await boot(makeConfig(), true);
   assert.equal(fetchFailure.enquiryLink.getAttribute('aria-disabled'), 'true');
   assert.equal(fetchFailure.submit.disabled, true);
