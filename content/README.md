@@ -15,7 +15,7 @@ This folder is the data contract between the Content Studio and the tourism webs
 
 `draft -> ready_for_review -> approved_for_release -> live`
 
-Only `live` records may be rendered into public page output, surfaced by directory/hub pages, or included in the sitemap. Drafts must never be linked publicly or listed in `sitemap.xml`. Unknown tour timings, prices, availability, routes and inclusions stay unpublished until confirmed. A full static renderer and sitemap generator are not implemented yet.
+Only `live` records may be rendered into public page output, surfaced by directory/hub pages, or included in the sitemap. Drafts, hidden records and `approved_for_release` records must never be linked publicly or listed in `sitemap.xml`. Unknown tour timings, prices, availability, routes and inclusions stay unpublished until confirmed. The deterministic static renderer is `scripts/build-content-pages.js`; use `--write` to generate approved output and `--check` to verify output without changing files.
 
 ## Content pack contract
 
@@ -31,4 +31,4 @@ Blog records support SEO title/description, lede, table of contents, editorial s
 
 `scripts/validate-content.js` checks the path registry, schemas, content files, referenced local assets, draft/live publication rules and sitemap inclusion. `scripts/test-content-contract.js` provides focused contract tests. `scripts/check-pr-quality.sh` is intended as a local runner only; GitHub Actions CI has been removed.
 
-These files are a foundation, not yet a publishing pipeline: Studio export/import, deterministic static HTML rendering, preview routing, directory/archive listing, and sitemap regeneration still need to be completed and tested. The current tour and blog samples are draft-only.
+The deterministic renderer now creates tour/blog detail pages and hub pages only from eligible `live` records, maintains its own marked sitemap block, escapes record text, filters related links to published records, and refuses to overwrite or delete unowned HTML. It requires owner approval of the canonical host and verified contact/booking endpoints; tours also require `factsConfirmed: true`, a valid `lastVerified` date and at least one dated `factSources` entry; articles require a valid `lastReviewed` date. Run `node scripts/test-content-renderer.js` for publication-gate and output-reconciliation regression tests. Studio export/import and local preview routing remain future work. The current tour and blog samples are still draft-only.

@@ -257,10 +257,12 @@ Known legacy Studio limitation: the old runbook states that optional `images` me
 - Sitemap/canonical/robots updated after hosting and domain approval.
 - Staging/phone UAT, backups/rollback, owner launch approval.
 
-## Recommended next bulk phase
+## Renderer implementation and next bulk phase
 
-This PR establishes the content path registry and schemas, adds the local-only content validator and unit tests, reserves the required directories, and includes two **draft-only** source migrations: `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json`. Both remain unpublished because their legacy operational details have not been re-confirmed and there is no public content renderer yet.
+The deterministic renderer is implemented in `scripts/build-content-pages.js`. It generates tour/blog detail pages, hub pages and sitemap URLs only from schema-valid `live` records that pass owner-approval gates. It uses the existing shared site CSS/JavaScript, escapes record content, filters related links to published records, preserves existing root routes, and reconciles only files carrying its generated marker. `scripts/test-content-renderer.js` covers draft exclusion, fact/canonical/contact gates, read-only check mode, deterministic output, sitemap reconciliation, escaping and safe cleanup.
 
-The next bulk phase should implement one deterministic static renderer used by both Studio preview and release generation, plus `tours/index.html`, `blogs/index.html`, individual output pages, internal-link validation, and sitemap generation driven only by approved `live` records. Draft preview must be explicit and local-only; no draft route should be written into public output or the sitemap. After that, run a full tour/blog vertical slice from the Studio pack through local validation and rendered-page checks before migrating the remaining legacy records.
+The current Sunset Camel Safari and Jaisalmer Fort guide records remain drafts. The canonical host is not owner-approved and booking/contact endpoints remain unverified, so the renderer must not create public detail pages or add these routes to the sitemap yet.
 
-Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches once the renderer, asset manifest, owner-approval gates and local validation have been demonstrated.
+The next bulk phase is a verified end-to-end publication vertical slice: owner confirms the canonical host, active contact/booking endpoint, tour operations facts, article sources and image rights; the approved records are updated with dated verification evidence; then run `node scripts/build-content-pages.js --write`, `node scripts/check-pr-quality.sh`, inspect generated HTML and sitemap diffs, and verify all local links. After that, add intentional discovery links from existing root pages and plan Studio pack import/preview integration. Do not publish the current draft records simply to exercise the renderer.
+
+Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches once the first verified vertical slice, output links and local validation have been demonstrated.
