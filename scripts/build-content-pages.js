@@ -77,7 +77,7 @@ function listJsonFiles(root, relativeDirectory) {
 
 function readRecords(root, registry, type) {
   const config = registry.contentTypes && registry.contentTypes[type.key];
-  if (!config || !safeRelativePath(config.recordDirectory) || !safeRelativePath(config.outputDirectory) || config.outputExtension !== '.html') {
+  if (!config || !safeRelativePath(config.recordDirectory) || !safeRelativePath(config.outputDirectory) || !/^[a-z0-9-]+$/.test(config.outputDirectory) || config.outputExtension !== '.html') {
     fail('Unsafe or unsupported registry configuration for ' + type.key);
   }
   const schema = readJson(root, path.posix.join('content/schemas', type.schema));
@@ -123,6 +123,10 @@ function verifiedCta(type, record, siteConfig) {
   if (cta.mode === 'whatsapp') {
     if (contact.status !== 'verified') fail('Publishing is blocked: WhatsApp contact endpoint is not verified for ' + record.slug);
     const url = validateHttpsUrl(contact.whatsappBaseUrl, 'WhatsApp endpoint', ['wa.me', 'api.whatsapp.com']);
+    const validWhatsAppPath = url.hostname.toLowerCase() === 'wa.me'
+      ? /^\/\d{8,15}\/?$/.test(url.pathname)
+      : url.pathname === '/send' && /^\d{8,15}$/.test(url.searchParams.get('phone') || '');
+    if (!validWhatsAppPath) fail('WhatsApp endpoint must include a valid phone number path/query');
     url.searchParams.set('text', 'Namaste Garh Jaisal Haveli, please share the current details for ' + record.title + '. I understand this is an enquiry, not a confirmed booking.');
     return { href: url.toString(), label: cta.label, external: true };
   }
@@ -173,6 +177,7 @@ function validateLiveRecord(item, root, siteConfig) {
     }
   }
   if (type === 'blog' && !isValidDate(record.lastReviewed)) fail('Live article requires a valid lastReviewed date: ' + sourcePath);
+  if (type === 'blog' && record.heroImage && (typeof record.heroAlt !== 'string' || record.heroAlt.trim().length < 5)) fail('Live article heroImage requires meaningful heroAlt text: ' + sourcePath);
   if (record.publishedAt != null && !isValidDate(record.publishedAt)) fail('publishedAt must be a real YYYY-MM-DD date: ' + sourcePath);
   walkAssetPaths(record, root, sourcePath);
   item.cta = verifiedCta(type, record, siteConfig);
@@ -226,9 +231,10 @@ function navLink(href, label, active) {
 }
 
 function renderHeader(type, publishedByType) {
-  const currentHub = type === 'tour' ? 'tours' : 'blogs';
-  const tourHref = publishedByType.tour.length ? (type === 'tour' ? 'index.html' : '../tours/index.html') : null;
-  const blogHref = publishedByType.blog.length ? (type === 'blog' ? 'index.html' : '../blogs/index.html') : null;
+  const tourDirectory = publishedByType.tour[0] ? publishedByType.tour[0].config.outputDirectory : 'tours';
+  const blogDirectory = publishedByType.blog[0] ? publishedByType.blog[0].config.outputDirectory : 'blogs';
+  const tourHref = publishedByType.tour.length ? (type === 'tour' ? 'index.html' : '../' + tourDirectory + '/index.html') : null;
+  const blogHref = publishedByType.blog.length ? (type === 'blog' ? 'index.html' : '../' + blogDirectory + '/index.html') : null;
   return '<a class="skip-link" href="#main">Skip to content</a>' +
     '<div class="announcement"><span class="announcement__dot" aria-hidden="true"></span> A heritage haveli inside the living Jaisalmer Fort <span class="announcement__divider" aria-hidden="true">/</span><a href="' + rootLink('directions.html') + '">Plan your arrival ↗</a></div>' +
     '<header class="site-header" data-header><a class="brand" href="' + rootLink('index.html') + '" aria-label="Garh Jaisal Haveli home"><span class="brand__mark">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a>' +
@@ -236,8 +242,8 @@ function renderHeader(type, publishedByType) {
     '<nav id="primary-navigation" class="primary-nav" aria-label="Primary navigation">' +
     navLink(rootLink('index.html'), 'Stay', false) + navLink(rootLink('rooms.html'), 'Rooms', false) + navLink(rootLink('experiences.html'), 'Experiences', false) +
     navLink(rootLink('dining.html'), 'Dining', false) + navLink(rootLink('about.html'), 'Our story', false) + navLink(rootLink('directions.html'), 'Find us', false) +
-    (tourHref ? navLink(tourHref, 'Tours', type === 'tour' && currentHub === 'tours') : '') +
-    (blogHref ? navLink(blogHref, 'Guides', type === 'blog' && currentHub === 'blogs') : '') +
+    (tourHref ? navLink(tourHref, 'Tours', type === 'tour') : '') +
+    (blogHref ? navLink(blogHref, 'Guides', type === 'blog') : '') +
     '</nav></header>';
 }
 
@@ -260,12 +266,12 @@ function renderShell({ type, title, description, canonical, image, body, publish
   };
   if (isBlog && schema.publishedAt) jsonLd.datePublished = schema.publishedAt;
   if (isBlog && schema.lastReviewed) jsonLd.dateModified = schema.lastReviewed;
-  const head = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#171b19">' +
+  const head = '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#171b19">' +
     '<title>' + escapeHtml(title) + '</title><meta name="description" content="' + escapeHtml(description) + '"><link rel="canonical" href="' + escapeHtml(canonical) + '">' +
     '<meta property="og:type" content="' + (isBlog ? 'article' : 'website') + '"><meta property="og:site_name" content="Garh Jaisal Haveli"><meta property="og:title" content="' + escapeHtml(title) + '"><meta property="og:description" content="' + escapeHtml(description) + '"><meta property="og:url" content="' + escapeHtml(canonical) + '">' + imageTag +
     '<meta name="twitter:card" content="' + (image ? 'summary_large_image' : 'summary') + '"><meta name="twitter:title" content="' + escapeHtml(title) + '"><meta name="twitter:description" content="' + escapeHtml(description) + '">' +
     '<link rel="icon" href="' + rootLink('favicon.svg') + '" type="image/svg+xml"><link rel="stylesheet" href="' + rootLink('assets/site.css') + '"><link rel="stylesheet" href="' + rootLink('assets/css/content-pages.css') + '"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet"><script type="application/ld+json">' + safeJsonForHtml(jsonLd) + '</script></head><body>';
-  return GENERATED_MARKER + '\n' + head + renderHeader(type, publishedByType) + '<main id="main">' + body + '</main>' + renderFooter() + '<script src="' + rootLink('assets/site.js') + '" defer></script></body></html>\n';
+  return '<!doctype html>\n' + GENERATED_MARKER + '\n' + head + renderHeader(type, publishedByType) + '<main id="main">' + body + '</main>' + renderFooter() + '<script src="' + rootLink('assets/site.js') + '" defer></script></body></html>\n';
 }
 
 function renderList(items, emptyText) {
@@ -281,7 +287,7 @@ function renderRelated(record, allPublished) {
   const available = requested.map(item => {
     const found = allPublished.find(entry => entry.type === item.type && entry.record.slug === item.slug);
     if (!found) return null;
-    const href = found.type === 'tour' ? '../tours/' + found.record.slug + '.html' : '../blogs/' + found.record.slug + '.html';
+    const href = '../' + found.config.outputDirectory + '/' + found.record.slug + '.html';
     return '<li><a href="' + escapeHtml(href) + '">' + escapeHtml(found.record.title) + '</a></li>';
   }).filter(Boolean);
   if (!available.length) return '';
@@ -362,7 +368,7 @@ function collectGeneratedFiles(root, outputDirectories) {
       const relative = path.posix.join(relativeDirectory, entry.name);
       const file = resolveInside(root, relative, 'Generated output path');
       const contents = fs.readFileSync(file, 'utf8');
-      if (contents.startsWith(GENERATED_MARKER)) files.push(relative);
+      if (contents.startsWith('<!doctype html>\n' + GENERATED_MARKER)) files.push(relative);
     }
   }
   return files.sort();

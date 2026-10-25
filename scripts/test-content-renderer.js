@@ -119,7 +119,7 @@ try {
   const tourHtml = fs.readFileSync(path.join(root, 'tours/sunset-camel-safari.html'), 'utf8');
   const blogHtml = fs.readFileSync(path.join(root, 'blogs/jaisalmer-fort-guide.html'), 'utf8');
   const sitemap = fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8');
-  assert.ok(tourHtml.startsWith(GENERATED_MARKER));
+  assert.ok(tourHtml.startsWith('<!doctype html>\n' + GENERATED_MARKER), 'doctype must precede the generated marker to preserve standards mode');
   assert.ok(tourHtml.includes('<h1 class="display-title">Sunset Camel Safari in Jaisalmer</h1>'));
   const whatsappHref = tourHtml.match(/href="(https:\/\/wa\.me\/[^"]+)"/);
   assert.ok(whatsappHref, 'approved WhatsApp CTA should be rendered');
