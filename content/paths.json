@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "site": {
+    "engine": "static-html",
+    "template": "semantic-html",
+    "sharedStylesheet": "assets/site.css",
+    "sharedScript": "assets/site.js"
+  },
+  "contentTypes": {
+    "tour": {
+      "recordDirectory": "content/tours",
+      "outputDirectory": "tours",
+      "outputExtension": ".html",
+      "assetDirectory": "assets/images/tours/{slug}",
+      "sitemap": true,
+      "requiresOwnerFactApproval": true,
+      "template": "tour-detail"
+    },
+    "blog": {
+      "recordDirectory": "content/blogs",
+      "outputDirectory": "blogs",
+      "outputExtension": ".html",
+      "assetDirectory": "assets/images/blogs/{slug}",
+      "sitemap": true,
+      "requiresOwnerFactApproval": true,
+      "template": "editorial-article"
+    },
+    "gallery": {
+      "recordDirectory": "content/gallery",
+      "outputDirectory": "gallery",
+      "outputExtension": ".html",
+      "assetDirectory": "assets/images/gallery/{category}",
+      "sitemap": false,
+      "requiresOwnerFactApproval": true,
+      "template": "gallery-index",
+      "categories": ["hotel", "rooms", "desert", "restaurant"]
+    }
+  },
+  "imageRoles": ["hero", "step", "gallery", "detail", "og"],
+  "imageFormats": ["webp", "avif"],
+  "imageLimits": {
+    "hero": {"maxWidth": 1600, "maxBytes": 204800},
+    "supporting": {"maxWidth": 1200, "maxBytes": 81920}
+  },
+  "seo": {
+    "titleMaxCharacters": 60,
+    "descriptionMinCharacters": 110,
+    "descriptionMaxCharacters": 160
+  },
+  "sensitiveOrGeneratedFilesNeverIncludedInContentPacks": [
+    "sitemap.xml",
+    ".htaccess",
+    "site-config.local.json",
+    ".env"
+  ],
+  "urlPolicy": {
+    "keepExistingRootRoutes": true,
+    "newTourRoutePattern": "/tours/{slug}.html",
+    "newBlogRoutePattern": "/blogs/{slug}.html",
+    "canonicalHostnameMustBeOwnerApproved": true
+  }
+}
