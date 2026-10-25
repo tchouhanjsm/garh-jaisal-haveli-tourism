@@ -38,10 +38,12 @@
       document.body.classList.remove('menu-open');
     }));
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && menuToggle.getAttribute('aria-expanded') === 'true') {
         menuToggle.setAttribute('aria-expanded', 'false');
         menuToggle.setAttribute('aria-label', 'Open navigation');
         nav.classList.remove('is-open');
+        document.body.classList.remove('menu-open');
+        menuToggle.focus();
       }
     });
   }
