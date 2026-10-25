@@ -40,7 +40,6 @@ jobs:
           prompt-file: prompts/strategy-auditor.md
           output-file: ${{ runner.temp }}/strategy-review.md
           permission-profile: ":read-only"
-          model: gpt-5-codex
           effort: medium
 
       - name: Validate non-empty report
