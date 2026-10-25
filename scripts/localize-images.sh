@@ -4,51 +4,84 @@ set -euo pipefail
 owner_repo="tchouhanjsm/garh-jaisal-website"
 branch="main"
 image_dir="assets/images"
-mkdir -p "$image_dir"
 images=("rest3.jpg" "courtyard.jpg" "scarlet.jpg" "tent.jpg")
+mkdir -p "$image_dir"
 
+# Keep the committed/local originals intact. Download only assets that are missing.
 for filename in "${images[@]}"; do
-  url="https://raw.githubusercontent.com/${owner_repo}/${branch}/img/${filename}"
   dest="${image_dir}/${filename}"
-  echo "Fetching ${filename} from ${owner_repo}..."
-  curl --fail --location --silent --show-error "$url" --output "$dest"
-  if [[ ! -s "$dest" ]]; then echo "ERROR: downloaded file is empty: $dest" >&2; exit 1; fi
+  if [[ -s "$dest" ]]; then
+    echo "Using existing image: $dest"
+    continue
+  fi
+
+  url="https://raw.githubusercontent.com/${owner_repo}/${branch}/img/${filename}"
+  temporary="${dest}.download.tmp"
+  rm -f "$temporary"
+  echo "Fetching missing ${filename} from ${owner_repo}..."
+  if curl --fail --location --silent --show-error "$url" --output "$temporary" && [[ -s "$temporary" ]]; then
+    mv "$temporary" "$dest"
+  else
+    rm -f "$temporary"
+    echo "ERROR: failed to download a non-empty image: $dest" >&2
+    exit 1
+  fi
 done
 
-# Use Pillow if it is installed, otherwise retain valid source JPGs.
+# Generate and verify every WebP derivative before switching any HTML references.
 if python3 - <<'PY' >/dev/null 2>&1
 from PIL import Image  # noqa: F401
 PY
 then
-python3 - <<'PY'
+  if python3 - "$image_dir" <<'PY'
 from pathlib import Path
+import sys
 from PIL import Image
 
-image_dir = Path('assets/images')
-for jpg in image_dir.glob('*.jpg'):
-    with Image.open(jpg) as image:
-        image.save(jpg.with_suffix('.webp'), 'WEBP', quality=82, method=6)
-print('Created WebP derivatives with Pillow.')
+image_dir = Path(sys.argv[1])
+images = ("rest3.jpg", "courtyard.jpg", "scarlet.jpg", "tent.jpg")
+
+for filename in images:
+    source = image_dir / filename
+    target = source.with_suffix(".webp")
+    temporary = target.with_name(target.name + ".tmp")
+    try:
+        with Image.open(source) as image:
+            image.save(temporary, format="WEBP", quality=82, method=6)
+        with Image.open(temporary) as converted:
+            if converted.format != "WEBP":
+                raise RuntimeError(f"unexpected output format for {temporary}")
+            converted.verify()
+        if temporary.stat().st_size >= source.stat().st_size:
+            raise RuntimeError(f"WebP is not smaller than its JPG source: {filename}")
+        temporary.replace(target)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+print(f"Created and verified {len(images)} WebP derivatives.")
 PY
-  IMAGE_EXT="webp"
+  then
+    IMAGE_EXT="webp"
+  else
+    echo "WARNING: WebP conversion failed; keeping JPG references." >&2
+    IMAGE_EXT="jpg"
+  fi
 else
-  echo "Pillow not found; keeping JPG assets. Install Pillow later to create WebP derivatives."
+  echo "Pillow not found; keeping JPG assets and references."
   IMAGE_EXT="jpg"
 fi
 
-python3 - "$IMAGE_EXT" <<'PY'
-from pathlib import Path
-import sys
+# Never point a page at a derivative that was not successfully produced.
+for filename in "${images[@]}"; do
+  target="${image_dir}/${filename%.jpg}.${IMAGE_EXT}"
+  if [[ ! -s "$target" ]]; then
+    echo "ERROR: selected image target is missing or empty: $target" >&2
+    exit 1
+  fi
+done
 
-ext = sys.argv[1]
-source_prefix = 'https://raw.githubusercontent.com/tchouhanjsm/garh-jaisal-website/main/img/'
-for html in Path('.').glob('*.html'):
-    text = html.read_text(encoding='utf-8')
-    for name in ('rest3.jpg', 'courtyard.jpg', 'scarlet.jpg', 'tent.jpg'):
-        local_name = name.rsplit('.', 1)[0] + '.' + ext
-        text = text.replace(source_prefix + name, 'assets/images/' + local_name)
-    html.write_text(text, encoding='utf-8')
-print(f'Updated pages to use self-hosted .{ext} photos.')
-PY
+# Handles current local JPG references, previous WebP references, and legacy remote URLs.
+python3 scripts/rewrite_image_refs.py --root . --extension "$IMAGE_EXT"
 
-echo "Done. Confirm the photo set and run the mobile/performance checklist before deployment."
+echo "Done. Image localization is repeatable; review the diff and run ./scripts/check-site.sh before deployment."
