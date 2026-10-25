@@ -2,6 +2,10 @@
 
 This repository uses a branch-first, pull-request-based delivery process. The ChatGPT scheduler may help with engineering work and GitHub inspection, but it is not replaced by GitHub Actions. The workflow below is a CI/check gate only; it is not a scheduled coding agent.
 
+## Sequential PR rule
+
+Do not open a new PR while any earlier PR remains open/unmerged. Continue the oldest relevant open PR, fix and validate it, and only begin the next PR after it is merged. Keep the site’s Content Studio integration on the existing PR branch if that is the current active PR. Do not create duplicate feature PRs.
+
 ## Required sequence
 
 1. **Inspect before coding**
@@ -56,7 +60,9 @@ This repository uses a branch-first, pull-request-based delivery process. The Ch
 
 ## Auto-merge policy
 
-**Auto-merge remains disabled unless and until the owner explicitly approves enabling it.** A PR being “mergeable” is not the same as being tested or approved.
+The desired delivery mode is auto-merge for the sole active PR only after all expected checks pass on its exact latest head, it is not a draft, it is mergeable, and all required reviews are satisfied. If repository-level auto-merge is disabled and no supported settings action or plan capability is available, report the owner-side blocker; never claim it is enabled.
+
+**Auto-merge must remain disabled for any PR with missing, pending, cancelled, or failed checks.** A PR being “mergeable” is not the same as being tested or approved.
 
 Before considering auto-merge, the owner must:
 1. Merge the bootstrap quality-check workflow after reviewing it; a workflow added for the first time cannot provide a pull-request check from a workflow that does not yet exist on the base branch.
