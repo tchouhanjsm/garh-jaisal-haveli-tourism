@@ -20,7 +20,8 @@ Do not open a new PR while any earlier PR remains open/unmerged. Continue the ol
    - Do not invent property facts, rates, availability, amenities, testimonials, or tour inclusions.
 
 3. **Run local validation**
-   - Use `bash scripts/check-pr-quality.sh` when the complete repository checkout and its dependencies are available.
+   - For tour/blog record changes, run `node scripts/build-content-pages.js --write` after owner-approved facts/config are recorded; it writes only eligible live pages and updates only its marked sitemap block.
+   - Use `bash scripts/check-pr-quality.sh` when the complete repository checkout and its dependencies are available. It runs renderer `--check`, renderer regression tests, static-site checks and content-contract tests.
    - The consolidated local checker calls `bash scripts/check-site.sh`, available navigation/image tests, Python compilation, shell syntax checks, and the content contract validator/tests.
    - Run HTML/content validations and targeted regression tests directly when the change affects those areas.
    - A command is “passed” only if it was executed and returned success. Missing source files or an incomplete checkout means that check was skipped/blocked, not passed.
@@ -34,7 +35,7 @@ Do not open a new PR while any earlier PR remains open/unmerged. Continue the ol
 
 5. **Open/update the sole active PR**
    - State purpose, scope, acceptance criteria, tested commands, unexecuted checks and known risks.
-   - Keep the PR open for owner review. Do not merge, deploy, force-push, alter production, or bypass repository policy.
+   - Keep the PR open until validation and required review gates pass. The user has authorized the engineering agent to merge only after tests pass on the exact final head, the diff review is clean, the PR is non-draft and mergeable, and all required approvals/policy conditions are satisfied. Prefer auto-merge when enabled; if unavailable, use the normal PR merge action only when every gate passes. Never deploy as a consequence of merging.
    - Never open a second PR while a previous PR remains open/unmerged.
 
 ## Local validation policy
@@ -53,6 +54,6 @@ Do not open a new PR while any earlier PR remains open/unmerged. Continue the ol
 - Booking and contact endpoints recovered from the legacy site are marked unverified. Test them and obtain owner approval before activating new CTAs.
 - The owner retains final PR review, merge and production deployment authority.
 
-## Auto-merge limitation
+## Auto-merge and merge gates
 
-The repository-level auto-merge setting is currently disabled. The connected GitHub tools cannot change that setting. Since CI is intentionally removed, a missing GitHub check must never be described as green. Do not enable per-PR auto-merge or treat it as a substitute for the owner's review. The owner must perform the final merge after reviewing documented local validation evidence.
+The repository-level auto-merge setting is currently disabled, and the connected GitHub integration does not expose a supported repository-settings mutation. Do not claim the setting was enabled. GitHub Actions CI has been removed, so a missing GitHub check is never green. Use the local validation evidence recorded against the exact final PR head. Enable per-PR auto-merge only when all required checks and reviews are satisfied. If auto-merge is unavailable, the authorized engineering agent may use the ordinary PR merge action only after all validation, review, branch-protection and mergeability gates pass. If substantive tests or required approvals are unavailable, leave the PR open and report the blocker.

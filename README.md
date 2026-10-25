@@ -97,7 +97,7 @@ The first architecture and marketing plan is in [Tour and Blog Content Strategy]
 - `content/schemas/` defines the initial tour, blog and curated-gallery record shapes.
 - `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json` are draft-only migrations demonstrating the new record shapes. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
 
-**This is a foundation, not a complete renderer.** Content files are not yet automatically transformed into public HTML pages or a sitemap. Keep existing root pages and routes unchanged until a tested static renderer and an approved canonical/URL migration are in place. Never publish draft content or unverified tour facts.
+**Static renderer implemented:** `node scripts/build-content-pages.js --write` generates tour/blog detail pages, listing hubs and sitemap URLs only for records with `status: "live"` that pass schema validation, tour fact-source/date gates, canonical-host approval and verified enquiry-endpoint gates. `node scripts/build-content-pages.js --check` verifies the generated files are current without modifying them. Draft, hidden and `approved_for_release` records never enter public HTML or the sitemap. Generated pages carry a marker; the renderer only overwrites/removes its own marked pages and refuses to overwrite unowned HTML. The current sample tour/article remain drafts because canonical/contact/booking details are not yet owner-approved.
 
 ## Branch, PR and local validation workflow
 

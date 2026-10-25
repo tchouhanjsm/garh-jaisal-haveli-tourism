@@ -7,6 +7,10 @@ cd "$ROOT"
 echo "== Static website integrity =="
 bash scripts/check-site.sh
 
+echo "== Deterministic static content renderer =="
+node scripts/build-content-pages.js --check
+node scripts/test-content-renderer.js
+
 echo "== Content contract =="
 node scripts/validate-content.js
 node scripts/test-content-contract.js
