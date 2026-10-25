@@ -31,15 +31,15 @@ Open `http://localhost:8000`. A local HTTP server is recommended because browser
 
 ## Images
 
-During the first preview, image elements use the existing website repository's public raw image URLs. To make the new site self-contained (recommended before launch), run:
+The four site photographs are stored in `assets/images/` and the HTML uses local image paths. To prepare the assets for a standalone deployment, run:
 
 ```bash
 ./scripts/localize-images.sh
 ```
 
-This downloads four source photographs from `tchouhanjsm/garh-jaisal-website` into `assets/images/` and rewrites the project pages to use local paths. It keeps original JPGs and, when Pillow is available, also creates WebP derivatives and points the pages at those smaller files. It requires `curl` and `python3`; an internet connection is needed for the download.
+The script preserves non-empty JPGs already in the checkout and downloads only missing originals from the public source repository `tchouhanjsm/garh-jaisal-website`. If Pillow is installed, it creates and verifies WebP derivatives and updates the site's local image references (including Open Graph image metadata) to WebP. If Pillow is unavailable or conversion fails, it keeps the JPG references. It also migrates legacy raw-image URLs if any remain.
 
-The page copy deliberately avoids invented prices, fabricated guest reviews, or an availability promise. Confirm live rates, exact room details, current tour inclusions, opening hours, and testimonial permissions before publishing.
+The operation is safe to repeat: existing originals are not overwritten, and HTML references are changed only when needed. It requires `curl` and `python3`; an internet connection is needed only when one or more source JPGs are missing. Run `./scripts/check-site.sh` after localization to validate the site and the image-reference rewrite regression tests.
 
 ## Create a new GitHub repository
 
