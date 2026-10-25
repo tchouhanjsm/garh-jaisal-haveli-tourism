@@ -23,7 +23,10 @@ def rewrite_html_text(text: str, extension: str) -> str:
         stem = Path(name).stem
         destination = f"assets/images/{stem}.{extension}"
 
-        remote_pattern = re.escape(SOURCE_PREFIX + name) + r"""(?:\?[^"'\s>]*)?"""
+        remote_pattern = (
+            re.escape(SOURCE_PREFIX + name)
+            + r"""(?:\?[^"'\s>]*)?"""
+        )
         text = re.sub(remote_pattern, destination, text)
 
         local_pattern = (
