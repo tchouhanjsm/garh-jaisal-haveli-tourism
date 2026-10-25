@@ -137,6 +137,10 @@ function validateRecordPolicy(type, record, root, registry, siteConfig, findings
   if (type === 'gallery' && path.basename(sourcePath) !== record.category + '.json') {
     findings.push({ path: sourcePath, message: 'gallery manifest filename must match its category' });
   }
+  if (typeof slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    findings.push({ path: sourcePath, message: 'record slug/category must be lowercase kebab-case before deriving paths' });
+    return;
+  }
   if (type === 'tour' && status === 'live') {
     if (record.factsConfirmed !== true) findings.push({ path: sourcePath, message: 'live tour requires factsConfirmed: true' });
     if (!record.lastVerified || !isValidDate(record.lastVerified)) findings.push({ path: sourcePath, message: 'live tour requires a valid lastVerified date' });
@@ -188,9 +192,18 @@ function validateRepository(root = ROOT) {
       findings.push({ path: 'content/paths.json', message: 'missing content type: ' + type });
       continue;
     }
+    let safePaths = true;
     for (const field of ['recordDirectory', 'assetDirectory']) {
-      if (!safeRelativePath(typeConfig[field])) findings.push({ path: 'content/paths.json', message: type + '.' + field + ' is not a safe repository-relative path' });
+      if (!safeRelativePath(typeConfig[field])) {
+        findings.push({ path: 'content/paths.json', message: type + '.' + field + ' is not a safe repository-relative path' });
+        safePaths = false;
+      }
     }
+    if (type !== 'gallery' && (!safeRelativePath(typeConfig.outputDirectory) || !/^\\.[a-z0-9]+$/.test(typeConfig.outputExtension || ''))) {
+      findings.push({ path: 'content/paths.json', message: type + ' output route configuration is unsafe' });
+      safePaths = false;
+    }
+    if (!safePaths) continue;
     if (typeConfig.recordDirectory && !fs.existsSync(path.resolve(root, typeConfig.recordDirectory))) {
       findings.push({ path: typeConfig.recordDirectory, message: 'record directory is missing' });
       continue;
