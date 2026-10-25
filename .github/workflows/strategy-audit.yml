@@ -1,0 +1,94 @@
+name: Scheduled read-only strategy audit
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: scheduled-strategy-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: vars.STRATEGY_AUDIT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      checks: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out current repository revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run read-only repository strategist
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: prompts/strategy-auditor.md
+          output-file: ${{ runner.temp }}/strategy-review.md
+          permission-profile: ":read-only"
+          model: gpt-5-codex
+          effort: medium
+
+      - name: Validate non-empty report
+        run: |
+          test -s "${{ runner.temp }}/strategy-review.md" || {
+            echo "::error::The strategy agent produced no report."
+            exit 1
+          }
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/strategy-review.md
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-report:
+    needs: audit
+    if: ${{ vars.STRATEGY_AUDIT_ENABLED == 'true' && needs.audit.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Download strategy report
+        uses: actions/download-artifact@v4
+        with:
+          name: strategy-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/strategy-report
+
+      - name: Update the strategy reporting issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPORT_FILE: ${{ runner.temp }}/strategy-report/strategy-review.md
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          issue_number="$(gh issue list --repo "$GH_REPO" --state open --json number,title --jq '.[] | select(.title == "Scheduled Strategy Review") | .number' | head -n 1)"
+          {
+            cat "$REPORT_FILE"
+            printf '\n\n---\n'
+            printf 'Latest automated audit run: %s\n' "$RUN_URL"
+            printf '\nThis issue is the latest-report surface. The workflow artifact retains the report for 14 days.\n'
+          } > "$RUNNER_TEMP/issue-body.md"
+          if [[ -n "$issue_number" ]]; then
+            gh issue edit "$issue_number" --repo "$GH_REPO" --body-file "$RUNNER_TEMP/issue-body.md"
+          else
+            gh issue create --repo "$GH_REPO" --title "Scheduled Strategy Review" --body-file "$RUNNER_TEMP/issue-body.md"
+          fi
