@@ -10,7 +10,14 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = sorted(p for p in ROOT.glob('*.html') if p.name != '404.html')
+PAGE_DIRECTORIES = (ROOT, ROOT / 'tours', ROOT / 'blogs')
+PAGES = sorted(
+    page
+    for directory in PAGE_DIRECTORIES
+    if directory.is_dir()
+    for page in directory.glob('*.html')
+    if not (directory == ROOT and page.name == '404.html')
+)
 ERRORS: list[str] = []
 
 
@@ -60,40 +67,45 @@ def error(message: str) -> None:
 
 
 for page in PAGES:
+    page_label = page.relative_to(ROOT).as_posix()
     audit = PageAudit()
     source = page.read_text(encoding='utf-8')
     try:
         audit.feed(source)
     except Exception as exc:  # pragma: no cover - parser error depends on malformed fixture
-        error(f'{page.name}: HTML parse failed: {exc}')
+        error(f'{page_label}: HTML parse failed: {exc}')
         continue
     repeated_ids = [key for key, count in Counter(audit.ids).items() if count > 1]
     if repeated_ids:
-        error(f'{page.name}: duplicate IDs: {", ".join(repeated_ids)}')
+        error(f'{page_label}: duplicate IDs: {", ".join(repeated_ids)}')
     if not audit.title_text.strip():
-        error(f'{page.name}: missing title')
+        error(f'{page_label}: missing title')
     if not audit.meta_description:
-        error(f'{page.name}: missing meta description')
+        error(f'{page_label}: missing meta description')
     if audit.h1_count != 1:
-        error(f'{page.name}: expected one h1, found {audit.h1_count}')
+        error(f'{page_label}: expected one h1, found {audit.h1_count}')
     if audit.image_without_alt:
-        error(f'{page.name}: images missing alt text: {", ".join(audit.image_without_alt)}')
+        error(f'{page_label}: images missing alt text: {", ".join(audit.image_without_alt)}')
 
     known_ids = set(audit.ids)
     for key, ref in audit.refs:
         path_part, _, fragment = ref.partition('#')
         if path_part:
             local_target = (page.parent / path_part.split('?', 1)[0]).resolve()
+            if not local_target.is_relative_to(ROOT):
+                error(f'{page_label}: local {key} escapes repository root: {ref}')
+                continue
             if not local_target.exists():
-                error(f'{page.name}: broken local {key}: {ref}')
+                error(f'{page_label}: broken local {key}: {ref}')
                 continue
             if fragment and local_target.suffix == '.html':
                 target_audit = PageAudit()
                 target_audit.feed(local_target.read_text(encoding='utf-8'))
                 if fragment not in target_audit.ids:
-                    error(f'{page.name}: missing target anchor: {ref}')
+                    target_label = local_target.relative_to(ROOT).as_posix()
+                    error(f'{page_label}: missing target anchor in {target_label}: {ref}')
         elif fragment and fragment not in known_ids:
-            error(f'{page.name}: missing in-page anchor: {ref}')
+            error(f'{page_label}: missing in-page anchor: {ref}')
 
 for required in ('assets/site.css', 'assets/site.js', 'favicon.svg', 'robots.txt', 'sitemap.xml'):
     if not (ROOT / required).is_file():
@@ -123,4 +135,4 @@ if ERRORS:
         print(f' - {item}')
     sys.exit(1)
 
-print(f'PASS: {len(PAGES)} content pages audited; local links, anchors, image alt text, metadata, JSON-LD and sitemap are valid.')
+print(f'PASS: {len(PAGES)} root and generated tour/blog page(s) audited; local links, anchors, image alt text, metadata, JSON-LD and sitemap are valid.')

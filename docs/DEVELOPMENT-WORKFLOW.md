@@ -1,10 +1,10 @@
 # Development and Local Validation Workflow
 
-This repository uses a branch-first, reviewable PR process. The development agent runs validation directly in its available execution environment; GitHub Actions is not used for CI or as the agent scheduler. GitHub status runs may still exist from earlier commits, but they are historical evidence only and are not the source of truth for validation.
+This repository uses a branch-first, reviewable PR process. The local runner remains available for developer validation, and the `Site quality gates` GitHub Actions workflow runs the same consolidated check script on PRs to `main` and pushes to `main` and supported implementation branches. GitHub Actions is CI only, not the development scheduler. Judge checks by the exact current head SHA; old or absent runs are not evidence of a pass.
 
 ## Sequential PR rule
 
-Do not open a new PR while any earlier PR remains open/unmerged. Continue the oldest active PR, resolve its blockers, complete local validation, and leave it open for the owner to review and merge. Only begin the next PR after the previous PR is merged. Do not create duplicate feature PRs.
+Do not open a new PR while any earlier PR remains open/unmerged. Continue the oldest active PR, resolve blockers, complete validation and review gates, and use the authorized GitHub merge pathway only when the exact final head is ready. Start the next bulk phase only after GitHub confirms the previous PR is merged. Do not create duplicate feature PRs.
 
 ## Required sequence
 
@@ -40,8 +40,8 @@ Do not open a new PR while any earlier PR remains open/unmerged. Continue the ol
 
 ## Local validation policy
 
-- GitHub Actions CI has been removed to avoid relying on paid/limited hosted-runner minutes.
-- `scripts/check-pr-quality.sh` is a **local runner only**. It must not require a GitHub API, cloud runner or network connection unless a specific test explicitly documents that requirement.
+- `scripts/check-pr-quality.sh` is the shared quality suite for local runs and GitHub Actions. The workflow uses standard GitHub-hosted runners on this public repository; standard runners are free for public repositories.
+- The suite must not require a GitHub API, cloud service or network connection unless a specific test explicitly documents that requirement.
 - Use a full checkout where possible. The checker must fail loudly for an executed test failure; do not weaken assertions to turn a failure green.
 - If this environment cannot obtain a full repository checkout or required test input, run only tests that are safe and complete, mark the rest “not run,” and report the exact blocker.
 
@@ -52,8 +52,8 @@ Do not open a new PR while any earlier PR remains open/unmerged. Continue the ol
 - Tour prices, timings, duration, routes, transport, guides, availability and inclusions require owner confirmation. Draft status, complete fields or a high content score do not prove factual truth.
 - Preserve all existing public routes while the new static tour/blog renderer and canonical URL policy are developed and tested.
 - Booking and contact endpoints recovered from the legacy site are marked unverified. Test them and obtain owner approval before activating new CTAs.
-- The owner retains final PR review, merge and production deployment authority.
+- Production deployment remains a separate action and is never authorized by a source merge.
 
 ## Auto-merge and merge gates
 
-The repository-level auto-merge setting is currently disabled, and the connected GitHub integration does not expose a supported repository-settings mutation. Do not claim the setting was enabled. GitHub Actions CI has been removed, so a missing GitHub check is never green. Use the local validation evidence recorded against the exact final PR head. Enable per-PR auto-merge only when all required checks and reviews are satisfied. If auto-merge is unavailable, the authorized engineering agent may use the ordinary PR merge action only after all validation, review, branch-protection and mergeability gates pass. If substantive tests or required approvals are unavailable, leave the PR open and report the blocker.
+The repository-level auto-merge setting is currently disabled. The new workflow reports the job `Site quality gates / quality`; the `gjh-tourism` ruleset currently has no required status checks, so the repository owner should add that exact check to the ruleset after the workflow has run successfully. Enable repository auto-merge in settings if desired. If auto-merge remains unavailable, the authorized engineering agent may use the ordinary PR merge action only after the exact-head quality check is green, the full diff review is clean, and all review/ruleset conditions pass. If checks or approvals are missing, leave the PR open and report the blocker.
