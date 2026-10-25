@@ -54,18 +54,28 @@ class RewriteImageReferencesTests(unittest.TestCase):
             root = Path(directory)
             home = root / "index.html"
             rooms = root / "rooms.html"
-            home.write_text('<img src="assets/images/rest3.jpg">', encoding="utf-8")
+            home.write_text(
+                '<img src="assets/images/rest3.jpg">', encoding="utf-8"
+            )
             rooms.write_text(
                 f'<img src="{SOURCE_PREFIX}scarlet.jpg?raw=1">',
                 encoding="utf-8",
             )
 
             first = rewrite_site(root, "webp")
-            first_contents = (home.read_text(encoding="utf-8"), rooms.read_text(encoding="utf-8"))
+            first_contents = (
+                home.read_text(encoding="utf-8"),
+                rooms.read_text(encoding="utf-8"),
+            )
             second = rewrite_site(root, "webp")
-            second_contents = (home.read_text(encoding="utf-8"), rooms.read_text(encoding="utf-8"))
+            second_contents = (
+                home.read_text(encoding="utf-8"),
+                rooms.read_text(encoding="utf-8"),
+            )
 
-            self.assertEqual({path.name for path in first}, {"index.html", "rooms.html"})
+            self.assertEqual(
+                {path.name for path in first}, {"index.html", "rooms.html"}
+            )
             self.assertEqual(second, [])
             self.assertEqual(first_contents, second_contents)
             self.assertIn("assets/images/rest3.webp", first_contents[0])
