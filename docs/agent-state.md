@@ -2,7 +2,7 @@
 
 Last verified repository revision at bootstrap: `f2948070e335b313f193f79c2ba047773f3c85da`
 State updated: 2026-10-25
-Status: Automation bootstrap proposed; scheduled execution remains disabled until owner configuration and PR merge.
+Status: Automation bootstrap files exist on branch `feat/autonomous-orchestrator-bootstrap`; no PR is open yet. Scheduled execution remains disabled until the owner creates/reviews a PR, merges it, and configures the required variables/secrets.
 
 ## Objective and verified stack
 Deliver a premium, accessible, mobile-first heritage-hotel and Rajasthan tourism website that drives honest direct enquiries. Current implementation is static HTML, custom CSS, and vanilla JavaScript for GoDaddy/cPanel. No framework, backend reservation engine, or payment flow is configured.
@@ -16,7 +16,7 @@ The owner previously ran this check locally and reported it passed. This state f
 - Initial static website baseline committed as `f294807`.
 - Local property photographs copied into `assets/images/`; Pillow was unavailable during the owner's local run, so JPG files were retained.
 - Readme and launch checklist warn that rates, room details, tour inclusions, contact details, canonical URLs, testimonials, and deployment readiness require owner verification.
-- Automation architecture/prompt/CI setup is being proposed in a separate PR. Do not assume the workflows are active until that PR is merged and the required variables/secrets are explicitly configured.
+- Automation architecture, prompts, CI, and safety guards are committed on `feat/autonomous-orchestrator-bootstrap`. The connected GitHub tool refused the PR-creation operation; no PR was opened and `main` was not changed. The owner can open a PR from the compare link. Do not assume workflows are active until merged and explicitly enabled.
 
 ## Current operating rules
 - One coherent task per proposal; inspect open PRs and CI before new work.
@@ -40,4 +40,4 @@ The owner previously ran this check locally and reported it passed. This state f
 - No claim of an independent browser visual review has been made.
 
 ## Next action
-Review and merge the automation bootstrap PR only after inspecting the workflow diff and confirming the cost/security model. Then run the static checks on the PR and configure repository variables/secrets only if scheduled agent usage is approved.
+Owner action: open a PR from `feat/autonomous-orchestrator-bootstrap`, review the workflow diff and cost/security model, and inspect the CI result. Configure repository variables/secrets only if scheduled agent usage is approved.
