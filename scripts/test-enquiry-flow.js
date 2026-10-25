@@ -182,6 +182,7 @@ async function main() {
   assert.match(verified.enquiryLink.getAttribute('href'), /^https:\/\/wa\.me\/15551234567\?text=/);
   assert.equal(verified.enquiryLink.getAttribute('target'), '_blank');
   assert.equal(verified.enquiryLink.getAttribute('rel'), 'noopener');
+  assert.equal(new URL(verified.enquiryLink.getAttribute('href')).searchParams.get('text'), 'Namaste, please share room availability.');
   assert.equal(verified.enquiryLink.getAttribute('aria-disabled'), null);
   assert.equal(verified.phoneLink.getAttribute('href'), 'tel:+15551234567');
   assert.equal(verified.phoneLink.textContent, 'Call +1 555 123 4567');
