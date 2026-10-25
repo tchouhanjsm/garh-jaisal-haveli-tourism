@@ -37,4 +37,4 @@ jobs:
           git diff --check "${BASE_SHA}...HEAD"
 
       - name: Run website and regression checks
-        run: ./scripts/check-pr-quality.sh
+        run: bash scripts/check-pr-quality.sh
