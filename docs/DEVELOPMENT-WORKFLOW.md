@@ -18,7 +18,7 @@ This repository uses a branch-first, pull-request-based delivery process. The Ch
    - Make a coherent, reviewable change.
    - Add or update regression tests for the behavior being changed.
    - Use meaningful commit messages.
-   - Run `./scripts/check-pr-quality.sh` before opening or updating the PR when possible.
+   - Run `bash scripts/check-pr-quality.sh` before opening or updating the PR when possible.
 
 4. **Open a PR targeting `main`**
    - State the problem, solution, acceptance criteria, test evidence and known limitations.
