@@ -99,10 +99,8 @@ The first architecture and marketing plan is in [Tour and Blog Content Strategy]
 
 **This is a foundation, not a complete renderer.** Content files are not yet automatically transformed into public HTML pages or a sitemap. Keep existing root pages and routes unchanged until a tested static renderer and an approved canonical/URL migration are in place. Never publish draft content or unverified tour facts.
 
-## Branch, PR and quality-gate workflow
+## Branch, PR and local validation workflow
 
-Use the branch-first process documented in [Development Workflow](docs/DEVELOPMENT-WORKFLOW.md): create a feature branch from current `main`, make focused commits, open a PR, and wait for the required checks on the latest PR head SHA. If a check fails, inspect its actual logs, fix the root cause on the same branch, and rerun checks before asking for merge approval.
+Use the branch-first process in [Development Workflow](docs/DEVELOPMENT-WORKFLOW.md): inspect the open PR, work on its branch, make coherent commits, run available checks locally, inspect the final diff, and leave the PR open for owner review. Do not open a second PR while any earlier PR is open and unmerged.
 
-The non-scheduled `Website quality gates` workflow runs `bash scripts/check-pr-quality.sh` for PRs targeting `main` and after pushes to `main`. It is a test workflow, not the scheduler for development agents. Its intended required check context is `Website quality gates / required-checks`.
-
-Auto-merge remains disabled. Before considering it, the owner must verify the workflow on a subsequent test PR and configure GitHub branch rules to require this check, suitable approvals and resolution of blocking review comments. The first PR that introduces the workflow is a bootstrap exception because that workflow cannot run as a PR check until it exists on the base branch.
+GitHub Actions CI has been removed because hosted runner minutes are limited. `scripts/check-pr-quality.sh` is intended to run locally, not on GitHub. A GitHub commit with no checks reported does not imply that tests passed. Record local commands and honest outcomes in the PR description. The repository owner retains final review, merge and deployment authority.
