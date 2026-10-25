@@ -16,10 +16,14 @@ for filename in "${images[@]}"; do
   fi
 
   url="https://raw.githubusercontent.com/${owner_repo}/${branch}/img/${filename}"
+  temporary="${dest}.download.tmp"
+  rm -f "$temporary"
   echo "Fetching missing ${filename} from ${owner_repo}..."
-  curl --fail --location --silent --show-error "$url" --output "$dest"
-  if [[ ! -s "$dest" ]]; then
-    echo "ERROR: downloaded file is empty: $dest" >&2
+  if curl --fail --location --silent --show-error "$url" --output "$temporary" && [[ -s "$temporary" ]]; then
+    mv "$temporary" "$dest"
+  else
+    rm -f "$temporary"
+    echo "ERROR: failed to download a non-empty image: $dest" >&2
     exit 1
   fi
 done
