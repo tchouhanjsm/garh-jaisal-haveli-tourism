@@ -4,11 +4,12 @@
 
 ## Scope
 
-<!-- Summarize the coherent changes and call out what is deliberately not included. -->
+<!-- Summarize the coherent, end-to-end phase, user-visible outcome and deliberate exclusions. -->
 
 ## Acceptance criteria
 
-- [ ] Acceptance criteria are explicit.
+- [ ] This PR delivers one coherent, substantive product/engineering phase (not a stream of micro-tweaks).
+- [ ] User-visible outcome and measurable acceptance criteria are explicit.
 - [ ] No unrelated refactoring or generated files are included.
 - [ ] Property facts, prices, availability, amenities, tour details and testimonials are verified or clearly marked as drafts.
 - [ ] No secrets, credentials, guest data or private operational details are included.
@@ -28,7 +29,8 @@
 - [ ] Target branch is `main`.
 - [ ] PR is not duplicating another open PR.
 - [ ] Latest branch head is mergeable and has no unresolved conflicts.
-- [ ] Owner review and approval are complete.
+- [ ] Required review/approval and ruleset conditions are satisfied.
+- [ ] Required quality checks are green for the exact latest head SHA, or absent checks and the reason are explicitly documented.
 - [ ] Production/configuration/launch risks are documented and no deployment is performed by this PR.
 
-**Do not merge or deploy automatically.** The repository owner retains final review, merge and release authority.
+**Merge only after the full diff is reviewed and every applicable validation, review and ruleset gate passes.** A merge never authorizes production deployment.
