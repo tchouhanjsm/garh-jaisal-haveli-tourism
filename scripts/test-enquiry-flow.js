@@ -162,6 +162,27 @@ async function boot(config, fetchFails = false) {
 }
 
 async function main() {
+  const root = path.resolve(__dirname, '..');
+  const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'about.html', 'directions.html'];
+  const authoredMessages = new Set();
+  for (const page of publicPages) {
+    const html = fs.readFileSync(path.join(root, page), 'utf8');
+    assert.equal((html.match(/id="contact-status"/g) || []).length, 1, page + ' must have one accessible contact-status fallback');
+    assert.match(html, /data-enquiry-link/, page + ' must mark enquiry links for runtime verification');
+    assert.doesNotMatch(html, /https:\/\/wa\.me\/\d+|href="tel:\+?\d+|info@hotelgarhjaisal\.com|7727047567|2992253836/i, page + ' must not publish unverified contact endpoints');
+    for (const match of html.matchAll(/data-enquiry-message="([^"]*)"/g)) authoredMessages.add(match[1]);
+  }
+  assert.ok(authoredMessages.size > 10, 'section-specific enquiry messages must be preserved');
+
+  const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
+  if (publicConfig.verificationStatus !== 'owner-verified' || !publicConfig.contact || publicConfig.contact.status !== 'verified') {
+    assert.equal(publicConfig.contact.whatsappBaseUrl, '', 'unverified WhatsApp endpoint must remain empty');
+    assert.equal(publicConfig.contact.primaryPhoneE164, '', 'unverified telephone endpoint must remain empty');
+    assert.equal(publicConfig.contact.primaryPhoneDisplay, '', 'unverified telephone label must remain empty');
+  }
+  if (!publicConfig.booking || publicConfig.booking.status !== 'verified') {
+    assert.equal(publicConfig.booking.legacyBookingEngineUrl, '', 'unverified booking gateway must remain empty');
+  }
   const unverified = await boot(makeConfig());
   assert.equal(unverified.enquiryLink.getAttribute('href'), '#contact-status');
   assert.equal(unverified.enquiryLink.getAttribute('aria-disabled'), 'true');
