@@ -51,6 +51,18 @@ for unsafe_url in (
 expect_rejected("https://staging.example.test/", operator="")
 expect_rejected("https://staging.example.test/", report="")
 expect_rejected("https://staging.example.test/", report="preflight.txt")
+assert browser_smoke.resolve_http_credentials(None, None) is None
+assert browser_smoke.resolve_http_credentials("qa-user", "qa-password") == {
+    "username": "qa-user",
+    "password": "qa-password",
+}
+for username, password in (("qa-user", None), (None, "qa-password"), ("", "qa-password"), ("qa-user", "")):
+    try:
+        browser_smoke.resolve_http_credentials(username, password)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Incomplete Basic Auth credentials must be refused")
 
 report = browser_smoke.build_report(
     "staging-read-only",
@@ -67,6 +79,7 @@ assert report["safety"]["externalLinkNavigationPerformed"] is False
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
 assert report["safety"]["guestDataSubmitted"] is False
 assert report["safety"]["contactMessageSent"] is False
+assert "qa-password" not in str(report)
 assert report["manualReleaseChecks"]
 assert all(item["result"] == "NOT RUN" for item in report["manualReleaseChecks"])
 assert report["browser"]["name"] == "Chromium"
