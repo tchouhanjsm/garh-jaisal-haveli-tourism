@@ -249,7 +249,7 @@ Known legacy Studio limitation: the old runbook states that optional `images` me
 - Applying the pack in dry-run mode yields exactly the manifest file set; hashes and file paths verify.
 - No existing page/assets change unless explicitly listed as approved.
 - Human approval required before publishing content.
-- Full local validation must pass on the final checked-out SHA; GitHub status runs are informational only because CI is not used. Any check that cannot run in the available local environment is marked not run, never passed.
+- The full local suite and the GitHub `Site quality gates / quality` check must pass for the exact final head. Any check that cannot run is marked not run, never passed.
 
 **Gate 4 — marketing launch**
 - Curated image gallery and service links.
@@ -263,6 +263,8 @@ The deterministic renderer is implemented in `scripts/build-content-pages.js`. I
 
 The current Sunset Camel Safari and Jaisalmer Fort guide records remain drafts. The canonical host is not owner-approved and booking/contact endpoints remain unverified, so the renderer must not create public detail pages or add these routes to the sitemap yet.
 
-The next bulk phase is a verified end-to-end publication vertical slice: owner confirms the canonical host, active contact/booking endpoint, tour operations facts, article sources and image rights; the approved records are updated with dated verification evidence; then run `node scripts/build-content-pages.js --write`, `node scripts/check-pr-quality.sh`, inspect generated HTML and sitemap diffs, and verify all local links. After that, add intentional discovery links from existing root pages and plan Studio pack import/preview integration. Do not publish the current draft records simply to exercise the renderer.
+The registry-bound pack importer is now `scripts/import-content-pack.js`. It accepts a ZIP or extracted pack directory with `pack.json`, verifies SHA-256/byte counts, validates tour/blog/gallery schemas and asset paths, requires existing hashes for updates, and applies transactionally only after a clean dry run. Imported records must be drafts; it never writes generated HTML or the sitemap. Use `node scripts/test-content-pack-import.js` for regression coverage.
+
+The legacy Content Studio currently exports PHP wrappers and `img/` paths, so those packs are intentionally rejected until a separate adapter maps the legacy schema and media into the static site's registry. Next bulk phase: add that explicit legacy-export adapter and a local draft preview/quality panel; keep all previews loopback-only, token-bound and excluded from public routes. Do not publish current drafts to test the pipeline. The verified publication vertical slice remains gated on owner confirmation of the canonical host, staffed booking/contact endpoint, tour facts, editorial sources and image rights.
 
 Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches once the first verified vertical slice, output links and local validation have been demonstrated.

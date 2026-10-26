@@ -10,6 +10,9 @@ bash scripts/check-site.sh
 echo "== Deterministic static content renderer =="
 node scripts/build-content-pages.js --check
 node scripts/test-content-renderer.js
+echo "== Registry-safe Content Studio pack importer =="
+node --check scripts/import-content-pack.js
+node scripts/test-content-pack-import.js
 echo "== Verified enquiry channel behavior =="
 node scripts/test-enquiry-flow.js
 
