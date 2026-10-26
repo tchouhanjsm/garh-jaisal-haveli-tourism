@@ -61,9 +61,9 @@
         try {
           const url = new URL(contact.whatsappBaseUrl);
           if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me'
-              && url.port === '' && /^\\/\\d{8,15}\\/?$/.test(url.pathname)
+              && url.port === '' && /^\/\d{8,15}\/?$/.test(url.pathname)
               && !url.username && !url.password && !url.search && !url.hash) {
-            whatsappBaseUrl = url.origin + url.pathname.replace(/\\/$/, '');
+            whatsappBaseUrl = url.origin + url.pathname.replace(/\/$/, '');
           }
         } catch (_) {
           // Invalid configuration keeps every WhatsApp action disabled.
@@ -72,17 +72,17 @@
       activeWhatsAppBaseUrl = whatsappBaseUrl;
 
       const phoneE164 = contactAuthorized && typeof contact.primaryPhoneE164 === 'string'
-        && /^\\+[1-9]\\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
+        && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
       const phoneDisplay = contactAuthorized && typeof contact.primaryPhoneDisplay === 'string'
-        && contact.primaryPhoneDisplay.trim() && !/[<>\\r\\n]/.test(contact.primaryPhoneDisplay)
+        && contact.primaryPhoneDisplay.trim() && !/[<>\r\n]/.test(contact.primaryPhoneDisplay)
         ? contact.primaryPhoneDisplay.trim() : '';
       const alternatePhoneE164 = contactAuthorized && typeof contact.alternatePhoneE164 === 'string'
-        && /^\\+[1-9]\\d{7,14}$/.test(contact.alternatePhoneE164) ? contact.alternatePhoneE164 : '';
+        && /^\+[1-9]\d{7,14}$/.test(contact.alternatePhoneE164) ? contact.alternatePhoneE164 : '';
       const alternatePhoneDisplay = contactAuthorized && typeof contact.alternatePhoneDisplay === 'string'
-        && contact.alternatePhoneDisplay.trim() && !/[<>\\r\\n]/.test(contact.alternatePhoneDisplay)
+        && contact.alternatePhoneDisplay.trim() && !/[<>\r\n]/.test(contact.alternatePhoneDisplay)
         ? contact.alternatePhoneDisplay.trim() : '';
       const email = contactAuthorized && typeof contact.email === 'string'
-        && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(contact.email) ? contact.email.trim() : '';
+        && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email) ? contact.email.trim() : '';
 
       let bookingUrl = '';
       if (bookingAuthorized && typeof booking.legacyBookingEngineUrl === 'string') {
