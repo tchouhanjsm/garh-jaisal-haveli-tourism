@@ -140,5 +140,5 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
   python3 scripts/test-browser-smoke.py --base-url "$STAGING_URL" --operator "$STAGING_OPERATOR" --report "$STAGING_REPORT"
   ~~~
 
-- Staging mode refuses HTTP, URL credentials, paths, queries, fragments, IP/local hostnames, and the production hostnames recorded in content/site-config.json. It does not navigate to Book Now/WhatsApp/phone/email destinations, submit forms, send messages or create a reservation/payment.
+- Staging mode refuses HTTP, URL credentials, paths, queries, fragments, IP/local hostnames, and the production hostnames recorded in content/site-config.json. If the staging subdomain uses HTTP Basic Auth, set STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD in the local shell; the credentials are scoped to the staging origin and are never written to the report. It does not navigate to Book Now/WhatsApp/phone/email destinations, submit forms, send messages or create a reservation/payment.
 - The local JSON report records the staging origin, Asia/Kolkata timestamp, operator, Chromium version, viewport sizes, automated result/failures and all 17 human staging checks as NOT RUN. A green browser result does not clear those manual release gates or authorize deployment.
