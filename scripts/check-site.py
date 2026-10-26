@@ -90,7 +90,11 @@ for page in PAGES:
     for key, ref in audit.refs:
         path_part, _, fragment = ref.partition('#')
         if path_part:
-            local_target = (page.parent / path_part.split('?', 1)[0]).resolve()
+            target_path = path_part.split('?', 1)[0]
+            if target_path.startswith('/'):
+                local_target = (ROOT / target_path.lstrip('/')).resolve()
+            else:
+                local_target = (page.parent / target_path).resolve()
             if not local_target.is_relative_to(ROOT):
                 error(f'{page_label}: local {key} escapes repository root: {ref}')
                 continue
