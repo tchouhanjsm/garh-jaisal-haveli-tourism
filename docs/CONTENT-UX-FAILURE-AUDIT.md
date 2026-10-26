@@ -389,3 +389,29 @@ The legacy `img/optimized/v2/courtyard.webp` was retrieved and visually compared
 
 
 Review finding before merge: adding the follow-up-owner column made the staging UAT header eight columns wide while its Markdown separator still had seven. The separator has been corrected on this PR branch; the exact final-head quality run must be checked after this commit.
+
+## Real-browser guest-journey QA gate — 26 October 2026
+
+### Phase intent
+The static checks already covered source provenance, image byte budgets, metadata parity, local link/anchor integrity, carousel logic and launch guards. The remaining automation gap was that most UX assertions were made against source text or a simulated DOM rather than a real browser layout and rendering engine.
+
+### Implementation on `feat/browser-guest-journey-qa-20261026`
+- Added `requirements-test.txt` pinning Playwright and `scripts/test-browser-smoke.py`, which serves the repository locally and runs Chromium against the seven core pages.
+- Wired the browser smoke suite into `scripts/check-pr-quality.sh` and installed its dependency/browser inside the existing Site quality gates job. The workflow remains one job on the standard `ubuntu-latest` runner; no paid runner or new workflow job is added.
+- The browser suite checks unique page titles, main/H1/current-navigation semantics, Open Graph/Twitter image and alt parity, local image decoding, local HTTP errors, responsive overflow at 360/768/1440 CSS pixels, mobile booking-bar bounds, skip-link visibility, Escape/focus restoration, reduced motion, all six carousel next/previous/wraparound states, no autoplay, no-JavaScript fallback, and source-authorized contact-link hydration.
+- Third-party links are inspected only; no booking, payment, guest-data submission, WhatsApp send or email send is performed.
+
+### Validation status
+- Exact feature-head and PR-triggered quality results: to be recorded from the final commit's live GitHub run; a missing or stale run is not a pass.
+- Local `bash scripts/check-pr-quality.sh`: NOT RUN in the connector environment because there is no complete local checkout. Do not describe the GitHub browser run as local execution.
+- Staging browser/device UAT, formal accessibility tooling, Lighthouse/Core Web Vitals and human contact/booking checks: NOT RUN.
+- The 17 operator UAT rows remain `NOT RUN` until real evidence is entered. Canonical-host approval, menu owner confirmation, draft publication and production deployment remain gated.
+
+### Why this is a substantive phase
+It adds real Chromium layout/rendering and interaction checks to the existing quality contract, rather than duplicating the already-merged static assertions. It provides early detection for page overflow, failed local assets, navigation state, actual image decode, responsive CTA layout and browser-level gallery behavior across the guest decision journey.
+
+### Existing release blockers unchanged
+- Owner/operator must test AsiaTech in a standard browser on desktop and mobile without making a real reservation/payment; the 26 October read-only HTTP 403 is not proof that ordinary guest access fails.
+- WhatsApp, primary mobile, alternate landline and email require reachability/response checks.
+- Owner confirmation is still required for room inventory/rates/facilities, tour operations/inclusions, current restaurant menu/prices/hours and arrival/transfer details.
+- Canonical hostname, DNS/SSL, staging UAT, backup/rollback and production deployment remain unapproved. Content Studio/importer integration stays deferred.
