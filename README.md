@@ -99,6 +99,8 @@ The first architecture and marketing plan is in [Tour and Blog Content Strategy]
 
 **Static renderer implemented:** `node scripts/build-content-pages.js --write` generates tour/blog detail pages, listing hubs and sitemap URLs only for records with `status: "live"` that pass schema validation, tour fact-source/date gates, canonical-host approval and verified enquiry-endpoint gates. `node scripts/build-content-pages.js --check` verifies the generated files are current without modifying them. Draft, hidden and `approved_for_release` records never enter public HTML or the sitemap. Generated pages carry a marker; the renderer only overwrites/removes its own marked pages and refuses to overwrite unowned HTML. The current sample tour/article remain drafts because canonical/contact/booking details are not yet owner-approved.
 
+**Static-site content packs:** `node scripts/import-content-pack.js /path/to/pack.zip` validates a registry-bound pack and prints the exact file plan without writing. Add `--apply` only after reviewing the dry-run output. The importer accepts only tour/blog/gallery JSON records and their registered per-record images; imported records must remain drafts. It rejects stale hashes, traversal, symlinks, unapproved paths, malformed archives and unsafe image files. It never writes HTML pages or `sitemap.xml`. See [Content Pack Format](docs/CONTENT-PACK-FORMAT.md).
+
 ## Branch, PR and local validation workflow
 
 Use the branch-first process in [Development Workflow](docs/DEVELOPMENT-WORKFLOW.md): inspect the open PR, work on its branch, make coherent commits, run available checks locally, inspect the final diff, and leave the PR open for owner review. Do not open a second PR while any earlier PR is open and unmerged.
