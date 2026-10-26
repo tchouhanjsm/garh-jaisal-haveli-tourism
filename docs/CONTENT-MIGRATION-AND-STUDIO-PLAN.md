@@ -257,7 +257,7 @@ Known legacy Studio limitation: the old runbook states that optional `images` me
 - Sitemap/canonical/robots updated after hosting and domain approval.
 - Staging/phone UAT, backups/rollback, owner launch approval.
 
-## Renderer implementation and next bulk phase
+## Renderer implementation and current delivery checkpoint
 
 The deterministic renderer is implemented in `scripts/build-content-pages.js`. It generates tour/blog detail pages, hub pages and sitemap URLs only from schema-valid `live` records that pass owner-approval gates. It uses the existing shared site CSS/JavaScript, escapes record content, filters related links to published records, preserves existing root routes, and reconciles only files carrying its generated marker. `scripts/test-content-renderer.js` covers draft exclusion, fact/canonical/contact gates, read-only check mode, deterministic output, sitemap reconciliation, escaping and safe cleanup.
 
@@ -265,6 +265,6 @@ The current Sunset Camel Safari and Jaisalmer Fort guide records remain drafts. 
 
 The registry-bound pack importer is now `scripts/import-content-pack.js`. It accepts a ZIP or extracted pack directory with `pack.json`, verifies SHA-256/byte counts, validates tour/blog/gallery schemas and asset paths, requires existing hashes for updates, and applies transactionally only after a clean dry run. Imported records must be drafts; it never writes generated HTML or the sitemap. Use `node scripts/test-content-pack-import.js` for regression coverage.
 
-The legacy Content Studio currently exports PHP wrappers and `img/` paths, so those packs are intentionally rejected until a separate adapter maps the legacy schema and media into the static site's registry. Next bulk phase: add that explicit legacy-export adapter and a local draft preview/quality panel; keep all previews loopback-only, token-bound and excluded from public routes. Do not publish current drafts to test the pipeline. The verified publication vertical slice remains gated on owner confirmation of the canonical host, staffed booking/contact endpoint, tour facts, editorial sources and image rights.
+The legacy Content Studio still exports PHP wrappers and `img/` paths; its adapter and preview panel are deferred. The current delivery priority is website content and UX recovery: fuller factual page contexts, distinct locally hosted imagery, accessible internal discovery, unique SEO metadata, internal-link/orphan checks, and publication-safe canonical/sitemap behavior. Do not import packs, integrate Studio, or publish current drafts in this phase. The canonical host, booking/contact endpoints, room facts, menu/hours, tour inclusions and additional imagery permissions remain owner-verification gates.
 
-Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches once the first verified vertical slice, output links and local validation have been demonstrated.
+Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches after this website content/UX recovery phase is reviewed and the owner approves the publication prerequisites. Only then reconsider the Studio adapter/preview as a separate roadmap decision.
