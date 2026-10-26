@@ -120,12 +120,17 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
 with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     folder = Path(temp)
     report_path, screenshots, output_path, report = build_fixture(folder)
+    assert review.report_contract_issues(report) == []
     checked, issues = review.inspect_bundle(report, screenshots)
     assert not issues, issues
     incomplete_coverage = json.loads(json.dumps(report))
     incomplete_coverage["pagesAttempted"] = []
     _coverage_images, coverage_issues = review.inspect_bundle(incomplete_coverage, screenshots)
     assert any("attempts for all seven routes" in issue for issue in coverage_issues)
+    coverage_html = review.build_html(
+        incomplete_coverage, screenshots, _coverage_images, coverage_issues
+    )
+    assert 'Automated browser result<strong class="fail">FAIL — INCOMPLETE EVIDENCE</strong>' in coverage_html
     assert len(checked) == 21 and all(item["valid"] for item in checked)
     page = review.build_html(report, screenshots, checked, issues)
     assert page.count('class="card"') == 21
@@ -133,7 +138,75 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     assert 'src="screenshots/index-360px.png"' in page
     assert "staging.example.test" in page
     assert "BLOCKED — manual UAT required" in page
+    assert "PASS — report records no external actions" in page
     assert "<script>alert('xss')</script>" not in page
+
+    def expect_contract_issue(candidate: dict, fragment: str) -> None:
+        contract_issues = review.report_contract_issues(candidate)
+        assert any(fragment in issue for issue in contract_issues), (fragment, contract_issues)
+
+    inconsistent_count = json.loads(json.dumps(report))
+    inconsistent_count["automatedFailureCount"] = 1
+    expect_contract_issue(inconsistent_count, "does not match automatedFailures length")
+
+    contradictory_result = json.loads(json.dumps(report))
+    contradictory_result["automatedFailureCount"] = 1
+    contradictory_result["automatedFailures"] = ["a recorded browser failure"]
+    expect_contract_issue(contradictory_result, "automatedResult must be FAIL")
+
+    false_release = json.loads(json.dumps(report))
+    false_release["releaseStatus"] = "READY"
+    expect_contract_issue(false_release, "releaseStatus must remain BLOCKED_PENDING_MANUAL_UAT")
+
+    unsafe_run = json.loads(json.dumps(report))
+    unsafe_run["safety"]["bookingOrPaymentSubmitted"] = True
+    expect_contract_issue(unsafe_run, "bookingOrPaymentSubmitted must be present and false")
+
+    missing_safety = json.loads(json.dumps(report))
+    del missing_safety["safety"]["contactMessageSent"]
+    expect_contract_issue(missing_safety, "contactMessageSent must be present and false")
+
+    invalid_timestamp = json.loads(json.dumps(report))
+    invalid_timestamp["recordedAtAsiaKolkata"] = "2026-10-26T23:00:00"
+    expect_contract_issue(invalid_timestamp, "valid ISO-8601 Asia/Kolkata timestamp")
+
+    missing_browser = json.loads(json.dumps(report))
+    missing_browser["browser"] = {}
+    expect_contract_issue(missing_browser, "browser name and version metadata")
+
+    wrong_visual_count = json.loads(json.dumps(report))
+    wrong_visual_count["visualEvidence"]["expectedScreenshotCount"] = 20
+    expect_contract_issue(wrong_visual_count, "expectedScreenshotCount must equal 21")
+
+    for coverage_flag in (
+        "pageNavigationComplete",
+        "pageHttp200Complete",
+        "responsiveViewportsComplete",
+        "complete",
+    ):
+        contradictory_coverage = json.loads(json.dumps(report))
+        contradictory_coverage["evidenceCoverage"][coverage_flag] = False
+        expect_contract_issue(
+            contradictory_coverage, f"evidenceCoverage.{coverage_flag} must be true"
+        )
+    missing_coverage_flag = json.loads(json.dumps(report))
+    del missing_coverage_flag["evidenceCoverage"]["responsiveViewportsComplete"]
+    expect_contract_issue(
+        missing_coverage_flag, "evidenceCoverage.responsiveViewportsComplete must be true"
+    )
+
+    missing_visual = json.loads(json.dumps(report))
+    del missing_visual["visualEvidence"]
+    missing_visual_html = review.build_html(
+        missing_visual, screenshots, *review.inspect_bundle(missing_visual, screenshots)
+    )
+    assert "INVALID REPORT" in missing_visual_html
+
+    unsafe_html = review.build_html(
+        unsafe_run, screenshots, *review.inspect_bundle(unsafe_run, screenshots)
+    )
+    assert "INVALID REPORT" in unsafe_html
+    assert "FAIL — safety assertions missing or contradictory" in unsafe_html
     assert "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;" in page
     assert str(folder) not in page
     assert "<script" not in page
@@ -173,6 +246,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     failed_report["automatedFailures"] = [
         "failure at https://qa-user:qa-password@outside.example/path?token=secret#fragment while reading /tmp/private/staging.json"
     ]
+    failed_report["automatedFailureCount"] = len(failed_report["automatedFailures"])
     failed_report_path = folder / "failed-preflight.json"
     failed_report_path.write_text(json.dumps(failed_report), encoding="utf-8")
     for record in failed_report["visualEvidence"]["capturedFiles"]:

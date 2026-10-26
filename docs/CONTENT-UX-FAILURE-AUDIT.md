@@ -547,3 +547,27 @@ The staging runner now captures a reproducible 21-image bundle, but the operator
 - Actual staging browser/device UAT, screenshot review of a live staging origin, formal accessibility tooling, Lighthouse/Core Web Vitals and owner-run booking/contact checks remain NOT RUN.
 - No staging URL was supplied in this run, so no staging host was contacted and no screenshots were represented as real staging evidence.
 - Canonical-host approval, menu publication, draft publication, server-side guest-enquiry storage and production deployment remain blocked. Content Studio/importer integration stays deferred.
+
+
+## 26 October 2026 — Staging evidence report consistency hardening
+
+**Baseline:** main `f2cabb3e89645be787f19e61087711414c58c1ca`, after PR #25's offline visual-review index. The current main quality workflow was observed passing on that exact SHA in run #40372742888.
+
+**Finding:** the offline review renderer verified screenshot bytes, SHA-256 and geometry, but it did not validate all report-level assertions together. A report could carry contradictory `automatedFailureCount` / `automatedFailures` values, a `PASS` label inconsistent with the recorded failures, a release status other than the mandatory manual-UAT block, or missing/true safety assertions. The HTML footer also phrased run-level safety as an unconditional claim instead of distinguishing the renderer's own behavior from the report's assertions.
+
+**Implementation in PR #26:** `scripts/render-staging-visual-review.py` now validates schema/mode, non-empty operator, ISO-8601 Asia/Kolkata timestamp with +05:30 offset, browser metadata, failure-list/count consistency, PASS/FAIL consistency, mandatory `BLOCKED_PENDING_MANUAL_UAT`, explicit false values for external navigation/booking-payment/guest-data/contact-message flags, and the exact 21-image visual evidence contract. Contradictions produce an invalid-report indicator and a non-zero renderer result. The HTML now labels run-level safety assertions explicitly and states only what the renderer itself guarantees.
+
+**Regression coverage:** `scripts/test-staging-visual-review.py` includes valid-report coverage and negative cases for inconsistent counts, contradictory result, premature release status, true or missing safety flags, invalid timestamp, missing browser metadata and incorrect screenshot count. The failed-report fixture now carries a matching failure count.
+
+**Validation evidence for the original implementation revision:** exact-head GitHub quality run #40375220750 passed on `a59bc240ea82227e891e92cd764687c8e5559c84`. The follow-up coverage-summary correction and audit update are validated separately below. Local `bash scripts/check-pr-quality.sh`, real staging UAT, accessibility tooling and Lighthouse were not run in the connector environment.
+
+**Release state:** all 17 manual staging checks remain `NOT RUN`; AsiaTech/contact-channel reachability, current owner facts, menu approval, canonical-host approval and deployment authorization remain unresolved. No production deployment or publication-gate change occurred.
+
+
+### Follow-up finding — evidence summary could contradict coverage failures
+
+The rerun of the original PR #26 head `a59bc240ea82227e891e92cd764687c8e5559c84` passed GitHub quality run #40375220750. A subsequent full-diff review found one remaining fail-closed gap: the renderer checked route/viewport arrays, but did not require every `evidenceCoverage` boolean to be explicitly true, and the summary could still display automated `PASS` while the bundle had other integrity issues.
+
+The follow-up on this same PR now validates all four coverage flags (`pageNavigationComplete`, `pageHttp200Complete`, `responsiveViewportsComplete`, and `complete`). The top-line result becomes `INVALID REPORT` for report-contract violations and `FAIL — INCOMPLETE EVIDENCE` for any remaining bundle/coverage issue; it cannot be styled as a pass while issues exist. Regression cases cover false/missing coverage flags, incomplete route evidence and missing visual-evidence metadata.
+
+The follow-up code/test revision at `4ca778e6d959ff66b9aebacab41e0c43441345c6` passed exact-head quality run #40384239512: https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40384239512. After recording that result, the current revision at `07cd32e577f38ad9cabd6c2d623c907ba9b7855c` also passed exact-head quality run #40384747021: https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40384747021. This audit update creates a new head and therefore requires its own exact-head check before merge. Local full-suite, actual staging UAT, accessibility tooling and Lighthouse remain NOT RUN.
