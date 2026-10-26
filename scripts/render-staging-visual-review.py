@@ -233,6 +233,20 @@ def report_contract_issues(report: dict) -> list[str]:
         if evidence.get("complete") is not True:
             issues.append("visualEvidence.complete must be true.")
 
+    coverage = report.get("evidenceCoverage")
+    coverage_flags = (
+        "pageNavigationComplete",
+        "pageHttp200Complete",
+        "responsiveViewportsComplete",
+        "complete",
+    )
+    if not isinstance(coverage, dict):
+        issues.append("evidenceCoverage must be an object.")
+    else:
+        for flag in coverage_flags:
+            if coverage.get(flag) is not True:
+                issues.append(f"evidenceCoverage.{flag} must be true.")
+
     return issues
 
 
@@ -370,6 +384,8 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     automated = report.get("automatedResult")
     if contract_issues:
         automated = "INVALID REPORT"
+    elif issues:
+        automated = "FAIL — INCOMPLETE EVIDENCE"
     elif automated not in ("PASS", "FAIL"):
         automated = "UNKNOWN"
     safety = report.get("safety")
@@ -387,7 +403,7 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     bundle_ok = not issues and verified == 21
     bundle_text = "PASS — 21 files verified" if bundle_ok else f"FAIL — evidence issues; {verified}/21 screenshots verified"
     bundle_class = "pass" if bundle_ok else "fail"
-    automated_class = "pass" if automated == "PASS" else "fail"
+    automated_class = "pass" if automated == "PASS" and not issues else "fail"
     folder = quote(screenshots.name, safe="-._~")
     generated = html.escape(datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"))
     by_name = {item["filename"]: item for item in results}
