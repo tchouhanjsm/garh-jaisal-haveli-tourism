@@ -204,6 +204,9 @@ def check_keyboard_navigation(page, base_url: str) -> None:
         }"""
     )
     check(focused_skip, "Keyboard Tab must reveal and focus the skip-to-content link")
+    page.keyboard.press("Enter")
+    check(page.evaluate("document.activeElement === document.querySelector('main#main')"),
+          "Activating Skip to content must move keyboard focus to main content")
 
     toggle = page.locator(".menu-toggle")
     check(toggle.is_visible(), "Mobile navigation toggle must be visible at 360px")
