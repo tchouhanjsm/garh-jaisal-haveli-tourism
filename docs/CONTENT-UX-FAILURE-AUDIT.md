@@ -432,7 +432,7 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - Check the deployed robots.txt, empty sitemap URL set and central config so staging remains non-indexable and canonical-host approval remains false.
 - Detect same-origin HTTP/request failures and any HTTP mixed-content requests from HTTPS staging; block cross-origin top-level/frame navigation and disable redirects on robots/sitemap/config fetches.
 - Exercise carousel buttons with keyboard Enter and Space, assert focus remains on the activated control, and verify slide visibility matches aria-hidden.
-- Write a local JSON evidence report with exact staging origin, Asia/Kolkata timestamp, operator, Chromium version, viewport widths, automated result/failures and all 17 manual UAT rows still marked NOT RUN.
+- Write a local JSON evidence report with exact staging origin, Asia/Kolkata timestamp, operator, Chromium version, planned and actually completed page/viewport evidence, blocked cross-origin navigation attempts, automated result/failures and all 17 manual UAT rows still marked NOT RUN.
 - Add deterministic contract tests for unsafe-target refusal and report semantics, then wire them into the existing scripts/check-pr-quality.sh job. No new workflow job, paid runner, production endpoint interaction or Content Studio integration is required.
 
 ### Validation boundary for this branch
