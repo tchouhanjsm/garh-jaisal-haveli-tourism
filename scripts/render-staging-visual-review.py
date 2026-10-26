@@ -103,6 +103,8 @@ def safe_origin(value: object) -> str | None:
 
 
 def redact_urls(value: object) -> str:
+    safe_urls: list[tuple[str, str]] = []
+
     def redact(match: re.Match[str]) -> str:
         raw = match.group(0)
         suffix = ""
@@ -112,19 +114,28 @@ def redact_urls(value: object) -> str:
         try:
             parts = urlsplit(raw)
             if not parts.hostname:
-                return "[URL redacted]" + suffix
-            host = parts.hostname.lower()
-            if ":" in host:
-                host = f"[{host}]"
-            port = parts.port
-            default_port = 80 if parts.scheme.lower() == "http" else 443
-            if port is not None and port != default_port:
-                host += f":{port}"
-            return f"{parts.scheme.lower()}://{host}{parts.path or '/'}" + suffix
+                safe_url = "[URL redacted]"
+            else:
+                host = parts.hostname.lower()
+                if ":" in host:
+                    host = f"[{host}]"
+                port = parts.port
+                default_port = 80 if parts.scheme.lower() == "http" else 443
+                if port is not None and port != default_port:
+                    host += f":{port}"
+                safe_url = f"{parts.scheme.lower()}://{host}{parts.path or '/'}"
         except ValueError:
-            return "[URL redacted]" + suffix
-    return URL_PATTERN.sub(redact, str(value))
+            safe_url = "[URL redacted]"
+        token = f"__SAFE_URL_{len(safe_urls)}__"
+        safe_urls.append((token, safe_url + suffix))
+        return token
 
+    text_value = URL_PATTERN.sub(redact, str(value))
+    text_value = re.sub(r"""(?<![<:/])/(?:[^/\s<>"]+/)*[^/\s<>"]+""", "[local path redacted]", text_value)
+    text_value = re.sub(r"""(?<![A-Za-z0-9])(?:[A-Za-z]:\\(?:[^\\\s<>"]+\\)*[^\\\s<>"]+)""", "[local path redacted]", text_value)
+    for token, safe_url in safe_urls:
+        text_value = text_value.replace(token, safe_url)
+    return text_value
 
 def production_origins() -> set[str]:
     try:
@@ -278,10 +289,10 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     if origin in production_origins():
         origin = None
     origin_text = html.escape(origin or "Origin withheld — invalid or configured production origin")
-    operator = html.escape(str(report.get("operator") or "Not recorded"))
-    recorded = html.escape(str(report.get("recordedAtAsiaKolkata") or "Not recorded"))
+    operator = html.escape(redact_urls(report.get("operator") or "Not recorded"))
+    recorded = html.escape(redact_urls(report.get("recordedAtAsiaKolkata") or "Not recorded"))
     browser = report.get("browser") if isinstance(report.get("browser"), dict) else {}
-    browser_text = html.escape(f"{browser.get('name', 'Unknown')} {browser.get('version', 'Unknown')}")
+    browser_text = html.escape(redact_urls(f"{browser.get('name', 'Unknown')} {browser.get('version', 'Unknown')}"))
     automated = report.get("automatedResult")
     if automated not in ("PASS", "FAIL"):
         automated = "UNKNOWN"
