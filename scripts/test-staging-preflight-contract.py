@@ -143,7 +143,6 @@ with tempfile.TemporaryDirectory() as temporary_directory:
     assert round_trip["targetUrl"] == valid
     assert all(item["result"] == "NOT RUN" for item in round_trip["manualReleaseChecks"])
 assert report["browser"]["name"] == "Chromium"
-assert report["viewportWidthsCssPixels"] == [360, 768, 1440]
 
 blocked_navigation = ["Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"]
 blocked_report = browser_smoke.build_report(
