@@ -19,7 +19,9 @@
       "altText": "Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk",
       "provenance": "Owner-controlled legacy repository; binary retrieved directly from the source repository and visually inspected in this delivery phase.",
       "approvalStatus": "migrated-source-backed-asset",
-      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available."
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available.",
+      "targetBlobSha": "16266a4cfcd1564d9460ea9d9e8e045c70bf7fa0",
+      "verificationPage": "gallery.html"
     },
     {
       "sourcePath": "img/Desert_Camp/camp_from_above.jpeg",
@@ -36,7 +38,9 @@
       "altText": "Desert camp viewed from above at night, with illuminated tent clusters and the central camp area",
       "provenance": "Owner-controlled legacy repository; binary retrieved directly from the source repository and visually inspected in this delivery phase.",
       "approvalStatus": "migrated-source-backed-asset",
-      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available."
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available.",
+      "targetBlobSha": "ba705f85039111541c35f9062748bf6e8225eb67",
+      "verificationPage": "gallery.html"
     },
     {
       "sourcePath": "img/Desert_Camp/camp_evening.jpeg",
@@ -53,7 +57,180 @@
       "altText": "White desert-camp tents illuminated after dark beneath the open night sky",
       "provenance": "Owner-controlled legacy repository; binary retrieved directly from the source repository and visually inspected in this delivery phase.",
       "approvalStatus": "migrated-source-backed-asset",
-      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available."
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available.",
+      "targetBlobSha": "5e233e62c5dc74df5bffa737e3c91f95301b512a",
+      "verificationPage": "gallery.html"
+    },
+    {
+      "sourcePath": "img/v2/purple-room.jpg",
+      "sourceBlobSha": "6f710dd7c0737bb599c3f76b3d18d00b056a95d3",
+      "targetPath": "assets/images/rooms/sweet-purple.jpg",
+      "visualSubject": "Sweet Purple Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 2000,
+        "height": 1333
+      },
+      "bytes": 537837,
+      "mimeType": "image/jpeg",
+      "altText": "Sweet Purple Room with a carved wooden bed, magenta curtains and a second bed",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates.",
+      "targetBlobSha": "6f710dd7c0737bb599c3f76b3d18d00b056a95d3"
+    },
+    {
+      "sourcePath": "img/sun2.jpg",
+      "sourceBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d",
+      "targetPath": "assets/images/rooms/rising-sun.jpg",
+      "visualSubject": "Rising Sun Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 110205,
+      "mimeType": "image/jpeg",
+      "altText": "Rising Sun Room with a carved wooden bed, purple bedspread and blue-curtained window",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates.",
+      "targetBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d"
+    },
+    {
+      "sourcePath": "img/scarlet.jpg",
+      "sourceBlobSha": "daa983b19ab9543dc2c8ce3773e76fbf1eed3af9",
+      "targetPath": "assets/images/scarlet.jpg",
+      "visualSubject": "Scarlet Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 108530,
+      "mimeType": "image/jpeg",
+      "altText": "Scarlet Room with red bedding, a carved wooden bed and a bright window",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates.",
+      "targetBlobSha": "daa983b19ab9543dc2c8ce3773e76fbf1eed3af9"
+    },
+    {
+      "sourcePath": "img/opium-room.jpg",
+      "sourceBlobSha": "58184ddc4144e0355dce38912648d63596d8a458",
+      "targetPath": "assets/images/rooms/opium.jpg",
+      "visualSubject": "Opium Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 91505,
+      "mimeType": "image/jpeg",
+      "altText": "Opium Room with red textiles, a carved dark wooden bed and sandstone walls",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates.",
+      "targetBlobSha": "58184ddc4144e0355dce38912648d63596d8a458"
+    },
+    {
+      "sourcePath": "img/maharaniroom.jpg",
+      "sourceBlobSha": "4e6816bea352515e3aa98a8828c092e10a6b21ee",
+      "targetPath": "assets/images/rooms/red-maharani.jpg",
+      "visualSubject": "Red Maharani Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 143208,
+      "mimeType": "image/jpeg",
+      "altText": "Red Maharani Room with red textiles, a carved bed and a bright window seat",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates.",
+      "targetBlobSha": "4e6816bea352515e3aa98a8828c092e10a6b21ee"
+    },
+    {
+      "sourcePath": "img/v2/green-room.jpg",
+      "sourceBlobSha": "2a16569bcb8b77c5e0ea2b82f200041ca4353294",
+      "targetPath": "assets/images/rooms/green.jpg",
+      "visualSubject": "Green Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 2000,
+        "height": 1333
+      },
+      "bytes": 799571,
+      "mimeType": "image/jpeg",
+      "altText": "Green Room with green bedding, carved wooden furniture and a window seat",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates. A smaller optimized derivative remains a performance improvement opportunity.",
+      "targetBlobSha": "2a16569bcb8b77c5e0ea2b82f200041ca4353294"
+    },
+    {
+      "sourcePath": "img/rr3.jpg",
+      "sourceBlobSha": "439f907a9d92ab728364ff8f54de8a075f381690",
+      "targetPath": "assets/images/rooms/bluesky.jpg",
+      "visualSubject": "BlueSky Room",
+      "intendedRole": "Room gallery — named room image",
+      "verificationPage": "gallery.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 91016,
+      "mimeType": "image/jpeg",
+      "altText": "BlueSky Room with blue bedding and a broad window overlooking the city",
+      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A source-matched photo only; confirm room allocation, current amenities, occupancy, rates and availability for the requested dates.",
+      "targetBlobSha": "439f907a9d92ab728364ff8f54de8a075f381690"
+    },
+    {
+      "sourcePath": "img/rest3.jpg",
+      "sourceBlobSha": "9197511383fb9ad53a78b3bd9819aed6ba6e0753",
+      "targetPath": "assets/images/rest3.jpg",
+      "visualSubject": "Rooftop terrace with city view",
+      "intendedRole": "Homepage hero — rooftop terrace at dusk",
+      "verificationPage": "index.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 75390,
+      "mimeType": "image/jpeg",
+      "altText": "Golden sandstone rooftop terrace overlooking Jaisalmer at dusk",
+      "provenance": "Existing target asset verified byte-identical to the source repository image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A rooftop setting photo only; it does not confirm current dining hours, table availability, menu or special arrangements.",
+      "targetBlobSha": "9197511383fb9ad53a78b3bd9819aed6ba6e0753"
+    },
+    {
+      "sourcePath": "img/rest5.jpg",
+      "sourceBlobSha": "e00320af65321045b27807c3994f5027ddb4bc68",
+      "targetPath": "assets/images/dining/rooftop-candlelit-table.jpg",
+      "visualSubject": "Candlelit rooftop table",
+      "intendedRole": "Dining page — candlelit-table reference",
+      "verificationPage": "dining.html",
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "bytes": 92506,
+      "mimeType": "image/jpeg",
+      "altText": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond",
+      "provenance": "Existing target asset verified byte-identical to the source repository image; source and target Git blob SHAs match.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "A dining-setting photo only; the image does not confirm the candlelit setup, current menu, price or table availability for a guest's date.",
+      "targetBlobSha": "e00320af65321045b27807c3994f5027ddb4bc68"
     }
   ]
 }
