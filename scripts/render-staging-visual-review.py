@@ -147,10 +147,18 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
         issues.append("Target origin is invalid; it is withheld from the HTML.")
     elif origin in production_origins():
         issues.append("Report names a configured production origin, not an accepted staging origin.")
-    if report.get("pagesPlanned") != [page for page, _title in PAGES]:
+    expected_pages = [page for page, _title in PAGES]
+    expected_widths = [width for width, _height, _label in VIEWPORTS]
+    if report.get("pagesPlanned") != expected_pages:
         issues.append("Planned routes do not match the seven expected site pages.")
-    if report.get("plannedViewportWidthsCssPixels") != [width for width, _height, _label in VIEWPORTS]:
+    if report.get("pagesAttempted") != expected_pages:
+        issues.append("The report does not record attempts for all seven routes in the expected order.")
+    if report.get("pagesWithHttp200OnTargetOrigin") != expected_pages:
+        issues.append("The report does not record target-origin HTTP 200 responses for all seven routes.")
+    if report.get("plannedViewportWidthsCssPixels") != expected_widths:
         issues.append("Planned viewport widths do not match 360, 768 and 1440 CSS pixels.")
+    if report.get("completedResponsiveViewportWidthsCssPixels") != expected_widths:
+        issues.append("The report does not record completion of all planned responsive viewport widths.")
     coverage = report.get("evidenceCoverage")
     if not isinstance(coverage, dict) or coverage.get("complete") is not True:
         issues.append("Report does not declare complete route, HTTP and viewport coverage.")
