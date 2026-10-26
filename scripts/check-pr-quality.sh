@@ -11,6 +11,9 @@ node scripts/test-experience-carousel.js
 node scripts/test-media-manifest.js
 node scripts/test-page-media-performance.js
 
+echo "== Staging preflight safety/report contract tests =="
+python3 scripts/test-staging-preflight-contract.py
+
 echo "== Real Chromium browser guest-journey smoke tests =="
 python3 scripts/test-browser-smoke.py
 
