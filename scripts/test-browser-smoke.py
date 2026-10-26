@@ -80,7 +80,7 @@ def safe_url_label(value: str) -> str:
 
 def sanitize_diagnostic_text(value: object) -> str:
     """Remove URL credentials, query strings and fragments from diagnostics."""
-    url_pattern = re.compile(r"https?://[^\\s\\\"'<>]+", re.IGNORECASE)
+    url_pattern = re.compile(r"""https?://[^\s"'<>]+""", re.IGNORECASE)
     return url_pattern.sub(lambda match: safe_url_label(match.group(0)), str(value))
 
 
