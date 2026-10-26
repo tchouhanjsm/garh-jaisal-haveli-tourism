@@ -428,7 +428,7 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 
 ### Phase outcome and acceptance criteria
 - Extend the existing real-browser smoke test with a guarded, read-only HTTPS staging mode that reuses the same seven-page, image, responsive-layout, navigation and carousel checks rather than creating a second browser suite.
-- Refuse the configured production hostnames, HTTP, URL credentials, paths/queries/fragments, IP addresses and local hostnames before any browser request.
+- Refuse the configured production hostnames, HTTP, URL credentials, paths/queries/fragments, IP addresses and local hostnames before any browser request. Support optional HTTP Basic Auth from local environment variables, scoped to the staging origin and excluded from the evidence report.
 - Check the deployed robots.txt, empty sitemap URL set and central config so staging remains non-indexable and canonical-host approval remains false.
 - Detect same-origin HTTP/request failures and any HTTP mixed-content requests from HTTPS staging.
 - Exercise carousel buttons with keyboard Enter and Space, assert focus remains on the activated control, and verify slide visibility matches aria-hidden.
