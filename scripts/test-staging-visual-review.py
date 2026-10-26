@@ -196,12 +196,14 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     ]) == 1
 
     # Invalid schema and mode are rejected before an HTML review is written.
+    invalid_schema_path = folder / "invalid-schema.json"
+    invalid_schema_path.write_text(json.dumps({"schemaVersion": 2, "mode": "staging-read-only"}), encoding="utf-8")
     try:
-        review.load_report(folder / "invalid-schema.json")
-    except ValueError:
-        pass
+        review.load_report(invalid_schema_path)
+    except ValueError as error:
+        assert "schema-version 3" in str(error)
     else:
-        raise AssertionError("A missing or incompatible schema-v3 report must be rejected")
+        raise AssertionError("An incompatible schema-v2 report must be rejected")
 
     # Invalid origin tokens are never echoed into HTML.
     bad_origin_report = dict(failed_report)
