@@ -44,14 +44,14 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 4. Confirm current dining menu, prices, service hours, dietary handling and candlelit setup/availability.
 5. Confirm each tour's current route, timing, vehicle, guide/language availability, inclusions, exclusions, fees and cancellation terms.
 6. Confirm whether the family hospitality start date may be published.
-7. More legacy photographs may be added only after the actual binaries can be transferred into the target repository and visually reviewed. This batch uses only the four existing local assets; no image was hotlinked or guessed from a filename.
+7. Only six selected legacy images were localized after retrieval and visual review; no full-library import was attempted. Any additional image requires the same byte-level retrieval, visual review, local hosting, meaningful alt text and geometry validation.
 8. The Journal/blog archive remains deferred until at least one article passes source review, fact/date checks, local-link validation and the publication/canonical gates.
 
 ## Validation evidence for this checkpoint
 
 - Source-level inspection: completed through connected GitHub file reads; the four existing local image files were retrieved and visually inspected.
 - Local full-suite commands: **not run**. The execution environment cannot resolve GitHub (`git ls-remote https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism.git refs/heads/main` failed with `Could not resolve host: github.com`).
-- GitHub Actions: the initial PR #8 head `10ad476d937c26af4e362fd43503e7bf7a213be5` passed `Site quality gates / quality` in [run #40263823939](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40263823939). The job log confirms the static-site integrity suite, four image-localization regression tests, mobile-navigation tests, the new content/UX gate, renderer checks/tests (zero live tours/articles; drafts excluded), pack-importer regression, enquiry-flow tests, content-contract tests, Python compilation and shell syntax all passed. This evidence applies only to that exact SHA; the audit/format cleanup in this commit advances the head and must be revalidated before merge.
+- GitHub Actions: the initial PR #8 head `10ad476d937c26af4e362fd43503e7bf7a213be5` passed `Site quality gates / quality` in [run #40263823939](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40263823939). Its job log confirmed static-site integrity, image-localization regression tests, mobile-navigation tests, the then-current content/UX gate, renderer checks/tests (zero live tours/articles; drafts excluded), pack-importer regression, enquiry-flow tests, content-contract tests, Python compilation and shell syntax. This evidence applies only to that exact SHA; subsequent curated-image and About-dropdown changes require a fresh exact-head result before merge.
 - Browser/device, Lighthouse, visual regression and production/staging tests: **not run**.
 - No deployment or production changes were made.
 
