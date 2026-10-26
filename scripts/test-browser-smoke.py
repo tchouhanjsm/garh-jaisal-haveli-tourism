@@ -6,12 +6,18 @@ behavior and local asset delivery, not staging, live contacts or booking complet
 """
 from __future__ import annotations
 
+import argparse
+import ipaddress
+import json
+import re
 import socket
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
+from zoneinfo import ZoneInfo
 
 from playwright.sync_api import sync_playwright
 
@@ -29,6 +35,126 @@ VIEWPORTS = [(360, 800), (768, 1024), (1440, 900)]
 FAILURES: list[str] = []
 RUNTIME_ERRORS: list[str] = []
 HTTP_ERRORS: list[str] = []
+FAILED_REQUESTS: list[str] = []
+MIXED_CONTENT_ERRORS: list[str] = []
+
+
+def origin_key(value: str) -> tuple[str, str, int | None] | None:
+    try:
+        parts = urlsplit(value)
+        scheme = parts.scheme.lower()
+        host = (parts.hostname or "").rstrip(".").lower()
+        port = parts.port
+    except ValueError:
+        return None
+    if not scheme or not host:
+        return None
+    if port is None:
+        port = 443 if scheme == "https" else 80 if scheme == "http" else None
+    return scheme, host, port
+
+
+def same_origin(value: str, base_url: str) -> bool:
+    return origin_key(value) == origin_key(base_url)
+
+
+def validate_staging_target(raw_url: str, operator: str, report_path: str) -> str:
+    """Validate a staging-only HTTPS origin before any browser/network request."""
+    if not raw_url or not raw_url.strip():
+        raise ValueError("provide an explicit staging base URL")
+    if not operator or not operator.strip():
+        raise ValueError("an operator name is required for a staging evidence report")
+    if not report_path or not report_path.strip():
+        raise ValueError("a JSON report path is required for a staging run")
+    if Path(report_path).suffix.lower() != ".json":
+        raise ValueError("the evidence report path must end in .json")
+
+    try:
+        parts = urlsplit(raw_url.strip())
+        hostname = (parts.hostname or "").rstrip(".").lower()
+        port = parts.port
+    except ValueError as error:
+        raise ValueError(f"invalid staging URL: {error}") from error
+
+    if parts.scheme.lower() != "https":
+        raise ValueError("staging preflight requires HTTPS; HTTP targets are refused")
+    if not hostname:
+        raise ValueError("staging URL must include a hostname")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("credentials in the staging URL are not allowed")
+    if parts.path not in ("", "/") or parts.query or parts.fragment:
+        raise ValueError("provide only the staging origin; paths, queries and fragments are refused")
+    if hostname == "localhost" or hostname.endswith(".localhost") or hostname.endswith(".local"):
+        raise ValueError("local/private hostnames are not valid staging targets")
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("staging preflight requires a hostname, not an IP address")
+
+    config_path = ROOT / "content" / "site-config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    site = config.get("site", {})
+    production_hosts = set()
+    for key in ("legacyProductionUrl", "newStaticSiteCanonicalHost"):
+        value = site.get(key)
+        if isinstance(value, str) and value.strip():
+            host = urlsplit(value).hostname
+            if host:
+                production_hosts.add(host.rstrip(".").lower())
+    if hostname in production_hosts:
+        raise ValueError("configured production hosts are refused by the staging-only preflight")
+
+    normalized_host = hostname if port in (None, 443) else f"{hostname}:{port}"
+    return f"https://{normalized_host}/"
+
+
+def build_report(mode: str, base_url: str, operator: str | None,
+                 browser_version: str | None, failures: list[str]) -> dict:
+    manual_checks = [
+        ("STG-06", "AsiaTech booking flow in a normal desktop browser"),
+        ("STG-07", "AsiaTech booking flow in a normal mobile browser"),
+        ("STG-08", "WhatsApp business-account reachability and response"),
+        ("STG-09", "Primary phone answered by the intended operator"),
+        ("STG-10", "Alternate landline answered by the intended operator"),
+        ("STG-11", "Email delivery, no bounce and reply capability"),
+        ("STG-12", "Owner confirmation of current room, tour, dining and arrival facts"),
+        ("STG-13", "Backup and rollback procedure reviewed"),
+        ("STG-17", "Human review of social previews on the staging host"),
+    ]
+    return {
+        "schemaVersion": 1,
+        "mode": mode,
+        "targetUrl": base_url,
+        "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
+        "operator": operator.strip() if operator else None,
+        "browser": {"name": "Chromium", "version": browser_version or "not started"},
+        "viewportWidthsCssPixels": [width for width, _ in VIEWPORTS],
+        "pagesChecked": list(PAGES),
+        "automatedResult": "PASS" if not failures else "FAIL",
+        "automatedFailureCount": len(failures),
+        "automatedFailures": list(failures),
+        "manualReleaseChecks": [
+            {"id": check_id, "check": name, "result": "NOT RUN",
+             "note": "Requires a human operator; automated browser smoke does not follow external links or submit data."}
+            for check_id, name in manual_checks
+        ],
+        "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
+        "safety": {
+            "externalLinkNavigationPerformed": False,
+            "bookingOrPaymentSubmitted": False,
+            "guestDataSubmitted": False,
+            "contactMessageSent": False,
+        },
+    }
+
+
+def write_report(report_path: str, report: dict) -> Path:
+    destination = Path(report_path).expanduser().resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    return destination
 
 
 def check(condition: bool, message: str) -> None:
@@ -106,6 +232,8 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
     description = page.locator('meta[name="description"]').get_attribute("content") or ""
     check(bool(title), f"{page_name}: browser DOM has no title")
     check(bool(description.strip()), f"{page_name}: browser DOM has no meta description")
+    check(110 <= len(description.strip()) <= 165,
+          f"{page_name}: browser meta description must be 110–165 characters (found {len(description.strip())})")
     check(title not in titles, f"{page_name}: title duplicates {titles.get(title, '')}")
     if title:
         titles[title] = page_name
@@ -159,6 +287,38 @@ def check_contact_hydration(page, base_url: str) -> None:
     # This test only inspects links; it never navigates to the provider or submits guest data.
 
 
+def check_staging_publication_guards(page, base_url: str) -> None:
+    def fetch_text(path: str) -> str:
+        try:
+            response = page.request.get(base_url + path, timeout=10000)
+        except Exception as error:
+            check(False, f"{path}: same-origin staging request failed: {error}")
+            return ""
+        check(response.status == 200, f"{path}: expected HTTP 200 on the target site (found {response.status})")
+        return response.text() if response.status == 200 else ""
+
+    robots = fetch_text("robots.txt")
+    sitemap = fetch_text("sitemap.xml")
+    config_text = fetch_text("content/site-config.json")
+
+    check(bool(re.search(r"(?im)^\\s*User-agent:\\s*\\*\\s*$", robots)),
+          "robots.txt must explicitly identify all crawlers while staging")
+    check(bool(re.search(r"(?im)^\\s*Disallow:\\s*/\\s*$", robots)),
+          "robots.txt must continue blocking indexing on the pre-launch staging site")
+    check(not re.search(r"(?im)^\\s*Sitemap\\s*:", robots),
+          "robots.txt must not advertise a sitemap before canonical-host approval")
+    check(bool(re.search(r"<urlset\\b", sitemap, re.I)), "sitemap.xml must return a valid URL-set document")
+    check(not re.search(r"<loc>\\s*https?://", sitemap, re.I),
+          "sitemap.xml must not publish public URLs before canonical-host approval")
+    try:
+        config = json.loads(config_text)
+    except json.JSONDecodeError as error:
+        check(False, f"content/site-config.json is not valid JSON on the target site: {error}")
+    else:
+        check(config.get("site", {}).get("canonicalHostApproved") is False,
+              "canonicalHostApproved must remain false until explicit owner approval")
+
+
 def check_responsive_layout(page, base_url: str) -> None:
     for width, height in VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})
@@ -166,6 +326,9 @@ def check_responsive_layout(page, base_url: str) -> None:
             response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
             check(response is not None and response.status == 200,
                   f"{page_name} at {width}px: expected HTTP 200")
+            if response is not None:
+                check(same_origin(response.url, base_url),
+                      f"{page_name} at {width}px: navigation redirected away from the requested site origin")
             page.wait_for_selector("main#main", timeout=5000)
             page.wait_for_timeout(80)
             dimensions = page.evaluate(
@@ -255,11 +418,28 @@ def check_carousels(page, base_url: str, browser) -> None:
         next_button = card.locator("[data-carousel-next]")
         check(previous.get_attribute("type") == "button" and next_button.get_attribute("type") == "button",
               f"{label}: carousel controls must be non-submitting buttons")
+        check(status.get_attribute("aria-live") == "polite" and status.get_attribute("aria-atomic") == "true",
+              f"{label}: slide counter must expose a polite, atomic live status")
+
+        next_button.focus()
+        page.keyboard.press("Enter")
+        check(status.inner_text().strip() == "Photo 2 of 2",
+              f"{label}: Enter on the focused Next button must advance the live counter")
+        check(next_button.evaluate("(el) => document.activeElement === el"),
+              f"{label}: keyboard activation must preserve focus on the Next button")
+        page.keyboard.press("Space")
+        check(status.inner_text().strip() == "Photo 1 of 2",
+              f"{label}: Space on the focused Next button must advance and wrap the live counter")
+        check(next_button.evaluate("(el) => document.activeElement === el"),
+              f"{label}: Space activation must preserve focus on the Next button")
 
         next_button.click()
         check(status.inner_text().strip() == "Photo 2 of 2", f"{label}: Next must advance the live counter")
         check(slides.nth(0).is_hidden() and slides.nth(1).is_visible(),
               f"{label}: Next must switch the visible slide")
+        check(slides.nth(0).get_attribute("aria-hidden") == "true"
+              and slides.nth(1).get_attribute("aria-hidden") == "false",
+              f"{label}: slide visibility and aria-hidden state must stay synchronized")
         second_image = slides.nth(1).locator("img")
         try:
             second_image.scroll_into_view_if_needed(timeout=3000)
@@ -306,26 +486,62 @@ def check_carousels(page, base_url: str, browser) -> None:
         no_js.close()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Read-only Chromium smoke checks for the seven-page guest journey.")
+    parser.add_argument("--base-url", help="HTTPS staging origin; omitted to run against a temporary local server")
+    parser.add_argument("--operator", help="Human operator name recorded in a staging evidence report")
+    parser.add_argument("--report", help="Local JSON evidence-report path (required with --base-url)")
+    args = parser.parse_args(argv)
+    staging_mode = bool(args.base_url)
+
+    if staging_mode:
+        if not args.operator or not args.report:
+            parser.error("--operator and --report are required with --base-url")
+        try:
+            base_url = validate_staging_target(args.base_url, args.operator, args.report)
+        except ValueError as error:
+            print(f"BLOCKED: staging target rejected before any network request: {error}", file=sys.stderr)
+            return 2
+    else:
+        if args.operator or args.report:
+            parser.error("--operator and --report require --base-url")
+        base_url = ""
+
     server = None
     browser = None
+    browser_version = None
     try:
-        server, base_url = start_server()
+        if not staging_mode:
+            server, base_url = start_server()
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
+            browser_version = browser.version
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{page.url}: {error}"))
 
             def record_response(response) -> None:
-                if response.url.startswith(base_url) and response.status >= 400:
+                if same_origin(response.url, base_url) and response.status >= 400:
                     HTTP_ERRORS.append(f"HTTP {response.status}: {response.url}")
 
+            def record_request(request) -> None:
+                if staging_mode and urlsplit(request.url).scheme.lower() == "http":
+                    MIXED_CONTENT_ERRORS.append(f"HTTP resource requested from HTTPS staging: {request.url}")
+
+            def record_request_failed(request) -> None:
+                if same_origin(request.url, base_url):
+                    FAILED_REQUESTS.append(f"{request.url}: {request.failure or 'request failed'}")
+
             page.on("response", record_response)
+            page.on("request", record_request)
+            page.on("requestfailed", record_request_failed)
             titles: dict[str, str] = {}
             for page_name in PAGES:
                 before_errors = len(RUNTIME_ERRORS)
                 response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
                 check(response is not None and response.status == 200, f"{page_name}: expected HTTP 200")
+                if response is not None:
+                    check(same_origin(response.url, base_url),
+                          f"{page_name}: navigation redirected away from the requested site origin")
                 page.wait_for_selector("main#main", timeout=5000)
                 check_page_contract(page, page_name, titles)
                 load_visible_images(page, page_name, base_url)
@@ -334,6 +550,7 @@ def main() -> int:
                       f"{page_name}: browser JavaScript exception(s): {RUNTIME_ERRORS[before_errors:]}")
 
             check_contact_hydration(page, base_url)
+            check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url)
             check_keyboard_navigation(page, base_url)
             check_carousels(page, base_url, browser)
@@ -341,27 +558,15 @@ def main() -> int:
             browser = None
 
         for error in HTTP_ERRORS:
-            FAILURES.append("Local resource request failed: " + error)
+            FAILURES.append("Same-origin HTTP error: " + error)
+        for error in FAILED_REQUESTS:
+            FAILURES.append("Same-origin request failed: " + error)
+        for error in MIXED_CONTENT_ERRORS:
+            FAILURES.append(error)
         for error in RUNTIME_ERRORS:
             FAILURES.append("Browser JavaScript exception: " + error)
-
-        if FAILURES:
-            print(f"FAIL: browser guest-journey smoke suite found {len(FAILURES)} issue(s)")
-            for failure in FAILURES:
-                print(" - " + failure)
-            return 1
-
-        print(
-            "PASS: Chromium browser smoke suite covered seven pages, unique page titles, "
-            "social metadata parity, local image decoding, central contact-link hydration, "
-            "360/768/1440px layout, keyboard/skip-link behavior, reduced motion, six "
-            "manual galleries, wraparound, no-autoplay and no-JavaScript fallback. "
-            "This is local-browser QA, not staging or live-channel verification."
-        )
-        return 0
     except Exception as error:
-        print(f"FAIL: browser smoke suite could not complete: {type(error).__name__}: {error}")
-        return 1
+        FAILURES.append(f"Browser smoke suite could not complete: {type(error).__name__}: {error}")
     finally:
         if browser is not None:
             browser.close()
@@ -372,6 +577,34 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 server.kill()
                 server.wait(timeout=5)
+
+    if staging_mode:
+        report = build_report("staging-read-only", base_url, args.operator, browser_version, FAILURES)
+        try:
+            destination = write_report(args.report, report)
+            print(f"Staging preflight evidence written locally: {destination}")
+        except Exception as error:
+            FAILURES.append(f"Could not write the staging evidence report: {type(error).__name__}: {error}")
+
+    if FAILURES:
+        print(f"FAIL: browser guest-journey smoke suite found {len(FAILURES)} issue(s)")
+        for failure in FAILURES:
+            print(" - " + failure)
+        return 1
+
+    mode_label = "staging" if staging_mode else "local"
+    print(
+        f"PASS: Chromium {mode_label} browser smoke suite covered seven pages, metadata ranges and parity, "
+        "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
+        "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
+        "wraparound, no-autoplay and no-JavaScript fallback. "
+        "No external links were followed and no booking, payment or guest data was submitted."
+    )
+    if staging_mode:
+        print("Release remains BLOCKED until the human checks in the JSON report and launch checklist are completed.")
+    else:
+        print("This local-browser run is not staging UAT or live-channel verification.")
+    return 0
 
 
 if __name__ == "__main__":
