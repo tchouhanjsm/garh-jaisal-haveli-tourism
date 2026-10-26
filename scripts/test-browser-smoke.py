@@ -66,6 +66,17 @@ def same_origin(value: str, base_url: str) -> bool:
     return value_origin is not None and value_origin == base_origin
 
 
+def safe_url_label(value: str) -> str:
+    """Remove query and fragment values before writing a URL into logs or evidence."""
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return "<invalid URL>"
+    if not parts.scheme or not parts.netloc:
+        return value.split("?", 1)[0].split("#", 1)[0]
+    return f"{parts.scheme}://{parts.netloc}{parts.path}"
+
+
 def is_actionable_request_failure(failure: str | None) -> bool:
     # Chromium reports navigation-cancelled lazy image requests as ERR_ABORTED;
     # HTTP 4xx/5xx responses are separately captured by the response listener.
@@ -77,7 +88,7 @@ def install_navigation_guard(context, base_url: str) -> None:
     def guard(route) -> None:
         request = route.request
         if request.is_navigation_request() and not same_origin(request.url, base_url):
-            CROSS_ORIGIN_NAVIGATION_ERRORS.append(f"Blocked cross-origin navigation request: {request.url}")
+            CROSS_ORIGIN_NAVIGATION_ERRORS.append(f"Blocked cross-origin navigation request: {safe_url_label(request.url)}")
             route.abort()
             return
         route.continue_()
@@ -593,19 +604,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             install_navigation_guard(context, base_url)
             page = context.new_page()
-            page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{page.url}: {error}"))
+            page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{safe_url_label(page.url)}: {error}"))
 
             def record_response(response) -> None:
                 if same_origin(response.url, base_url) and response.status >= 400:
-                    HTTP_ERRORS.append(f"HTTP {response.status}: {response.url}")
+                    HTTP_ERRORS.append(f"HTTP {response.status}: {safe_url_label(response.url)}")
 
             def record_request(request) -> None:
                 if staging_mode and urlsplit(request.url).scheme.lower() == "http":
-                    MIXED_CONTENT_ERRORS.append(f"HTTP resource requested from HTTPS staging: {request.url}")
+                    MIXED_CONTENT_ERRORS.append(f"HTTP resource requested from HTTPS staging: {safe_url_label(request.url)}")
 
             def record_request_failed(request) -> None:
                 if same_origin(request.url, base_url) and is_actionable_request_failure(request.failure):
-                    FAILED_REQUESTS.append(f"{request.url}: {request.failure or 'request failed'}")
+                    FAILED_REQUESTS.append(f"{safe_url_label(request.url)}: {request.failure or 'request failed'}")
 
             page.on("response", record_response)
             page.on("request", record_request)

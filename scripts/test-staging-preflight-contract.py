@@ -31,6 +31,8 @@ assert valid == "https://staging.example.test/"
 assert browser_smoke.same_origin("https://staging.example.test/rooms.html", valid)
 assert not browser_smoke.same_origin("https://staging.example.test.evil/rooms.html", valid)
 assert not browser_smoke.same_origin("not-a-url", "also-not-a-url")
+assert browser_smoke.safe_url_label("https://outside.example/path?token=secret#section") == "https://outside.example/path"
+assert browser_smoke.safe_url_label("not-a-url?token=secret") == "not-a-url"
 assert not browser_smoke.is_actionable_request_failure("net::ERR_ABORTED")
 assert browser_smoke.is_actionable_request_failure("net::ERR_CONNECTION_RESET")
 assert browser_smoke.is_actionable_request_failure(None)
@@ -66,10 +68,11 @@ class FakeContext:
 
 fake_context = FakeContext()
 browser_smoke.install_navigation_guard(fake_context, valid)
-external_route = FakeRoute("https://hotelgarhjaisal.com/")
+external_route = FakeRoute("https://hotelgarhjaisal.com/?token=secret#fragment")
 fake_context.handler(external_route)
 assert external_route.aborted and not external_route.continued
-assert "hotelgarhjaisal.com" in browser_smoke.CROSS_ORIGIN_NAVIGATION_ERRORS[-1]
+assert browser_smoke.CROSS_ORIGIN_NAVIGATION_ERRORS[-1] == "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
+assert "secret" not in browser_smoke.CROSS_ORIGIN_NAVIGATION_ERRORS[-1]
 same_origin_route = FakeRoute("https://staging.example.test/rooms.html")
 fake_context.handler(same_origin_route)
 assert same_origin_route.continued and not same_origin_route.aborted
