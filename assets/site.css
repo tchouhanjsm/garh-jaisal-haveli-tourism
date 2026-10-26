@@ -166,3 +166,34 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
   .home-final-actions .text-link{align-self:center}
 }
 @media(prefers-reduced-motion:reduce){.home-plan-path{transition:none}}
+
+
+/* Direct booking and contact handoff: buttons hydrate from content/site-config.json. */
+.room-booking-actions,.restaurant-source-links,.experience-detail-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin-top:20px}
+.room-booking-actions .button{min-width:180px}
+.restaurant-source-panel,.transport-source-panel{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(240px,.8fr);gap:clamp(28px,5vw,68px);align-items:center;padding-top:68px;padding-bottom:68px}
+.restaurant-source-panel__body{padding:clamp(24px,4vw,48px);background:var(--sand)}
+.restaurant-source-panel h2,.transport-source-panel h2{margin:0;font-family:var(--serif);font-size:clamp(34px,4.5vw,52px);font-weight:400;line-height:1.15}
+.restaurant-source-panel .lead{margin:12px 0}
+.restaurant-source-panel__body>p:not(.eyebrow):not(.lead),.transport-source-panel__intro>p:not(.eyebrow){color:var(--muted);font-size:12px;line-height:1.95}
+.restaurant-source-links{gap:12px}
+.restaurant-source-links .button{min-height:45px;padding-inline:15px;font-size:10px}
+.transport-source-panel{grid-template-columns:minmax(0,1fr) minmax(250px,.55fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.transport-source-panel__actions{display:flex;flex-direction:column;align-items:stretch;gap:16px;padding:28px;background:var(--paper);border:1px solid var(--line)}
+.transport-source-panel__actions .button{width:100%}
+.transport-source-panel__actions .text-link{align-self:flex-start}
+.experience-detail-note{padding:clamp(24px,4vw,46px);border-left:3px solid var(--gold-dark);background:var(--sand)}
+.experience-detail-note h2{max-width:760px;margin:0 0 18px;font-family:var(--serif);font-size:clamp(34px,4.5vw,52px);font-weight:400;line-height:1.18}
+.experience-detail-note>p:not(.eyebrow){max-width:980px;color:var(--muted);font-size:13px;line-height:1.95}
+.gallery-grid--source{margin-top:35px}
+@media(max-width:760px){
+  .room-booking-actions{flex-direction:column;align-items:stretch}
+  .room-booking-actions .button{width:100%}
+  .restaurant-source-panel,.transport-source-panel{grid-template-columns:minmax(0,1fr);gap:22px;padding-top:45px;padding-bottom:45px}
+  .restaurant-source-panel__body{padding:22px}
+  .restaurant-source-links{align-items:stretch;flex-direction:column}
+  .restaurant-source-links .button{width:100%}
+  .transport-source-panel__actions{padding:20px}
+  .experience-detail-actions{align-items:flex-start;flex-direction:column}
+  .experience-detail-actions .button{width:100%}
+}

@@ -4,7 +4,7 @@ A mobile-first, conversion-focused website for Garh Jaisal Haveli in Jaisalmer, 
 
 ## Pages
 
-- `index.html` — homepage, date/guest enquiry form, experiences, rooms, rooftop dining, FAQs, primary CTA
+- `index.html` — homepage and guest decision journey, with direct Book Now, room and experience paths, FAQs and primary CTA
 - `rooms.html` — room discovery and direct availability enquiry
 - `experiences.html` — Thar Desert safari/camping and guided city tour service pages
 - `dining.html` — rooftop restaurant and candlelit dinner enquiry pages
@@ -15,7 +15,7 @@ A mobile-first, conversion-focused website for Garh Jaisal Haveli in Jaisalmer, 
 
 - HTML5 and semantic page structure
 - CSS with responsive desktop/tablet/mobile layouts; no CSS framework
-- Vanilla JavaScript for responsive navigation, date validation, WhatsApp enquiry generation and accessible accordions
+- Vanilla JavaScript for responsive navigation, centralized Book Now / WhatsApp / telephone / landline / email links, enquiry-message generation and accessible accordions
 - Google Fonts (Playfair Display + DM Sans) with system fallbacks
 - Local images can be hydrated from the existing public repository `tchouhanjsm/garh-jaisal-website` by running the asset script below
 
@@ -31,7 +31,7 @@ Open `http://localhost:8000`. A local HTTP server is recommended because browser
 
 ## Images
 
-The four site photographs are stored in `assets/images/` and the HTML uses local image paths. To prepare the assets for a standalone deployment, run:
+The site uses locally hosted images in `assets/images/`, mapped to page subject and role. New source-backed gallery assets are tracked in `docs/MEDIA-MIGRATION-MANIFEST.json`. To prepare the assets for a standalone deployment, run:
 
 ```bash
 ./scripts/localize-images.sh
@@ -76,7 +76,7 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 
 ## Conversion and trust guardrails
 
-- The availability form collects dates and guest count, validates the date order and opens WhatsApp; it does not make a reservation or collect payment.
+- “Book Now” opens the external booking-engine URL stored in the source configuration; the static website does not itself create or confirm a reservation. WhatsApp buttons prefill an enquiry message but do not confirm availability or payment.
 - It is explicit that the hotel is inside the fort and vehicles cannot reach the door.
 - No fabricated testimonials or current online rating have been added. Collect approved, attributed review excerpts before adding a testimonial carousel.
 - Calls to action say “enquire”, “check availability” or “ask about options” where the answer depends on current inventory.
@@ -93,7 +93,7 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 The first architecture and marketing plan is in [Tour and Blog Content Strategy](docs/TOUR-BLOG-CONTENT-STRATEGY.md); the migration and Studio integration contract is in [Content Migration and Studio Plan](docs/CONTENT-MIGRATION-AND-STUDIO-PLAN.md).
 
 - `content/paths.json` is the planned single source of truth for allowed content types, output routes, image folders, SEO rules and sitemap behavior.
-- `content/site-config.json` keeps unverified booking/contact endpoint values empty. Public CTAs remain inactive until the owner verifies the channel and explicitly marks the configuration as owner-verified.
+- `content/site-config.json` centralizes the external booking-engine URL, WhatsApp, primary phone, alternate landline, email and restaurant source links. They were migrated from the designated legacy repository under the owner's explicit instruction and are marked `owner-authorized-source` / `source-authorized`; they have not been independently smoke-tested. The JavaScript validates endpoint formats and fails closed if configuration cannot load. Canonical-host approval remains separate and false.
 - `content/schemas/` defines the initial tour, blog and curated-gallery record shapes.
 - `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json` are draft-only migrations demonstrating the new record shapes. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
 
