@@ -6,6 +6,7 @@ cd "$ROOT"
 
 echo "== Static website integrity =="
 bash scripts/check-site.sh
+node scripts/test-content-ux.js
 
 echo "== Deterministic static content renderer =="
 node scripts/build-content-pages.js --check
