@@ -440,6 +440,7 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - Local bash scripts/check-pr-quality.sh, browser/device UAT, formal accessibility tools, Lighthouse/Core Web Vitals and actual staging-host checks remain NOT RUN in the connector environment because no complete local checkout is available.
 - The staging CLI is not being run against any live host during CI. Contract tests use an example-only hostname and verify target rejection/report semantics without network requests.
 - The JSON report's automated PASS can never mark a human STG row complete or clear booking/contact/owner/domain/backup blockers.
+- Exact-head run #40338578985 on head bd8fd885a6b3c702f4a27e847ddc63dfb246a7d7 failed in scripts/test-staging-preflight-contract.py:146 because one assertion still expected the removed viewportWidthsCssPixels field after the report schema was tightened to distinguish planned from completed viewports. The underlying site/browser checks before that contract test passed; the suite stopped at the stale assertion. The assertion was removed in commit 0c4ea558bc73a8df468819fa397b6774b93a6e24. The cancelled/pending/stale runs for earlier heads are not evidence for the final head; fresh exact-head runs are required.
 
 ### Existing release blockers unchanged
 - Owner/operator must test AsiaTech in a normal desktop and mobile browser without completing a reservation/payment; the read-only automated HTTP 403 is not proof of guest-facing failure.
