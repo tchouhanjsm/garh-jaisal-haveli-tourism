@@ -34,6 +34,12 @@ assert not browser_smoke.same_origin("not-a-url", "also-not-a-url")
 assert browser_smoke.safe_url_label("https://outside.example/path?token=secret#section") == "https://outside.example/path"
 assert browser_smoke.safe_url_label("https://qa-user:qa-password@outside.example/path?token=secret#section") == "https://outside.example/path"
 assert browser_smoke.safe_url_label("not-a-url?token=secret") == "not-a-url"
+
+diagnostic = browser_smoke.sanitize_diagnostic_text(
+    "Request failed for https://qa-user:qa-password@outside.example/path?token=secret#fragment"
+)
+assert diagnostic == "Request failed for https://outside.example/path"
+
 assert not browser_smoke.is_actionable_request_failure("net::ERR_ABORTED")
 assert browser_smoke.is_actionable_request_failure("net::ERR_CONNECTION_RESET")
 assert browser_smoke.is_actionable_request_failure(None)
@@ -151,18 +157,18 @@ with tempfile.TemporaryDirectory() as temporary_directory:
     assert all(item["result"] == "NOT RUN" for item in round_trip["manualReleaseChecks"])
 assert report["browser"]["name"] == "Chromium"
 
-blocked_navigation = ["Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"]
+blocked_navigation = ["Blocked cross-origin navigation request: https://qa-user:qa-password@hotelgarhjaisal.com/?token=secret#fragment"]
 blocked_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version", [],
     blocked_navigation_attempts=blocked_navigation,
 )
-assert blocked_report["crossOriginNavigationAttemptsBlocked"] == blocked_navigation
+assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [\n    "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"\n]\nassert "qa-password" not in str(blocked_report) and "secret" not in str(blocked_report)
 
 failed_report = browser_smoke.build_report(
-    "staging-read-only", valid, "QA operator", "Chromium test version", ["example failure"]
+    "staging-read-only", valid, "QA operator", "Chromium test version",\n    ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"]
 )
 assert failed_report["automatedResult"] == "FAIL"
-assert failed_report["automatedFailureCount"] == 1
+assert failed_report["automatedFailureCount"] == 1\nassert failed_report["automatedFailures"] == [\n    "request failed at https://outside.example/path"\n]\nassert "qa-password" not in str(failed_report) and "secret" not in str(failed_report)
 
 print(
     "PASS: staging preflight refuses HTTP, credentials, path/query/fragment, local/IP and configured "
