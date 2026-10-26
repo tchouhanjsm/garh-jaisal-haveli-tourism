@@ -96,11 +96,11 @@ Baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8
 - Each concept has a distinct image, source-context caption, plain-language explanation and three confirmation prompts covering duration/timing, transport/access and inclusions/exclusions.
 - Reuses reviewed local images for the sunset camel, open-sky sleeping and Fort-temple references. Retrieved and visually reviewed three additional legacy source images before localizing them:
   - img/Desert_Camp/Prog.jpeg → assets/images/experiences/cultural-programme.jpg (1280×1600; musicians and seated guests at a night-time camp performance).
-  - img/Desert_Camp/Tent.jpeg → assets/images/experiences/swiss-tent-interior.jpg (1600×1280; bed and patterned wall panels inside a tent).
+  - img/v2/swiss-tent.webp → assets/images/experiences/swiss-tent-exterior.webp (1800×1200; white Swiss-style tents in evening light; 180,750 bytes, about 45% smaller than the earlier interior JPEG, with no EXIF/XMP chunks detected).
   - img/j2.jpg → assets/images/experiences/heritage-architecture.jpg (1366×768; ornate sandstone pavilion). Its caption explicitly says it is a heritage reference, not a promised stop. EXIF/XMP APP1 metadata segments were removed before committing the local copy; pixel dimensions were preserved.
 - Uses explicit image geometry, meaningful alt text, lazy loading and async decoding for all six option images. The layout collapses from three columns to two and then one.
 - Adds regression checks for exactly six named options, expected local image mappings, unique image paths, confirmation prompts, lazy loading and disabled enquiry actions.
-- Connector-side source preflight (not the full suite): six option cards, six distinct image paths, 53-character title, 141-character meta description and 1,076 main-content words. The three new image byte streams were checked for geometry matching 1280×1600, 1600×1280 and 1366×768 respectively.
+- Connector-side source preflight (not the full suite): six option cards, six distinct image paths, 53-character title, 141-character meta description and 1,076 main-content words. The three new image byte streams were checked for geometry matching 1280×1600, 1800×1200 and 1366×768 respectively.
 - Keeps booking/contact endpoints empty, canonical/OG URL and sitemap publication withheld, robots blocked from indexing, and all current content drafts unpublished.
 
 ### Open blockers and validation truth

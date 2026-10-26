@@ -78,6 +78,13 @@ function imageDimensions(buffer) {
         format: 'webp',
       };
     }
+    if (chunk === 'VP8 ' && buffer.length >= 30 && buffer.toString('hex', 23, 26) === '9d012a') {
+      return {
+        width: buffer.readUInt16LE(26) & 0x3fff,
+        height: buffer.readUInt16LE(28) & 0x3fff,
+        format: 'webp',
+      };
+    }
   }
   if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
   const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
@@ -222,7 +229,7 @@ for (const rule of PAGE_RULES) {
       { id: 'sunset-camel', title: 'Sunset camel safari', image: 'assets/images/legacy/camel-sunset.jpg' },
       { id: 'cultural-evening', title: 'Cultural desert evening', image: 'assets/images/experiences/cultural-programme.jpg' },
       { id: 'open-sky', title: 'Sleep under the stars', image: 'assets/images/tent.jpg' },
-      { id: 'swiss-tent', title: 'Swiss tent overnight', image: 'assets/images/experiences/swiss-tent-interior.jpg' },
+      { id: 'swiss-tent', title: 'Swiss tent overnight', image: 'assets/images/experiences/swiss-tent-exterior.webp' },
       { id: 'half-day-city', title: 'Half-day guided Jaisalmer tour', image: 'assets/images/legacy/fort-temple-spires.jpg' },
       { id: 'full-day-city', title: 'Full-day guided Jaisalmer tour', image: 'assets/images/experiences/heritage-architecture.jpg' },
     ];
