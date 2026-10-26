@@ -461,7 +461,7 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 <div class="metric">Evidence integrity<strong class="{bundle_class}">{html.escape(bundle_text)}</strong></div>
 <div class="metric">Target origin<strong>{origin_text}</strong></div><div class="metric">Operator<strong>{operator}</strong></div>
 <div class="metric">Recorded at (Asia/Kolkata)<strong>{recorded}</strong></div><div class="metric">Browser<strong>{browser_text}</strong></div>
-<div class="metric">Run safety assertions<strong class="{"{safety_class}"}">{html.escape(safety_text)}</strong></div>
+<div class="metric">Run safety assertions<strong class="{safety_class}">{html.escape(safety_text)}</strong></div>
 <div class="metric">Human release status<strong class="fail">BLOCKED — manual UAT required</strong></div></div>
 <div class="notice"><strong>Release guard:</strong> A verified screenshot bundle is not staging UAT or launch approval. Human booking/contact checks, owner fact confirmation, canonical/DNS/SSL approval, backup/rollback and deployment authorization remain separate.</div>
 <p>Review index generated at {generated}. Image links use relative filenames only; no local filesystem path is embedded in this HTML.</p></header>
