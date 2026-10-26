@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-26",
+  "sourceRepository": "https://github.com/tchouhanjsm/garh-jaisal-website",
+  "sourceBranch": "main",
+  "entries": [
+    {
+      "sourcePath": "img/optimized/v2/fort-from-roof.webp",
+      "sourceBlobSha": "16266a4cfcd1564d9460ea9d9e8e045c70bf7fa0",
+      "targetPath": "assets/images/gallery/hotel/fort-from-roof.webp",
+      "visualSubject": "Fort-side rooftop view",
+      "intendedRole": "Gallery: fort/rooftop orientation",
+      "dimensions": {
+        "width": 2000,
+        "height": 1333
+      },
+      "bytes": 388404,
+      "mimeType": "image/webp",
+      "altText": "Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk",
+      "provenance": "Owner-controlled legacy repository; binary retrieved directly from the source repository and visually inspected in this delivery phase.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available."
+    },
+    {
+      "sourcePath": "img/Desert_Camp/camp_from_above.jpeg",
+      "sourceBlobSha": "ba705f85039111541c35f9062748bf6e8225eb67",
+      "targetPath": "assets/images/gallery/desert/camp-from-above.jpeg",
+      "visualSubject": "Desert camp from above",
+      "intendedRole": "Gallery: desert camp layout",
+      "dimensions": {
+        "height": 720,
+        "width": 1280
+      },
+      "bytes": 57747,
+      "mimeType": "image/jpeg",
+      "altText": "Desert camp viewed from above at night, with illuminated tent clusters and the central camp area",
+      "provenance": "Owner-controlled legacy repository; binary retrieved directly from the source repository and visually inspected in this delivery phase.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available."
+    },
+    {
+      "sourcePath": "img/Desert_Camp/camp_evening.jpeg",
+      "sourceBlobSha": "5e233e62c5dc74df5bffa737e3c91f95301b512a",
+      "targetPath": "assets/images/gallery/desert/camp-evening.jpeg",
+      "visualSubject": "Desert camp at night",
+      "intendedRole": "Gallery: desert camp evening",
+      "dimensions": {
+        "height": 854,
+        "width": 1280
+      },
+      "bytes": 103594,
+      "mimeType": "image/jpeg",
+      "altText": "White desert-camp tents illuminated after dark beneath the open night sky",
+      "provenance": "Owner-controlled legacy repository; binary retrieved directly from the source repository and visually inspected in this delivery phase.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available."
+    }
+  ]
+}
