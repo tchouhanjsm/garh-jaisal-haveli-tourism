@@ -190,7 +190,7 @@ def read_png_dimensions(path: Path) -> tuple[int, int]:
     """Read PNG geometry from its IHDR without requiring an image-processing package."""
     with path.open("rb") as image_file:
         header = image_file.read(24)
-    if (len(header) < 24 or header[:8] != b"\\x89PNG\\r\\n\\x1a\\n"
+    if (len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n"
             or header[12:16] != b"IHDR"):
         raise ValueError("screenshot is not a valid PNG header")
     width = int.from_bytes(header[16:20], "big")
@@ -266,17 +266,18 @@ def build_report(mode: str, base_url: str, operator: str | None,
     expected_screenshots = expected_screenshot_names()
     screenshot_records = list(screenshot_evidence or [])
     captured_names = [str(record.get("filename", "")) for record in screenshot_records]
-    expected_widths = {
-        f"{Path(page_name).stem}-{width}px.png": width
-        for width, _ in VIEWPORTS
+    expected_viewports = {
+        f"{Path(page_name).stem}-{width}px.png": (width, height)
+        for width, height in VIEWPORTS
         for page_name in PAGES
     }
     screenshot_metadata_complete = (
         len(screenshot_records) == len(expected_screenshots)
         and all(
-            record.get("filename") in expected_widths
-            and record.get("viewportWidthCssPixels") == expected_widths.get(record.get("filename"))
-            and record.get("imageWidthPixels") == expected_widths.get(record.get("filename"))
+            record.get("filename") in expected_viewports
+            and record.get("viewportWidthCssPixels") == expected_viewports.get(record.get("filename"), (None, None))[0]
+            and record.get("viewportHeightCssPixels") == expected_viewports.get(record.get("filename"), (None, None))[1]
+            and record.get("imageWidthPixels") == expected_viewports.get(record.get("filename"), (None, None))[0]
             and isinstance(record.get("imageHeightPixels"), int)
             and record.get("imageHeightPixels", 0) > 0
             and isinstance(record.get("bytes"), int)
@@ -300,7 +301,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
     page_attempts_complete = attempted_pages == planned_pages
     page_http_complete = http_ok_pages == planned_pages
     viewport_complete = completed_viewport_list == planned_viewports
-    evidence_complete = page_attempts_complete and page_http_complete and viewport_complete
+    evidence_complete = page_attempts_complete and page_http_complete and viewport_complete and screenshot_complete
 
     return {
         "schemaVersion": 3,
