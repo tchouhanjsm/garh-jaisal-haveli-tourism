@@ -432,7 +432,7 @@ for (const rule of PAGE_RULES) {
       if (carouselImages.length !== 2 || new Set(carouselImages).size !== 2) {
         fail('experiences.html: ' + option.title + ' must use two distinct local photos');
       }
-      if (carouselImages.some((image) => /^(?:https?:)?\\/\\//i.test(image))) {
+      if (carouselImages.some((image) => image.startsWith('http:') || image.startsWith('https:') || image.startsWith('//'))) {
         fail('experiences.html: carousel photos must be locally hosted for ' + option.title);
       }
       if (!/loading="lazy"/.test(card) || !/decoding="async"/.test(card)) {
@@ -537,7 +537,7 @@ for (const rule of PAGE_RULES) {
         || !html.includes('<meta property="og:image:alt" content="Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk">')) {
       fail('about.html: hero and social preview must use the same authentic fort photograph and descriptive alt text');
     }
-    const finalCta = html.match(/<section class="final-cta"[\\s\\S]*?<\\/section>/i);
+    const finalCta = html.match(/<section class="final-cta"[\s\S]*?<\/section>/i);
     if (!finalCta || html.indexOf('aria-labelledby="about-next-title"') > html.indexOf('class="final-cta"')) {
       fail('about.html: practical planning links must precede the final conversion CTA');
     }
