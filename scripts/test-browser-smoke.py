@@ -193,22 +193,64 @@ def build_report(mode: str, base_url: str, operator: str | None,
         ("STG-16", "Human reduced-motion, carousel and layout-stability review"),
         ("STG-17", "Human review of social previews on the staging host"),
     ]
+    planned_pages = list(PAGES)
+    attempted_pages = list(pages_attempted or [])
+    http_ok_pages = list(pages_http_ok or [])
+    planned_viewports = [width for width, _ in VIEWPORTS]
+    completed_viewport_list = list(completed_viewports or [])
+
+    evidence_failures: list[str] = []
+    if attempted_pages != planned_pages:
+        missing = [name for name in planned_pages if name not in attempted_pages]
+        unexpected = [name for name in attempted_pages if name not in planned_pages]
+        evidence_failures.append(
+            "Incomplete browser evidence: page navigation coverage does not match the seven planned routes "
+            f"(attempted {len(attempted_pages)}/{len(planned_pages)}; missing={missing}; unexpected={unexpected})."
+        )
+    if http_ok_pages != planned_pages:
+        missing_ok = [name for name in planned_pages if name not in http_ok_pages]
+        evidence_failures.append(
+            "Incomplete browser evidence: HTTP 200 on the target origin was not recorded for every planned route "
+            f"(successful {len(http_ok_pages)}/{len(planned_pages)}; missing={missing_ok})."
+        )
+    if completed_viewport_list != planned_viewports:
+        evidence_failures.append(
+            "Incomplete responsive evidence: completed viewport widths "
+            f"{completed_viewport_list} do not match planned widths {planned_viewports}."
+        )
+
+    reported_failures = [
+        sanitize_diagnostic_text(item) for item in [*failures, *evidence_failures]
+    ]
+    page_attempts_complete = attempted_pages == planned_pages
+    page_http_complete = http_ok_pages == planned_pages
+    viewport_complete = completed_viewport_list == planned_viewports
+    evidence_complete = page_attempts_complete and page_http_complete and viewport_complete
+
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
         "operator": operator.strip() if operator else None,
         "browser": {"name": "Chromium", "version": browser_version or "not started"},
-        "pagesPlanned": list(PAGES),
-        "pagesAttempted": list(pages_attempted or []),
-        "pagesWithHttp200OnTargetOrigin": list(pages_http_ok or []),
-        "plannedViewportWidthsCssPixels": [width for width, _ in VIEWPORTS],
-        "completedResponsiveViewportWidthsCssPixels": list(completed_viewports or []),
-        "automatedResult": "PASS" if not failures else "FAIL",
-        "automatedFailureCount": len(failures),
-        "automatedFailures": [sanitize_diagnostic_text(item) for item in failures],
-        "crossOriginNavigationAttemptsBlocked": [sanitize_diagnostic_text(item) for item in (blocked_navigation_attempts or [])],
+        "pagesPlanned": planned_pages,
+        "pagesAttempted": attempted_pages,
+        "pagesWithHttp200OnTargetOrigin": http_ok_pages,
+        "plannedViewportWidthsCssPixels": planned_viewports,
+        "completedResponsiveViewportWidthsCssPixels": completed_viewport_list,
+        "evidenceCoverage": {
+            "pageNavigationComplete": page_attempts_complete,
+            "pageHttp200Complete": page_http_complete,
+            "responsiveViewportsComplete": viewport_complete,
+            "complete": evidence_complete,
+        },
+        "automatedResult": "PASS" if not reported_failures else "FAIL",
+        "automatedFailureCount": len(reported_failures),
+        "automatedFailures": reported_failures,
+        "crossOriginNavigationAttemptsBlocked": [
+            sanitize_diagnostic_text(item) for item in (blocked_navigation_attempts or [])
+        ],
         "manualReleaseChecks": [
             {"id": check_id, "check": name, "result": "NOT RUN",
              "note": "Requires a human operator; automated browser smoke does not follow external links or submit data."}
@@ -687,6 +729,9 @@ def main(argv: list[str] | None = None) -> int:
             "staging-read-only", base_url, args.operator, browser_version, FAILURES,
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
         )
+        # The console result and JSON report must agree. Missing route/viewport
+        # evidence is a failure even when no individual assertion raised.
+        FAILURES[:] = list(report["automatedFailures"])
         try:
             destination = write_report(args.report, report)
             print(f"Staging preflight evidence written locally: {destination}")

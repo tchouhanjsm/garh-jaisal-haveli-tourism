@@ -466,3 +466,21 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - The contract and source changes are present on `feat/operator-staging-preflight-20261026`; a fresh exact-head `Site quality gates / quality` run is required after these edits.
 - Local `bash scripts/check-pr-quality.sh` remains NOT RUN because the connector environment has no complete checkout.
 - No staging host was contacted, no external booking/contact endpoint was opened, and no production change was made.
+
+## Staging evidence completeness must fail closed — 26 October 2026
+
+### Finding
+- Live main at phase start: `83019e2c84d9ddc5647d4a46350e63c4dc6002ce`; PR #22 was merged and no implementation PR was open.
+- Review of `scripts/test-browser-smoke.py` found that `build_report()` derived `automatedResult` only from the supplied failure list. Its contract test passed an empty page list, empty HTTP-200 list and no completed viewport widths while asserting `automatedResult: PASS`.
+- This was an evidence-integrity defect: an incomplete staging run could be represented as green if no assertion failure had been accumulated, even though none of the seven routes or responsive viewports had been evidenced. A green report must require recorded coverage, not just an empty error list.
+
+### Fix in `fix/staging-evidence-completeness-20261026`
+- Bump the local report schema to version 2 and add explicit `evidenceCoverage` booleans for page navigation, HTTP 200 responses on the target origin, responsive viewport completion and overall completeness.
+- Treat any mismatch from the exact seven planned routes, their target-origin HTTP-200 results, or the planned 360/768/1440 CSS-pixel viewport sequence as a report failure.
+- Make the console result use the same sanitized failure set as the JSON report so the two outputs cannot disagree about incomplete evidence.
+- Extend the staging contract tests to cover empty evidence, partial route/viewport coverage and fully complete evidence. Even complete automated evidence keeps the release status blocked pending human UAT; STG-01 through STG-17 remain `NOT RUN`.
+
+### Validation boundary
+- The first exact-head `Site quality gates / quality` run #40356760697 passed on implementation head `1c4e8a1ba5b3140aa7ef0e27f34a63a4c94ed227` (the staging contract tests and Chromium smoke suite both completed successfully). This audit update creates a new head, so that earlier result is now historical evidence only; a fresh run on the resulting exact final head is required before merge.
+- Local `bash scripts/check-pr-quality.sh` is NOT RUN because this connector environment has no complete local checkout.
+- No staging host, booking provider, contact endpoint or production service was contacted. No deployment, canonical approval or publication-policy change was made.

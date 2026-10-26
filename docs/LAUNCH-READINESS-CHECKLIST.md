@@ -155,3 +155,9 @@ STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credenti
 The JSON evidence report records the exact origin, Asia/Kolkata timestamp, operator, Chromium version, viewport widths and automated failures. Query and fragment values are stripped from request URLs before they are written to the report. It always leaves STG-01 through STG-17 as NOT RUN, because those rows require human browser/device, contact-channel, owner-fact, backup/rollback and social-preview evidence. The script never navigates to the AsiaTech provider, opens WhatsApp, dials a number, sends email, submits guest data, creates a reservation or makes a payment. The provider's previously observed automated HTTP 403 still requires normal-browser verification by the owner/operator.
 
 This tool is not a production deploy, canonical approval, sitemap/robots activation or a substitute for formal accessibility/Lighthouse testing.
+
+## Staging evidence integrity — 26 October 2026
+
+The operator preflight report uses schema version 2. A report may show automated `PASS` only when it records the complete planned route sequence, HTTP 200 on the requested staging origin for every planned route, and all responsive viewport checks at 360, 768 and 1440 CSS pixels. Empty or partial evidence is an automated failure even if no individual assertion failed. Check `evidenceCoverage` and the recorded page/viewport arrays, not only the failure count.
+
+The automated result is not a release approval. `releaseStatus` remains `BLOCKED_PENDING_MANUAL_UAT`, and STG-01 through STG-17 remain `NOT RUN` until an operator records real staging evidence. This report-integrity safeguard was added after a review found that an empty coverage report could previously be labelled PASS. The final exact-head quality result must be recorded after the feature branch is validated.

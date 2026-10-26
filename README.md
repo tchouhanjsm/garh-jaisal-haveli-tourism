@@ -142,3 +142,9 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 
 - Staging mode refuses HTTP, URL credentials, paths, queries, fragments, IP/local hostnames, and the production hostnames recorded in content/site-config.json. Cross-origin top-level/frame navigations are blocked and publication-guard requests do not follow redirects. If the staging subdomain uses HTTP Basic Auth, set STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD in the local shell; the credentials are scoped to the staging origin and are never written to the report. It does not navigate to Book Now/WhatsApp/phone/email destinations, submit forms, send messages or create a reservation/payment.
 - The local JSON report records the staging origin, Asia/Kolkata timestamp, operator, Chromium version, viewport sizes, automated result/failures and all 17 human staging checks as NOT RUN. URLs embedded in failure diagnostics are reduced to scheme/host/path; credentials, query strings and fragments are excluded from evidence and failure output. A green browser result does not clear those manual release gates or authorize deployment.
+
+## Staging evidence report semantics
+
+The read-only staging preflight writes report schema version 2. `automatedResult` is `PASS` only when the report contains complete evidence for all seven planned page routes, target-origin HTTP 200 responses for those routes, and all planned responsive widths (360, 768 and 1440 CSS pixels). Missing or partial evidence fails closed. Review the `evidenceCoverage` object and completed arrays rather than treating an empty failure list alone as success.
+
+Automated PASS never clears manual release gates: the report keeps `releaseStatus` as `BLOCKED_PENDING_MANUAL_UAT` and STG-01 through STG-17 as `NOT RUN` until an operator records actual staging evidence.
