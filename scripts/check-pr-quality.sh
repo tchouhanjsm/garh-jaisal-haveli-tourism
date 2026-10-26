@@ -18,6 +18,9 @@ node scripts/test-content-pack-import.js
 echo "== Verified enquiry channel behavior =="
 node scripts/test-enquiry-flow.js
 
+echo "== Launch readiness safeguard checks (not live integration proof) =="
+node scripts/test-launch-readiness.js
+
 echo "== Content contract =="
 node scripts/validate-content.js
 node scripts/test-content-contract.js
