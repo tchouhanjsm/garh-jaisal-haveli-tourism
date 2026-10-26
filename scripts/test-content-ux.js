@@ -445,6 +445,32 @@ for (const rule of PAGE_RULES) {
     }
   }
 
+  if (rule.file === 'gallery.html') {
+    const catalogue = [
+      { slug: 'sweet-purple', title: 'Sweet Purple Room', id: 'room-sweet-purple', image: 'assets/images/rooms/sweet-purple.jpg' },
+      { slug: 'rising-sun', title: 'Rising Sun Room', id: 'room-rising-sun', image: 'assets/images/rooms/rising-sun.jpg' },
+      { slug: 'scarlet', title: 'Scarlet Room', id: 'room-scarlet', image: 'assets/images/scarlet.jpg' },
+      { slug: 'opium', title: 'Opium Room', id: 'room-opium', image: 'assets/images/rooms/opium.jpg' },
+      { slug: 'red-maharani', title: 'Red Maharani Room', id: 'room-red-maharani', image: 'assets/images/rooms/red-maharani.jpg' },
+      { slug: 'green', title: 'Green Room', id: 'room-green', image: 'assets/images/rooms/green.jpg' },
+      { slug: 'bluesky', title: 'BlueSky Room', id: 'room-bluesky', image: 'assets/images/rooms/bluesky.jpg' },
+    ];
+    const cards = [...html.matchAll(/<article class="room-gallery-card" data-room-gallery="([^"]+)"[\s\S]*?<\/article>/g)];
+    if (cards.length !== catalogue.length) fail('gallery.html: expected seven named-room gallery cards, found ' + cards.length);
+    for (const room of catalogue) {
+      const match = cards.find((candidate) => candidate[1] === room.slug);
+      if (!match) { fail('gallery.html: missing named-room gallery card: ' + room.title); continue; }
+      const card = match[0];
+      if (!card.includes('<h3>' + room.title + '</h3>')) fail('gallery.html: incorrect heading for ' + room.title);
+      if (!card.includes('src="' + room.image + '"')) fail('gallery.html: incorrect image map for ' + room.title);
+      if (!card.includes('href="rooms.html#' + room.id + '"')) fail('gallery.html: room gallery must link to matching detail for ' + room.title);
+      if (!/loading="lazy"/.test(card) || !/decoding="async"/.test(card)) fail('gallery.html: named-room image should be lazy-loaded: ' + room.title);
+    }
+    if (/assets\/images\/legacy\/room-(?:purple|carved)\.jpg/.test(html)) fail('gallery.html: ambiguous legacy bedroom captions remain after named-room curation');
+    if (!/not a live room inventory/i.test(html)) fail('gallery.html: gallery must distinguish room photos from live availability');
+    if (!/data-booking-link/.test(html) || !/data-enquiry-link/.test(html)) fail('gallery.html: room gallery must expose direct booking and a room-specific enquiry path');
+  }
+
   if (rule.file === 'directions.html') {
     const arrivalVisual = html.match(/<section class="section wrap arrival-visual"[^>]*>[\s\S]*?<\/section>/i);
     if (!arrivalVisual) {
