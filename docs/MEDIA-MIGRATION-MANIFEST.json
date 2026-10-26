@@ -21,7 +21,11 @@
       "approvalStatus": "migrated-source-backed-asset",
       "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available.",
       "targetBlobSha": "16266a4cfcd1564d9460ea9d9e8e045c70bf7fa0",
-      "verificationPage": "gallery.html"
+      "verificationPage": "gallery.html",
+      "additionalVerificationPages": [
+        "about.html",
+        "dining.html"
+      ]
     },
     {
       "sourcePath": "img/Desert_Camp/camp_from_above.jpeg",

@@ -319,3 +319,19 @@ The full GitHub-hosted Site quality gates must pass on the exact feature/PR head
 - GitHub Actions must pass on the exact PR head and post-merge main SHA.
 - No complete local checkout is available through this chat; local full suite, browser/device, Lighthouse, accessibility-tooling and staging UAT are not represented as run.
 - Live booking-provider and contact reachability and production-domain approval remain launch gates under docs/LAUNCH-READINESS-CHECKLIST.md.
+
+
+## Guest-journey editorial and experience gallery phase — 26 October 2026
+
+- Added manual, accessible next/previous photo galleries to all six source-listed experience cards. Each has two locally hosted photos, useful alt text/captions, a live slide counter and keyboard-operable buttons; there is no autoplay. Secondary photographs are visual context only, never a promise that the pictured place is on the current itinerary.
+- Reworked the Experiences introduction to use plainer language and keep the source/availability distinction explicit.
+- Reworked Dining to pair a rooftop-table photograph with a fort-at-dusk view rather than repeating the same photo. Copy points visitors to current menu, service-hour, dietary and table-availability confirmation. The unapproved menu remains unpublished.
+- Reworked Directions to lead with the key arrival constraint—cars cannot reach the hotel door—followed by a scannable vehicle-access / final-walk / meeting-point summary and map link. Corrected wording that implied configured source-authorized contacts were still disabled.
+- Reworked About around the actual fort setting, walk-in access and seven named rooms. The hero and social preview now use the inspected fort rooftop photo, planning links precede the closing CTA, and generic hospitality/quote filler was reduced.
+- Expanded the media-manifest page contract for the fort rooftop photo so the same exact local asset/alt pairing is checked on Gallery, About and Dining.
+
+### Validation and release boundary
+- Added a Node regression test for next/previous/wraparound behavior, the live slide counter, aria-hidden state and fallback behavior when carousel markup is incomplete. It is part of scripts/check-pr-quality.sh.
+- Static UX tests now require two distinct local photos on every experience card, accessible carousel controls, practical arrival content, About CTA ordering and the Dining/fort-photo pairing.
+- GitHub-hosted exact-head validation must pass before merge. This chat does not have a complete local checkout for local browser/device QA, Lighthouse or staging UAT.
+- No production deployment, menu-price publication, live room availability or new service guarantees were added.
