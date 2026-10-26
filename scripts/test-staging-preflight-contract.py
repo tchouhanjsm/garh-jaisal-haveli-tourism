@@ -85,6 +85,7 @@ assert report["plannedViewportWidthsCssPixels"] == [360, 768, 1440]
 assert report["completedResponsiveViewportWidthsCssPixels"] == []
 assert "viewportWidthsCssPixels" not in report
 assert report["safety"]["externalLinkNavigationPerformed"] is False
+assert report["crossOriginNavigationAttemptsBlocked"] == []
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
 assert report["safety"]["guestDataSubmitted"] is False
 assert report["safety"]["contactMessageSent"] is False
@@ -103,6 +104,13 @@ with tempfile.TemporaryDirectory() as temporary_directory:
     assert all(item["result"] == "NOT RUN" for item in round_trip["manualReleaseChecks"])
 assert report["browser"]["name"] == "Chromium"
 assert report["viewportWidthsCssPixels"] == [360, 768, 1440]
+
+blocked_navigation = ["Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"]
+blocked_report = browser_smoke.build_report(
+    "staging-read-only", valid, "QA operator", "Chromium test version", [],
+    blocked_navigation_attempts=blocked_navigation,
+)
+assert blocked_report["crossOriginNavigationAttemptsBlocked"] == blocked_navigation
 
 failed_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version", ["example failure"]
