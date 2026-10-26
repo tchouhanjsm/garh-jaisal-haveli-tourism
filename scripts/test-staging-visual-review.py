@@ -28,6 +28,9 @@ review = load_module("staging_visual_review", ROOT / "scripts" / "render-staging
 browser_smoke = load_module("browser_smoke_for_visual_review", ROOT / "scripts" / "test-browser-smoke.py")
 assert [page for page, _title in review.PAGES] == browser_smoke.PAGES
 assert [width for width, _height, _label in review.VIEWPORTS] == [width for width, _height in browser_smoke.VIEWPORTS]
+assert review.safe_origin("https://127.0.0.1/") is None
+assert review.safe_origin("https://localhost/") is None
+assert review.safe_origin("https://staging.example.test/?token=secret") is None
 
 
 def png_chunk(kind: bytes, data: bytes) -> bytes:
@@ -191,6 +194,14 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
         "--screenshots-dir", str(screenshots),
         "--output", str(output_path),
     ]) == 1
+
+    # Invalid schema and mode are rejected before an HTML review is written.
+    try:
+        review.load_report(folder / "invalid-schema.json")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("A missing or incompatible schema-v3 report must be rejected")
 
     # Invalid origin tokens are never echoed into HTML.
     bad_origin_report = dict(failed_report)
