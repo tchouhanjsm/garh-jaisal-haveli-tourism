@@ -171,7 +171,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     failed_report = dict(report)
     failed_report["automatedResult"] = "FAIL"
     failed_report["automatedFailures"] = [
-        "failure at https://qa-user:qa-password@outside.example/path?token=secret#fragment"
+        "failure at https://qa-user:qa-password@outside.example/path?token=secret#fragment while reading /tmp/private/staging.json"
     ]
     failed_report_path = folder / "failed-preflight.json"
     failed_report_path.write_text(json.dumps(failed_report), encoding="utf-8")
@@ -188,6 +188,8 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     )
     assert "outside.example/path" in failed_html
     assert "qa-password" not in failed_html and "token=secret" not in failed_html
+    assert "/tmp/private/staging.json" not in failed_html
+    assert "[local path redacted]" in failed_html
     assert "BLOCKED — manual UAT required" in failed_html
     assert review.main([
         "--report", str(failed_report_path),
