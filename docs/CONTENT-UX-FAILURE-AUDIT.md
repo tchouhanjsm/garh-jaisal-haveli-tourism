@@ -122,3 +122,60 @@ Baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8
 - The first Site quality gates run for PR #11, run 40273347840, failed in the static website integrity step. The log identified two broken homepage deep links: index.html targets experiences.html#desert and experiences.html#city-tours, but the first Experiences rewrite removed those anchors.
 - Restored the existing deep-link targets on the corresponding sunset-desert and guided-city cards, added scroll margin for the sticky header, and added regression assertions to keep both anchors present.
 - This is a confirmed navigation regression, not an infrastructure failure. The same PR branch must pass the quality workflow on the post-fix exact head before it is considered green.
+
+
+## Dining and Directions imagery recovery (2026-10-26)
+
+**Baseline:** main at bb2da8121466ab26e64938d6c6f0f0f547b1f9f3 after PR #11 merged. This is a focused visual-context phase across the existing static Dining and Directions routes; no Studio/pack adapter work is included.
+
+### Addressed in this batch
+
+- Dining now uses a distinct night-time rooftop-table photograph from the legacy source at `img/rest5.jpg`, rather than using the same sunset-terrace scene for both the candlelight illustration and its Open Graph image. The photograph was retrieved as binary bytes and visually reviewed: 900×600, 92,506 bytes, no EXIF/XMP APP1 metadata. The local destination is `assets/images/dining/rooftop-candlelit-table.jpg`.
+- Directions now includes a visually reviewed facade reference from legacy `img/optimized/v2/facade.webp`. The image shows the carved sandstone exterior and hotel name sign, making it more useful for recognising the building than a courtyard-only photograph. It is explicitly described as a visual reference, not a guaranteed pickup point or route marker. The local destination is `assets/images/directions/haveli-facade.webp`.
+- The source facade WebP was 1333×2000 and contained ICCP, EXIF and XMP chunks. Those metadata chunks were removed and the VP8X flags/RIFF length updated before adding the local copy. The retained pixel image is unchanged; the resulting file is 587,056 bytes and contains only the VP8X and VP8 image chunks.
+- Both images have descriptive alt text, explicit intrinsic dimensions, lazy loading and asynchronous decoding. The facade uses a responsive portrait layout that preserves the visible hotel sign instead of cropping the image to a landscape hero.
+- Regression coverage now checks the exact local asset mapping, contextual caveats, JPEG/WebP metadata absence and explicit supporting-image byte budgets (100 KiB for the dining JPEG; 600 KiB for the facade WebP). Existing page-depth, unique metadata, local-link, orphan, geometry, alt-text, duplicate-image and canonical/sitemap safeguards remain enabled.
+- The canonical host, robots/sitemap publication, contact/booking endpoints, menu/hours, rates, arrival route and operational promises are unchanged.
+
+### Validation truth and remaining blockers
+
+- Source image retrieval and visual review: **PASS** via the legacy repository content API. Source blob SHAs: `img/rest5.jpg` `e00320af65321045b27807c3994f5027ddb4bc68`; `img/optimized/v2/facade.webp` `132a69fe667c3dad773282ebc42c8423abd607b2`.
+- Image byte preflight in the connector runtime: **PASS** — dining image 900×600 / 92,506 bytes with no EXIF/XMP; facade image 1333×2000 / 587,056 bytes after ICCP/EXIF/XMP removal.
+- Full local `bash scripts/check-pr-quality.sh` and `bash scripts/check-site.sh`: **NOT RUN**. The connector execution environment has no complete checkout and shell DNS/network access to GitHub is unavailable. Do not treat this as a pass.
+- Browser/device, Lighthouse, visual regression and staging tests: **NOT RUN**.
+- `Site quality gates / quality` must pass on the final exact PR head after the audit update. Missing, stale, pending, cancelled or failed checks are not passing evidence. The local full-suite limitation remains a merge blocker.
+
+### Deferred
+
+The restaurant image remains a visual reference, not a promise of a live menu, service schedule or candlelit setup. The facade photograph is a historical source image and does not establish the current approach or meeting point. The owner must still verify canonical host, contact endpoints, current menu/service hours and arrival arrangements before those publication/booking gates can change. A source-reviewed Journal article remains deferred until source/date and publication gates are satisfied; Studio/pack integration remains out of scope.
+
+
+### Exact-head check evidence for the Dining/Directions phase
+
+- The first implementation commit `dd9f270eafd8d8dae33b6d8272d335e8ec3387fb` passed `Site quality gates / quality` in [run #40278374512](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278374512). The follow-up code/test head `e333637a6f28c59438929516226359a88d595501` passed `Site quality gates / quality` in [PR run #40278468379](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278468379) and the push-triggered run [#40278462693](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278462693); both runs identify that exact head and their quality jobs completed successfully. These results are historical for `e333637a6f28c59438929516226359a88d595501` only. This audit update creates a new head, so a fresh exact-head quality run is required before merge consideration. Local full-suite and browser/device checks remain not run.
+
+
+### Exact-head quality result before the final audit note (2026-10-26)
+
+- Code/test head `7205826e2b70c31a71fa5de62d08dbe77ef1d269` passed `Site quality gates / quality` in [PR run #40278549502](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278549502) and the push-triggered [run #40278545176](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278545176). Both runs completed successfully on that exact SHA, including the full repository quality script.
+- This audit note creates a new head; the new exact-head workflow result must be checked before any merge decision. The prior runs remain evidence for `7205826e2b70c31a71fa5de62d08dbe77ef1d269` only.
+- The local full suite remains **NOT RUN** because no complete checkout is available and shell DNS resolution for `github.com` fails. Browser/device and Lighthouse checks also remain **NOT RUN**.
+
+
+### Final-head validation checkpoint before this audit-only update (2026-10-26)
+
+- Implementation/test head `a560347af0508b9cc555a819d9419a4b6d75e898` passed `Site quality gates / quality` in [PR run #40278711557](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278711557) and push run [#40278705970](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278705970). Both completed successfully on that exact SHA. The job log confirms `bash scripts/check-pr-quality.sh` completed the static-site, content/UX, renderer, importer, enquiry-flow, content-contract, Python-compilation and shell-syntax checks.
+- This audit-only checkpoint creates a new head; the resulting exact-head quality check must pass before merge consideration. The run links above are historical evidence for `a560347af0508b9cc555a819d9419a4b6d75e898` only.
+- Local `bash scripts/check-pr-quality.sh` and `bash scripts/check-site.sh` remain **NOT RUN**: no complete local checkout is present and shell DNS lookup for `github.com` fails. Browser/device, Lighthouse and staging checks remain **NOT RUN**.
+
+## Follow-up wording correction — unverified arrival assistance (2026-10-26)
+
+A final content review of PR #12 found one remaining promise boundary: Dining said the team “can guide” guests with directions or luggage help, and the Directions contact card said “We’ll help you plan the final stretch.” Those claims are stronger than approved source facts while public contact endpoints and assistance availability remain unverified.
+
+- Reworded both to ask guests to use the contact route in their booking confirmation and confirm arrangements for their date; assistance is not guaranteed.
+- Made the disabled arrival contact CTA explicitly say the channel is pending verification.
+- Added the owner-confirmed Google Maps destination for Garh Jaisal’s Kitchen, retaining the separate arrival-guide link.
+- Added regression assertions for the exact map link and non-promissory language so future copy changes cannot silently reintroduce service guarantees.
+- No contact/booking endpoint, canonical host, robots/sitemap setting, menu/prices, service hours, pickup point or transfer promise was activated.
+
+The current exact-head CI runs predate this wording correction and do not validate it. A fresh Site quality gates / quality result is required on the updated commit. Local full-suite, browser/device, Lighthouse and staging checks remain not run in this connector-only environment.
