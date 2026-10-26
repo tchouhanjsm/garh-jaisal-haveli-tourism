@@ -167,3 +167,15 @@ The restaurant image remains a visual reference, not a promise of a live menu, s
 - Implementation/test head `a560347af0508b9cc555a819d9419a4b6d75e898` passed `Site quality gates / quality` in [PR run #40278711557](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278711557) and push run [#40278705970](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278705970). Both completed successfully on that exact SHA. The job log confirms `bash scripts/check-pr-quality.sh` completed the static-site, content/UX, renderer, importer, enquiry-flow, content-contract, Python-compilation and shell-syntax checks.
 - This audit-only checkpoint creates a new head; the resulting exact-head quality check must pass before merge consideration. The run links above are historical evidence for `a560347af0508b9cc555a819d9419a4b6d75e898` only.
 - Local `bash scripts/check-pr-quality.sh` and `bash scripts/check-site.sh` remain **NOT RUN**: no complete local checkout is present and shell DNS lookup for `github.com` fails. Browser/device, Lighthouse and staging checks remain **NOT RUN**.
+
+## Follow-up wording correction — unverified arrival assistance (2026-10-26)
+
+A final content review of PR #12 found one remaining promise boundary: Dining said the team “can guide” guests with directions or luggage help, and the Directions contact card said “We’ll help you plan the final stretch.” Those claims are stronger than approved source facts while public contact endpoints and assistance availability remain unverified.
+
+- Reworded both to ask guests to use the contact route in their booking confirmation and confirm arrangements for their date; assistance is not guaranteed.
+- Made the disabled arrival contact CTA explicitly say the channel is pending verification.
+- Added the owner-confirmed Google Maps destination for Garh Jaisal’s Kitchen, retaining the separate arrival-guide link.
+- Added regression assertions for the exact map link and non-promissory language so future copy changes cannot silently reintroduce service guarantees.
+- No contact/booking endpoint, canonical host, robots/sitemap setting, menu/prices, service hours, pickup point or transfer promise was activated.
+
+The current exact-head CI runs predate this wording correction and do not validate it. A fresh Site quality gates / quality result is required on the updated commit. Local full-suite, browser/device, Lighthouse and staging checks remain not run in this connector-only environment.
