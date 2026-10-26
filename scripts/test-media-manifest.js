@@ -70,13 +70,13 @@ for (const entry of manifest.entries) {
   const buffer = fs.readFileSync(filePath);
   assert.equal(buffer.length, entry.bytes, 'Byte count differs from manifest: ' + entry.targetPath);
   const budgetRules = [
-    [/Homepage hero — rooftop terrace/i, 200 * 1024],
-    [/Room gallery — named room image/i, 600 * 1024],
+    [/Homepage hero — rooftop terrace/i, 150 * 1024],
+    [/Room gallery — named room image/i, 550 * 1024],
     [/Room gallery — WebP alternate/i, 300 * 1024],
-    [/Room hero — optimized sitting-room WebP/i, 350 * 1024],
-    [/Room hero — JPEG fallback/i, 600 * 1024],
-    [/Dining page — candlelit-table/i, 200 * 1024],
-    [/Gallery: fort\/rooftop orientation/i, 450 * 1024],
+    [/Room hero — optimized sitting-room WebP/i, 320 * 1024],
+    [/Room hero — JPEG fallback/i, 550 * 1024],
+    [/Dining page — candlelit-table/i, 100 * 1024],
+    [/Gallery: fort\/rooftop orientation/i, 400 * 1024],
   ];
   const matchedBudget = budgetRules.find(([role]) => role.test(entry.intendedRole));
   const budget = matchedBudget ? matchedBudget[1] : MAX_BYTES;

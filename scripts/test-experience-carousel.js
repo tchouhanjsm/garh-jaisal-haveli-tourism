@@ -86,6 +86,10 @@ for (const match of carouselCards) {
   assert.match(card, /data-carousel-controls hidden/, match[1] + ' keeps controls hidden until enhancement');
   assert.match(card, /data-carousel-previous[^>]*aria-label=/i, match[1] + ' previous button is named');
   assert.match(card, /data-carousel-next[^>]*aria-label=/i, match[1] + ' next button is named');
+  const previousButton = card.match(/<button\b[^>]*data-carousel-previous[^>]*>/i);
+  const nextButton = card.match(/<button\b[^>]*data-carousel-next[^>]*>/i);
+  assert.ok(previousButton && /\btype=["']button["']/i.test(previousButton[0]), match[1] + ' previous control must be a non-submitting native button');
+  assert.ok(nextButton && /\btype=["']button["']/i.test(nextButton[0]), match[1] + ' next control must be a non-submitting native button');
   assert.match(card, /data-carousel-status aria-live=["']polite["'] aria-atomic=["']true["']/, match[1] + ' has a polite live status');
   const slides = [...card.matchAll(/<figure class="experience-carousel__slide" data-carousel-slide[^>]*>/gi)].map(m => m[0]);
   assert.equal(slides.length, 2, match[1] + ' has two distinct slides');
@@ -100,7 +104,9 @@ assert.match(swiss, /src=["']assets\/images\/experiences\/swiss-tent-exterior\.w
 assert.match(swiss, /src=["']assets\/images\/experiences\/swiss-tent-detail\.jpeg["']/);
 assert.match(swiss, /data-experience-carousel/, 'Swiss-tent carousel uses a second reviewed tent photograph');
 assert.match(swiss, /a visual reference, not a promise/i, 'Swiss-tent secondary photo has a clear availability caveat');
+assert.match(css, /a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible\{outline:3px solid/);
 assert.match(css, /\.experience-carousel__button:focus-visible/);
+assert.match(css, /@media\(prefers-reduced-motion:reduce\)\{\*,\*::before,\*::after\{scroll-behavior:auto!important;animation-duration:\.01ms!important;animation-iteration-count:1!important;transition-duration:\.01ms!important\}\}/);
 assert.match(css, /prefers-reduced-motion:\s*reduce/);
 assert.match(css, /\.experience-carousel__controls\[hidden\]/);
 assert.match(css, /\.experience-carousel__button\{[^}]*min-height:44px/);
