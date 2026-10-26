@@ -13,7 +13,7 @@ Baseline main at the start of this delivery phase: 476dd625fce29cdc524da33214c4f
 - The dining page explicitly withholds current menu items/prices while the legacy menu file still says owner_confirmed=false.
 - Canonical URL/OG URL publication and sitemap URL publishing remain gated until the owner approves the actual production hostname.
 
-A passing automated suite is not proof that the hotel’s live phone is answered, the booking provider accepts guests, the current menu is correct, or staging/production renders correctly.
+A passing automated suite is not proof that the hotel’s live phone is answered, the booking provider accepts guests, the current menu is correct, or staging/production renders correctly. The offline screenshot renderer also rejects contradictory report metadata, unsafe-action flags, inconsistent failure counts and any release status other than `BLOCKED_PENDING_MANUAL_UAT`.
 
 ## Automated media performance contracts
 
