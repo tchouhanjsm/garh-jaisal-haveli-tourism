@@ -448,3 +448,21 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - WhatsApp, primary phone, alternate landline and email require reachability/response checks.
 - Owner confirmation remains required for current room inventory/rates/facilities, tour operations/routes/inclusions, current menu/prices/hours and arrival/transfer details.
 - Canonical hostname, DNS/SSL, staging UAT, backup/rollback and production deployment remain unapproved. Content Studio/importer integration stays deferred.
+
+
+## Staging evidence URL-redaction finding — 26 October 2026
+
+### Finding and root cause
+- During review of PR #22 at head `7928163888955ee2297388bfcba700634b9cc7ee`, `safe_url_label()` correctly removed URL credentials, query strings and fragments from request labels, but some browser failure diagnostics interpolated raw `currentSrc` or Playwright exception text. `build_report()` copied failure strings without sanitization. A staging URL containing a token or other query value could therefore have appeared in a local JSON evidence report or CI failure output.
+- The exact-head quality workflow on the pre-fix head passed in [run #40340353166](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40340353166), but that result is stale for the remediation commits and is not evidence for the new head.
+
+### Fix on the same PR branch
+- Added `sanitize_diagnostic_text()` to reduce any embedded HTTP(S) URL to scheme/host/path, removing credentials, query strings and fragments.
+- Applied redaction when building the JSON report and before printing failure output; blocked-navigation evidence is also sanitized.
+- Extended `scripts/test-staging-preflight-contract.py` with regression assertions covering credential-bearing URLs, token query values and fragments in both failure diagnostics and blocked-navigation evidence.
+- Updated the README's operator guidance to describe the actual redaction boundary.
+
+### Validation boundary
+- The contract and source changes are present on `feat/operator-staging-preflight-20261026`; a fresh exact-head `Site quality gates / quality` run is required after these edits.
+- Local `bash scripts/check-pr-quality.sh` remains NOT RUN because the connector environment has no complete checkout.
+- No staging host was contacted, no external booking/contact endpoint was opened, and no production change was made.
