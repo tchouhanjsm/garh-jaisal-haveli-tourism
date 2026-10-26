@@ -277,7 +277,7 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     origin = safe_origin(report.get("targetUrl"))
     if origin in production_origins():
         origin = None
-    origin_text = html.escape(origin or "Withheld — invalid or configured production origin")
+    origin_text = html.escape(origin or "Origin withheld — invalid or configured production origin")
     operator = html.escape(str(report.get("operator") or "Not recorded"))
     recorded = html.escape(str(report.get("recordedAtAsiaKolkata") or "Not recorded"))
     browser = report.get("browser") if isinstance(report.get("browser"), dict) else {}
