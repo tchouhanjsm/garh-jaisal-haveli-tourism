@@ -8,6 +8,7 @@ human UAT, following external links, or submitting guest data.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
 import json
 import os
@@ -15,6 +16,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +36,7 @@ PAGES = [
     "gallery.html",
 ]
 VIEWPORTS = [(360, 800), (768, 1024), (1440, 900)]
+SCREENSHOT_EVIDENCE: list[dict] = []
 FAILURES: list[str] = []
 RUNTIME_ERRORS: list[str] = []
 HTTP_ERRORS: list[str] = []
@@ -113,6 +116,9 @@ def validate_staging_target(raw_url: str, operator: str, report_path: str) -> st
         raise ValueError("a JSON report path is required for a staging run")
     if Path(report_path).suffix.lower() != ".json":
         raise ValueError("the evidence report path must end in .json")
+    report_destination = Path(report_path).expanduser().resolve()
+    if report_destination == ROOT or ROOT in report_destination.parents:
+        raise ValueError("write the evidence report outside the repository checkout to avoid accidental commits")
 
     try:
         parts = urlsplit(raw_url.strip())
@@ -157,6 +163,44 @@ def validate_staging_target(raw_url: str, operator: str, report_path: str) -> st
     return f"https://{normalized_host}/"
 
 
+def validate_screenshot_directory(raw_path: str) -> Path:
+    """Require an empty evidence directory outside the checkout before staging access."""
+    if not raw_path or not raw_path.strip():
+        raise ValueError("a screenshot evidence directory is required for staging mode")
+    destination = Path(raw_path).expanduser().resolve()
+    if destination == ROOT or ROOT in destination.parents:
+        raise ValueError("write screenshots outside the repository checkout to avoid accidental commits")
+    if destination == Path(destination.anchor):
+        raise ValueError("the filesystem root cannot be used as a screenshot directory")
+    if destination.exists() and not destination.is_dir():
+        raise ValueError("the screenshot evidence path must be a directory")
+    if destination.exists() and any(destination.iterdir()):
+        raise ValueError("the screenshot evidence directory must be empty so old and new runs cannot be mixed")
+    return destination
+
+
+def expected_screenshot_names() -> list[str]:
+    return [
+        f"{Path(page_name).stem}-{width}px.png"
+        for width, _ in VIEWPORTS
+        for page_name in PAGES
+    ]
+
+
+def read_png_dimensions(path: Path) -> tuple[int, int]:
+    """Read PNG geometry from its IHDR without requiring an image-processing package."""
+    with path.open("rb") as image_file:
+        header = image_file.read(24)
+    if (len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n"
+            or header[12:16] != b"IHDR"):
+        raise ValueError("screenshot is not a valid PNG header")
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if width <= 0 or height <= 0:
+        raise ValueError("screenshot has invalid pixel dimensions")
+    return width, height
+
+
 def resolve_http_credentials(username: str | None, password: str | None) -> dict[str, str] | None:
     """Read optional Basic Auth credentials without placing them in URLs or reports."""
     if bool(username) != bool(password):
@@ -173,7 +217,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
                  pages_attempted: list[str] | None = None,
                  pages_http_ok: list[str] | None = None,
                  completed_viewports: list[int] | None = None,
-                 blocked_navigation_attempts: list[str] | None = None) -> dict:
+                 blocked_navigation_attempts: list[str] | None = None,
+                 screenshot_evidence: list[dict] | None = None) -> dict:
     manual_checks = [
         ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
@@ -219,16 +264,48 @@ def build_report(mode: str, base_url: str, operator: str | None,
             f"{completed_viewport_list} do not match planned widths {planned_viewports}."
         )
 
+    expected_screenshots = expected_screenshot_names()
+    screenshot_records = list(screenshot_evidence or [])
+    captured_names = [str(record.get("filename", "")) for record in screenshot_records]
+    expected_viewports = {
+        f"{Path(page_name).stem}-{width}px.png": (width, height)
+        for width, height in VIEWPORTS
+        for page_name in PAGES
+    }
+    screenshot_metadata_complete = (
+        len(screenshot_records) == len(expected_screenshots)
+        and all(
+            record.get("filename") in expected_viewports
+            and record.get("viewportWidthCssPixels") == expected_viewports.get(record.get("filename"), (None, None))[0]
+            and record.get("viewportHeightCssPixels") == expected_viewports.get(record.get("filename"), (None, None))[1]
+            and record.get("imageWidthPixels") == expected_viewports.get(record.get("filename"), (None, None))[0]
+            and isinstance(record.get("imageHeightPixels"), int)
+            and record.get("imageHeightPixels", 0) > 0
+            and isinstance(record.get("bytes"), int)
+            and record.get("bytes", 0) > 0
+            and isinstance(record.get("sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", record.get("sha256", "")) is not None
+            and record.get("fullPage") is True
+            for record in screenshot_records
+        )
+    )
+    screenshot_complete = captured_names == expected_screenshots and screenshot_metadata_complete
+    if not screenshot_complete:
+        evidence_failures.append(
+            "Incomplete visual evidence: expected 21 full-page PNG screenshots (seven routes at 360, 768 and 1440 CSS pixels) "
+            f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
+        )
+
     reported_failures = [
         sanitize_diagnostic_text(item) for item in [*failures, *evidence_failures]
     ]
     page_attempts_complete = attempted_pages == planned_pages
     page_http_complete = http_ok_pages == planned_pages
     viewport_complete = completed_viewport_list == planned_viewports
-    evidence_complete = page_attempts_complete and page_http_complete and viewport_complete
+    evidence_complete = page_attempts_complete and page_http_complete and viewport_complete and screenshot_complete
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -248,6 +325,14 @@ def build_report(mode: str, base_url: str, operator: str | None,
         "automatedResult": "PASS" if not reported_failures else "FAIL",
         "automatedFailureCount": len(reported_failures),
         "automatedFailures": reported_failures,
+        "visualEvidence": {
+            "required": mode == "staging-read-only",
+            "captureMode": "full-page PNG",
+            "expectedScreenshotCount": len(expected_screenshots),
+            "capturedScreenshotCount": len(screenshot_records),
+            "complete": screenshot_complete,
+            "capturedFiles": screenshot_records,
+        },
         "crossOriginNavigationAttemptsBlocked": [
             sanitize_diagnostic_text(item) for item in (blocked_navigation_attempts or [])
         ],
@@ -276,6 +361,41 @@ def write_report(report_path: str, report: dict) -> Path:
 def check(condition: bool, message: str) -> None:
     if not condition:
         FAILURES.append(message)
+
+
+def capture_visual_evidence(page, page_name: str, width: int, height: int,
+                            screenshots_dir: Path) -> None:
+    """Capture a full-page PNG after requesting image/font readiness and record its integrity."""
+    filename = f"{Path(page_name).stem}-{width}px.png"
+    destination = screenshots_dir / filename
+    try:
+        page.evaluate(
+            """async () => {
+              await document.fonts.ready;
+              const images = Array.from(document.images);
+              for (const image of images) image.loading = 'eager';
+              await Promise.all(images.map(image => image.decode().catch(() => null)));
+              window.scrollTo(0, 0);
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            }"""
+        )
+        page.screenshot(path=str(destination), full_page=True, animations="disabled", timeout=20000)
+        payload = destination.read_bytes()
+        image_width, image_height = read_png_dimensions(destination)
+        if image_width != width:
+            raise ValueError(f"expected screenshot width {width}px, found {image_width}px")
+        SCREENSHOT_EVIDENCE.append({
+            "filename": filename,
+            "viewportWidthCssPixels": width,
+            "viewportHeightCssPixels": height,
+            "imageWidthPixels": image_width,
+            "imageHeightPixels": image_height,
+            "fullPage": True,
+            "bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        })
+    except Exception as error:
+        check(False, f"{page_name} at {width}px: could not capture visual evidence: {type(error).__name__}: {error}")
 
 
 def start_server() -> tuple[subprocess.Popen[bytes], str]:
@@ -435,7 +555,7 @@ def check_staging_publication_guards(page, base_url: str) -> None:
               "canonicalHostApproved must remain false until explicit owner approval")
 
 
-def check_responsive_layout(page, base_url: str) -> None:
+def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
     for width, height in VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})
         for page_name in PAGES:
@@ -470,6 +590,8 @@ def check_responsive_layout(page, base_url: str) -> None:
                       f"{page_name}: desktop primary navigation must be visible")
                 check(not page.locator(".menu-toggle").is_visible(),
                       f"{page_name}: mobile menu toggle must be hidden at desktop width")
+            if screenshots_dir is not None:
+                capture_visual_evidence(page, page_name, width, height, screenshots_dir)
         VIEWPORTS_COMPLETED.append(width)
 
 
@@ -614,14 +736,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base-url", help="HTTPS staging origin; omitted to run against a temporary local server")
     parser.add_argument("--operator", help="Human operator name recorded in a staging evidence report")
     parser.add_argument("--report", help="Local JSON evidence-report path (required with --base-url)")
+    parser.add_argument("--screenshots-dir", help="Empty local directory outside the checkout for 21 visual evidence PNGs (required with --base-url)")
     args = parser.parse_args(argv)
     staging_mode = bool(args.base_url)
 
     if staging_mode:
-        if not args.operator or not args.report:
-            parser.error("--operator and --report are required with --base-url")
+        if not args.operator or not args.report or not args.screenshots_dir:
+            parser.error("--operator, --report and --screenshots-dir are required with --base-url")
         try:
             base_url = validate_staging_target(args.base_url, args.operator, args.report)
+            screenshots_dir = validate_screenshot_directory(args.screenshots_dir)
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
             http_credentials = resolve_http_credentials(
                 os.environ.get("STAGING_BASIC_AUTH_USERNAME"),
                 os.environ.get("STAGING_BASIC_AUTH_PASSWORD"),
@@ -629,21 +754,25 @@ def main(argv: list[str] | None = None) -> int:
             if http_credentials:
                 http_credentials["origin"] = base_url.rstrip("/")
         except ValueError as error:
-            print(f"BLOCKED: staging target/auth rejected before any network request: {error}", file=sys.stderr)
+            print(f"BLOCKED: staging target/auth/evidence path rejected before any network request: {error}", file=sys.stderr)
             return 2
     else:
-        if args.operator or args.report:
-            parser.error("--operator and --report require --base-url")
+        if args.operator or args.report or args.screenshots_dir:
+            parser.error("--operator, --report and --screenshots-dir require --base-url")
         base_url = ""
         http_credentials = None
+        screenshots_dir = None
 
     server = None
     browser = None
     context = None
     browser_version = None
+    screenshot_tempdir = None
     try:
         if not staging_mode:
             server, base_url = start_server()
+            screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
+            screenshots_dir = Path(screenshot_tempdir.name)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             browser_version = browser.version
@@ -691,7 +820,7 @@ def main(argv: list[str] | None = None) -> int:
 
             check_contact_hydration(page, base_url)
             check_staging_publication_guards(page, base_url)
-            check_responsive_layout(page, base_url)
+            check_responsive_layout(page, base_url, screenshots_dir)
             check_keyboard_navigation(page, base_url)
             check_carousels(page, base_url, browser, http_credentials)
             context.close()
@@ -723,11 +852,26 @@ def main(argv: list[str] | None = None) -> int:
             except subprocess.TimeoutExpired:
                 server.kill()
                 server.wait(timeout=5)
+        if screenshot_tempdir is not None:
+            screenshot_tempdir.cleanup()
+
+    if not staging_mode:
+        local_visual_report = build_report(
+            "local-browser-smoke", base_url, None, browser_version, [],
+            PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
+            screenshot_evidence=SCREENSHOT_EVIDENCE,
+        )
+        if not local_visual_report["visualEvidence"]["complete"]:
+            FAILURES.append(
+                "Local browser smoke did not produce all 21 valid full-page screenshot records; "
+                "visual evidence generation must be exercised by the standard quality suite."
+            )
 
     if staging_mode:
         report = build_report(
             "staging-read-only", base_url, args.operator, browser_version, FAILURES,
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
+            screenshot_evidence=SCREENSHOT_EVIDENCE,
         )
         # The console result and JSON report must agree. Missing route/viewport
         # evidence is a failure even when no individual assertion raised.
@@ -753,7 +897,8 @@ def main(argv: list[str] | None = None) -> int:
         f"PASS: Chromium {mode_label} browser smoke suite covered seven pages, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
-        "wraparound, no-autoplay and no-JavaScript fallback. "
+        "wraparound, no-autoplay and no-JavaScript fallback, plus 21 full-page PNG captures "
+        "with measured geometry, byte size and SHA-256 in a temporary directory. "
         "No external links were followed and no booking, payment or guest data was submitted."
     )
     if staging_mode:

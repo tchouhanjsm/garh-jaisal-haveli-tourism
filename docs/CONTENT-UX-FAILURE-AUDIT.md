@@ -484,3 +484,32 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - The first exact-head `Site quality gates / quality` run #40356760697 passed on implementation head `1c4e8a1ba5b3140aa7ef0e27f34a63a4c94ed227` (the staging contract tests and Chromium smoke suite both completed successfully). This audit update creates a new head, so that earlier result is now historical evidence only; a fresh run on the resulting exact final head is required before merge.
 - Local `bash scripts/check-pr-quality.sh` is NOT RUN because this connector environment has no complete local checkout.
 - No staging host, booking provider, contact endpoint or production service was contacted. No deployment, canonical approval or publication-policy change was made.
+
+
+## Staging visual evidence bundle — 26 October 2026
+
+### Product/QA outcome
+The operator-run staging preflight now requires a local visual evidence bundle in addition to route, HTTP and responsive-viewport coverage. The intent is to let an owner/operator compare the real guest journey at mobile, tablet and desktop widths without storing staging artifacts in the source checkout.
+
+### Implementation
+- `scripts/test-browser-smoke.py` accepts `--screenshots-dir` only in explicit staging mode. Staging mode requires the report path and screenshot directory to resolve outside the repository checkout; an existing screenshot directory must be empty so prior-run evidence cannot be mixed into a new report.
+- The browser suite captures full-page PNGs for each of the seven routes at 360, 768 and 1440 CSS-pixel widths (21 screenshots). Before capture it waits for document fonts, requests eager image loading and image decoding, returns to the top of the page and disables animations for the capture.
+- Each screenshot record includes the filename, viewport width/height, actual PNG pixel width/height, byte size, full-page flag and SHA-256. The JSON report stores filenames and measured facts only, not the local output directory path.
+- Report schema advances to version 3. Automated PASS requires the complete planned route sequence, target-origin HTTP 200 responses, all three responsive widths and all 21 correctly ordered screenshot records with valid geometry, non-zero byte sizes and SHA-256 values. The overall evidence-coverage flag includes screenshot completeness.
+- `scripts/test-staging-preflight-contract.py` covers invalid/unsafe output paths, non-empty screenshot directories, PNG header geometry, empty and partial evidence, missing screenshot evidence and a complete synthetic report. Manual STG-01 through STG-17 remain NOT RUN even for a complete synthetic automated report.
+- Updated `README.md` and `docs/LAUNCH-READINESS-CHECKLIST.md` with the required staging command, output-path restrictions, report schema and interpretation.
+
+### Validation boundary
+- Baseline at phase start: main `3961b3cdb8a74f07446a38bc34537448e2176d94`; PR #23 was merged and no implementation PR was open.
+- `Site quality gates / quality` run #40366969895 passed on exact feature head `454ee7052f445e2a6b0c7c4b2b1dca8f2067daf0`. Its log confirms the staging preflight contract tests and Chromium local-browser suite passed; the suite generated and integrity-checked all 21 temporary full-page PNGs.
+- Source review caught an over-escaped PNG signature in the synthetic geometry fixture before the final run; the fixture was corrected to use the actual PNG signature. The earlier run #40366556107 was cancelled after the branch advanced, not treated as a pass.
+- Local `bash scripts/check-pr-quality.sh`: NOT RUN in this connector environment because no complete local checkout is available. The full command did run successfully on the standard GitHub-hosted runner.
+- Actual staging browser/device review, Lighthouse, formal accessibility tooling and owner-run booking/contact checks: NOT RUN. No staging host was contacted and no external booking/contact action was performed.
+- This audit update changes the feature head; a fresh exact-head quality run is required before merge consideration.
+- The operator must supply an owner-approved HTTPS staging origin and complete the manual UAT rows with real evidence. Canonical-host approval, menu publication, draft publication and production deployment remain blocked.
+
+### Acceptance criteria
+1. Staging mode refuses report or screenshot outputs inside the checkout, and refuses a screenshot directory containing prior artifacts.
+2. A full automated PASS is impossible without all seven routes, all target-origin HTTP 200 responses, all 360/768/1440 widths and all 21 screenshot records.
+3. Screenshot metadata must match the planned viewport width/height, valid PNG geometry, positive byte count and a 64-character lowercase SHA-256.
+4. No output report contains a local screenshot directory path or any manual UAT row marked passed by automation.
