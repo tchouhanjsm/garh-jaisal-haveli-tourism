@@ -83,4 +83,23 @@ assert.ok(findings.some(f => f.message.includes('factsConfirmed')), 'live tour w
 assert.ok(findings.some(f => f.message.includes('lastVerified')), 'live tour without verification date must be rejected');
 assert.ok(findings.some(f => f.message.includes('canonical host')), 'live content without approved canonical host must be rejected');
 
+
+const fortGuide = JSON.parse(fs.readFileSync(path.join(root, 'content/blogs/jaisalmer-fort-guide.json'), 'utf8'));
+assert.deepEqual(validateAgainstSchema(schemas.blog, fortGuide), [], 'Fort guide draft must satisfy the production blog schema');
+assert.equal(fortGuide.status, 'draft', 'Fort guide must remain unpublished');
+assert.equal(fortGuide.lastReviewed, null, 'formal review date must remain unset');
+assert.equal(fortGuide.publishedAt, null, 'article must not claim a publication date');
+assert.equal(fortGuide.relatedBlogs.length, 0, 'draft must not point at non-existent article slugs');
+assert.ok(fortGuide.sections.length >= 8, 'Fort guide must have substantive section coverage');
+const fortGuideText = [fortGuide.title, fortGuide.lede, ...fortGuide.sections.flatMap(section => [section.heading, ...section.body])].join(' ');
+const fortGuideWords = fortGuideText.split(/\\s+/).filter(Boolean).length;
+assert.ok(fortGuideWords >= 1200, 'Fort guide should remain substantive, not thin (' + fortGuideWords + ' words)');
+assert.ok(fortGuide.sources.some(source => source.url === 'https://whc.unesco.org/en/list/247/'), 'Fort guide must cite UNESCO Hill Forts');
+assert.ok(fortGuide.sources.some(source => source.url === 'https://www.tourism.rajasthan.gov.in/jaisalmer.html'), 'Fort guide must cite Rajasthan Tourism');
+assert.ok(fortGuide.sources.some(source => source.url.includes('jain-temples-of-jaisalmer.html')), 'Fort guide must cite the official Jain Temples page');
+assert.ok(fortGuideText.includes('UNESCO World Heritage property'), 'Fort guide must explain the heritage designation precisely');
+assert.ok(/vehicles cannot enter the narrow fort lanes/i.test(fortGuideText), 'Fort guide must state the vehicle-access constraint');
+assert.ok(!/300 metres|200 metres|5–6 minute walk|3–4 minute walk/i.test(fortGuideText), 'unverified legacy walking estimates must not leak into the article');
+assert.ok(fortGuide.tableOfContents.every(entry => fortGuide.sections.some(section => section.id === entry.id)), 'table of contents must resolve to real sections');
+
 console.log('PASS: content contract unit tests (actual schemas, unsafe paths, missing sources/alt text and publication gates).');

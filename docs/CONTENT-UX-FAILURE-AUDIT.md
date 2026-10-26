@@ -179,3 +179,24 @@ A final content review of PR #12 found one remaining promise boundary: Dining sa
 - No contact/booking endpoint, canonical host, robots/sitemap setting, menu/prices, service hours, pickup point or transfer promise was activated.
 
 The current exact-head CI runs predate this wording correction and do not validate it. A fresh Site quality gates / quality result is required on the updated commit. Local full-suite, browser/device, Lighthouse and staging checks remain not run in this connector-only environment.
+## Source-backed Fort guide draft recovery — 2026-10-26
+
+### What failed
+
+The registry already contained a Jaisalmer Fort guide, but its copy read like a migration placeholder rather than a guest-ready article. Several passages described the legacy article instead of answering a traveller's question; two related-blog slugs had no matching records; and the old draft repeated approximate walk distances that were not confirmed for current access conditions. Its source list also lacked the UNESCO designation source and the dedicated official Jain-temple page.
+
+### Recovery batch
+
+- Rewrote the existing draft as a substantive nine-section guide (connector-side count: approximately 1,800 words across title, lede and sections; no public detail route is generated).
+- Added a specific SEO title and an in-range meta description.
+- Grounded heritage claims in Rajasthan Tourism and UNESCO's official Hill Forts of Rajasthan entry; used the official Jain Temples page for temple context.
+- Removed unverified walking-distance/time estimates and replaced them with date-specific arrival planning prompts.
+- Added practical guidance on living-neighbourhood etiquette, temple access, mobility/uneven surfaces, room/dining verification and comparison of heritage/desert plans without asserting live availability.
+- Cleared stale related-blog references; retained one related-tour slug, which the renderer exposes only if that tour is published.
+- Added contract tests for schema, section/TOC integrity, word depth, official sources, access constraints and draft-only metadata.
+
+### Publication and validation gates
+
+The record remains status=draft, lastReviewed=null and publishedAt=null. The canonical host, booking/contact endpoints, current room/dining/tour operations and date-specific arrival arrangements remain owner-verification gates. No HTML route, Journal index, sitemap or robots setting was changed.
+
+The updated content-contract tests are not called passed until GitHub Actions completes on the exact final PR head. Local full-suite, browser/device, accessibility and Lighthouse checks were not run in the connector-only environment. No deployment is included.

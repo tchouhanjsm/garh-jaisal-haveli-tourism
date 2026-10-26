@@ -90,3 +90,17 @@ Recommended first batch after the content system is built:
 - Continue from search and enquiry questions rather than publishing on a schedule just to fill the blog.
 
 Measure only with verified analytics: clicks to a tour, WhatsApp/booking CTA clicks, engaged page views, enquiry messages attributable to a page, and broken-link/404 rates. Do not invent a traffic or conversion baseline.
+
+## Current editorial draft — Jaisalmer Fort guide (2026-10-26)
+
+The existing content/blogs/jaisalmer-fort-guide.json record is the first source-backed article candidate for the new site. It is structured around traveller questions, with nine sections and approximately 1,800 words of substantive copy, a page-specific SEO title/description, and sources from Rajasthan Tourism, UNESCO's Hill Forts of Rajasthan record, the official Jain Temples page and owner-facts notes.
+
+Editorial guardrails:
+- Distinguish the UNESCO serial property Hill Forts of Rajasthan from an imprecise claim that Jaisalmer Fort is a standalone UNESCO site.
+- Explain the living-neighbourhood character and final-walk constraint early.
+- Do not publish approximate parking/entrance distances until they are reconfirmed for the current route.
+- Temple opening/entry/photography rules, guide access, current room assignment, menus, rates, tour status and luggage/transfer assistance are owner/date-dependent, not evergreen facts.
+- Keep status=draft, lastReviewed=null and publishedAt=null; clear stale relatedBlogs references.
+- Do not add a public Journal index or generate the article before owner/editorial review and canonical/contact/indexing approval.
+
+The content-contract regression script protects source presence, section depth, TOC integrity and draft-only metadata. Remote CI must pass on the exact final PR head. Local full-suite and browser/Lighthouse checks remain unrun in the connector-only environment.
