@@ -54,7 +54,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 - Source-level inspection: completed through connected GitHub file reads; the six legacy source images added by PR #8 were retrieved as actual bytes and visually reviewed, along with the existing target-repository room photographs.
 - Local full-suite commands for the room-reference phase: **not run**. The current execution environment has no complete checkout and DNS lookup / `git ls-remote` failed with `Could not resolve host: github.com`.
 - PR #8 exact head `48e58ff965d07999bcf4cfa89e043fee4c9ed604` passed `Site quality gates / quality` in [run #40264880774](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40264880774), then merged as `bc7e4c5d3bc5a87c88c06eb95dedcddfc027de8b`. This is historical evidence for PR #8 only, not for the room-reference changes.
-- The active room-reference batch must be judged by the final `Site quality gates / quality` result on its exact PR head; see the active PR for that run. Do not treat an absent, stale, pending, cancelled or failed result as a pass.
+- PR #9 room-reference changes passed `Site quality gates / quality` on exact head `93bad10605597c0ad224f43c2a02fa968c5cc596` in [run #40265927443](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40265927443) and merged as `f92374e04f34213ce83c17254bb75defd773350b`. This historical result does not cover the new seven-room catalogue batch.
 - Browser/device, Lighthouse, visual regression and production/staging tests: **not run**.
 - No deployment or production changes were made.
 
@@ -64,3 +64,23 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 2. Obtain owner approval for the canonical host, staffed contact/booking endpoints and current room facts before publishing operational claims.
 3. After publication prerequisites are approved, prepare one source-reviewed Journal article plus a useful archive with source links, date checks, internal links and strict draft/sitemap gates.
 4. Reconsider the legacy Content Studio adapter only after website content/UX recovery is accepted. Studio/pack integration is not part of the current phase.
+
+
+## Follow-up recovery — seven-room catalogue and authentic room photography (2026-10-26)
+
+The post-PR #9 review found that Rooms still did not answer the basic question “Which named room am I considering?” The owner-maintained legacy source lists seven rooms with distinct images.
+
+### Addressed in this batch
+
+- Restores Sweet Purple, Rising Sun, Scarlet, Opium, Red Maharani, Green and BlueSky as seven named cards.
+- Retrieves six mapped photos as actual binary content from the legacy repository, visually reviews them, and hosts them locally under assets/images/rooms/. Scarlet reuses the existing local source-matched photo. The hero uses a separately reviewed source-library sitting area.
+- Adds room-specific source descriptions, floor labels and source-listed feature tags. These are not live inventory claims.
+- Adds explicit image dimensions, useful alt text, lazy loading/decoding and responsive card layout.
+- Extends the content/UX regression gate to require all seven names, local image mappings and key features. Existing global checks continue to validate geometry, alt text, internal links, page depth and canonical/sitemap publication gates.
+- Leaves contact/booking endpoints, canonical host, robots/sitemap policy and drafts unchanged.
+
+### Validation truth and next phases
+
+Source image bytes and JPEG geometry were reviewed before creating this patch. The new content preflight checks seven cards, SEO title/description ranges, main-content depth and unique image paths. GitHub Actions must pass on the exact final PR head before the batch is treated as validated. Local full-suite, browser/device, Lighthouse and production/staging checks were not run in this connector-only execution.
+
+Next: improve Experiences with subject-matched locally hosted photos and clearer comparison of desert/heritage options, keeping operation and rates enquiry-only until confirmed. Then address relevant Dining/Directions imagery and a researched Journal article if source-reviewed and publishable. Studio integration remains deferred.
