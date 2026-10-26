@@ -78,6 +78,12 @@ def safe_url_label(value: str) -> str:
     return f"{parts.scheme}://{safe_netloc}{parts.path}"
 
 
+def sanitize_diagnostic_text(value: object) -> str:
+    """Remove URL credentials, query strings and fragments from diagnostics."""
+    url_pattern = re.compile(r"https?://[^\\s\\\"'<>]+", re.IGNORECASE)
+    return url_pattern.sub(lambda match: safe_url_label(match.group(0)), str(value))
+
+
 def is_actionable_request_failure(failure: str | None) -> bool:
     # Chromium reports navigation-cancelled lazy image requests as ERR_ABORTED;
     # HTTP 4xx/5xx responses are separately captured by the response listener.
@@ -201,8 +207,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
         "completedResponsiveViewportWidthsCssPixels": list(completed_viewports or []),
         "automatedResult": "PASS" if not failures else "FAIL",
         "automatedFailureCount": len(failures),
-        "automatedFailures": list(failures),
-        "crossOriginNavigationAttemptsBlocked": list(blocked_navigation_attempts or []),
+        "automatedFailures": [sanitize_diagnostic_text(item) for item in failures],
+        "crossOriginNavigationAttemptsBlocked": [sanitize_diagnostic_text(item) for item in (blocked_navigation_attempts or [])],
         "manualReleaseChecks": [
             {"id": check_id, "check": name, "result": "NOT RUN",
              "note": "Requires a human operator; automated browser smoke does not follow external links or submit data."}
@@ -686,6 +692,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Staging preflight evidence written locally: {destination}")
         except Exception as error:
             FAILURES.append(f"Could not write the staging evidence report: {type(error).__name__}: {error}")
+
+    # Failure output may be retained by CI or copied into an evidence report.
+    # Sanitize all diagnostic URLs before either use, including exception messages.
+    FAILURES[:] = [sanitize_diagnostic_text(item) for item in FAILURES]
 
     if FAILURES:
         print(f"FAIL: browser guest-journey smoke suite found {len(FAILURES)} issue(s)")
