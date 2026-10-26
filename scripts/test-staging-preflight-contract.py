@@ -162,13 +162,21 @@ blocked_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version", [],
     blocked_navigation_attempts=blocked_navigation,
 )
-assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [\n    "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"\n]\nassert "qa-password" not in str(blocked_report) and "secret" not in str(blocked_report)
+assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [
+    "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
+]
+assert "qa-password" not in str(blocked_report) and "secret" not in str(blocked_report)
 
 failed_report = browser_smoke.build_report(
-    "staging-read-only", valid, "QA operator", "Chromium test version",\n    ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"]
+    "staging-read-only", valid, "QA operator", "Chromium test version",
+    ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"]
 )
 assert failed_report["automatedResult"] == "FAIL"
-assert failed_report["automatedFailureCount"] == 1\nassert failed_report["automatedFailures"] == [\n    "request failed at https://outside.example/path"\n]\nassert "qa-password" not in str(failed_report) and "secret" not in str(failed_report)
+assert failed_report["automatedFailureCount"] == 1
+assert failed_report["automatedFailures"] == [
+    "request failed at https://outside.example/path"
+]
+assert "qa-password" not in str(failed_report) and "secret" not in str(failed_report)
 
 print(
     "PASS: staging preflight refuses HTTP, credentials, path/query/fragment, local/IP and configured "
