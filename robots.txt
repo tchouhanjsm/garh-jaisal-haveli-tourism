@@ -1,5 +1,4 @@
 # Pre-launch default: prevents the staging copy from being indexed.
-# Before production launch, replace Disallow: / with Allow: / and verify the sitemap URL.
+# Keep staging blocked. Do not advertise a sitemap until the canonical host is owner-approved.
 User-agent: *
 Disallow: /
-Sitemap: https://hotelgarhjaisal.com/sitemap.xml
