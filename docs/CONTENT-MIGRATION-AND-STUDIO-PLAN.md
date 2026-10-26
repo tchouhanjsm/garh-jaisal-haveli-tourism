@@ -330,7 +330,7 @@ The media manifest and regression gates now check per-role size budgets, exact s
 
 ## Guest-journey editorial phase — 26 October 2026
 
-Experiences now presents two locally hosted, source-backed photographs for each of the six source-listed options. Visitors can move manually with accessible previous/next controls; images do not autoplay. Every caption makes clear that the picture is a visual reference rather than a guarantee of the pictured location or an itinerary stop.
+Experiences presents six source-listed options. Five have two locally hosted, source-backed photographs with accessible manual previous/next controls; Swiss-tent remains single-photo until a second distinct source image is reviewed. Images do not autoplay. Captions make clear that photos are visual references, not guarantees of the pictured location or itinerary stops.
 
 Dining now places the actual rooftop-table photograph alongside specific menu/service-hour confirmation guidance, with a separate view across the fort for context. About uses the fort-side rooftop photograph and has practical links before the final conversion CTA. Directions leads with the final walking approach, a map link and a three-point arrival summary. Copy across these pages avoids guarantees for date-specific services.
 
