@@ -32,6 +32,46 @@ assert browser_smoke.same_origin("https://staging.example.test/rooms.html", vali
 assert not browser_smoke.same_origin("https://staging.example.test.evil/rooms.html", valid)
 assert not browser_smoke.same_origin("not-a-url", "also-not-a-url")
 
+
+class FakeRequest:
+    def __init__(self, url: str, navigation: bool = True):
+        self.url = url
+        self._navigation = navigation
+
+    def is_navigation_request(self) -> bool:
+        return self._navigation
+
+
+class FakeRoute:
+    def __init__(self, url: str, navigation: bool = True):
+        self.request = FakeRequest(url, navigation)
+        self.aborted = False
+        self.continued = False
+
+    def abort(self) -> None:
+        self.aborted = True
+
+    def continue_(self) -> None:
+        self.continued = True
+
+
+class FakeContext:
+    def route(self, pattern: str, handler) -> None:
+        assert pattern == "**/*"
+        self.handler = handler
+
+
+fake_context = FakeContext()
+browser_smoke.install_navigation_guard(fake_context, valid)
+external_route = FakeRoute("https://hotelgarhjaisal.com/")
+fake_context.handler(external_route)
+assert external_route.aborted and not external_route.continued
+assert "hotelgarhjaisal.com" in browser_smoke.CROSS_ORIGIN_NAVIGATION_ERRORS[-1]
+same_origin_route = FakeRoute("https://staging.example.test/rooms.html")
+fake_context.handler(same_origin_route)
+assert same_origin_route.continued and not same_origin_route.aborted
+browser_smoke.CROSS_ORIGIN_NAVIGATION_ERRORS.clear()
+
 for production_url in (
     "https://hotelgarhjaisal.com/",
     "https://www.hotelgarhjaisal.com/",
