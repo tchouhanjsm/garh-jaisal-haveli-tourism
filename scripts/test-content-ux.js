@@ -78,6 +78,13 @@ function imageDimensions(buffer) {
         format: 'webp',
       };
     }
+    if (chunk === 'VP8 ' && buffer.length >= 30 && buffer.toString('hex', 23, 26) === '9d012a') {
+      return {
+        width: buffer.readUInt16LE(26) & 0x3fff,
+        height: buffer.readUInt16LE(28) & 0x3fff,
+        format: 'webp',
+      };
+    }
   }
   if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
   const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
@@ -214,6 +221,68 @@ for (const rule of PAGE_RULES) {
     }
     if (/class=["'][^"']*\broom-reference-grid\b/.test(html)) fail('rooms.html: old generic room-reference grid remains');
     if (!/not live inventory/i.test(html)) fail('rooms.html: source-listing must be distinguished from live inventory');
+  }
+
+
+  if (rule.file === 'experiences.html') {
+    const catalogue = [
+      { id: 'sunset-camel', title: 'Sunset camel safari', image: 'assets/images/legacy/camel-sunset.jpg' },
+      { id: 'cultural-evening', title: 'Cultural desert evening', image: 'assets/images/experiences/cultural-programme.jpg' },
+      { id: 'open-sky', title: 'Sleep under the stars', image: 'assets/images/tent.jpg' },
+      { id: 'swiss-tent', title: 'Swiss tent overnight', image: 'assets/images/experiences/swiss-tent-exterior.webp' },
+      { id: 'half-day-city', title: 'Half-day guided Jaisalmer tour', image: 'assets/images/legacy/fort-temple-spires.jpg' },
+      { id: 'full-day-city', title: 'Full-day guided Jaisalmer tour', image: 'assets/images/experiences/heritage-architecture.jpg' },
+    ];
+    const cards = [...html.matchAll(/<article class="experience-option" data-option="([^"]+)"[^>]*>[\s\S]*?<\/article>/g)];
+    if (cards.length !== catalogue.length) {
+      fail('experiences.html: expected six source-listed experience option cards, found ' + cards.length);
+    }
+    if (!/data-option="sunset-camel" id="desert"/.test(html)) {
+      fail('experiences.html: homepage desert deep link must target the sunset camel option');
+    }
+    if (!/data-option="half-day-city" id="city-tours"/.test(html)) {
+      fail('experiences.html: homepage city-tours deep link must target the guided city options');
+    }
+    const expectedSources = catalogue.map((option) => option.image);
+    if (new Set(expectedSources).size !== catalogue.length) {
+      fail('experiences.html: experience options must use six distinct image paths');
+    }
+    for (const option of catalogue) {
+      const match = cards.find((candidate) => candidate[1] === option.id);
+      if (!match) {
+        fail('experiences.html: missing source-listed option: ' + option.title);
+        continue;
+      }
+      const card = match[0];
+      if (!card.includes('<h2 id="experience-' + option.id + '-title">' + option.title + '</h2>')) {
+        fail('experiences.html: option heading is missing or mismatched: ' + option.title);
+      }
+      if (!card.includes('src="' + option.image + '"')) {
+        fail('experiences.html: incorrect local image mapping for ' + option.title);
+      }
+      if (!/loading="lazy"/.test(card) || !/decoding="async"/.test(card)) {
+        fail('experiences.html: option images must be lazy-loaded and asynchronously decoded: ' + option.title);
+      }
+      if (!/class="experience-confirmation"/.test(card)) {
+        fail('experiences.html: missing confirmation prompts for ' + option.title);
+      }
+      const cardText = stripMarkup(card).toLocaleLowerCase();
+      for (const term of ['duration', 'transport', 'access', 'inclusions', 'exclusions']) {
+        if (!cardText.includes(term)) fail('experiences.html: ' + option.title + ' is missing the ' + term + ' confirmation prompt');
+      }
+      if (!/data-enquiry-link/.test(card) || !/aria-disabled="true"/.test(card)) {
+        fail('experiences.html: enquiry action must remain disabled until endpoint verification: ' + option.title);
+      }
+    }
+    if (!/not confirmation that each option is currently operated/i.test(html)) {
+      fail('experiences.html: source-listed concepts need an explicit non-live-offer disclaimer');
+    }
+    if (/garh-jaisal-website|raw\.githubusercontent\.com/i.test(html)) {
+      fail('experiences.html: public page must not hotlink legacy repository assets');
+    }
+    if (/class="service-list"/.test(html)) {
+      fail('experiences.html: old unstructured service list remains beside the six-option comparison');
+    }
   }
 
   const navMatch = html.match(/<nav id=["']primary-navigation["'][^>]*>[\s\S]*?<\/nav>/i);

@@ -274,4 +274,17 @@ Do not copy all 11 legacy experience records, all 12 article records, or the ent
 
 The current phase restores the seven source-recorded room names in Rooms, uses mapped photographs as locally hosted assets, presents source-listed features with explicit live-inventory caveats, and adds regression coverage for the name/image/feature mapping. Contact, canonical-host, robots/sitemap and draft-publication gates remain unchanged.
 
-Next phases: improve Experiences with subject-matched imagery and comparison-oriented detail, then fill relevant Dining and Directions image gaps. Only after source review and owner/publication prerequisites should a Journal article be added. The legacy Studio adapter and pack integration remain deferred.
+Next phase after the Experiences comparison: improve relevant Dining and Directions imagery only where the source assets are retrieved, visually reviewed and context-matched. Consider a Journal article only after source review and owner/publication prerequisites. The legacy Studio adapter and pack integration remain deferred.
+
+
+## Current implementation checkpoint — six experience options comparison (2026-10-26)
+
+Main baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8.
+
+The Experiences phase presents six legacy-source concepts with distinct, locally hosted desert/heritage imagery and card-level prompts to confirm duration, timing, transport, access, inclusions and exclusions. The legacy records' historical status values of "live" are not treated as current operating approval. The cultural programme, open-sky stay, Swiss-tent option and both guided-tour formats remain enquiry-only until the hotel confirms what is currently offered. The heritage image is explicitly not a promised stop.
+
+Contact/booking endpoints, canonical-host approval, robots/sitemap policy and draft publication gates remain unchanged. No Content Studio pack adapter work is included.
+
+Validation checkpoint: source imagery was fetched as binary bytes and visually reviewed before inclusion; the changed regression suite covers six distinct option cards, local image mappings, accessible text, confirmation prompts and inactive enquiry actions. Local full-suite commands remain not run because the environment has no checkout and shell DNS/network access to GitHub fails. Exact-head GitHub quality status must be verified on the final PR commit before merge consideration.
+
+Next: improve relevant Dining and Directions imagery using reviewed local assets, then consider a source-reviewed Journal article only when factual/date and publication prerequisites are satisfied. Studio/pack integration remains deferred.
