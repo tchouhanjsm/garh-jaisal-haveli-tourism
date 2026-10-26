@@ -60,15 +60,24 @@ function element(name, initialAttributes = {}, text = '') {
   return el;
 }
 
-function makeConfig({ verified = false, whatsapp = '', phone = '', display = '' } = {}) {
+function makeConfig({
+  verified = false, whatsapp = '', phone = '', display = '',
+  alternatePhone = '', alternateDisplay = '', email = '', bookingUrl = ''
+} = {}) {
   return {
     verificationStatus: verified ? 'owner-verified' : 'legacy-source-unverified',
+    booking: {
+      status: verified ? 'verified' : 'owner-verification-required',
+      legacyBookingEngineUrl: bookingUrl
+    },
     contact: {
       status: verified ? 'verified' : 'owner-verification-required',
       whatsappBaseUrl: whatsapp,
       primaryPhoneE164: phone,
       primaryPhoneDisplay: display,
-      email: ''
+      alternatePhoneE164: alternatePhone,
+      alternatePhoneDisplay: alternateDisplay,
+      email
     }
   };
 }
@@ -91,7 +100,27 @@ async function boot(config, fetchFails = false) {
     'data-contact-prefix': 'Call',
     'aria-disabled': 'true',
     'aria-describedby': 'contact-status'
-  }, 'Phone contact pending verification');
+  }, 'Phone unavailable');
+  const alternatePhoneLink = element('a', {
+    href: '#contact-status',
+    'data-contact-alt-phone': '',
+    'data-contact-prefix': 'Landline',
+    'aria-disabled': 'true',
+    'aria-describedby': 'contact-status'
+  }, 'Landline unavailable');
+  const emailLink = element('a', {
+    href: '#contact-status',
+    'data-contact-email': '',
+    'data-contact-prefix': 'Email',
+    'aria-disabled': 'true',
+    'aria-describedby': 'contact-status'
+  }, 'Email unavailable');
+  const bookingLink = element('a', {
+    href: '#contact-status',
+    'data-booking-link': '',
+    'aria-disabled': 'true',
+    'aria-describedby': 'contact-status'
+  }, 'Book Now');
   const arrival = element('input');
   arrival.value = '2026-11-01';
   const departure = element('input');
@@ -129,7 +158,10 @@ async function boot(config, fetchFails = false) {
         '[data-accordion]': [],
         '[data-reveal]': [],
         '[data-enquiry-link]': [enquiryLink],
-        '[data-contact-phone]': [phoneLink]
+        '[data-contact-phone]': [phoneLink],
+        '[data-contact-alt-phone]': [alternatePhoneLink],
+        '[data-contact-email]': [emailLink],
+        '[data-booking-link]': [bookingLink]
       })[selector] || [];
     },
     createElement(name) { return element(name); },
@@ -158,12 +190,12 @@ async function boot(config, fetchFails = false) {
     filename: 'assets/site.js'
   });
   await new Promise(resolve => setImmediate(resolve));
-  return { window, status, enquiryLink, phoneLink, form, arrival, departure, guests, note, submit };
+  return { window, status, enquiryLink, phoneLink, alternatePhoneLink, emailLink, bookingLink, form, arrival, departure, guests, note, submit };
 }
 
 async function main() {
   const root = path.resolve(__dirname, '..');
-  const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'about.html', 'directions.html'];
+  const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
   const authoredMessages = new Set();
   for (const page of publicPages) {
     const html = fs.readFileSync(path.join(root, page), 'utf8');
@@ -175,18 +207,28 @@ async function main() {
   assert.ok(authoredMessages.size > 10, 'section-specific enquiry messages must be preserved');
 
   const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
-  if (publicConfig.verificationStatus !== 'owner-verified' || !publicConfig.contact || publicConfig.contact.status !== 'verified') {
-    assert.equal(publicConfig.contact.whatsappBaseUrl, '', 'unverified WhatsApp endpoint must remain empty');
-    assert.equal(publicConfig.contact.primaryPhoneE164, '', 'unverified telephone endpoint must remain empty');
-    assert.equal(publicConfig.contact.primaryPhoneDisplay, '', 'unverified telephone label must remain empty');
-  }
-  if (!publicConfig.booking || publicConfig.booking.status !== 'verified') {
-    assert.equal(publicConfig.booking.legacyBookingEngineUrl, '', 'unverified booking gateway must remain empty');
-  }
+  assert.equal(publicConfig.verificationStatus, 'owner-authorized-source',
+    'source-derived endpoints must be marked owner-authorized, not live-tested');
+  assert.equal(publicConfig.site.canonicalHostApproved, false,
+    'source contact authorization must not approve the canonical host');
+  assert.equal(publicConfig.contact.status, 'source-authorized');
+  assert.match(publicConfig.contact.whatsappBaseUrl, /^https:\/\/wa\.me\/\d{8,15}$/);
+  assert.match(publicConfig.contact.primaryPhoneE164, /^\+[1-9]\d{7,14}$/);
+  assert.match(publicConfig.contact.alternatePhoneE164, /^\+[1-9]\d{7,14}$/);
+  assert.match(publicConfig.contact.email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+  assert.equal(publicConfig.booking.status, 'source-authorized');
+  const bookingUrl = new URL(publicConfig.booking.legacyBookingEngineUrl);
+  assert.equal(bookingUrl.protocol, 'https:');
+  assert.equal(bookingUrl.hostname, 'asiatech.in');
+  assert.equal(bookingUrl.pathname, '/booking_engine/index3');
+  assert.ok(bookingUrl.searchParams.has('token'), 'source booking endpoint must retain its provider token');
   const unverified = await boot(makeConfig());
   assert.equal(unverified.enquiryLink.getAttribute('href'), '#contact-status');
   assert.equal(unverified.enquiryLink.getAttribute('aria-disabled'), 'true');
   assert.equal(unverified.phoneLink.getAttribute('href'), '#contact-status');
+  assert.equal(unverified.alternatePhoneLink.getAttribute('href'), '#contact-status');
+  assert.equal(unverified.emailLink.getAttribute('href'), '#contact-status');
+  assert.equal(unverified.bookingLink.getAttribute('href'), '#contact-status');
   assert.equal(unverified.submit.disabled, true);
   assert.equal(unverified.status.hidden, false);
   const blockedSubmit = unverified.form.dispatch('submit');
@@ -198,15 +240,26 @@ async function main() {
     verified: true,
     whatsapp: 'https://wa.me/15551234567',
     phone: '+15551234567',
-    display: '+1 555 123 4567'
+    display: '+1 555 123 4567',
+    alternatePhone: '+15551234568',
+    alternateDisplay: '+1 555 123 4568',
+    email: 'hotel@example.com',
+    bookingUrl: 'https://asiatech.in/booking_engine/index3?token=test-token'
   }));
   assert.match(verified.enquiryLink.getAttribute('href'), /^https:\/\/wa\.me\/15551234567\?text=/);
   assert.equal(verified.enquiryLink.getAttribute('target'), '_blank');
-  assert.equal(verified.enquiryLink.getAttribute('rel'), 'noopener');
+  assert.equal(verified.enquiryLink.getAttribute('rel'), 'noopener noreferrer');
   assert.equal(new URL(verified.enquiryLink.getAttribute('href')).searchParams.get('text'), 'Namaste, please share room availability.');
   assert.equal(verified.enquiryLink.getAttribute('aria-disabled'), null);
   assert.equal(verified.phoneLink.getAttribute('href'), 'tel:+15551234567');
   assert.equal(verified.phoneLink.textContent, 'Call +1 555 123 4567');
+  assert.equal(verified.alternatePhoneLink.getAttribute('href'), 'tel:+15551234568');
+  assert.equal(verified.alternatePhoneLink.textContent, 'Landline +1 555 123 4568');
+  assert.equal(verified.emailLink.getAttribute('href'), 'mailto:hotel@example.com');
+  assert.equal(verified.emailLink.textContent, 'Email hotel@example.com');
+  assert.equal(verified.bookingLink.getAttribute('href'), 'https://asiatech.in/booking_engine/index3?token=test-token');
+  assert.equal(verified.bookingLink.getAttribute('target'), '_blank');
+  assert.equal(verified.bookingLink.getAttribute('rel'), 'noopener noreferrer');
   assert.equal(verified.submit.disabled, false);
   assert.equal(verified.status.hidden, true);
   verified.form.dispatch('submit');
@@ -245,7 +298,7 @@ async function main() {
   assert.equal(fetchFailure.submit.disabled, true);
   assert.equal(fetchFailure.status.hidden, false);
 
-  console.log('PASS: enquiry links and booking form fail closed until owner verification; verified WhatsApp/phone channels and date/guest message generation work.');
+  console.log('PASS: source-authorized booking, WhatsApp, telephone, landline and email links hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
 }
 
 main().catch(error => {

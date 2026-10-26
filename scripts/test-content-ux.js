@@ -431,8 +431,17 @@ for (const rule of PAGE_RULES) {
     if (/our team can guide you/i.test(html)) {
       fail('dining.html: arrival or luggage help must not be presented as guaranteed');
     }
-    if (!/verified contact route in your booking confirmation to ask whether guidance can be arranged/i.test(html)) {
-      fail('dining.html: arrival-help wording must direct guests to a verified booking contact');
+    if (!/message or call the hotel using the contact links below to confirm the current approach/i.test(html)) {
+      fail('dining.html: arrival guidance should use the centralized contact paths without promising assistance');
+    }
+    if (!html.includes('Current menu items and prices are not displayed because the source menu record is still marked as awaiting owner confirmation.')) {
+      fail('dining.html: unconfirmed legacy menu data must not be published as current prices');
+    }
+    if (!html.includes('https://www.instagram.com/garhjaisal/')) {
+      fail('dining.html: owner-confirmed restaurant Instagram profile is missing');
+    }
+    if (!html.includes('Open in Google Maps')) {
+      fail('dining.html: source-confirmed restaurant map destination must remain discoverable');
     }
   }
 
@@ -457,8 +466,11 @@ for (const rule of PAGE_RULES) {
     if (!/verified contact route from your booking confirmation to confirm the current meeting point/i.test(html)) {
       fail('directions.html: final arrival assistance must be framed as date-specific confirmation');
     }
-    if (!html.includes('Contact channel pending verification')) {
-      fail('directions.html: visible arrival contact CTA must show its unverified status');
+    if (!/Ask about arrival on WhatsApp/i.test(html) || !/data-contact-phone/.test(html) || !/data-contact-email/.test(html)) {
+      fail('directions.html: arrival guidance must expose WhatsApp, telephone and email through centralized contact configuration');
+    }
+    if (!/SUV and sedan arrangements across Rajasthan and Delhi/i.test(html)) {
+      fail('directions.html: source transport context and date-specific availability caveat are missing');
     }
   }
 
