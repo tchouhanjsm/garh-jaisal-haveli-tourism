@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import html
+import ipaddress
 import json
 import re
 import sys
@@ -84,6 +85,13 @@ def safe_origin(value: object) -> str | None:
                 or parts.path not in ("", "/") or parts.query or parts.fragment):
             return None
         host = parts.hostname.lower()
+        if host == "localhost" or host.endswith((".localhost", ".local")):
+            return None
+        try:
+            ipaddress.ip_address(host)
+            return None
+        except ValueError:
+            pass
         if ":" in host:
             host = f"[{host}]"
         port = parts.port
@@ -279,7 +287,7 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
         automated = "UNKNOWN"
     verified = sum(item["valid"] for item in results)
     bundle_ok = not issues and verified == 21
-    bundle_text = "PASS — 21 files verified" if bundle_ok else f"FAIL — {verified}/21 files verified"
+    bundle_text = "PASS — 21 files verified" if bundle_ok else f"FAIL — evidence issues; {verified}/21 screenshots verified"
     bundle_class = "pass" if bundle_ok else "fail"
     automated_class = "pass" if automated == "PASS" else "fail"
     folder = quote(screenshots.name, safe="-._~")
@@ -352,7 +360,7 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 <p>Compare the seven-page guest journey at mobile, tablet and desktop widths. This page uses saved evidence only and does not contact the staging host.</p>
 <div class="summary" aria-label="Evidence summary">
 <div class="metric">Automated browser result<strong class="{automated_class}">{html.escape(automated)}</strong></div>
-<div class="metric">Screenshot integrity<strong class="{bundle_class}">{html.escape(bundle_text)}</strong></div>
+<div class="metric">Evidence integrity<strong class="{bundle_class}">{html.escape(bundle_text)}</strong></div>
 <div class="metric">Target origin<strong>{origin_text}</strong></div><div class="metric">Operator<strong>{operator}</strong></div>
 <div class="metric">Recorded at (Asia/Kolkata)<strong>{recorded}</strong></div><div class="metric">Browser<strong>{browser_text}</strong></div>
 <div class="metric">Human release status<strong class="fail">BLOCKED — manual UAT required</strong></div></div>
