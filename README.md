@@ -110,3 +110,9 @@ The first architecture and marketing plan is in [Tour and Blog Content Strategy]
 Use the branch-first process in [Development Workflow](docs/DEVELOPMENT-WORKFLOW.md): inspect the open PR, work on its branch, make coherent commits, run available checks locally, inspect the final diff, and leave the PR open for owner review. Do not open a second PR while any earlier PR is open and unmerged.
 
 The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.sh` on pull requests to `main` and pushes to `main` and supported implementation branches. It uses standard GitHub-hosted runners, pinned actions and read-only repository permissions; standard runners are free for public repositories ([GitHub Actions billing](https://docs.github.com/en/actions/concepts/billing-and-usage)). Run the same command locally before opening a PR. A missing check is not a pass. The workflow does not deploy or publish content; current tour/blog records stay unpublished until the owner-approved content gates pass.
+
+
+### Premium design and media performance
+- The homepage uses one primary Book Now CTA, quieter room/arrival links, specific fort-arrival facts and a closing CTA that explains the external flow.
+- The media manifest records source-verified Green Room replacement bytes and WebP/JPEG source pairs. Do not change image-to-room mapping or describe photos as live room inventory without confirming the actual subject/source facts.
+- Run `bash scripts/check-pr-quality.sh` before opening/merging a PR. The media test checks file bytes, source blob SHA, dimensions, role budgets and page-specific references/alt text. Passing automation does not replace staging visual inspection.

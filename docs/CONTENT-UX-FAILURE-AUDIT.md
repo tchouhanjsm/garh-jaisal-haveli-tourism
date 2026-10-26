@@ -296,3 +296,26 @@ The newly added regression tests and content changes must pass the exact final f
 ### Validation statement
 
 The full GitHub-hosted Site quality gates must pass on the exact feature/PR head and post-merge main SHA. This connected environment does not contain a complete local checkout; local browser/device, Lighthouse, accessibility-tooling and staging UAT are still not run from this chat. A green automated suite does not satisfy the manual release gates.
+
+
+## Premium visual and media-performance batch — 26 October 2026
+
+### Design decisions
+- Kept the established paper/sandstone/ink palette and serif-led editorial typography rather than introducing a new template, gradients, fake testimonials or generated imagery.
+- Simplified the homepage hero to one primary Book Now action with quieter secondary links for rooms and arrival.
+- Replaced repeated fort wording in the proof strip with four concrete planning facts: the seven named rooms, rooftop dining questions, the final walk inside the fort and date-specific desert/city tour confirmations.
+- Replaced the unattributed generic quote panel with an editorial arrival/decision section about the actual operating context: vehicles cannot reach the door; room photographs are not live inventory; tour and menu details must be confirmed for the dates.
+- Moved the planning-path section before the closing CTA so the homepage ends with the direct booking handoff. The closing note says the external flow does not itself confirm a reservation.
+- Reused a visually inspected, source-listed Green Room photograph at 114,126 bytes instead of 799,571 bytes. This reduces the Green Room image transfer by 685,445 bytes (about 85.7%) while preserving the correct subject.
+- Added source-provided WebP image sources for the Sweet Purple room and sandstone sitting-room hero while keeping JPEG fallbacks. The WebP assets were visually inspected; exact blob hashes/bytes are recorded in the media manifest.
+
+### Performance and regression work
+- Media manifest tracks the replacement Green Room bytes/hash, the new Purple Room WebP, the sitting-room WebP and the JPEG fallback. Entries record source/target SHA, dimensions, byte size, intended role, page references, alt text and a current-availability caveat.
+- Media gate now applies separate byte budgets to hero, named-room photos, WebP alternates, room hero, dining and rooftop/fort imagery; it verifies local file bytes, Git blob hashes, dimensions and page-specific reference/alt contracts.
+- Content/UX regression tests check homepage-specific copy, CTA behavior and final section order, plus WebP/JPEG mapping and updated Green Room geometry.
+- No unconfirmed menu items, public rates, live room availability or guaranteed luggage/transport/tour services were added.
+
+### Validation boundaries
+- GitHub Actions must pass on the exact PR head and post-merge main SHA.
+- No complete local checkout is available through this chat; local full suite, browser/device, Lighthouse, accessibility-tooling and staging UAT are not represented as run.
+- Live booking-provider and contact reachability and production-domain approval remain launch gates under docs/LAUNCH-READINESS-CHECKLIST.md.

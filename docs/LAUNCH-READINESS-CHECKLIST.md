@@ -52,7 +52,7 @@ Complete and record these checks against the intended staging site first. Do not
 
 - [ ] Run the GitHub-hosted quality suite on the exact PR head and again on the resulting main SHA; confirm current-head conclusions, not stale runs.
 - [ ] Check desktop, tablet and mobile breakpoints; keyboard navigation, focus visibility, Escape/expanded state, reduced-motion behavior, image cropping and CTA tap targets.
-- [ ] Run Lighthouse/performance inspection and accessibility checks on staging. Pay particular attention to the existing Green Room image (about 800 KB): it is source-correct but remains a candidate for a smaller, visually reviewed derivative.
+- [ ] Run Lighthouse/performance inspection and accessibility checks on staging. The Green Room image is now a source-verified 114,126-byte alternate (the prior asset was 799,571 bytes); inspect its crop/layout on desktop and mobile and review the remaining 537,837-byte Sweet Purple JPEG fallback and 519,598-byte sitting-room JPEG fallback.
 - [ ] Confirm page titles/meta descriptions, social preview images/alt text, internal links, image status codes, privacy/terms links and owner-approved analytics/measurement configuration.
 - [ ] After deployment, test Book Now and contact links once more on the production hostname; monitor for failed redirects, broken assets, enquiries not received and email bounces.
 
