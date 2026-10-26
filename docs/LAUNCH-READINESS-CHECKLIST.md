@@ -81,7 +81,7 @@ Complete and record these checks against the intended staging site first. Do not
 Use the intended staging host only. Replace `NOT RUN` with a result only after the named operator performs the check in a normal browser/device and records evidence. A CI pass is not evidence for these rows. Do not enter guest personal data, booking tokens or payment details in this table.
 
 | Check | Exact staging URL | Date/time (Asia/Kolkata) | Operator | Browser / device / viewport | Result | Evidence / notes | Follow-up owner |
-|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|
 | STG-01 Desktop guest journey: Home → Rooms → Experiences → Dining → Directions |  |  |  |  | NOT RUN |  |  |
 | STG-02 Mobile guest journey and tap targets |  |  |  |  | NOT RUN |  |  |
 | STG-03 Images, config and styles: no 404 or mixed content |  |  |  |  | NOT RUN |  |  |

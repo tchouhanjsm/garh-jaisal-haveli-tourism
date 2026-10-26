@@ -386,3 +386,6 @@ The legacy `img/optimized/v2/courtyard.webp` was retrieved and visually compared
 - Owner confirmation of current room inventory/rates/facilities, tour operation/inclusions and dining menu/prices/hours.
 - Approved canonical hostname, DNS/SSL/routing, staging UAT, backup/rollback and deployment approval.
 - Content Studio/importer integration remains deferred.
+
+
+Review finding before merge: adding the follow-up-owner column made the staging UAT header eight columns wide while its Markdown separator still had seven. The separator has been corrected on this PR branch; the exact final-head quality run must be checked after this commit.
