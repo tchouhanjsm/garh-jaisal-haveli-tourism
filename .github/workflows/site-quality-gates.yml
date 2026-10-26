@@ -38,5 +38,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install pinned browser smoke dependency
+        run: python -m pip install --disable-pip-version-check -r requirements-test.txt
+
+      - name: Install Chromium and runner dependencies
+        run: python -m playwright install --with-deps chromium
+
       - name: Run site and content quality suite
         run: bash scripts/check-pr-quality.sh
