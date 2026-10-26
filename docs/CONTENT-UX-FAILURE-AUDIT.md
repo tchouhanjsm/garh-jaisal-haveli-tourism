@@ -1,6 +1,6 @@
 # Content and UX Failure Audit
 
-**Baseline:** main at 2c501f868e51f0baa1eb34d35ab90e0f39d274d8 (26 October 2026; PR #10 merged). This audit now tracks the Experiences comparison phase.
+**Baseline reviewed for this recovery phase:** main at 002a0c83765a3b6623512f7ee775b722acd7dc27 (26 October 2026; PR #13 merged). This cumulative audit now tracks the homepage guest-decision journey; older entries remain historical.
 **Scope:** public static HTML/CSS/vanilla-JS routes. Content Studio pack import and adapter work are explicitly out of scope for this recovery phase.
 
 ## Evidence from the pre-change pages
@@ -209,3 +209,32 @@ Two exact-head quality runs exposed test-fixture issues, not content or publicat
 - Follow-up run [#40285672161](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40285672161) passed renderer, importer, enquiry and schema checks but failed the new article depth assertion. The test's whitespace regex was over-escaped, so the counter counted the article as one token. The assertion has been corrected to split on actual whitespace while retaining the 1,200-word minimum.
 
 Both failures are explicitly recorded rather than labelled as environment failures. The follow-up fixes need a fresh quality run against the next exact PR HEAD. No local full suite, browser/device, Lighthouse or staging checks have been performed here, and the PR must not be merged until the exact-head CI and all required review/local-validation gates are satisfied.
+
+
+## Homepage guest-decision journey — 2026-10-26
+
+### Confirmed baseline and visitor impact
+
+- The homepage's primary planning panel used a date/guest form whose submit control was disabled while contact details remained unverified. The note correctly said travel details would not be sent, but the form still occupied prime visitor attention without completing a useful action.
+- The hero's local asset, `assets/images/rest3.jpg`, was visually inspected. It shows a rooftop terrace and Jaisalmer city lights at dusk; its existing hero alt text and Open Graph description are contextually appropriate, so this batch does not replace it.
+- `assets/images/courtyard.jpg` was visually inspected and shows a carved sandstone interior. `assets/images/legacy/fort-temple-spires.jpg` shows temple spires and is not a hotel-façade or room photograph; it must not be labelled as either.
+- Source `docs/OWNER-FACTS.md` still marks live room prices, current menu/pricing, dining hours, reception coverage, transfer fares and arrival assistance as needing confirmation. Contact/booking config and the final canonical host remain unapproved.
+
+### Implementation in this batch
+
+- Replaced the disabled date/guest form with four direct planning routes to Rooms, Experiences, Dining and Directions.
+- Added visitor-facing guidance that vehicle access ends before the hotel door and that the current meeting point needs confirmation.
+- Made enquiry state explicit: the homepage does not collect or transmit travel dates and does not make reservations while contact setup is unverified.
+- Revised tour and booking FAQs to distinguish source-listed options from currently operated offers and to avoid implying that a booking request is transmitted.
+- Replaced the closing booking-conversation CTA with useful links to room guidance and arrival planning.
+- Added responsive two-column/stacked path cards, keyboard-visible focus treatment and reduced-motion handling. Existing page templates and the renderer were not replaced.
+- Added regression checks for the four route targets, accessible group/heading, non-live booking boundary, arrival caveat, hero image/alt/OG alignment, and responsive/focus/reduced-motion CSS.
+- Updated this audit and clarified that content/UX/SEO recovery takes priority over Content Studio integration.
+
+### Asset and publication boundary
+
+No new image binaries were copied or claimed as migrated in this phase. Existing locally hosted assets were visually inspected only to confirm their current subject/context; the full source-to-target media manifest and gallery curation remain outstanding. The fort temple image was not repurposed as a hotel image. No canonical host, sitemap/robots rule, booking/contact endpoint, room rate, menu, service schedule or production deployment was changed. The blog and tour content registry's publication rules remain unchanged.
+
+### Validation status and limitations
+
+The base commit's Site quality gates workflow passed on the exact main SHA before this batch; that is not evidence for the new feature head. A fresh exact-head GitHub Actions result is required for this implementation and any subsequent commit. The connected GitHub tools do not provide a complete local checkout in this chat, so the local full suite, browser/device rendering, accessibility tooling, Lighthouse and staging UAT were not run here. Do not treat those items as passed.
