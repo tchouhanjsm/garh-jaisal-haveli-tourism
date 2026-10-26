@@ -402,7 +402,7 @@ The static checks already covered source provenance, image byte budgets, metadat
 - Third-party links are inspected only; no booking, payment, guest-data submission, WhatsApp send or email send is performed.
 
 ### Validation status
-- Exact feature-head and PR-triggered quality results: to be recorded from the final commit's live GitHub run; a missing or stale run is not a pass.
+- The initial Chromium suite passed on implementation head `95585ac60165381a54f173363c055c066fde9dad` in [run #40329249764](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40329249764). Adding an explicit skip-link activation assertion then exposed a real accessibility defect in [run #40329472342](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40329472342): Enter revealed the main content but DOM focus did not move to it. The root cause was that all seven `<main id="main">` targets lacked `tabindex="-1"`. Added `tabindex="-1"` to each main landmark and made the browser test enforce the contract. The updated head must pass a fresh full quality run before merge.
 - Local `bash scripts/check-pr-quality.sh`: NOT RUN in the connector environment because there is no complete local checkout. Do not describe the GitHub browser run as local execution.
 - Staging browser/device UAT, formal accessibility tooling, Lighthouse/Core Web Vitals and human contact/booking checks: NOT RUN.
 - The 17 operator UAT rows remain `NOT RUN` until real evidence is entered. Canonical-host approval, menu owner confirmation, draft publication and production deployment remain gated.
