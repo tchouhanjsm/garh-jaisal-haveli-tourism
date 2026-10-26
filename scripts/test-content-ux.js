@@ -183,6 +183,24 @@ for (const rule of PAGE_RULES) {
     }
   }
 
+  const navMatch = html.match(/<nav id=["']primary-navigation["'][^>]*>[\s\S]*?<\/nav>/i);
+  if (!navMatch) fail(rule.file + ': missing primary navigation');
+  else {
+    const nav = navMatch[0];
+    const aboutGroup = nav.match(/<div class=["']nav-about-group["'][^>]*>[\s\S]*?<\/div>/i);
+    const dropdown = nav.match(/<details\b[^>]*class=["']nav-dropdown["'][^>]*>[\s\S]*?<\/details>/i);
+    if (!aboutGroup || !/href=["']about\.html["']/.test(aboutGroup[0])) {
+      fail(rule.file + ': About must remain a real link in the About navigation group');
+    }
+    if (!dropdown || !/href=["']gallery\.html["']/.test(dropdown[0])) {
+      fail(rule.file + ': Gallery must be discoverable inside the About dropdown');
+    }
+    const navOutsideDropdown = nav.replace(/<details\b[^>]*class=["']nav-dropdown["'][^>]*>[\s\S]*?<\/details>/i, '');
+    if (/href=["']gallery\.html["']/.test(navOutsideDropdown)) {
+      fail(rule.file + ': Gallery should not be a top-level navigation item');
+    }
+  }
+
   const anchors = html.matchAll(/<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>/gi);
   for (const match of anchors) {
     const href = match[1];
