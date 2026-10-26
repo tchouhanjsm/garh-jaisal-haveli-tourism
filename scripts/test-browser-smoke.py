@@ -39,6 +39,9 @@ RUNTIME_ERRORS: list[str] = []
 HTTP_ERRORS: list[str] = []
 FAILED_REQUESTS: list[str] = []
 MIXED_CONTENT_ERRORS: list[str] = []
+PAGES_ATTEMPTED: list[str] = []
+PAGES_HTTP_OK: list[str] = []
+VIEWPORTS_COMPLETED: list[int] = []
 
 
 def origin_key(value: str) -> tuple[str, str, int | None] | None:
@@ -128,7 +131,10 @@ def resolve_http_credentials(username: str | None, password: str | None) -> dict
 
 
 def build_report(mode: str, base_url: str, operator: str | None,
-                 browser_version: str | None, failures: list[str]) -> dict:
+                 browser_version: str | None, failures: list[str],
+                 pages_attempted: list[str] | None = None,
+                 pages_http_ok: list[str] | None = None,
+                 completed_viewports: list[int] | None = None) -> dict:
     manual_checks = [
         ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
@@ -156,7 +162,11 @@ def build_report(mode: str, base_url: str, operator: str | None,
         "operator": operator.strip() if operator else None,
         "browser": {"name": "Chromium", "version": browser_version or "not started"},
         "viewportWidthsCssPixels": [width for width, _ in VIEWPORTS],
-        "pagesChecked": list(PAGES),
+        "pagesPlanned": list(PAGES),
+        "pagesAttempted": list(pages_attempted or []),
+        "pagesWithHttp200OnTargetOrigin": list(pages_http_ok or []),
+        "plannedViewportWidthsCssPixels": [width for width, _ in VIEWPORTS],
+        "completedResponsiveViewportWidthsCssPixels": list(completed_viewports or []),
         "automatedResult": "PASS" if not failures else "FAIL",
         "automatedFailureCount": len(failures),
         "automatedFailures": list(failures),
@@ -379,6 +389,7 @@ def check_responsive_layout(page, base_url: str) -> None:
                       f"{page_name}: desktop primary navigation must be visible")
                 check(not page.locator(".menu-toggle").is_visible(),
                       f"{page_name}: mobile menu toggle must be hidden at desktop width")
+        VIEWPORTS_COMPLETED.append(width)
 
 
 def check_keyboard_navigation(page, base_url: str) -> None:
@@ -579,11 +590,15 @@ def main(argv: list[str] | None = None) -> int:
             titles: dict[str, str] = {}
             for page_name in PAGES:
                 before_errors = len(RUNTIME_ERRORS)
+                PAGES_ATTEMPTED.append(page_name)
                 response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
                 check(response is not None and response.status == 200, f"{page_name}: expected HTTP 200")
                 if response is not None:
-                    check(same_origin(response.url, base_url),
+                    is_target_origin = same_origin(response.url, base_url)
+                    check(is_target_origin,
                           f"{page_name}: navigation redirected away from the requested site origin")
+                    if response.status == 200 and is_target_origin:
+                        PAGES_HTTP_OK.append(page_name)
                 page.wait_for_selector("main#main", timeout=5000)
                 check_page_contract(page, page_name, titles)
                 load_visible_images(page, page_name, base_url)
@@ -625,7 +640,10 @@ def main(argv: list[str] | None = None) -> int:
                 server.wait(timeout=5)
 
     if staging_mode:
-        report = build_report("staging-read-only", base_url, args.operator, browser_version, FAILURES)
+        report = build_report(
+            "staging-read-only", base_url, args.operator, browser_version, FAILURES,
+            PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
+        )
         try:
             destination = write_report(args.report, report)
             print(f"Staging preflight evidence written locally: {destination}")
