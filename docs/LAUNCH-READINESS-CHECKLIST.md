@@ -2,7 +2,7 @@
 
 **Status as of 26 October 2026: implementation checks pass; production release is blocked pending manual owner/UAT gates.**
 
-Baseline main at the start of this delivery phase: 68c4e3f4cfb064bd65843208b5ea1c88216fc169. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
+Baseline main at the start of this delivery phase: b3632c58693c5398854bc472cdb8a9dbdfa56e4d. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
 ## What automated checks can currently prove
 
@@ -55,6 +55,28 @@ Complete and record these checks against the intended staging site first. Do not
 - [ ] Run Lighthouse/performance inspection and accessibility checks on staging. The Green Room image is now a source-verified 114,126-byte alternate (the prior asset was 799,571 bytes); inspect its crop/layout on desktop and mobile and review the remaining 537,837-byte Sweet Purple JPEG fallback and 519,598-byte sitting-room JPEG fallback.
 - [ ] Confirm page titles/meta descriptions, social preview images/alt text, internal links, image status codes, privacy/terms links and owner-approved analytics/measurement configuration.
 - [ ] After deployment, test Book Now and contact links once more on the production hostname; monitor for failed redirects, broken assets, enquiries not received and email bounces.
+
+## Staging verification record — fill in during operator UAT
+
+Use the intended staging host only. Replace `NOT RUN` with a result only after the named operator performs the check in a normal browser/device and records evidence. A CI pass is not evidence for these rows. Do not enter guest personal data, booking tokens or payment details in this table.
+
+| Check | Exact staging URL | Date/time (Asia/Kolkata) | Operator | Browser / device / viewport | Result | Evidence / notes |
+|---|---|---|---|---|---|---|
+| STG-01 Desktop guest journey: Home → Rooms → Experiences → Dining → Directions |  |  |  |  | NOT RUN |  |
+| STG-02 Mobile guest journey and tap targets |  |  |  |  | NOT RUN |  |
+| STG-03 Images, config and styles: no 404 or mixed content |  |  |  |  | NOT RUN |  |
+| STG-04 Keyboard focus, Escape/menu state and reduced motion |  |  |  |  | NOT RUN |  |
+| STG-05 Page title, meta description and social preview consistency |  |  |  |  | NOT RUN |  |
+| STG-06 AsiaTech booking flow in desktop browser (no booking/payment) |  |  |  |  | NOT RUN |  |
+| STG-07 AsiaTech booking flow on mobile browser (no booking/payment) |  |  |  |  | NOT RUN |  |
+| STG-08 WhatsApp account and prefilled message reachability |  |  |  |  | NOT RUN |  |
+| STG-09 Primary mobile call answered by intended operator |  |  |  |  | NOT RUN |  |
+| STG-10 Alternate landline answered by intended operator |  |  |  |  | NOT RUN |  |
+| STG-11 Email delivery, no bounce and reply capability |  |  |  |  | NOT RUN |  |
+| STG-12 Owner review of current room, tour, dining and arrival facts |  |  |  |  | NOT RUN |  |
+| STG-13 Backup and rollback procedure reviewed |  |  |  |  | NOT RUN |  |
+
+Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and follow-up owner for every failure or blocked row. Keep canonical-host approval, menu publication and deployment decisions in their separate owner-approval gates.
 
 ## Owner decisions required before production launch
 
