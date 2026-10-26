@@ -5,6 +5,7 @@ from __future__ import annotations
 import binascii
 import importlib.util
 import json
+import hashlib
 import struct
 import sys
 import tempfile
@@ -62,7 +63,7 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
                 "imageHeightPixels": 3,
                 "fullPage": True,
                 "bytes": len(payload),
-                "sha256": __import__("hashlib").sha256(payload).hexdigest(),
+                "sha256": hashlib.sha256(payload).hexdigest(),
             })
     pages = [page for page, _title in review.PAGES]
     widths = [width for width, _height, _label in review.VIEWPORTS]
@@ -118,6 +119,10 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     report_path, screenshots, output_path, report = build_fixture(folder)
     checked, issues = review.inspect_bundle(report, screenshots)
     assert not issues, issues
+    incomplete_coverage = json.loads(json.dumps(report))
+    incomplete_coverage["pagesAttempted"] = []
+    _coverage_images, coverage_issues = review.inspect_bundle(incomplete_coverage, screenshots)
+    assert any("attempts for all seven routes" in issue for issue in coverage_issues)
     assert len(checked) == 21 and all(item["valid"] for item in checked)
     page = review.build_html(report, screenshots, checked, issues)
     assert page.count('class="card"') == 21
@@ -152,7 +157,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     changed_html = review.build_html(report, screenshots, changed, changed_issues)
     assert "Evidence integrity issues" in changed_html
     assert "Screenshot integrity mismatch" in changed_html
-    assert "src=\\"screenshots/rooms-360px.png\\"" not in changed_html
+    assert 'src="screenshots/rooms-360px.png"' not in changed_html
     assert review.main([
         "--report", str(report_path),
         "--screenshots-dir", str(screenshots),
@@ -173,7 +178,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
         )
         payload = (screenshots / record["filename"]).read_bytes()
         record["bytes"] = len(payload)
-        record["sha256"] = __import__("hashlib").sha256(payload).hexdigest()
+        record["sha256"] = hashlib.sha256(payload).hexdigest()
     failed_report_path.write_text(json.dumps(failed_report), encoding="utf-8")
     failed_html = review.build_html(
         failed_report, screenshots, *review.inspect_bundle(failed_report, screenshots)
@@ -181,6 +186,11 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     assert "outside.example/path" in failed_html
     assert "qa-password" not in failed_html and "token=secret" not in failed_html
     assert "BLOCKED — manual UAT required" in failed_html
+    assert review.main([
+        "--report", str(failed_report_path),
+        "--screenshots-dir", str(screenshots),
+        "--output", str(output_path),
+    ]) == 1
 
     # Invalid origin tokens are never echoed into HTML.
     bad_origin_report = dict(failed_report)
