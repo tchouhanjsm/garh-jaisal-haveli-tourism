@@ -415,3 +415,34 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - WhatsApp, primary mobile, alternate landline and email require reachability/response checks.
 - Owner confirmation is still required for room inventory/rates/facilities, tour operations/inclusions, current restaurant menu/prices/hours and arrival/transfer details.
 - Canonical hostname, DNS/SSL, staging UAT, backup/rollback and production deployment remain unapproved. Content Studio/importer integration stays deferred.
+
+
+## Operator-run staging preflight and keyboard gallery QA — 26 October 2026
+
+### Live checkpoint at phase start
+- Authoritative main: 1fccf9ba1dc312b6148905514bd28555e3668bd9, commit [Add real-browser guest journey QA](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/commit/1fccf9ba1dc312b6148905514bd28555e3668bd9).
+- Open PR count: zero before this phase.
+- PR #21, [Add real-browser guest journey QA to the quality gate](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/pull/21), is merged at the current main commit. Its exact head 88e7ca35fa09ce4bcc37996ef573cf89a40f7819 passed [Site quality gates run #40329804946](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40329804946).
+- Main push run #40330343351 on exact main SHA 1fccf9ba1dc312b6148905514bd28555e3668bd9 had attempt 1 CANCELLED and attempt 2 PASS. The cancelled attempt is not counted as a pass; the successful second attempt completed the existing quality job.
+- PR #21's earlier browser run #40329472342 exposed a real skip-link focus defect: activating the link did not move DOM focus to the main content. The root cause was missing tabindex="-1" on the seven main#main targets. The targets were fixed and the final PR head passed.
+
+### Phase outcome and acceptance criteria
+- Extend the existing real-browser smoke test with a guarded, read-only HTTPS staging mode that reuses the same seven-page, image, responsive-layout, navigation and carousel checks rather than creating a second browser suite.
+- Refuse the configured production hostnames, HTTP, URL credentials, paths/queries/fragments, IP addresses and local hostnames before any browser request.
+- Check the deployed robots.txt, empty sitemap URL set and central config so staging remains non-indexable and canonical-host approval remains false.
+- Detect same-origin HTTP/request failures and any HTTP mixed-content requests from HTTPS staging.
+- Exercise carousel buttons with keyboard Enter and Space, assert focus remains on the activated control, and verify slide visibility matches aria-hidden.
+- Write a local JSON evidence report with exact staging origin, Asia/Kolkata timestamp, operator, Chromium version, viewport widths, automated result/failures and all 17 manual UAT rows still marked NOT RUN.
+- Add deterministic contract tests for unsafe-target refusal and report semantics, then wire them into the existing scripts/check-pr-quality.sh job. No new workflow job, paid runner, production endpoint interaction or Content Studio integration is required.
+
+### Validation boundary for this branch
+- The implementation is on feat/operator-staging-preflight-20261026. The exact final PR head and its quality workflow must be recorded after the branch is ready; earlier main/PR runs are not evidence for new changes.
+- Local bash scripts/check-pr-quality.sh, browser/device UAT, formal accessibility tools, Lighthouse/Core Web Vitals and actual staging-host checks remain NOT RUN in the connector environment because no complete local checkout is available.
+- The staging CLI is not being run against any live host during CI. Contract tests use an example-only hostname and verify target rejection/report semantics without network requests.
+- The JSON report's automated PASS can never mark a human STG row complete or clear booking/contact/owner/domain/backup blockers.
+
+### Existing release blockers unchanged
+- Owner/operator must test AsiaTech in a normal desktop and mobile browser without completing a reservation/payment; the read-only automated HTTP 403 is not proof of guest-facing failure.
+- WhatsApp, primary phone, alternate landline and email require reachability/response checks.
+- Owner confirmation remains required for current room inventory/rates/facilities, tour operations/routes/inclusions, current menu/prices/hours and arrival/transfer details.
+- Canonical hostname, DNS/SSL, staging UAT, backup/rollback and production deployment remain unapproved. Content Studio/importer integration stays deferred.
