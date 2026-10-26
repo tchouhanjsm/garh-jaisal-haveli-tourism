@@ -7,6 +7,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const ROOT = path.resolve(__dirname, '..');
 const PAGE_RULES = [
@@ -22,6 +23,7 @@ const errors = [];
 const titles = new Map();
 const descriptions = new Map();
 const inbound = new Map(PAGE_RULES.map(({ file }) => [file, 0]));
+const MEDIA_TRACKED_PAGES = ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
 
 function fail(message) {
   errors.push(message);
@@ -58,6 +60,18 @@ function attributes(tag) {
   }
   return result;
 }
+
+function roleFor(page,index) {
+  if (page === 'gallery.html') return 'gallery-card';
+  if (page === 'index.html') return index === 0 ? 'homepage-hero' : 'homepage-feature';
+  if (page === 'rooms.html') return 'room-card';
+  if (page === 'experiences.html') return 'experience-card';
+  if (page === 'dining.html') return index === 0 ? 'dining-hero' : 'dining-supporting';
+  if (page === 'about.html') return index === 0 ? 'about-hero' : 'about-supporting';
+  if (page === 'directions.html') return index === 0 ? 'directions-hero' : 'arrival-reference';
+  return 'supporting-image';
+}
+function getAttr(tag,key) { return attributes(tag)[key.toLowerCase()] ?? ''; }
 
 function readMeta(html, selector) {
   const tag = html.match(selector);
@@ -516,6 +530,86 @@ for (const type of ['tours', 'blogs']) {
     if (record.status !== 'live' && record.slug && fs.existsSync(path.join(ROOT, type, `${record.slug}.html`))) {
       fail(`${type}/${record.slug}.html: non-live content must not have a public generated page`);
     }
+  }
+}
+
+const mediaManifestPath = path.join(ROOT, 'docs', 'MEDIA-CURATION-MANIFEST.json');
+let mediaManifest;
+try { mediaManifest = JSON.parse(fs.readFileSync(mediaManifestPath, 'utf8')); }
+catch (error) { fail('docs/MEDIA-CURATION-MANIFEST.json: could not parse manifest: ' + error.message); }
+if (mediaManifest) {
+  if (mediaManifest.schemaVersion !== 1 || !Array.isArray(mediaManifest.entries)) fail('media manifest: expected schemaVersion 1 and entries');
+  else {
+    const ids=new Set(), paths=new Set(), shas=new Set(), byPath=new Map();
+    const gallery=fs.readFileSync(path.join(ROOT,'gallery.html'),'utf8');
+    const pages=Object.fromEntries(MEDIA_TRACKED_PAGES.map(p=>[p,fs.readFileSync(path.join(ROOT,p),'utf8')]));
+    const roles=new Set(['homepage-hero','homepage-feature','room-card','experience-card','dining-hero','dining-supporting','about-hero','about-supporting','directions-hero','arrival-reference','gallery-card','open-graph-image']);
+    const blobSha=b=>crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob '+b.length+'\0'),b])).digest('hex');
+    const cards=[...gallery.matchAll(/<figure class="gallery-card" data-media-id="([^"]+)">([\s\S]*?)<\/figure>/g)];
+    if(cards.length!==12)fail('gallery.html: expected 12 curated cards, found '+cards.length);
+    const nav=gallery.match(/<nav class="gallery-category-nav"[^>]*>[\s\S]*?<\/nav>/i);
+    if(!nav||!/aria-label="Jump to a photo collection"/i.test(nav[0]))fail('gallery.html: category navigation needs an accessible label');
+    for(const id of ['gallery-haveli','gallery-rooms','gallery-rooftop','gallery-desert']){
+      if(!gallery.includes('href="#'+id+'"'))fail('gallery.html: missing category link '+id);
+      if(!new RegExp('<section class="gallery-category" id="'+id+'" aria-labelledby="[^"]+">').test(gallery))fail('gallery.html: missing labelled section '+id);
+    }
+    const linked=new Set();
+    for(const m of cards){
+      const id=m[1],card=m[0],img=card.match(/<img\b[^>]*>/i),cap=card.match(/<figcaption>([\s\S]*?)<\/figcaption>/i);
+      if(!img||!attributes(img[0]).alt.trim())fail('gallery.html: '+id+' needs meaningful alt text');
+      if(!img||!/loading="lazy"/i.test(img[0])||!/decoding="async"/i.test(img[0])||!/width="\d+"/i.test(img[0])||!/height="\d+"/i.test(img[0]))fail('gallery.html: '+id+' needs lazy loading, async decoding and dimensions');
+      if(!cap||!/<h3\b/i.test(cap[0])||!/<p\b[^>]*>[\s\S]{70,}<\/p>/i.test(cap[0]))fail('gallery.html: '+id+' needs a semantic heading and useful caption');
+      for(const a of card.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/gi))if(['rooms.html','experiences.html','dining.html','directions.html'].includes(a[1]))linked.add(a[1]);
+      if(!/<a\b[^>]*href="(?:rooms|experiences|dining|directions|about)\.html"/i.test(card))fail('gallery.html: '+id+' needs a contextual internal link');
+    }
+    for(const p of ['rooms.html','experiences.html','dining.html','directions.html'])if(!linked.has(p))fail('gallery.html: missing contextual link to '+p);
+    if(/garh-jaisal-website|raw\.githubusercontent\.com/i.test(gallery))fail('gallery.html: legacy hotlink found');
+    const css=fs.readFileSync(path.join(ROOT,'assets/site.css'),'utf8');
+    if(!/\.gallery-grid\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/.test(css)||!/@media\(max-width:1100px\)\{\.gallery-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}\}/.test(css)||!/@media\(max-width:760px\)\{[\s\S]*?\.gallery-grid\{grid-template-columns:1fr\}/.test(css)||!css.includes('.gallery-category-nav a:focus-visible')||!/prefers-reduced-motion:\s*reduce/.test(css))fail('gallery.html: responsive, focus-visible or reduced-motion styling missing');
+    for(const e of mediaManifest.entries){
+      if(!e.id||ids.has(e.id))fail('media manifest: duplicate/missing id '+e.id);ids.add(e.id);
+      if(!e.targetPath||paths.has(e.targetPath))fail('media manifest: duplicate/missing target path '+e.targetPath);paths.add(e.targetPath);byPath.set(e.targetPath,e);
+      if(!/^img\//.test(e.sourcePath||'')||!/^[a-f0-9]{40}$/.test(e.sourceBlobSha||''))fail('media manifest: invalid source path/SHA for '+e.id);
+      if(!/^assets\/images\//.test(e.targetPath||'')||!/^[a-f0-9]{40}$/.test(e.targetBlobSha||''))fail('media manifest: invalid target path/SHA for '+e.id);
+      if(!e.subject||!e.approvalStatus||e.visualReview?.status!=='reviewed')fail('media manifest: missing subject/review/status for '+e.id);
+      if(!Array.isArray(e.uses)||!Array.isArray(e.metadataUses)||!Array.isArray(e.intendedRoles))fail('media manifest: missing use/role arrays for '+e.id);
+      const abs=path.resolve(ROOT,e.targetPath||'');
+      if(!abs.startsWith(ROOT+path.sep)){fail('media manifest: target escapes repository for '+e.id);continue;}
+      if(!fs.existsSync(abs)){fail('media manifest: target file missing '+e.targetPath);continue;}
+      const buf=fs.readFileSync(abs),d=imageDimensions(buf);
+      if(buf.length!==e.byteSize)fail('media manifest: byte size mismatch for '+e.id);
+      if(!d||d.width!==e.dimensions?.width||d.height!==e.dimensions?.height)fail('media manifest: dimensions mismatch for '+e.id);
+      if(!Number.isFinite(e.maxBytes)||e.maxBytes<=0||buf.length>e.maxBytes)fail('media manifest: byte budget exceeded for '+e.id);
+      if(blobSha(buf)!==e.targetBlobSha)fail('media manifest: target blob SHA mismatch for '+e.id);
+      if(shas.has(e.targetBlobSha))fail('media manifest: duplicate binary SHA; use one canonical file for '+e.id);shas.add(e.targetBlobSha);
+      if(e.provenance?.transfer==='byte-for-byte'&&e.sourceBlobSha!==e.targetBlobSha)fail('media manifest: source/target SHA mismatch for byte-identical asset '+e.id);
+      if(e.provenance?.transfer!=='byte-for-byte'&&!/metadata/i.test(e.provenance?.transfer||''))fail('media manifest: non-identical asset needs a documented metadata transform '+e.id);
+      for(const u of e.uses){if(!MEDIA_TRACKED_PAGES.includes(u.page)||!roles.has(u.role)||!e.intendedRoles.includes(u.role))fail('media manifest: invalid/undeclared role for '+e.id);if(!u.altText||/^(image|photo|picture|img)\s*\d*$/i.test(u.altText))fail('media manifest: generic alt text for '+e.id);}
+      for(const u of e.metadataUses)if(!MEDIA_TRACKED_PAGES.includes(u.page)||u.role!=='open-graph-image'||!e.intendedRoles.includes(u.role)||!u.altText)fail('media manifest: invalid Open Graph use for '+e.id);
+      const actual=[];
+      for(const [page,h] of Object.entries(pages)){let i=0;for(const m of h.matchAll(/<img\b[^>]*>/gi)){if(getAttr(m[0],'src')===e.targetPath)actual.push({page,role:role(page,i),altText:getAttr(m[0],'alt')});i++;}}
+      const norm=a=>a.map(x=>[x.page,x.role,x.altText].join('|')).sort();
+      if(JSON.stringify(norm(actual))!==JSON.stringify(norm(e.uses)))fail('media manifest: page reuse declarations differ from actual markup for '+e.id);
+      const actualMeta=[];
+      for(const [page,h] of Object.entries(pages)){const og=readMeta(h,/<meta\b[^>]*\bproperty=["']og:image["'][^>]*>/i);if(og&&og.content===e.targetPath){const alt=readMeta(h,/<meta\b[^>]*\bproperty=["']og:image:alt["'][^>]*>/i);actualMeta.push({page,role:'open-graph-image',altText:alt?.content||''});}}
+      if(JSON.stringify(norm(actualMeta))!==JSON.stringify(norm(e.metadataUses)))fail('media manifest: Open Graph declarations differ from markup for '+e.id);
+      if(e.metadataPolicy==='no-exif-xmp-icc'){const c=webpChunkIds(buf);if(!c.length||c.some(x=>['EXIF','XMP ','ICCP'].includes(x))||webpHasMetadataFlags(buf))fail('media manifest: WebP metadata remains for '+e.id);}
+      if(e.metadataPolicy==='no-exif-xmp'&&jpegHasExifOrXmp(buf))fail('media manifest: JPEG EXIF/XMP remains for '+e.id);
+      if(e.galleryFeatured){
+        if(!e.galleryCategory||!e.galleryTitle||!e.galleryAltText||!e.galleryCaption||!e.galleryLink||!Array.isArray(e.captionChecks)){fail('media manifest: gallery fields missing for '+e.id);continue;}
+        const cm=[...gallery.matchAll(new RegExp('<figure class="gallery-card" data-media-id="'+e.id+'">([\\s\\S]*?)<\\/figure>','g'))];
+        if(cm.length!==1){fail('media manifest: expected one card for '+e.id);continue;}
+        const card=cm[0][0],img=card.match(/<img\b[^>]*>/i);
+        if(!img||getAttr(img[0],'src')!==e.targetPath||getAttr(img[0],'alt')!==e.galleryAltText)fail('media manifest: subject/alt/path mismatch for '+e.id);
+        if(!stripMarkup(card).includes(e.galleryTitle)||!stripMarkup(card).includes(e.galleryCaption))fail('media manifest: caption/title mismatch for '+e.id);
+        const sec=gallery.match(new RegExp('<section class="gallery-category" id="'+e.galleryCategory+'"[\\s\\S]*?<\\/section>','i'));
+        if(!sec||!sec[0].includes('data-media-id="'+e.id+'"'))fail('media manifest: wrong subject category for '+e.id);
+        if(!card.includes('href="'+e.galleryLink+'"'))fail('media manifest: contextual link mismatch for '+e.id);
+        for(const term of e.captionChecks)if(!stripMarkup(card).toLowerCase().includes(term.toLowerCase()))fail('media manifest: caption context missing for '+e.id+': '+term);
+      }else if(gallery.includes('data-media-id="'+e.id+'"'))fail('media manifest: non-gallery image unexpectedly has a card '+e.id);
+    }
+    for(const page of ['index.html','gallery.html'])for(const m of pages[page].matchAll(/<img\b[^>]*>/gi)){const src=getAttr(m[0],'src');if(src.startsWith('assets/images/')&&!byPath.has(src))fail('media manifest: '+page+' image missing from manifest '+src);}
+    for(const old of (mediaManifest.retiredDuplicatePaths||[])){if(fs.existsSync(path.resolve(ROOT,old.path)))fail('media manifest: duplicate alias still exists '+old.path);for(const page of MEDIA_TRACKED_PAGES)if(fs.readFileSync(path.join(ROOT,page),'utf8').includes(old.path))fail('media manifest: duplicate alias still referenced '+old.path);}
   }
 }
 

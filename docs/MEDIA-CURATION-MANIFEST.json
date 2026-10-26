@@ -1,0 +1,808 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-26",
+  "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+  "scope": "Curated local media used by Gallery and intentional cross-page references on core static pages. This manifest records provenance and rendering roles; it does not assert current room inventory, dining service, tour operation, availability or route details.",
+  "rightsNote": "The owner-designated legacy repository is the source reference. No separate per-file license metadata was found in the reviewed image-optimization notes; confirm any rights uncertainty before production release.",
+  "trackedPages": [
+    "index.html",
+    "rooms.html",
+    "experiences.html",
+    "dining.html",
+    "about.html",
+    "directions.html",
+    "gallery.html"
+  ],
+  "retiredDuplicatePaths": [
+    {
+      "path": "assets/images/legacy/room-purple.jpg",
+      "aliasOf": "assets/images/rooms/rising-sun.jpg",
+      "reason": "Identical Git blob; Gallery now uses canonical room image path."
+    },
+    {
+      "path": "assets/images/legacy/room-carved.jpg",
+      "aliasOf": "assets/images/rooms/opium.jpg",
+      "reason": "Identical Git blob; Gallery now uses canonical room image path."
+    }
+  ],
+  "entries": [
+    {
+      "id": "rooftop-terrace",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/rest3.jpg",
+      "sourceBlobSha": "9197511383fb9ad53a78b3bd9819aed6ba6e0753",
+      "targetPath": "assets/images/rest3.jpg",
+      "targetBlobSha": "9197511383fb9ad53a78b3bd9819aed6ba6e0753",
+      "subject": "Rooftop terrace overlooking Jaisalmer at dusk",
+      "intendedRoles": [
+        "homepage-hero",
+        "homepage-feature",
+        "dining-hero",
+        "about-supporting",
+        "gallery-card",
+        "open-graph-image"
+      ],
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "byteSize": 75390,
+      "maxBytes": 100000,
+      "format": "jpeg",
+      "altText": "Golden sandstone rooftop terrace overlooking Jaisalmer at dusk",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/rest3.jpg",
+        "sourceBlobSha": "9197511383fb9ad53a78b3bd9819aed6ba6e0753"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior media audit reviewed the rooftop subject and its page role."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; visual reference only, not proof of current dining operations.",
+      "uses": [
+        {
+          "page": "about.html",
+          "role": "about-supporting",
+          "altText": "Golden hour from the rooftop terrace"
+        },
+        {
+          "page": "dining.html",
+          "role": "dining-hero",
+          "altText": "Rooftop dining terrace overlooking Jaisalmer as the city lights begin to glow"
+        },
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Rooftop terrace with seating overlooking Jaisalmer at dusk"
+        },
+        {
+          "page": "index.html",
+          "role": "homepage-hero",
+          "altText": "Golden sandstone rooftop terrace overlooking Jaisalmer at dusk"
+        }
+      ],
+      "metadataUses": [
+        {
+          "page": "index.html",
+          "role": "open-graph-image",
+          "altText": "Rooftop terrace overlooking Jaisalmer at dusk"
+        }
+      ],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-rooftop",
+      "galleryTitle": "Rooftop terrace at dusk",
+      "galleryAltText": "Rooftop terrace with seating overlooking Jaisalmer at dusk",
+      "galleryCaption": "The rooftop terrace overlooks Jaisalmer at dusk. Ask for the current menu, service hours, prices and table availability before planning a meal.",
+      "galleryLink": "dining.html",
+      "captionChecks": [
+        "menu",
+        "table availability"
+      ]
+    },
+    {
+      "id": "courtyard-interior",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/courtyard.jpg",
+      "sourceBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295",
+      "targetPath": "assets/images/courtyard.jpg",
+      "targetBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295",
+      "subject": "Sandstone passage and carved interior details",
+      "intendedRoles": [
+        "homepage-feature",
+        "about-hero",
+        "directions-hero",
+        "gallery-card",
+        "open-graph-image"
+      ],
+      "dimensions": {
+        "width": 2200,
+        "height": 1467
+      },
+      "byteSize": 619209,
+      "maxBytes": 650000,
+      "format": "jpeg",
+      "altText": "Sandstone passage and carved interior details inside the haveli",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/courtyard.jpg",
+        "sourceBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior media audit reviewed the sandstone passage/interior subject."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; setting reference only, not a route/access guarantee.",
+      "uses": [
+        {
+          "page": "about.html",
+          "role": "about-hero",
+          "altText": "Traditional haveli architecture inside Jaisalmer Fort"
+        },
+        {
+          "page": "directions.html",
+          "role": "directions-hero",
+          "altText": "Golden sandstone passages reflect the character of the historic fort"
+        },
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Sandstone passage and carved interior details inside the haveli"
+        },
+        {
+          "page": "index.html",
+          "role": "homepage-feature",
+          "altText": "Traditional golden sandstone interior at Garh Jaisal Haveli"
+        }
+      ],
+      "metadataUses": [
+        {
+          "page": "about.html",
+          "role": "open-graph-image",
+          "altText": "Sandstone passage and carved interior details at Garh Jaisal Haveli"
+        },
+        {
+          "page": "directions.html",
+          "role": "open-graph-image",
+          "altText": "Sandstone passage inside Jaisalmer Fort"
+        },
+        {
+          "page": "gallery.html",
+          "role": "open-graph-image",
+          "altText": "Sandstone passage and carved interior details at Garh Jaisal Haveli"
+        }
+      ],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-haveli",
+      "galleryTitle": "Inside the haveli",
+      "galleryAltText": "Sandstone passage and carved interior details inside the haveli",
+      "galleryCaption": "A view of sandstone passages and carved interior details. Use the story page for context, and check the arrival guide before travelling into the fort.",
+      "galleryLink": "about.html",
+      "captionChecks": [
+        "sandstone passages",
+        "arrival guide"
+      ]
+    },
+    {
+      "id": "camel-daylight",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/desert3.jpg",
+      "sourceBlobSha": "de13a601f35dd20f34510324d82de055160f63e5",
+      "targetPath": "assets/images/legacy/camel-day.jpg",
+      "targetBlobSha": "de13a601f35dd20f34510324d82de055160f63e5",
+      "subject": "Camels with handlers on sandy desert ground in daylight",
+      "intendedRoles": [
+        "homepage-feature",
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 1366,
+        "height": 768
+      },
+      "byteSize": 336447,
+      "maxBytes": 400000,
+      "format": "jpeg",
+      "altText": "Camels with handlers on sandy desert ground in daylight",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/desert3.jpg",
+        "sourceBlobSha": "de13a601f35dd20f34510324d82de055160f63e5"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior media audit reviewed the camel/handler subject."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; current route, operation and inclusions remain unverified.",
+      "uses": [
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Camels with handlers on sandy desert ground in daylight"
+        },
+        {
+          "page": "index.html",
+          "role": "homepage-feature",
+          "altText": "Camels with handlers on sandy desert ground in daylight"
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-desert",
+      "galleryTitle": "Out on the sand",
+      "galleryAltText": "Camels with handlers on sandy desert ground in daylight",
+      "galleryCaption": "Camels and handlers are pictured on sandy ground in daylight. The image is not a live itinerary or a promise of a particular route.",
+      "galleryLink": "experiences.html",
+      "captionChecks": [
+        "not a live itinerary",
+        "route"
+      ]
+    },
+    {
+      "id": "temple-spires",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/j10.jpg",
+      "sourceBlobSha": "c4c1e4211d572b38308de3aaa3d6f13a4ad761e6",
+      "targetPath": "assets/images/legacy/fort-temple-spires.jpg",
+      "targetBlobSha": "c4c1e4211d572b38308de3aaa3d6f13a4ad761e6",
+      "subject": "Carved sandstone temple spires in Jaisalmer",
+      "intendedRoles": [
+        "homepage-feature",
+        "experience-card",
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 1366,
+        "height": 768
+      },
+      "byteSize": 450695,
+      "maxBytes": 500000,
+      "format": "jpeg",
+      "altText": "Carved sandstone temple spires rising above Jaisalmer",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/j10.jpg",
+        "sourceBlobSha": "c4c1e4211d572b38308de3aaa3d6f13a4ad761e6"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior audit explicitly distinguished temple spires from hotel imagery."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; not a hotel facade, room or guaranteed tour stop.",
+      "uses": [
+        {
+          "page": "experiences.html",
+          "role": "experience-card",
+          "altText": "Carved sandstone Jain temple spires rising above Jaisalmer"
+        },
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Carved sandstone temple spires rising above Jaisalmer"
+        },
+        {
+          "page": "index.html",
+          "role": "homepage-feature",
+          "altText": "Carved sandstone temple spires rising above Jaisalmer"
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-haveli",
+      "galleryTitle": "Temple spires in the heritage setting",
+      "galleryAltText": "Carved sandstone temple spires rising above Jaisalmer",
+      "galleryCaption": "Temple spires are part of the wider heritage setting. This image does not promise a particular stop or access arrangement on a guided walk.",
+      "galleryLink": "experiences.html",
+      "captionChecks": [
+        "does not promise",
+        "access arrangement"
+      ]
+    },
+    {
+      "id": "rooftop-candlelight-home",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/roof.webp",
+      "sourceBlobSha": "d929d7746a4abfa0b4041c33fa3d0a78870fc142",
+      "targetPath": "assets/images/legacy/rooftop-candlelight.webp",
+      "targetBlobSha": "d929d7746a4abfa0b4041c33fa3d0a78870fc142",
+      "subject": "Candlelit table on a rooftop terrace overlooking Jaisalmer at dusk",
+      "intendedRoles": [
+        "homepage-feature"
+      ],
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "byteSize": 90080,
+      "maxBytes": 100000,
+      "format": "webp",
+      "altText": "Candlelit table on a rooftop terrace overlooking Jaisalmer at dusk",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/roof.webp",
+        "sourceBlobSha": "d929d7746a4abfa0b4041c33fa3d0a78870fc142"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Source/target subject was reviewed; not a room or desert-camp image."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; retained on the homepage only so Gallery uses the distinct dining-table photograph.",
+      "uses": [
+        {
+          "page": "index.html",
+          "role": "homepage-feature",
+          "altText": "Candlelit table on a rooftop terrace overlooking Jaisalmer at dusk"
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": false
+    },
+    {
+      "id": "scarlet-room",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/scarlet.jpg",
+      "sourceBlobSha": "daa983b19ab9543dc2c8ce3773e76fbf1eed3af9",
+      "targetPath": "assets/images/scarlet.jpg",
+      "targetBlobSha": "daa983b19ab9543dc2c8ce3773e76fbf1eed3af9",
+      "subject": "Scarlet-toned bedroom with a carved dark wooden bed and red textiles",
+      "intendedRoles": [
+        "homepage-feature",
+        "room-card",
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "byteSize": 108530,
+      "maxBytes": 125000,
+      "format": "jpeg",
+      "altText": "Scarlet-toned bedroom with a carved dark wooden bed and red textiles",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/scarlet.jpg",
+        "sourceBlobSha": "daa983b19ab9543dc2c8ce3773e76fbf1eed3af9"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior audit reviewed the bedroom subject and room mapping."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; photograph does not confirm live room assignment.",
+      "uses": [
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Scarlet-toned bedroom with a carved dark wooden bed and red textiles"
+        },
+        {
+          "page": "index.html",
+          "role": "homepage-feature",
+          "altText": "Scarlet heritage room with carved wooden bed and warm sandstone walls"
+        },
+        {
+          "page": "rooms.html",
+          "role": "room-card",
+          "altText": "Scarlet Room at Garh Jaisal Haveli, with red bedding and a carved wooden bed beside the window."
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-rooms",
+      "galleryTitle": "A room with character",
+      "galleryAltText": "Scarlet-toned bedroom with a carved dark wooden bed and red textiles",
+      "galleryCaption": "This source photograph shows a red-toned bedroom with a carved wooden bed. Confirm the exact room, layout and availability for your dates.",
+      "galleryLink": "rooms.html",
+      "captionChecks": [
+        "exact room",
+        "availability"
+      ]
+    },
+    {
+      "id": "rising-sun-room",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/sun2.jpg",
+      "sourceBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d",
+      "targetPath": "assets/images/rooms/rising-sun.jpg",
+      "targetBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d",
+      "subject": "Rising Sun Room bedroom reference with carved wooden bed and blue-curtained window",
+      "intendedRoles": [
+        "room-card",
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "byteSize": 110205,
+      "maxBytes": 125000,
+      "format": "jpeg",
+      "altText": "Rising Sun Room at Garh Jaisal Haveli, with a carved wooden bed and a blue-curtained window.",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/sun2.jpg",
+        "sourceBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Gallery now reuses the canonical room path rather than a duplicate alias."
+      },
+      "approvalStatus": "Existing named-room asset; exact legacy-source blob match; current inventory/availability not inferred.",
+      "uses": [
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Rising Sun Room at Garh Jaisal Haveli, with a carved wooden bed and a blue-curtained window."
+        },
+        {
+          "page": "rooms.html",
+          "role": "room-card",
+          "altText": "Rising Sun Room at Garh Jaisal Haveli, with a carved wooden bed and a blue-curtained window."
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-rooms",
+      "galleryTitle": "A second bedroom reference",
+      "galleryAltText": "Rising Sun Room at Garh Jaisal Haveli, with a carved wooden bed and a blue-curtained window.",
+      "galleryCaption": "This bedroom photograph is a visual reference. Confirm the current room name, layout and features before deciding.",
+      "galleryLink": "rooms.html",
+      "captionChecks": [
+        "current room name",
+        "features"
+      ]
+    },
+    {
+      "id": "opium-room",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/opium-room.jpg",
+      "sourceBlobSha": "58184ddc4144e0355dce38912648d63596d8a458",
+      "targetPath": "assets/images/rooms/opium.jpg",
+      "targetBlobSha": "58184ddc4144e0355dce38912648d63596d8a458",
+      "subject": "Opium Room with carved furniture, sandstone walls and a window seat",
+      "intendedRoles": [
+        "room-card",
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "byteSize": 91505,
+      "maxBytes": 100000,
+      "format": "jpeg",
+      "altText": "Opium Room at Garh Jaisal Haveli, with traditional carved furniture, sandstone walls and a window seat.",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/opium-room.jpg",
+        "sourceBlobSha": "58184ddc4144e0355dce38912648d63596d8a458"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Gallery now reuses the canonical room path rather than a duplicate alias."
+      },
+      "approvalStatus": "Existing named-room asset; exact legacy-source blob match; current room features/availability remain date-specific confirmation items.",
+      "uses": [
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Opium Room at Garh Jaisal Haveli, with traditional carved furniture, sandstone walls and a window seat."
+        },
+        {
+          "page": "rooms.html",
+          "role": "room-card",
+          "altText": "Opium Room at Garh Jaisal Haveli, with traditional carved furniture, sandstone walls and a window seat."
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-rooms",
+      "galleryTitle": "Carved furniture details",
+      "galleryAltText": "Opium Room at Garh Jaisal Haveli, with traditional carved furniture, sandstone walls and a window seat.",
+      "galleryCaption": "The photograph shows carved furniture and sandstone details. Confirm the exact room, features and availability rather than relying on the image alone.",
+      "galleryLink": "rooms.html",
+      "captionChecks": [
+        "exact room",
+        "availability"
+      ]
+    },
+    {
+      "id": "open-sky-sleeping",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/tent.jpg",
+      "sourceBlobSha": "4f1e5aad952092389642e28f2e207f9019586ced",
+      "targetPath": "assets/images/tent.jpg",
+      "targetBlobSha": "4f1e5aad952092389642e28f2e207f9019586ced",
+      "subject": "Open-sky sleeping setup beneath a star-filled desert sky",
+      "intendedRoles": [
+        "experience-card",
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 750,
+        "height": 750
+      },
+      "byteSize": 132961,
+      "maxBytes": 150000,
+      "format": "jpeg",
+      "altText": "Open-sky sleeping setup beneath a star-filled desert sky",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/tent.jpg",
+        "sourceBlobSha": "4f1e5aad952092389642e28f2e207f9019586ced"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior audit reviewed the open-sky subject."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; current overnight operation/package details are not implied.",
+      "uses": [
+        {
+          "page": "experiences.html",
+          "role": "experience-card",
+          "altText": "Open-air sleeping setup beneath a star-filled desert sky"
+        },
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Open-sky sleeping setup beneath a star-filled desert sky"
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-desert",
+      "galleryTitle": "Sleeping beneath the stars",
+      "galleryAltText": "Open-sky sleeping setup beneath a star-filled desert sky",
+      "galleryCaption": "An open-sky sleeping setup under a star-filled desert sky. Confirm the current overnight format, route, timing and inclusions for your date.",
+      "galleryLink": "experiences.html",
+      "captionChecks": [
+        "current overnight format",
+        "inclusions"
+      ]
+    },
+    {
+      "id": "camel-sunset",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/desert7.jpg",
+      "sourceBlobSha": "567fd89b1dc8d824f4b124473a64d6f5105f9767",
+      "targetPath": "assets/images/legacy/camel-sunset.jpg",
+      "targetBlobSha": "567fd89b1dc8d824f4b124473a64d6f5105f9767",
+      "subject": "Camel caravan silhouetted against the setting sun over desert dunes",
+      "intendedRoles": [
+        "experience-card",
+        "gallery-card",
+        "open-graph-image"
+      ],
+      "dimensions": {
+        "width": 1366,
+        "height": 768
+      },
+      "byteSize": 386498,
+      "maxBytes": 400000,
+      "format": "jpeg",
+      "altText": "Camel caravan silhouetted against the setting sun over desert dunes",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/desert7.jpg",
+        "sourceBlobSha": "567fd89b1dc8d824f4b124473a64d6f5105f9767"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Prior audit reviewed the sunset camel subject."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; current camel outing availability/itinerary remain unverified.",
+      "uses": [
+        {
+          "page": "experiences.html",
+          "role": "experience-card",
+          "altText": "Camel caravan silhouetted against the setting sun over desert dunes"
+        },
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Camel caravan silhouetted against the setting sun over desert dunes"
+        }
+      ],
+      "metadataUses": [
+        {
+          "page": "experiences.html",
+          "role": "open-graph-image",
+          "altText": "Camel caravan silhouetted against the setting sun over desert dunes"
+        }
+      ],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-desert",
+      "galleryTitle": "Camels at the last light",
+      "galleryAltText": "Camel caravan silhouetted against the setting sun over desert dunes",
+      "galleryCaption": "The image shows a camel caravan at sunset. Confirm whether an outing is offered, along with route, timing, transport and inclusions.",
+      "galleryLink": "experiences.html",
+      "captionChecks": [
+        "confirm",
+        "route"
+      ]
+    },
+    {
+      "id": "dining-candlelit-table",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/rest5.jpg",
+      "sourceBlobSha": "e00320af65321045b27807c3994f5027ddb4bc68",
+      "targetPath": "assets/images/dining/rooftop-candlelit-table.jpg",
+      "targetBlobSha": "e00320af65321045b27807c3994f5027ddb4bc68",
+      "subject": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond",
+      "intendedRoles": [
+        "dining-supporting",
+        "gallery-card",
+        "open-graph-image"
+      ],
+      "dimensions": {
+        "width": 900,
+        "height": 600
+      },
+      "byteSize": 92506,
+      "maxBytes": 100000,
+      "format": "jpeg",
+      "altText": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/rest5.jpg",
+        "sourceBlobSha": "e00320af65321045b27807c3994f5027ddb4bc68"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Actual source image was visually reviewed in the Dining/Directions media phase."
+      },
+      "approvalStatus": "Existing target asset; exact legacy-source blob match; menu, hours, prices and date-specific arrangements remain unverified.",
+      "uses": [
+        {
+          "page": "dining.html",
+          "role": "dining-supporting",
+          "altText": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond"
+        },
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond"
+        }
+      ],
+      "metadataUses": [
+        {
+          "page": "dining.html",
+          "role": "open-graph-image",
+          "altText": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond"
+        }
+      ],
+      "galleryFeatured": true,
+      "galleryCategory": "gallery-rooftop",
+      "galleryTitle": "A candlelit table setting",
+      "galleryAltText": "Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond",
+      "galleryCaption": "A candlelit rooftop table from the property photo collection. It is not a promise that this arrangement is available on a particular date.",
+      "galleryLink": "dining.html",
+      "captionChecks": [
+        "not a promise",
+        "particular date"
+      ]
+    },
+    {
+      "id": "fort-rooftop-view",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/optimized/v2/fort-from-roof.webp",
+      "sourceBlobSha": "16266a4cfcd1564d9460ea9d9e8e045c70bf7fa0",
+      "targetPath": "assets/images/gallery/hotel/fort-from-roof.webp",
+      "targetBlobSha": "f568c393a0bdb8291e6a412557bdd647aadfc262",
+      "subject": "Rooftop seating and golden sandstone walls overlooking Jaisalmer Fort at dusk",
+      "intendedRoles": [
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 2000,
+        "height": 1333
+      },
+      "byteSize": 388130,
+      "maxBytes": 400000,
+      "format": "webp",
+      "altText": "Rooftop seating and golden sandstone walls overlooking Jaisalmer Fort at dusk",
+      "provenance": {
+        "transfer": "metadata-stripped; EXIF RIFF chunk removed and EXIF flag cleared while VP8 payload and dimensions remain unchanged",
+        "sourcePath": "img/optimized/v2/fort-from-roof.webp",
+        "sourceBlobSha": "16266a4cfcd1564d9460ea9d9e8e045c70bf7fa0"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Actual optimized WebP bytes were visually reviewed; encoded VP8 payload and dimensions preserved."
+      },
+      "approvalStatus": "Legacy optimized derivative; EXIF chunk and flag removed before localization; setting reference only.",
+      "uses": [
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Rooftop seating and golden sandstone walls overlooking Jaisalmer Fort at dusk"
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "metadataPolicy": "no-exif-xmp-icc",
+      "galleryCategory": "gallery-haveli",
+      "galleryTitle": "A rooftop view across the fort",
+      "galleryAltText": "Rooftop seating and golden sandstone walls overlooking Jaisalmer Fort at dusk",
+      "galleryCaption": "This source photograph looks across sandstone rooftops and fort walls from a rooftop setting. It does not confirm a current table, view or service arrangement.",
+      "galleryLink": "directions.html",
+      "captionChecks": [
+        "rooftop",
+        "does not confirm"
+      ]
+    },
+    {
+      "id": "desert-tent-interior",
+      "sourceRepository": "tchouhanjsm/garh-jaisal-website",
+      "sourceRef": "main",
+      "sourcePath": "img/Desert_Camp/CampingInJsm.jpeg",
+      "sourceBlobSha": "810d3c9728297b439c624b784fefc522d1a48e9c",
+      "targetPath": "assets/images/gallery/desert/camp-tent-interior.jpeg",
+      "targetBlobSha": "810d3c9728297b439c624b784fefc522d1a48e9c",
+      "subject": "Desert-camp tent interior with a bed, patterned wall panels and a star-patterned ceiling",
+      "intendedRoles": [
+        "gallery-card"
+      ],
+      "dimensions": {
+        "width": 1600,
+        "height": 1280
+      },
+      "byteSize": 307643,
+      "maxBytes": 320000,
+      "format": "jpeg",
+      "altText": "Desert-camp tent interior with a bed, patterned wall panels and a star-patterned ceiling",
+      "provenance": {
+        "transfer": "byte-for-byte",
+        "sourcePath": "img/Desert_Camp/CampingInJsm.jpeg",
+        "sourceBlobSha": "810d3c9728297b439c624b784fefc522d1a48e9c"
+      },
+      "visualReview": {
+        "status": "reviewed",
+        "reviewedOn": "2026-10-26",
+        "method": "Actual JPEG bytes were visually reviewed; no EXIF/XMP segment was present."
+      },
+      "approvalStatus": "Owner-provided source image per legacy OWNER-FACTS; exact current tent identity, facilities and availability remain unverified.",
+      "uses": [
+        {
+          "page": "gallery.html",
+          "role": "gallery-card",
+          "altText": "Desert-camp tent interior with a bed, patterned wall panels and a star-patterned ceiling"
+        }
+      ],
+      "metadataUses": [],
+      "galleryFeatured": true,
+      "metadataPolicy": "no-exif-xmp",
+      "galleryCategory": "gallery-desert",
+      "galleryTitle": "Inside a desert-camp tent",
+      "galleryAltText": "Desert-camp tent interior with a bed, patterned wall panels and a star-patterned ceiling",
+      "galleryCaption": "This source photo shows a desert-camp tent interior with a bed and patterned walls. It does not confirm which tent or facilities are currently available.",
+      "galleryLink": "experiences.html",
+      "captionChecks": [
+        "does not confirm",
+        "facilities"
+      ]
+    }
+  ]
+}

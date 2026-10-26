@@ -1,6 +1,6 @@
 # Content and UX Failure Audit
 
-**Baseline reviewed for this recovery phase:** main at 002a0c83765a3b6623512f7ee775b722acd7dc27 (26 October 2026; PR #13 merged). This cumulative audit now tracks the homepage guest-decision journey; older entries remain historical.
+**Baseline reviewed for this recovery phase:** main at 79367785c7463913f1452ac8c9550860393076d9 (26 October 2026; PR #13 and PR #14 merged; post-merge Site quality gates run #40291781455 passed on that exact main SHA). This cumulative audit now tracks authentic media curation and Gallery discovery; older entries remain historical.
 **Scope:** public static HTML/CSS/vanilla-JS routes. Content Studio pack import and adapter work are explicitly out of scope for this recovery phase.
 
 ## Evidence from the pre-change pages
@@ -238,3 +238,38 @@ No new image binaries were copied or claimed as migrated in this phase. Existing
 ### Validation status and limitations
 
 The base commit's Site quality gates workflow passed on the exact main SHA before this batch; that is not evidence for the new feature head. A fresh exact-head GitHub Actions result is required for this implementation and any subsequent commit. The connected GitHub tools do not provide a complete local checkout in this chat, so the local full suite, browser/device rendering, accessibility tooling, Lighthouse and staging UAT were not run here. Do not treat those items as passed.
+
+
+## Authentic media curation and Gallery discovery — 2026-10-26
+
+### Findings
+
+- The Gallery had ten cards in one undifferentiated grid. Six images were also used on the homepage, and no manifest recorded source/target paths, visual subject, page role, dimensions, byte size, alt text or provenance.
+- assets/images/legacy/room-purple.jpg was byte-identical to assets/images/rooms/rising-sun.jpg; assets/images/legacy/room-carved.jpg was byte-identical to assets/images/rooms/opium.jpg. The Gallery now uses canonical room paths and redundant copies are removed.
+- Homepage image reuse is intentional where a photograph serves a distinct page context. The manifest records actual page/role use rather than treating all reuse as a defect.
+- The fort-from-roof WebP was visually reviewed and localized after stripping its EXIF RIFF chunk and clearing its metadata flag. Its encoded VP8 payload and 2000×1333 dimensions are preserved; final size is 388,130 bytes. The owner-provided CampingInJsm.jpeg tent-interior image was copied byte-for-byte at 1600×1280 and 307,643 bytes; no EXIF/XMP segments were found.
+- camp_from_above.jpeg and camp_evening.jpeg were reviewed but not migrated because their dark overhead/night scenes provide less legible guest context than the selected images.
+
+### Implemented
+
+- Reorganized gallery.html into four collections: Haveli & fort, Rooms, Rooftop & dining, and Desert & overnight. Twelve curated cards have descriptive captions and contextual links to About, Directions, Rooms, Dining or Experiences.
+- Added keyboard-visible category navigation, responsive 3/2/1-column layouts, reduced-motion handling, intrinsic image dimensions, lazy loading and asynchronous decoding.
+- Added docs/MEDIA-CURATION-MANIFEST.json with source/target paths and blob SHAs, visually reviewed subject, intended roles, dimensions, byte size/budget, alt text, provenance, actual page reuse, Open Graph reuse and approval/status notes.
+- Extended scripts/test-content-ux.js to check manifest-to-file blob SHA, dimensions and byte budgets, transfer consistency, valid local paths, alt/caption context, subject/category mapping, cross-page reuse, Open Graph metadata, duplicate binary hashes and retired duplicate aliases. Existing canonical, enquiry and draft-publication gates remain in force.
+- Contact/booking endpoints, canonical-host approval, robots/sitemap policy, room availability, menus, prices, hours and tour operation status were not changed.
+
+### Source/release boundary
+
+- The owner-designated legacy repository is the source reference. No separate per-file license metadata was found in the reviewed image-optimization notes; provenance is recorded, and any rights uncertainty remains an owner release check.
+- The tent-interior image does not prove the exact tent or its facilities are currently available. The rooftop panorama is a setting reference, not a promise of a specific view/table.
+- A separate unmerged branch, feat/direct-booking-and-source-backed-content at 051d4507d1cffb7179f1169882a84397645b0e0d, is not part of this phase. Push quality run #40296907581 failed JavaScript syntax validation because the WhatsApp-path regular expression is over-escaped. That branch also fills contact/booking values from legacy configuration and relaxes owner-verification status. Legacy presence is not current owner approval or proof of staffing; keep endpoints inactive and do not promote that branch without separate verification.
+
+### Validation evidence and limitations
+
+- Source-level checks performed: source image bytes fetched and visually reviewed; source/target blob SHAs compared; dimensions and byte counts parsed from actual binaries; WebP chunks/flags checked after transformation; JPEG EXIF/XMP markers checked on the selected tent image.
+- The repository quality suite must be checked on the exact final PR head; no CI pass is claimed here before that run completes.
+- Local bash scripts/check-pr-quality.sh and bash scripts/check-site.sh: NOT RUN. No complete checkout is available and the connector runtime cannot resolve GitHub DNS. Browser/device review, automated accessibility tooling, Lighthouse and staging UAT were also NOT RUN.
+
+### Next phase
+
+After this batch is reviewed and merged, reassess remaining content/internal-discovery gaps. Prepare a Journal article only after source/date review and publication gates are satisfied; keep the Fort article and all unapproved editorial records in draft. Content Studio/pack integration remains deferred.
