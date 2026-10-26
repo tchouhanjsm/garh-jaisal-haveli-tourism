@@ -16,7 +16,6 @@ PAGES = sorted(
     for directory in PAGE_DIRECTORIES
     if directory.is_dir()
     for page in directory.glob('*.html')
-    if not (directory == ROOT and page.name == '404.html')
 )
 ERRORS: list[str] = []
 
