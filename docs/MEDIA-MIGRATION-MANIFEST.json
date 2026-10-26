@@ -298,6 +298,25 @@
       "provenance": "Existing target JPEG verified byte-identical to the matching source-repository sitting-room image; retained as the picture fallback.",
       "approvalStatus": "source-verified-existing-asset",
       "publicationCaveat": "This photo does not promise a particular room allocation, current amenities, room inventory or rate; confirm the offered room and details for the requested dates."
+    },
+    {
+      "sourcePath": "img/Desert_Camp/Tentout.jpeg",
+      "sourceBlobSha": "5b3a4022356e405df26a115963cb011c5051209c",
+      "targetBlobSha": "5b3a4022356e405df26a115963cb011c5051209c",
+      "targetPath": "assets/images/experiences/swiss-tent-detail.jpeg",
+      "visualSubject": "White Swiss-style desert tent with stone plinth and sandy ground",
+      "intendedRole": "Experience gallery — Swiss-tent secondary photo",
+      "verificationPage": "experiences.html",
+      "dimensions": {
+        "width": 1600,
+        "height": 1280
+      },
+      "bytes": 240485,
+      "mimeType": "image/jpeg",
+      "altText": "White Swiss-style desert tent with a stone plinth and sandy ground",
+      "provenance": "Owner-controlled legacy source repository; retrieved from img/Desert_Camp/Tentout.jpeg and visually inspected for a distinct tent exterior view.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "This photo does not promise a particular tent assignment, current availability, facilities, package inclusions or price; confirm for the requested dates."
     }
   ]
 }

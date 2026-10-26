@@ -444,25 +444,19 @@ for (const rule of PAGE_RULES) {
       }
       const hasCarousel = /data-experience-carousel/.test(card);
       const carouselImages = [...card.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
-      if (option.id === 'swiss-tent') {
-        if (hasCarousel || carouselImages.length !== 1) {
-          fail('experiences.html: Swiss-tent must remain a single-photo reference until a second distinct image is reviewed');
-        }
-      } else {
-        if (!hasCarousel
-            || (card.match(/data-carousel-slide/g) || []).length !== 2
-            || !/data-carousel-previous/.test(card)
-            || !/data-carousel-next/.test(card)
-            || !/data-carousel-status/.test(card)
-            || !/aria-roledescription="carousel"/.test(card)) {
-          fail('experiences.html: ' + option.title + ' must provide an accessible two-photo next/previous gallery');
-        }
-        if (carouselImages.length !== 2 || new Set(carouselImages).size !== 2) {
-          fail('experiences.html: ' + option.title + ' must use two distinct local photos');
-        }
-        if (carouselImages.some((image) => image.startsWith('http:') || image.startsWith('https:') || image.startsWith('//'))) {
-          fail('experiences.html: carousel photos must be locally hosted for ' + option.title);
-        }
+      if (!hasCarousel
+          || (card.match(/data-carousel-slide/g) || []).length !== 2
+          || !/data-carousel-previous/.test(card)
+          || !/data-carousel-next/.test(card)
+          || !/data-carousel-status/.test(card)
+          || !/aria-roledescription="carousel"/.test(card)) {
+        fail('experiences.html: ' + option.title + ' must provide an accessible two-photo next/previous gallery');
+      }
+      if (carouselImages.length !== 2 || new Set(carouselImages).size !== 2) {
+        fail('experiences.html: ' + option.title + ' must use two distinct local photos');
+      }
+      if (carouselImages.some((image) => image.startsWith('http:') || image.startsWith('https:') || image.startsWith('//'))) {
+        fail('experiences.html: carousel photos must be locally hosted for ' + option.title);
       }
       if (!/loading="lazy"/.test(card) || !/decoding="async"/.test(card)) {
         fail('experiences.html: every tour photo must be lazy-loaded and asynchronously decoded: ' + option.title);
@@ -605,7 +599,7 @@ for (const rule of PAGE_RULES) {
     if (!/SUV and sedan arrangements across Rajasthan and Delhi/i.test(html)) {
       fail('directions.html: source transport context and date-specific availability caveat are missing');
     }
-    if (!html.includes('arrival-overview')
+    if (!/class="[^"]*\barrival-overview\b/.test(html)
         || !/The final stretch<br><em>is on foot\.<\/em>/.test(html)
         || !/arrival-overview__facts/.test(html)
         || !/Open the map/.test(html)) {

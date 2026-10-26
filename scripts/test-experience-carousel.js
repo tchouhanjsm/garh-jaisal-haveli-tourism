@@ -78,7 +78,7 @@ for (const match of articles) {
 }
 
 const carouselCards = articles.filter(match => match[2].includes('data-experience-carousel'));
-assert.equal(carouselCards.length, 5, 'only options with two distinct reviewed photos receive carousel controls');
+assert.equal(carouselCards.length, 6, 'all six source-listed options have distinct reviewed photos and carousel controls');
 for (const match of carouselCards) {
   const card = match[2];
   assert.match(card, /aria-roledescription=["']carousel["']/i, match[1] + ' has carousel semantics');
@@ -96,8 +96,10 @@ for (const match of carouselCards) {
   }
 }
 const swiss = articles.find(match => match[1] === 'swiss-tent')[2];
-assert.doesNotMatch(swiss, /data-experience-carousel/, 'Swiss-tent remains single-photo until a distinct second source image is reviewed');
 assert.match(swiss, /src=["']assets\/images\/experiences\/swiss-tent-exterior\.webp["']/);
+assert.match(swiss, /src=["']assets\/images\/experiences\/swiss-tent-detail\.jpeg["']/);
+assert.match(swiss, /data-experience-carousel/, 'Swiss-tent carousel uses a second reviewed tent photograph');
+assert.match(swiss, /a visual reference, not a promise/i, 'Swiss-tent secondary photo has a clear availability caveat');
 assert.match(css, /\.experience-carousel__button:focus-visible/);
 assert.match(css, /prefers-reduced-motion:\s*reduce/);
 assert.match(css, /\.experience-carousel__controls\[hidden\]/);
