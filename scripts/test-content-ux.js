@@ -187,27 +187,33 @@ for (const rule of PAGE_RULES) {
   }
 
   if (rule.file === 'rooms.html') {
-    const referenceCards = [...html.matchAll(/<figure\b[^>]*class=["'][^"']*\broom-reference-card\b[^"']*["'][^>]*>[\s\S]*?<\/figure>/gi)];
-    if (referenceCards.length !== 2) fail('rooms.html: expected two distinct image-led room reference cards');
-    const roomGrid = html.match(/<div\b[^>]*class=["'][^"']*\broom-reference-grid\b[^"']*["'][^>]*>/i);
-    if (!roomGrid || !/\brole=["']group["']/.test(roomGrid[0]) || !/\baria-label=["']Room photo references["']/.test(roomGrid[0])) {
-      fail('rooms.html: room reference grid needs an accessible group role and name');
+    const catalogue = [
+      { name: 'Sweet Purple Room', image: 'assets/images/rooms/sweet-purple.jpg', features: ['Carved bed', 'Second bed', 'Air conditioning', 'Private bathroom', 'City view'] },
+      { name: 'Rising Sun Room', image: 'assets/images/rooms/rising-sun.jpg', features: ['Comfortable room', 'City view', 'Private bathroom', 'Window seat'] },
+      { name: 'Scarlet Room', image: 'assets/images/scarlet.jpg', features: ['Window seat', 'City view', 'Private bathroom', 'Air conditioning'] },
+      { name: 'Opium Room', image: 'assets/images/rooms/opium.jpg', features: ['City view', 'Private bathroom', 'Ceiling fan'] },
+      { name: 'Red Maharani Room', image: 'assets/images/rooms/red-maharani.jpg', features: ['King bed', 'Window seat', 'City view', 'Private bathroom'] },
+      { name: 'Green Room', image: 'assets/images/rooms/green.jpg', features: ['King bed', 'Window seat', 'Private bathroom', 'Air conditioning'] },
+      { name: 'BlueSky Room', image: 'assets/images/rooms/bluesky.jpg', features: ['Window seat', 'City view', 'Private bathroom', 'Ceiling fan'] },
+    ];
+    const cards = [...html.matchAll(/<article class="room-card room-card--named"[^>]*>[\s\S]*?<\/article>/g)].map((match) => match[0]);
+    if (cards.length !== catalogue.length) {
+      fail('rooms.html: expected ' + catalogue.length + ' named room cards, found ' + cards.length);
     }
-    for (const [index, match] of referenceCards.entries()) {
-      if (!/<img\b/i.test(match[0]) || !/<figcaption\b/i.test(match[0])) {
-        fail(`rooms.html: room reference card ${index + 1} needs an image and visible caption`);
+    for (const room of catalogue) {
+      const card = cards.find((candidate) => candidate.includes('<h3>' + room.name + '</h3>'));
+      if (!card) {
+        fail('rooms.html: missing named room card: ' + room.name);
+        continue;
       }
+      if (!card.includes('src="' + room.image + '"')) fail('rooms.html: ' + room.name + ' has an incorrect local image mapping');
+      for (const feature of room.features) {
+        if (!card.includes('>' + feature + '</li>')) fail('rooms.html: ' + room.name + ' is missing source-listed feature: ' + feature);
+      }
+      if (!/width="\d+"\s+height="\d+"/.test(card)) fail('rooms.html: ' + room.name + ' image lacks explicit geometry');
     }
-    if (!/<article\b[^>]*class=["'][^"']*\broom-reference-guide\b[^"']*["'][^>]*>[\s\S]*?<\/article>/i.test(html)) {
-      fail('rooms.html: missing the room-details checklist beside the photo references');
-    }
-    if (/class=["'][^"']*\broom-card-grid\b/.test(html)
-        || /<h3>\s*(?:Haveli Rooms|Your Jaisalmer Base)\s*<\/h3>/i.test(html)) {
-      fail('rooms.html: generic text-only room placeholder cards remain');
-    }
-    if (!/not live inventory/i.test(html)) {
-      fail('rooms.html: photo references must be clearly distinguished from live room inventory');
-    }
+    if (/class=["'][^"']*\broom-reference-grid\b/.test(html)) fail('rooms.html: old generic room-reference grid remains');
+    if (!/not live inventory/i.test(html)) fail('rooms.html: source-listing must be distinguished from live inventory');
   }
 
   const navMatch = html.match(/<nav id=["']primary-navigation["'][^>]*>[\s\S]*?<\/nav>/i);

@@ -87,3 +87,16 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 @media(max-width:900px){.room-reference-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.room-reference-guide{grid-column:1/-1}#room-planning .content-depth__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.room-reference-grid,#room-planning .content-depth__grid{grid-template-columns:1fr}.room-reference-guide{grid-column:auto}}
 
+
+/* Verified named-room catalogue: authentic mapped photographs and balanced cards. */
+.room-card-grid--catalog{align-items:stretch;gap:22px}
+.room-card-grid--catalog .room-card{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.room-card-grid--catalog .room-card__image{height:auto;aspect-ratio:3/2;background:#e8dfd2}
+.room-card-grid--catalog .room-card__image img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+.room-card-grid--catalog .room-card__body{display:flex;flex:1;flex-direction:column;align-items:flex-start;padding:24px 23px 26px}
+.room-card-grid--catalog .room-card__body p{min-height:0}
+.room-card-grid--catalog .room-card__body .text-link{margin-top:auto;padding-top:12px}
+.room-feature-label{margin:15px 0 7px;color:var(--ink)!important;font-size:10px!important;font-weight:700;letter-spacing:.04em}
+.room-feature-list{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 15px;padding:0;list-style:none}
+.room-feature-list li{padding:5px 8px;border:1px solid var(--line);background:#f5f0e8;color:#565b53;font-size:10px;line-height:1.4}
+@media(max-width:540px){.room-card-grid--catalog{gap:16px}.room-card-grid--catalog .room-card__body{padding:21px 18px 22px}.room-feature-list li{font-size:10px}}

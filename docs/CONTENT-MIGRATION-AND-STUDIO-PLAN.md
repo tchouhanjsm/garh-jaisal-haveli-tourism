@@ -268,3 +268,10 @@ The registry-bound pack importer is now `scripts/import-content-pack.js`. It acc
 The legacy Content Studio still exports PHP wrappers and `img/` paths; its adapter and preview panel are deferred. The current delivery priority is website content and UX recovery: fuller factual page contexts, distinct locally hosted imagery, accessible internal discovery, unique SEO metadata, internal-link/orphan checks, and publication-safe canonical/sitemap behavior. Do not import packs, integrate Studio, or publish current drafts in this phase. The canonical host, booking/contact endpoints, room facts, menu/hours, tour inclusions and additional imagery permissions remain owner-verification gates.
 
 Do not copy all 11 legacy experience records, all 12 article records, or the entire image library in one unreviewable bulk import. Migrate remaining content in coherent batches after this website content/UX recovery phase is reviewed and the owner approves the publication prerequisites. Only then reconsider the Studio adapter/preview as a separate roadmap decision.
+
+
+## Current implementation checkpoint — named room catalogue (2026-10-26)
+
+The current phase restores the seven source-recorded room names in Rooms, uses mapped photographs as locally hosted assets, presents source-listed features with explicit live-inventory caveats, and adds regression coverage for the name/image/feature mapping. Contact, canonical-host, robots/sitemap and draft-publication gates remain unchanged.
+
+Next phases: improve Experiences with subject-matched imagery and comparison-oriented detail, then fill relevant Dining and Directions image gaps. Only after source review and owner/publication prerequisites should a Journal article be added. The legacy Studio adapter and pack integration remain deferred.
