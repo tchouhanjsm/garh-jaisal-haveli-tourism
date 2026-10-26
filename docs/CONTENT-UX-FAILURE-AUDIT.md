@@ -153,3 +153,10 @@ The restaurant image remains a visual reference, not a promise of a live menu, s
 ### Exact-head check evidence for the Dining/Directions phase
 
 - The first implementation commit `dd9f270eafd8d8dae33b6d8272d335e8ec3387fb` passed `Site quality gates / quality` in [run #40278374512](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278374512). The follow-up code/test head `e333637a6f28c59438929516226359a88d595501` passed `Site quality gates / quality` in [PR run #40278468379](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278468379) and the push-triggered run [#40278462693](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278462693); both runs identify that exact head and their quality jobs completed successfully. These results are historical for `e333637a6f28c59438929516226359a88d595501` only. This audit update creates a new head, so a fresh exact-head quality run is required before merge consideration. Local full-suite and browser/device checks remain not run.
+
+
+### Exact-head quality result before the final audit note (2026-10-26)
+
+- Code/test head `7205826e2b70c31a71fa5de62d08dbe77ef1d269` passed `Site quality gates / quality` in [PR run #40278549502](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278549502) and the push-triggered [run #40278545176](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278545176). Both runs completed successfully on that exact SHA, including the full repository quality script.
+- This audit note creates a new head; the new exact-head workflow result must be checked before any merge decision. The prior runs remain evidence for `7205826e2b70c31a71fa5de62d08dbe77ef1d269` only.
+- The local full suite remains **NOT RUN** because no complete checkout is available and shell DNS resolution for `github.com` fails. Browser/device and Lighthouse checks also remain **NOT RUN**.
