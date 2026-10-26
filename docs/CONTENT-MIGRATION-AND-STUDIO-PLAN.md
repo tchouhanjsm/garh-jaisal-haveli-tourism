@@ -317,3 +317,12 @@ The media test computes the local Git blob SHA from each target file, checks the
 docs/LAUNCH-READINESS-CHECKLIST.md is now the explicit source of launch gates. A read-only automated request to the AsiaTech booking URL returned HTTP 403 on 26 October 2026. Treat that as a manual verification blocker, not proof that standard browsers are blocked. Verify it with the provider/owner in a regular browser, then test WhatsApp, primary mobile, alternate landline and email. Approve current room and tour operation facts, restaurant menu/prices, reception and arrival details before relying on them in public copy. The canonical hostname remains unapproved and no production release has occurred.
 
 The new launch-readiness script validates link wiring, contact centralization, menu/canonical/sitemap safeguards and records the human checks as outstanding. Studio/pack integration stays deferred. Production release is not permitted until the manual P0 gates in the launch checklist are signed off.
+
+
+## Premium presentation and image-weight reduction — 26 October 2026
+
+The homepage now has one primary Book Now action and quieter room/arrival links. Repeated generic fort language and the unattributed quote panel were replaced with specific details about the seven named rooms, rooftop dining, the final walk inside the fort, and date-specific confirmation of tour/menu facts. Homepage planning links now precede the final conversion CTA.
+
+The 799,571-byte Green Room image was replaced with a visually inspected source-repository image of the same named room at 114,126 bytes (85.7% smaller). Source-provided Sweet Purple WebP (275,778 bytes) and haveli sitting-room WebP (307,548 bytes) are now paired with existing JPEG fallbacks. These are authentic source photographs; no AI-generated property imagery was introduced.
+
+The media manifest and regression gates now check per-role size budgets, exact source/target Git blob hashes, actual bytes/dimensions, WebP/JPEG page references, Green Room alt text/geometry and homepage CTA/section hierarchy. Manual launch gates are unchanged: standard-browser booking checks, owner/contact-channel verification, canonical hostname approval and staging UAT remain required. Content Studio/importer integration stays deferred.

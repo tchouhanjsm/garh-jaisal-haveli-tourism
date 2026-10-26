@@ -308,10 +308,21 @@ for (const rule of PAGE_RULES) {
 
     const finalCta = html.match(/<section class="final-cta"[\s\S]*?<\/section>/i);
     if (!finalCta || !/class="home-final-actions"/i.test(finalCta[0])
-        || /data-enquiry-link|href="#contact-status"/i.test(finalCta[0])
-        || !/Direct enquiry is not enabled on this website/i.test(finalCta[0])
-        || !/verified contact route from your booking confirmation/i.test(finalCta[0])) {
-      fail('index.html: closing CTA must offer useful next steps without implying a live booking channel');
+        || !/data-booking-link/.test(finalCta[0])
+        || !/Book Now/.test(finalCta[0])
+        || !/does not itself confirm room availability or a reservation/i.test(finalCta[0])) {
+      fail('index.html: closing CTA must offer a clear booking route and explain that the external flow does not confirm a reservation');
+    }
+    if (!/The setting is special\.<br><em>The details matter\.<\/em>/.test(html)
+        || !/Vehicles cannot reach the hotel door/i.test(html)
+        || !/Seven named rooms/i.test(html)) {
+      fail('index.html: fact-led fort-arrival/room editorial content is missing');
+    }
+    if (/Travel is at its best when you feel part of a place/i.test(html)) {
+      fail('index.html: remove generic quote-style filler in favour of useful property-specific content');
+    }
+    if (html.indexOf('aria-labelledby="home-next-steps"') > html.indexOf('class="final-cta"')) {
+      fail('index.html: final CTA must be the final homepage content section, after planning links');
     }
 
     const css = fs.readFileSync(path.join(ROOT, 'assets/site.css'), 'utf8');
@@ -344,6 +355,19 @@ for (const rule of PAGE_RULES) {
         continue;
       }
       if (!card.includes('src="' + room.image + '"')) fail('rooms.html: ' + room.name + ' has an incorrect local image mapping');
+      if (room.name === 'Sweet Purple Room'
+          && (!/type="image\/webp"\s+srcset="assets\/images\/rooms\/sweet-purple\.webp"/.test(card)
+            || !/src="assets\/images\/rooms\/sweet-purple\.jpg"/.test(card))) {
+        fail('rooms.html: Sweet Purple must provide a source-backed WebP with the existing JPEG fallback');
+      }
+      if (room.name === 'Green Room'
+          && (!/src="assets\/images\/rooms\/green\.jpg"[^>]*width="900"\s+height="600"/.test(card)
+            || !/green curtains beside a bright window/i.test(card))) {
+        fail('rooms.html: Green Room must use the source-verified smaller asset and matching alt text');
+      }
+      if (room.name === 'Green Room' && /width="2000"\s+height="1333"/.test(card)) {
+        fail('rooms.html: stale oversized Green Room geometry remains');
+      }
       for (const feature of room.features) {
         if (!card.includes('>' + feature + '</li>')) fail('rooms.html: ' + room.name + ' is missing source-listed feature: ' + feature);
       }
@@ -463,6 +487,16 @@ for (const rule of PAGE_RULES) {
       const card = match[0];
       if (!card.includes('<h3>' + room.title + '</h3>')) fail('gallery.html: incorrect heading for ' + room.title);
       if (!card.includes('src="' + room.image + '"')) fail('gallery.html: incorrect image map for ' + room.title);
+      if (room.slug === 'sweet-purple'
+          && (!/type="image\/webp"\s+srcset="assets\/images\/rooms\/sweet-purple\.webp"/.test(card)
+            || !/src="assets\/images\/rooms\/sweet-purple\.jpg"/.test(card))) {
+        fail('gallery.html: Sweet Purple card must include source-backed WebP and JPEG fallback');
+      }
+      if (room.slug === 'green'
+          && (!/src="assets\/images\/rooms\/green\.jpg"[^>]*width="900"\s+height="600"/.test(card)
+            || !/green curtains beside a bright window/i.test(card))) {
+        fail('gallery.html: Green Room must use the source-verified smaller image and matching alt text');
+      }
       if (!card.includes('href="rooms.html#' + room.id + '"')) fail('gallery.html: room gallery must link to matching detail for ' + room.title);
       if (!/loading="lazy"/.test(card) || !/decoding="async"/.test(card)) fail('gallery.html: named-room image should be lazy-loaded: ' + room.title);
     }
