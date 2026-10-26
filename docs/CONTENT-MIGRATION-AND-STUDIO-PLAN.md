@@ -326,3 +326,14 @@ The homepage now has one primary Book Now action and quieter room/arrival links.
 The 799,571-byte Green Room image was replaced with a visually inspected source-repository image of the same named room at 114,126 bytes (85.7% smaller). Source-provided Sweet Purple WebP (275,778 bytes) and haveli sitting-room WebP (307,548 bytes) are now paired with existing JPEG fallbacks. These are authentic source photographs; no AI-generated property imagery was introduced.
 
 The media manifest and regression gates now check per-role size budgets, exact source/target Git blob hashes, actual bytes/dimensions, WebP/JPEG page references, Green Room alt text/geometry and homepage CTA/section hierarchy. Manual launch gates are unchanged: standard-browser booking checks, owner/contact-channel verification, canonical hostname approval and staging UAT remain required. Content Studio/importer integration stays deferred.
+
+
+## Guest-journey editorial phase — 26 October 2026
+
+Experiences now presents two locally hosted, source-backed photographs for each of the six source-listed options. Visitors can move manually with accessible previous/next controls; images do not autoplay. Every caption makes clear that the picture is a visual reference rather than a guarantee of the pictured location or an itinerary stop.
+
+Dining now places the actual rooftop-table photograph alongside specific menu/service-hour confirmation guidance, with a separate view across the fort for context. About uses the fort-side rooftop photograph and has practical links before the final conversion CTA. Directions leads with the final walking approach, a map link and a three-point arrival summary. Copy across these pages avoids guarantees for date-specific services.
+
+The new carousel logic is isolated in assets/experience-carousel.js, has no timer/autoplay, updates the live slide counter and aria-hidden state, and is covered by scripts/test-experience-carousel.js. The quality runner also requires distinct local images per tour, accessible controls, local asset paths and accurate content/media pairing. The fort rooftop manifest record now validates its same image/alt on Gallery, About and Dining.
+
+No menus/prices, rates, live inventory or transfer/tour availability were invented. The launch blocker for the standard-browser AsiaTech booking test and human contact-channel checks is unchanged.

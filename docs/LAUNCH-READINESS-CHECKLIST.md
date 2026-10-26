@@ -65,3 +65,10 @@ Complete and record these checks against the intended staging site first. Do not
 5. Approve the staging UAT result and production deployment window/rollback plan.
 
 **Release rule:** source-repository presence and green CI are necessary, but insufficient. Do not deploy or represent the new site as fully launch-ready while any P0 release gate remains unchecked.
+
+
+### Experience gallery and editorial smoke check
+- [ ] On desktop and mobile, try Next and Previous on all six experience galleries, including wraparound. Confirm there is no autoplay, the counter updates, keyboard focus is visible and the image/caption match the option shown.
+- [ ] With JavaScript disabled, confirm the first photo remains visible and hidden carousel controls do not claim to work.
+- [ ] Verify that all six photo pairs load from the local site, with no 404s; captions describing visual references must not be read as a promise that the site shown is an itinerary stop.
+- [ ] Check the About hero/social preview and Dining rooftop-table/fort-view image pairing at a social-preview aspect ratio; verify text remains readable over the real photographs and the arrival page surfaces the final walk before other details.
