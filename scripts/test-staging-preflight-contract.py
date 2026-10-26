@@ -91,7 +91,7 @@ with tempfile.TemporaryDirectory() as temporary_directory:
     report_path = Path(temporary_directory) / "preflight.json"
     written_path = browser_smoke.write_report(str(report_path), report)
     serialized = written_path.read_text(encoding="utf-8")
-    assert serialized.endswith("\\n")
+    assert serialized.endswith("\n")
     round_trip = json.loads(serialized)
     assert round_trip["targetUrl"] == valid
     assert all(item["result"] == "NOT RUN" for item in round_trip["manualReleaseChecks"])
