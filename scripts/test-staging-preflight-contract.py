@@ -120,23 +120,70 @@ for username, password in (("qa-user", None), (None, "qa-password"), ("", "qa-pa
     else:
         raise AssertionError("Incomplete Basic Auth credentials must be refused")
 
-report = browser_smoke.build_report(
+incomplete_report = browser_smoke.build_report(
     "staging-read-only",
     valid,
     "QA operator",
     "Chromium test version",
     [],
 )
+assert incomplete_report["schemaVersion"] == 2
+assert incomplete_report["automatedResult"] == "FAIL"
+assert incomplete_report["automatedFailureCount"] == 3
+assert incomplete_report["evidenceCoverage"] == {
+    "pageNavigationComplete": False,
+    "pageHttp200Complete": False,
+    "responsiveViewportsComplete": False,
+    "complete": False,
+}
+assert incomplete_report["pagesAttempted"] == []
+assert incomplete_report["pagesWithHttp200OnTargetOrigin"] == []
+assert incomplete_report["completedResponsiveViewportWidthsCssPixels"] == []
+
+complete_evidence = (
+    list(browser_smoke.PAGES),
+    list(browser_smoke.PAGES),
+    [360, 768, 1440],
+)
+report = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+)
 assert report["automatedResult"] == "PASS"
+assert report["automatedFailureCount"] == 0
+assert report["evidenceCoverage"] == {
+    "pageNavigationComplete": True,
+    "pageHttp200Complete": True,
+    "responsiveViewportsComplete": True,
+    "complete": True,
+}
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
 assert report["operator"] == "QA operator"
 assert report["targetUrl"] == valid
 assert report["pagesPlanned"] == browser_smoke.PAGES
-assert report["pagesAttempted"] == []
-assert report["pagesWithHttp200OnTargetOrigin"] == []
+assert report["pagesAttempted"] == browser_smoke.PAGES
+assert report["pagesWithHttp200OnTargetOrigin"] == browser_smoke.PAGES
 assert report["plannedViewportWidthsCssPixels"] == [360, 768, 1440]
-assert report["completedResponsiveViewportWidthsCssPixels"] == []
+assert report["completedResponsiveViewportWidthsCssPixels"] == [360, 768, 1440]
 assert "viewportWidthsCssPixels" not in report
+
+partial_report = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    list(browser_smoke.PAGES[:-1]),
+    list(browser_smoke.PAGES[:-1]),
+    [360, 768],
+)
+assert partial_report["automatedResult"] == "FAIL"
+assert partial_report["evidenceCoverage"]["complete"] is False
+assert partial_report["automatedFailureCount"] == 3
 assert report["safety"]["externalLinkNavigationPerformed"] is False
 assert report["crossOriginNavigationAttemptsBlocked"] == []
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
@@ -160,7 +207,7 @@ assert report["browser"]["name"] == "Chromium"
 blocked_navigation = ["Blocked cross-origin navigation request: https://qa-user:qa-password@hotelgarhjaisal.com/?token=secret#fragment"]
 blocked_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version", [],
-    blocked_navigation_attempts=blocked_navigation,
+    *complete_evidence, blocked_navigation_attempts=blocked_navigation,
 )
 assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [
     "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
@@ -169,7 +216,8 @@ assert "qa-password" not in str(blocked_report) and "secret" not in str(blocked_
 
 failed_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version",
-    ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"]
+    ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"],
+    *complete_evidence,
 )
 assert failed_report["automatedResult"] == "FAIL"
 assert failed_report["automatedFailureCount"] == 1
