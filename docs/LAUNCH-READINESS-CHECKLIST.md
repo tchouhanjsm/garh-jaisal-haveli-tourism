@@ -141,7 +141,7 @@ The 17 `STG-01`–`STG-17` rows below remain human-operated checks and must stay
 
 The same Chromium smoke suite can be pointed at an owner-approved staging origin to validate the deployed static files without following third-party links or submitting guest data. It refuses the configured production hosts (legacyProductionUrl and newStaticSiteCanonicalHost) even if someone accidentally supplies them.
 
-Set these variables locally to the real staging origin, operator name and an output file path; do not commit the resulting evidence file unless it has been reviewed for environment details.
+Set these variables locally to the real staging origin, operator name and an output file path; do not commit the resulting evidence file unless it has been reviewed for environment details. If the staging subdomain uses HTTP Basic Auth, set STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD in the local shell. The runner scopes these credentials to the staging origin and never writes them to the JSON report; do not put credentials in the URL.
 
 ~~~bash
 python3 scripts/test-browser-smoke.py \
