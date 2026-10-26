@@ -513,3 +513,37 @@ The operator-run staging preflight now requires a local visual evidence bundle i
 2. A full automated PASS is impossible without all seven routes, all target-origin HTTP 200 responses, all 360/768/1440 widths and all 21 screenshot records.
 3. Screenshot metadata must match the planned viewport width/height, valid PNG geometry, positive byte count and a 64-character lowercase SHA-256.
 4. No output report contains a local screenshot directory path or any manual UAT row marked passed by automation.
+
+
+## Offline staging visual review index — 26 October 2026
+
+### Baseline and phase selection
+- Live main at phase start: 15ac7e716bd113de51ade17ec92a303ebde2c58e, merge commit for PR #24. A live comparison against main returned identical refs; no implementation PR was open.
+- PR #24, “Capture complete visual evidence in staging preflight”, is merged. Its exact head b886f225e54c9deb8df7d3c433c5f8a78f6ad711 has a successful Site quality gates run #40367376676: https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40367376676. The quality job's setup, dependency installation and full quality-suite step all completed successfully.
+- Combined classic commit statuses for both the PR head and current main returned empty arrays; those are recorded as “none reported”, not as passing statuses. The workflow query used by the connector did not return a post-merge main run for 15ac7e7, so post-merge CI for that SHA is not independently reported by that query.
+
+### Product/QA outcome
+The staging runner now captures a reproducible 21-image bundle, but the operator still has to open individual files and compare seven page journeys across mobile, tablet and desktop. This phase adds an offline HTML review index so an owner/operator can inspect the full bundle efficiently without contacting the staging host again.
+
+### Implementation
+- Added scripts/render-staging-visual-review.py. It accepts only schema-version 3 staging-read-only JSON reports and screenshot directories outside the checkout, and requires the HTML output to be outside the checkout beside the screenshot directory.
+- It verifies the planned route and viewport evidence, manual release rows remaining NOT RUN, all 21 expected filenames in order, image metadata, actual PNG header geometry, byte count and SHA-256.
+- It groups Home, Rooms, Experiences, Dining, About, Directions and Gallery into page sections with Mobile 360px, Tablet 768px and Desktop 1440px screenshots. Invalid/missing/tampered files are displayed as unverified placeholders; a report marked automated FAIL remains failed.
+- The HTML uses local relative image links, inline CSS only, escaped report fields and URL-redacted failure diagnostics. It embeds no external scripts/fonts/images, no absolute filesystem paths and never follows any link or contacts the staging host.
+- Added scripts/test-staging-visual-review.py with valid PNG fixtures and coverage for 21-file ordering, real byte/hash/geometry verification, tampering detection, path traversal/output restrictions, escaped operator text, URL credential/query redaction and persistent manual UAT blocking.
+- Wired the renderer contract test into scripts/check-pr-quality.sh. Updated README.md and docs/LAUNCH-READINESS-CHECKLIST.md with operator usage and privacy/release boundaries.
+
+### Acceptance criteria
+1. The renderer rejects report schema/mode mismatch and any input/output path inside the checkout.
+2. It requires route/HTTP/viewport coverage arrays to match the seven planned pages and 360/768/1440 widths.
+3. It verifies all 21 expected screenshots against actual file bytes, SHA-256 and PNG geometry before marking any image verified.
+4. User-controlled operator/report/failure text is HTML-escaped; URL credentials, query strings and fragments are not emitted in failure diagnostics.
+5. The generated review page uses relative local images only and always states that manual UAT and release remain blocked.
+6. The new deterministic contract suite is wired into the existing quality script without changing the GitHub Actions workflow or adding jobs.
+
+### Validation boundary
+- Implementation branch: feat/staging-visual-review-index-20261026. The exact final PR head and its Site quality gates result must be checked after the last code/documentation commit; earlier PR #24 CI is baseline evidence only.
+- Local bash scripts/check-pr-quality.sh is NOT RUN because the connector execution environment has no complete repository checkout. Do not represent GitHub CI as local execution.
+- Actual staging browser/device UAT, screenshot review of a live staging origin, formal accessibility tooling, Lighthouse/Core Web Vitals and owner-run booking/contact checks remain NOT RUN.
+- No staging URL was supplied in this run, so no staging host was contacted and no screenshots were represented as real staging evidence.
+- Canonical-host approval, menu publication, draft publication, server-side guest-enquiry storage and production deployment remain blocked. Content Studio/importer integration stays deferred.

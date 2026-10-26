@@ -162,3 +162,18 @@ This tool is not a production deploy, canonical approval, sitemap/robots activat
 The operator preflight report uses schema version 3. A report may show automated `PASS` only when it records the complete planned route sequence, HTTP 200 on the requested staging origin for every planned route, all responsive viewport checks at 360, 768 and 1440 CSS pixels, and all 21 full-page PNG screenshots with validated geometry, non-zero byte sizes and SHA-256 hashes. Empty or partial evidence is an automated failure even if no individual assertion failed. Check `evidenceCoverage`, `visualEvidence` and the recorded page/viewport arrays, not only the failure count.
 
 The automated result is not a release approval. `releaseStatus` remains `BLOCKED_PENDING_MANUAL_UAT`, and STG-01 through STG-17 remain `NOT RUN` until an operator records real staging evidence. The report and screenshot directory must be outside the repository checkout; the screenshot directory must be empty at the start of a run.
+
+
+## Offline staging screenshot review index — 26 October 2026
+
+After the browser preflight creates its schema-version 3 JSON report and 21 PNG files, render a local review page beside the screenshot directory:
+
+~~~bash
+python3 scripts/render-staging-visual-review.py --report "$STAGING_REPORT" --screenshots-dir "$STAGING_SCREENSHOTS" --output "$STAGING_VISUAL_REVIEW"
+~~~
+
+The HTML output must be outside the repository checkout and in the same parent directory as the screenshot directory. It reads local files only; it does not contact staging, navigate external links, or submit data. It displays seven page sections with mobile/tablet/desktop screenshots, measured PNG dimensions, byte counts and SHA-256 values. The renderer rechecks each file against the saved report and shows missing or tampered images as unverified.
+
+The output includes no absolute filesystem paths, escapes operator/report text, redacts URLs in failure diagnostics, and loads no external scripts, fonts or images. Keep the JSON, PNGs and HTML review local until they have been reviewed for environment details. If a new browser capture is needed, create a new empty screenshot directory as required by the preflight runner.
+
+A successful visual review is evidence integrity only. It never changes the result of STG-01 through STG-17 and cannot clear manual UAT, booking/contact reachability, owner fact approval, canonical/DNS/SSL approval, backup/rollback or deployment gates.

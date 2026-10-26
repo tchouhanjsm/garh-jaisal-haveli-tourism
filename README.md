@@ -148,3 +148,18 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 The read-only staging preflight writes report schema version 3. `automatedResult` is `PASS` only when the report contains complete evidence for all seven planned page routes, target-origin HTTP 200 responses for those routes, all planned responsive widths (360, 768 and 1440 CSS pixels), and all 21 full-page screenshot files with validated PNG geometry, non-zero byte sizes and SHA-256 hashes. Missing or partial evidence fails closed. Review the `evidenceCoverage` and `visualEvidence` objects rather than treating an empty failure list alone as success.
 
 Automated PASS never clears manual release gates: the report keeps `releaseStatus` as `BLOCKED_PENDING_MANUAL_UAT` and STG-01 through STG-17 as `NOT RUN` until an operator records actual staging evidence.
+
+
+### Offline staging screenshot review
+
+After a staging preflight finishes, the 21 PNGs can be reviewed together in a local HTML page. This renderer reads the saved JSON and files only; it does not contact the staging host or follow any guest-facing link.
+
+~~~bash
+python3 scripts/render-staging-visual-review.py --report "$STAGING_REPORT" --screenshots-dir "$STAGING_SCREENSHOTS" --output "$STAGING_VISUAL_REVIEW"
+~~~
+
+- **STAGING_VISUAL_REVIEW** must be an **.html** path outside the repository checkout and in the same parent directory as **STAGING_SCREENSHOTS**.
+- The renderer accepts schema-version 3 staging reports only, verifies the seven route/HTTP records and three viewport widths, and checks each PNG's actual header geometry, byte count and SHA-256 against the JSON manifest before showing it as verified.
+- The HTML compares Home, Rooms, Experiences, Dining, About, Directions and Gallery at 360, 768 and 1440 CSS pixels. It uses local relative image links, inline CSS only, escaped report text and redacted failure URLs; it embeds no remote scripts, fonts or images and does not include absolute filesystem paths.
+- A missing, duplicated, tampered or malformed screenshot is shown as unverified and makes the renderer exit non-zero. A browser report marked FAIL remains visibly failed even if the image bundle itself is intact.
+- The page always states that release is blocked pending manual UAT. It cannot mark STG-01–STG-17 passed, approve the canonical host, publish the menu, or authorize deployment. Keep the JSON, PNG directory and HTML review local and review them before sharing.
