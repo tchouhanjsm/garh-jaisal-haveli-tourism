@@ -189,6 +189,10 @@ for (const rule of PAGE_RULES) {
   if (rule.file === 'rooms.html') {
     const referenceCards = [...html.matchAll(/<figure\b[^>]*class=["'][^"']*\broom-reference-card\b[^"']*["'][^>]*>[\s\S]*?<\/figure>/gi)];
     if (referenceCards.length !== 2) fail('rooms.html: expected two distinct image-led room reference cards');
+    const roomGrid = html.match(/<div\b[^>]*class=["'][^"']*\broom-reference-grid\b[^"']*["'][^>]*>/i);
+    if (!roomGrid || !/\brole=["']group["']/.test(roomGrid[0]) || !/\baria-label=["']Room photo references["']/.test(roomGrid[0])) {
+      fail('rooms.html: room reference grid needs an accessible group role and name');
+    }
     for (const [index, match] of referenceCards.entries()) {
       if (!/<img\b/i.test(match[0]) || !/<figcaption\b/i.test(match[0])) {
         fail(`rooms.html: room reference card ${index + 1} needs an image and visible caption`);
