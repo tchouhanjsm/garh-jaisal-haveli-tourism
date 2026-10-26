@@ -157,23 +157,26 @@
       "targetBlobSha": "4e6816bea352515e3aa98a8828c092e10a6b21ee"
     },
     {
-      "sourcePath": "img/v2/green-room.jpg",
-      "sourceBlobSha": "2a16569bcb8b77c5e0ea2b82f200041ca4353294",
+      "sourcePath": "img/green-room.jpg",
+      "sourceBlobSha": "3054ca871f68f8e08912c24a5f2dfa228c36f7b6",
       "targetPath": "assets/images/rooms/green.jpg",
       "visualSubject": "Green Room",
       "intendedRole": "Room gallery — named room image",
       "verificationPage": "gallery.html",
       "dimensions": {
-        "width": 2000,
-        "height": 1333
+        "width": 900,
+        "height": 600
       },
-      "bytes": 799571,
+      "bytes": 114126,
       "mimeType": "image/jpeg",
-      "altText": "Green Room with green bedding, carved wooden furniture and a window seat",
-      "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
-      "approvalStatus": "source-verified-existing-asset",
+      "altText": "Green Room with green bedding, carved wooden furniture and green curtains beside a bright window",
+      "provenance": "Replaced the prior 799,571-byte target with the visually inspected 114,126-byte Green Room image from the owner-controlled legacy source repository; target Git blob SHA matches source.",
+      "approvalStatus": "migrated-source-backed-asset",
       "publicationCaveat": "This photo does not promise room availability, assignment, current amenities, occupancy or rates; confirm the exact room and terms for the requested dates.",
-      "targetBlobSha": "2a16569bcb8b77c5e0ea2b82f200041ca4353294"
+      "targetBlobSha": "3054ca871f68f8e08912c24a5f2dfa228c36f7b6",
+      "additionalVerificationPages": [
+        "rooms.html"
+      ]
     },
     {
       "sourcePath": "img/rr3.jpg",
@@ -231,6 +234,66 @@
       "approvalStatus": "source-verified-existing-asset",
       "publicationCaveat": "This dining photo does not promise that the candlelit setup, menu, price or table availability is offered on a guest's date.",
       "targetBlobSha": "e00320af65321045b27807c3994f5027ddb4bc68"
+    },
+    {
+      "sourcePath": "img/optimized/v2/purple-room.webp",
+      "sourceBlobSha": "4bb81dcc1ccb2e63f9a9078fc5b5dce2ddbe1529",
+      "targetBlobSha": "4bb81dcc1ccb2e63f9a9078fc5b5dce2ddbe1529",
+      "targetPath": "assets/images/rooms/sweet-purple.webp",
+      "visualSubject": "Sweet Purple Room, alternate source-optimized WebP view",
+      "intendedRole": "Room gallery — WebP alternate",
+      "verificationPage": "gallery.html",
+      "additionalVerificationPages": [
+        "rooms.html"
+      ],
+      "dimensions": {
+        "width": 2000,
+        "height": 1333
+      },
+      "bytes": 275778,
+      "mimeType": "image/webp",
+      "altText": "Sweet Purple Room with a carved wooden bed, magenta curtains and a second bed",
+      "provenance": "Source-provided optimized/v2 WebP; visually inspected and paired with the JPEG fallback for the source-listed Sweet Purple room. Alternative framing, same named room subject.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "This photo does not promise room availability, assignment, current amenities, occupancy or rates; confirm the exact room and terms for the requested dates."
+    },
+    {
+      "sourcePath": "img/optimized/v2/sitting-room.webp",
+      "sourceBlobSha": "7a733bd4abc6f37eaa86898cd92f431894c2e5eb",
+      "targetBlobSha": "7a733bd4abc6f37eaa86898cd92f431894c2e5eb",
+      "targetPath": "assets/images/rooms/haveli-sitting-room.webp",
+      "visualSubject": "Sandstone haveli sitting room with carved furniture and patterned textiles",
+      "intendedRole": "Room hero — optimized sitting-room WebP",
+      "verificationPage": "rooms.html",
+      "dimensions": {
+        "width": 1600,
+        "height": 1066
+      },
+      "bytes": 307548,
+      "mimeType": "image/webp",
+      "altText": "Traditional sandstone sitting area with carved wooden furniture and patterned textiles inside the haveli",
+      "provenance": "Source-provided optimized/v2 sitting-room WebP; visually inspected and used as the modern image source above the existing JPEG fallback.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "This photo does not promise a particular room allocation, current amenities, room inventory or rate; confirm the offered room and details for the requested dates."
+    },
+    {
+      "sourcePath": "img/v2/sitting-room.jpg",
+      "sourceBlobSha": "3152a19321a2994fc4da2dcf9ddf9e06cec955bd",
+      "targetBlobSha": "3152a19321a2994fc4da2dcf9ddf9e06cec955bd",
+      "targetPath": "assets/images/rooms/haveli-interior.jpg",
+      "visualSubject": "Sandstone haveli sitting area with carved wooden furniture and textiles",
+      "intendedRole": "Room hero — JPEG fallback",
+      "verificationPage": "rooms.html",
+      "dimensions": {
+        "width": 1600,
+        "height": 1066
+      },
+      "bytes": 519598,
+      "mimeType": "image/jpeg",
+      "altText": "Traditional sandstone sitting area with carved wooden furniture and patterned textiles inside the haveli",
+      "provenance": "Existing target JPEG verified byte-identical to the matching source-repository sitting-room image; retained as the picture fallback.",
+      "approvalStatus": "source-verified-existing-asset",
+      "publicationCaveat": "This photo does not promise a particular room allocation, current amenities, room inventory or rate; confirm the offered room and details for the requested dates."
     }
   ]
 }

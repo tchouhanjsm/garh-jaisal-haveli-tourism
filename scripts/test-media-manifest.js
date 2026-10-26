@@ -69,8 +69,18 @@ for (const entry of manifest.entries) {
   assert.ok(fs.existsSync(filePath) && fs.statSync(filePath).isFile(), 'Missing local asset: ' + entry.targetPath);
   const buffer = fs.readFileSync(filePath);
   assert.equal(buffer.length, entry.bytes, 'Byte count differs from manifest: ' + entry.targetPath);
+  const budgetRules = [
+    [/Homepage hero — rooftop terrace/i, 200 * 1024],
+    [/Room gallery — named room image/i, 600 * 1024],
+    [/Room gallery — WebP alternate/i, 300 * 1024],
+    [/Room hero — optimized sitting-room WebP/i, 350 * 1024],
+    [/Room hero — JPEG fallback/i, 600 * 1024],
+    [/Dining page — candlelit-table/i, 200 * 1024],
+    [/Gallery: fort\/rooftop orientation/i, 450 * 1024],
+  ];
+  const matchedBudget = budgetRules.find(([role]) => role.test(entry.intendedRole));
+  const budget = matchedBudget ? matchedBudget[1] : MAX_BYTES;
   const isNamedRoom = /Room gallery — named room image/i.test(entry.intendedRole);
-  const budget = isNamedRoom ? 900 * 1024 : MAX_BYTES;
   assert.ok(buffer.length > 0 && buffer.length <= budget,
     'Asset exceeds ' + Math.round(budget / 1024) + ' KiB budget: ' + entry.targetPath);
   assert.deepEqual(getDimensions(buffer, entry.targetPath), entry.dimensions, 'Dimensions differ from manifest: ' + entry.targetPath);
@@ -79,9 +89,14 @@ for (const entry of manifest.entries) {
     .update(buffer)
     .digest('hex');
   assert.equal(localBlobSha, entry.targetBlobSha, 'Local file Git blob SHA differs from manifest: ' + entry.targetPath);
-  const page = pageContent(entry.verificationPage);
-  assert.ok(page.includes('src="' + entry.targetPath + '"'), entry.verificationPage + ' missing asset: ' + entry.targetPath);
-  assert.ok(page.includes('alt="' + entry.altText + '"'), entry.verificationPage + ' alt text differs from manifest: ' + entry.targetPath);
+  const pageNames = [...new Set([entry.verificationPage, ...(entry.additionalVerificationPages || [])])];
+  for (const pageName of pageNames) {
+    const page = pageContent(pageName);
+    assert.ok(page.includes('src="' + entry.targetPath + '"') || page.includes('srcset="' + entry.targetPath + '"'),
+      pageName + ' missing asset reference: ' + entry.targetPath);
+    assert.ok(page.includes('alt="' + entry.altText + '"'),
+      pageName + ' alt text differs from manifest: ' + entry.targetPath);
+  }
 
   if (entry.targetPath.includes('/hotel/')) assert.match(entry.visualSubject, /fort|rooftop/i, 'Fort/rooftop subject-role mismatch');
   else if (entry.targetPath.includes('/desert/')) assert.match(entry.visualSubject, /desert camp/i, 'Desert subject-role mismatch');
@@ -91,4 +106,4 @@ for (const entry of manifest.entries) {
   else assert.fail('Media target is outside the curated image taxonomy: ' + entry.targetPath);
 }
 
-console.log('PASS: curated media manifest, source/target Git blob SHA and byte integrity, dimensions, size budgets, named-room/dining/fort/desert roles and page-specific alt text.');
+console.log('PASS: curated media manifest, exact Git blob SHA/bytes, dimensions, role-based image budgets, picture/JPEG references, and page-specific image/alt contracts.');
