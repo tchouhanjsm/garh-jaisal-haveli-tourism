@@ -6,7 +6,7 @@
 - [ ] Confirm current restaurant menu, opening hours, dietary handling and candlelit dinner availability/prices.
 - [ ] Confirm the current desert operators, package inclusions, safety provisions, pickup times and cancellation terms.
 - [ ] Confirm current guided-tour languages, itinerary, guide arrangements and rates.
-- [ ] Confirm the number used by WhatsApp/phone is staffed and monitored.
+- [ ] Verify the exact WhatsApp and telephone endpoints are staffed and monitored; only then populate `content/site-config.json`, set `verificationStatus` to `owner-verified`, and set `contact.status` to `verified`.
 - [ ] Add only authentic, permission-cleared guest testimonials and current verified third-party review links.
 - [ ] Confirm the family story and date (hospitality operation began in 2005) are approved for publication.
 

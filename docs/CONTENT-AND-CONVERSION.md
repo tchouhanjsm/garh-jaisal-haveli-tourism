@@ -44,6 +44,6 @@
 
 - Use one clear primary action per section.
 - Use “Check availability” for room enquiries, not “Book now” when a live booking engine is not connected.
-- Use WhatsApp for low-friction direct communication; retain telephone and map links.
+- Activate WhatsApp, telephone and email CTAs only after the corresponding endpoint has been owner-verified in `content/site-config.json`. Until then, show a clear status message and do not transmit guest dates, party size or other travel details. Map links remain independent of contact verification.
 - Ask for only useful enquiry information before the first response.
 - Do not add countdown timers, fake limited-room notices, fabricated review scores, or invented testimonials.

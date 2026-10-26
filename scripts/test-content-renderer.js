@@ -52,6 +52,10 @@ function approveCanonicalAndContact(root) {
   config.verificationStatus = 'owner-verified';
   config.site.canonicalHostApproved = true;
   config.contact.status = 'verified';
+  config.contact.whatsappBaseUrl = 'https://wa.me/15551234567';
+  config.contact.primaryPhoneE164 = '+15551234567';
+  config.contact.primaryPhoneDisplay = '+1 555 123 4567';
+  config.contact.email = 'qa@example.test';
   writeJson(root, 'content/site-config.json', config);
 }
 

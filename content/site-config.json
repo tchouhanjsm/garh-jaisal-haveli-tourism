@@ -7,21 +7,23 @@
     "canonicalHostApproved": false
   },
   "booking": {
-    "legacyBookingEngineUrl": "https://asiatech.in/booking_engine/index3?token=NjA2Ng==",
+    "legacyBookingEngineUrl": "",
     "status": "owner-verification-required",
     "primaryLabel": "Check availability"
   },
   "contact": {
-    "whatsappBaseUrl": "https://wa.me/917727047567",
-    "primaryPhoneDisplay": "+91 77270 47567",
-    "alternatePhoneDisplay": "+91 2992 253836",
-    "email": "info@hotelgarhjaisal.com",
-    "status": "owner-verification-required"
+    "whatsappBaseUrl": "",
+    "primaryPhoneDisplay": "",
+    "alternatePhoneDisplay": "",
+    "email": "",
+    "status": "owner-verification-required",
+    "primaryPhoneE164": ""
   },
   "rules": [
-    "Values sourced from the legacy repository; verify they are active before enabling production CTAs.",
+    "Contact and booking endpoint fields remain empty until the owner verifies the exact live channel and confirms it is staffed.",
+    "Public page CTAs must stay inactive until verificationStatus is owner-verified and the relevant endpoint passes its format checks.",
     "Never claim that an enquiry is a confirmed reservation.",
-    "Use WhatsApp enquiry as a fallback if the booking gateway is unavailable or the guest asks about tours.",
+    "Use WhatsApp enquiry as a fallback only after the endpoint has been owner-verified; never route guest details to an unverified endpoint.",
     "Do not include server secrets or hosting credentials in this file."
   ]
 }

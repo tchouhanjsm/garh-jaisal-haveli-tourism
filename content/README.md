@@ -5,7 +5,7 @@ This folder is the data contract between the Content Studio and the tourism webs
 ## Files
 
 - `paths.json`: single source of truth for allowed content types, output routes, asset folders, image roles/limits and sitemap policy.
-- `site-config.json`: public booking/contact endpoints recovered from the legacy repository. Values are marked unverified until the owner tests them.
+- `site-config.json`: public runtime verification state. Unverified booking/contact endpoint fields must remain empty; static page CTAs fail closed until the owner marks the configuration `owner-verified`, sets the relevant status to `verified`, and supplies valid endpoint values.
 - `tours/<slug>.json`: tour records with an ordered timeline, explicit inclusions/exclusions, practical notes and fact-verification state. `sunset-camel-safari.json` is the first draft example.
 - `blogs/<slug>.json`: editorial articles with a structured table of contents, sections, source links, reviewed date and related links. `jaisalmer-fort-guide.json` is the first draft example.
 - `gallery/<category>.json`: curated gallery manifests. Every image requires alt text, source/provenance and approval status.
