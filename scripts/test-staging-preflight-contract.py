@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +45,7 @@ for unsafe_url in (
     "https://staging.example.test/?token=not-allowed",
     "https://staging.example.test/#main",
     "https://127.0.0.1/",
+    "https://staging.example.test:0/",
     "https://localhost/",
     "https://preview.local/",
 ):
@@ -80,8 +83,18 @@ assert report["safety"]["bookingOrPaymentSubmitted"] is False
 assert report["safety"]["guestDataSubmitted"] is False
 assert report["safety"]["contactMessageSent"] is False
 assert "qa-password" not in str(report)
-assert report["manualReleaseChecks"]
+assert [item["id"] for item in report["manualReleaseChecks"]] == [
+    f"STG-{number:02d}" for number in range(1, 18)
+]
 assert all(item["result"] == "NOT RUN" for item in report["manualReleaseChecks"])
+with tempfile.TemporaryDirectory() as temporary_directory:
+    report_path = Path(temporary_directory) / "preflight.json"
+    written_path = browser_smoke.write_report(str(report_path), report)
+    serialized = written_path.read_text(encoding="utf-8")
+    assert serialized.endswith("\\n")
+    round_trip = json.loads(serialized)
+    assert round_trip["targetUrl"] == valid
+    assert all(item["result"] == "NOT RUN" for item in round_trip["manualReleaseChecks"])
 assert report["browser"]["name"] == "Chromium"
 assert report["viewportWidthsCssPixels"] == [360, 768, 1440]
 
