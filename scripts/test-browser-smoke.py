@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Real Chromium smoke tests for the static guest journey.
 
-These checks run against a temporary local HTTP server. They validate browser
-behavior and local asset delivery, not staging, live contacts or booking completion.
+By default these checks use a temporary local HTTP server. An explicit, guarded
+HTTPS staging mode is read-only and records machine evidence without completing
+human UAT, following external links, or submitting guest data.
 """
 from __future__ import annotations
 
@@ -113,6 +114,11 @@ def validate_staging_target(raw_url: str, operator: str, report_path: str) -> st
 def build_report(mode: str, base_url: str, operator: str | None,
                  browser_version: str | None, failures: list[str]) -> dict:
     manual_checks = [
+        ("STG-01", "Human desktop guest journey from Home through Arrival"),
+        ("STG-02", "Human mobile guest journey and tap-target review"),
+        ("STG-03", "Human network-panel check for missing assets and mixed content"),
+        ("STG-04", "Human keyboard focus, menu Escape and reduced-motion review"),
+        ("STG-05", "Human review of page metadata and social previews"),
         ("STG-06", "AsiaTech booking flow in a normal desktop browser"),
         ("STG-07", "AsiaTech booking flow in a normal mobile browser"),
         ("STG-08", "WhatsApp business-account reachability and response"),
@@ -121,6 +127,9 @@ def build_report(mode: str, base_url: str, operator: str | None,
         ("STG-11", "Email delivery, no bounce and reply capability"),
         ("STG-12", "Owner confirmation of current room, tour, dining and arrival facts"),
         ("STG-13", "Backup and rollback procedure reviewed"),
+        ("STG-14", "Human image crop/layout review at mobile, tablet and desktop sizes"),
+        ("STG-15", "Keyboard-only use of all six experience galleries"),
+        ("STG-16", "Human reduced-motion, carousel and layout-stability review"),
         ("STG-17", "Human review of social previews on the staging host"),
     ]
     return {
@@ -153,7 +162,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
 def write_report(report_path: str, report: dict) -> Path:
     destination = Path(report_path).expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return destination
 
 
