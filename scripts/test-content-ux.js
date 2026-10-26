@@ -157,6 +157,9 @@ for (const rule of PAGE_RULES) {
   if (!ogAlt || !ogAlt.content.trim()) fail(`${rule.file}: missing Open Graph image alt text`);
 
   if (/raw\.githubusercontent\.com/i.test(html)) fail(`${rule.file}: public page still references a raw GitHub asset host`);
+  if (/\bfamily-run\b|\bour family\b|family story|our roots are here|rooted in the Golden City|since 2005/i.test(html)) {
+    fail(rule.file + ': unapproved family-history or start-year claim remains in public HTML');
+  }
 
   const seenImages = new Set();
   for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
