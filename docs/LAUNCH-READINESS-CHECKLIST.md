@@ -2,7 +2,7 @@
 
 **Status as of 26 October 2026: implementation checks pass; production release is blocked pending manual owner/UAT gates.**
 
-Baseline main at the start of this delivery phase: b3632c58693c5398854bc472cdb8a9dbdfa56e4d. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
+Baseline main at the start of this delivery phase: 476dd625fce29cdc524da33214c4f260885d4e18. The exact-main Site quality gates run #40325052513 passed after PR #19 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
 ## What automated checks can currently prove
 
@@ -14,6 +14,26 @@ Baseline main at the start of this delivery phase: b3632c58693c5398854bc472cdb8a
 - Canonical URL/OG URL publication and sitemap URL publishing remain gated until the owner approves the actual production hostname.
 
 A passing automated suite is not proof that the hotel’s live phone is answered, the booking provider accepts guests, the current menu is correct, or staging/production renders correctly.
+
+## Automated media performance contracts
+
+The quality suite checks actual bytes for every local image and responsive `srcset` candidate referenced by the seven core pages, not only the curated manifest. Current role budgets are:
+
+| Role | Maximum | Current measured reference |
+|---|---:|---|
+| Homepage / dining hero | 150 KiB | `assets/images/rest3.jpg` — 75,390 bytes |
+| Rooms hero JPEG fallback | 550 KiB | `assets/images/rooms/haveli-interior.jpg` — 519,598 bytes |
+| Rooms hero WebP | 320 KiB | `assets/images/rooms/haveli-sitting-room.webp` — 307,548 bytes |
+| Largest named-room JPEG | 550 KiB | Sweet Purple — 537,837 bytes |
+| Named-room WebP alternate | 300 KiB | Sweet Purple — 275,778 bytes |
+| Dining candlelit-table reference | 100 KiB | 92,506 bytes |
+| Fort/rooftop supporting image | 400 KiB | `assets/images/gallery/hotel/fort-from-roof.webp` — 388,404 bytes |
+| Directions facade reference | 600 KiB | 587,056 bytes |
+| Other referenced supporting images | 650 KiB | Largest current file: `assets/images/courtyard.jpg` — 619,209 bytes |
+
+The test also requires a single high-priority non-lazy image in pages with a visual hero and lazy/async loading for below-hero images. These are byte/markup checks, not a substitute for measuring Core Web Vitals or visually checking crop/layout on a real browser/device. The courtyard WebP in the legacy source was visually reviewed and is a different photograph from the current courtyard JPEG, so it is not used as a replacement.
+
+
 
 ## MANUAL RELEASE GATES
 
@@ -60,21 +80,25 @@ Complete and record these checks against the intended staging site first. Do not
 
 Use the intended staging host only. Replace `NOT RUN` with a result only after the named operator performs the check in a normal browser/device and records evidence. A CI pass is not evidence for these rows. Do not enter guest personal data, booking tokens or payment details in this table.
 
-| Check | Exact staging URL | Date/time (Asia/Kolkata) | Operator | Browser / device / viewport | Result | Evidence / notes |
+| Check | Exact staging URL | Date/time (Asia/Kolkata) | Operator | Browser / device / viewport | Result | Evidence / notes | Follow-up owner |
 |---|---|---|---|---|---|---|
-| STG-01 Desktop guest journey: Home → Rooms → Experiences → Dining → Directions |  |  |  |  | NOT RUN |  |
-| STG-02 Mobile guest journey and tap targets |  |  |  |  | NOT RUN |  |
-| STG-03 Images, config and styles: no 404 or mixed content |  |  |  |  | NOT RUN |  |
-| STG-04 Keyboard focus, Escape/menu state and reduced motion |  |  |  |  | NOT RUN |  |
-| STG-05 Page title, meta description and social preview consistency |  |  |  |  | NOT RUN |  |
-| STG-06 AsiaTech booking flow in desktop browser (no booking/payment) |  |  |  |  | NOT RUN |  |
-| STG-07 AsiaTech booking flow on mobile browser (no booking/payment) |  |  |  |  | NOT RUN |  |
-| STG-08 WhatsApp account and prefilled message reachability |  |  |  |  | NOT RUN |  |
-| STG-09 Primary mobile call answered by intended operator |  |  |  |  | NOT RUN |  |
-| STG-10 Alternate landline answered by intended operator |  |  |  |  | NOT RUN |  |
-| STG-11 Email delivery, no bounce and reply capability |  |  |  |  | NOT RUN |  |
-| STG-12 Owner review of current room, tour, dining and arrival facts |  |  |  |  | NOT RUN |  |
-| STG-13 Backup and rollback procedure reviewed |  |  |  |  | NOT RUN |  |
+| STG-01 Desktop guest journey: Home → Rooms → Experiences → Dining → Directions |  |  |  |  | NOT RUN |  |  |
+| STG-02 Mobile guest journey and tap targets |  |  |  |  | NOT RUN |  |  |
+| STG-03 Images, config and styles: no 404 or mixed content |  |  |  |  | NOT RUN |  |  |
+| STG-04 Keyboard focus, Escape/menu state and reduced motion |  |  |  |  | NOT RUN |  |  |
+| STG-05 Page title, meta description and social preview consistency |  |  |  |  | NOT RUN |  |  |
+| STG-06 AsiaTech booking flow in desktop browser (no booking/payment) |  |  |  |  | NOT RUN |  |  |
+| STG-07 AsiaTech booking flow on mobile browser (no booking/payment) |  |  |  |  | NOT RUN |  |  |
+| STG-08 WhatsApp account and prefilled message reachability |  |  |  |  | NOT RUN |  |  |
+| STG-09 Primary mobile call answered by intended operator |  |  |  |  | NOT RUN |  |  |
+| STG-10 Alternate landline answered by intended operator |  |  |  |  | NOT RUN |  |  |
+| STG-11 Email delivery, no bounce and reply capability |  |  |  |  | NOT RUN |  |  |
+| STG-12 Owner review of current room, tour, dining and arrival facts |  |  |  |  | NOT RUN |  |  |
+| STG-13 Backup and rollback procedure reviewed |  |  |  |  | NOT RUN |  |  |
+| STG-14 Responsive image rendering/crop at 360, 768 and 1440 CSS-pixel viewports |  |  |  |  | NOT RUN |  |  |
+| STG-15 Keyboard-only navigation through all six experience galleries, including visible focus and Enter/Space |  |  |  |  | NOT RUN |  |  |
+| STG-16 Reduced-motion preference, carousel no-autoplay behavior and stable layout |  |  |  |  | NOT RUN |  |  |
+| STG-17 Social preview image, title, description and image-alt consistency on staging |  |  |  |  | NOT RUN |  |  |
 
 Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and follow-up owner for every failure or blocked row. Keep canonical-host approval, menu publication and deployment decisions in their separate owner-approval gates.
 
