@@ -190,7 +190,7 @@ for (const rule of PAGE_RULES) {
     const catalogue = [
       { name: 'Sweet Purple Room', image: 'assets/images/rooms/sweet-purple.jpg', features: ['Carved bed', 'Second bed', 'Air conditioning', 'Private bathroom', 'City view'] },
       { name: 'Rising Sun Room', image: 'assets/images/rooms/rising-sun.jpg', features: ['Comfortable room', 'City view', 'Private bathroom', 'Window seat'] },
-      { name: 'Scarlet Room', image: 'assets/images/scarlet.jpg', features: ['Window seat', 'Fort-entrance outlook', 'Private bathroom', 'Air conditioning'] },
+      { name: 'Scarlet Room', image: 'assets/images/scarlet.jpg', features: ['Window seat', 'City view', 'Private bathroom', 'Air conditioning'] },
       { name: 'Opium Room', image: 'assets/images/rooms/opium.jpg', features: ['City view', 'Private bathroom', 'Ceiling fan'] },
       { name: 'Red Maharani Room', image: 'assets/images/rooms/red-maharani.jpg', features: ['King bed', 'Window seat', 'City view', 'Private bathroom'] },
       { name: 'Green Room', image: 'assets/images/rooms/green.jpg', features: ['King bed', 'Window seat', 'Private bathroom', 'Air conditioning'] },
