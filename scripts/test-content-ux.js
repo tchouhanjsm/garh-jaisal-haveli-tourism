@@ -420,6 +420,24 @@ for (const rule of PAGE_RULES) {
       if (!/class="experience-confirmation"/.test(card)) {
         fail('experiences.html: missing confirmation prompts for ' + option.title);
       }
+      if (!/data-experience-carousel/.test(card)
+          || (card.match(/data-carousel-slide/g) || []).length !== 2
+          || !/data-carousel-previous/.test(card)
+          || !/data-carousel-next/.test(card)
+          || !/data-carousel-status/.test(card)
+          || !/aria-roledescription="carousel"/.test(card)) {
+        fail('experiences.html: ' + option.title + ' must provide an accessible two-photo next/previous gallery');
+      }
+      const carouselImages = [...card.matchAll(/<img\\b[^>]*src="([^"]+)"/g)].map((image) => image[1]);
+      if (carouselImages.length !== 2 || new Set(carouselImages).size !== 2) {
+        fail('experiences.html: ' + option.title + ' must use two distinct local photos');
+      }
+      if (carouselImages.some((image) => /^(?:https?:)?\\/\\//i.test(image))) {
+        fail('experiences.html: carousel photos must be locally hosted for ' + option.title);
+      }
+      if (!/loading="lazy"/.test(card) || !/decoding="async"/.test(card)) {
+        fail('experiences.html: every tour photo must be lazy-loaded and asynchronously decoded: ' + option.title);
+      }
       const cardText = stripMarkup(card).toLocaleLowerCase();
       for (const term of ['duration', 'transport', 'access', 'inclusions', 'exclusions']) {
         if (!cardText.includes(term)) fail('experiences.html: ' + option.title + ' is missing the ' + term + ' confirmation prompt');
@@ -464,6 +482,14 @@ for (const rule of PAGE_RULES) {
     if (!html.includes('https://www.instagram.com/garhjaisal/')) {
       fail('dining.html: owner-confirmed restaurant Instagram profile is missing');
     }
+    if (!html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"')
+        || !html.includes('<div class="story-grid">')
+        || !html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"')) {
+      fail('dining.html: editorial page must show distinct local rooftop-table and fort-view photographs');
+    }
+    if (!/does not publish dishes or prices as current/i.test(html)) {
+      fail('dining.html: the unapproved menu must remain clearly unpublished');
+    }
     if (!html.includes('Open in Google Maps')) {
       fail('dining.html: source-confirmed restaurant map destination must remain discoverable');
     }
@@ -505,6 +531,24 @@ for (const rule of PAGE_RULES) {
     if (!/data-booking-link/.test(html) || !/data-enquiry-link/.test(html)) fail('gallery.html: room gallery must expose direct booking and a room-specific enquiry path');
   }
 
+  if (rule.file === 'about.html') {
+    if (!html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"')
+        || !html.includes('<meta property="og:image" content="assets/images/gallery/hotel/fort-from-roof.webp">')
+        || !html.includes('<meta property="og:image:alt" content="Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk">')) {
+      fail('about.html: hero and social preview must use the same authentic fort photograph and descriptive alt text');
+    }
+    const finalCta = html.match(/<section class="final-cta"[\\s\\S]*?<\\/section>/i);
+    if (!finalCta || html.indexOf('aria-labelledby="about-next-title"') > html.indexOf('class="final-cta"')) {
+      fail('about.html: practical planning links must precede the final conversion CTA');
+    }
+    if (!/Cars cannot reach the door/i.test(html) || !/not live inventory/i.test(html)) {
+      fail('about.html: story page must explain the arrival constraint and distinguish photographs from inventory');
+    }
+    if (/Today, we welcome guests who arrive curious about Rajasthan/i.test(html)) {
+      fail('about.html: replace generic welcome filler with source-specific guest information');
+    }
+  }
+
   if (rule.file === 'directions.html') {
     const arrivalVisual = html.match(/<section class="section wrap arrival-visual"[^>]*>[\s\S]*?<\/section>/i);
     if (!arrivalVisual) {
@@ -531,6 +575,15 @@ for (const rule of PAGE_RULES) {
     }
     if (!/SUV and sedan arrangements across Rajasthan and Delhi/i.test(html)) {
       fail('directions.html: source transport context and date-specific availability caveat are missing');
+    }
+    if (!html.includes('class="arrival-overview"')
+        || !/The final stretch<br><em>is on foot\.<\/em>/.test(html)
+        || !/arrival-overview__facts/.test(html)
+        || !/Open the map/.test(html)) {
+      fail('directions.html: arrival page must lead with the actual final-walk constraint and a scannable arrival summary');
+    }
+    if (/Contact options on this page remain unavailable until verified/i.test(html)) {
+      fail('directions.html: wording must not contradict the source-authorized central contact configuration');
     }
   }
 
