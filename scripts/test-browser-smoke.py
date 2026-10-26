@@ -164,7 +164,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
 def write_report(report_path: str, report: dict) -> Path:
     destination = Path(report_path).expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
-destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    destination.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return destination
 
 
@@ -312,14 +312,14 @@ def check_staging_publication_guards(page, base_url: str) -> None:
     sitemap = fetch_text("sitemap.xml")
     config_text = fetch_text("content/site-config.json")
 
-    check(bool(re.search(r"(?im)^\\s*User-agent:\\s*\\*\\s*$", robots)),
+    check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
           "robots.txt must explicitly identify all crawlers while staging")
-    check(bool(re.search(r"(?im)^\\s*Disallow:\\s*/\\s*$", robots)),
+    check(bool(re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots)),
           "robots.txt must continue blocking indexing on the pre-launch staging site")
-    check(not re.search(r"(?im)^\\s*Sitemap\\s*:", robots),
+    check(not re.search(r"(?im)^\s*Sitemap\s*:", robots),
           "robots.txt must not advertise a sitemap before canonical-host approval")
-    check(bool(re.search(r"<urlset\\b", sitemap, re.I)), "sitemap.xml must return a valid URL-set document")
-    check(not re.search(r"<loc>\\s*https?://", sitemap, re.I),
+    check(bool(re.search(r"<urlset\b", sitemap, re.I)), "sitemap.xml must return a valid URL-set document")
+    check(not re.search(r"<loc>\s*https?://", sitemap, re.I),
           "sitemap.xml must not publish public URLs before canonical-host approval")
     try:
         config = json.loads(config_text)
