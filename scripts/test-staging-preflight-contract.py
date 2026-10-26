@@ -83,6 +83,7 @@ assert report["pagesAttempted"] == []
 assert report["pagesWithHttp200OnTargetOrigin"] == []
 assert report["plannedViewportWidthsCssPixels"] == [360, 768, 1440]
 assert report["completedResponsiveViewportWidthsCssPixels"] == []
+assert "viewportWidthsCssPixels" not in report
 assert report["safety"]["externalLinkNavigationPerformed"] is False
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
 assert report["safety"]["guestDataSubmitted"] is False
