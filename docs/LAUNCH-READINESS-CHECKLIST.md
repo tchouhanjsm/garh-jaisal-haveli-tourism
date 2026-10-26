@@ -118,3 +118,20 @@ Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and 
 - [ ] With JavaScript disabled, confirm the first photo remains visible and hidden carousel controls do not claim to work.
 - [ ] Verify that all six photo pairs load from the local site, with no 404s; captions describing visual references must not be read as a promise that the site shown is an itinerary stop.
 - [ ] Check the About hero/social preview and Dining rooftop-table/fort-view image pairing at a social-preview aspect ratio; verify text remains readable over the real photographs and the arrival page surfaces the final walk before other details.
+
+
+## Automated local-browser smoke coverage — not staging UAT
+
+The full quality suite now includes `scripts/test-browser-smoke.py`, using the pinned Playwright dependency in `requirements-test.txt` and Chromium on the existing standard GitHub-hosted runner. It starts a temporary local HTTP server and checks all seven pages at 360, 768 and 1440 CSS-pixel viewports, local image decoding/HTTP responses, page metadata, active navigation, mobile booking-bar bounds, skip-link and Escape/focus behavior, reduced motion, and all six manual experience galleries including wraparound and no-JavaScript fallback.
+
+The browser suite only inspects the configured AsiaTech, WhatsApp, telephone, landline and email destinations; it does not navigate to third-party endpoints, create reservations, submit guest data or send messages. It cannot prove that the staging host is correct or that a human operator answers a channel.
+
+Local command sequence:
+
+```bash
+python3 -m pip install -r requirements-test.txt
+python3 -m playwright install chromium
+bash scripts/check-pr-quality.sh
+```
+
+The 17 `STG-01`–`STG-17` rows below remain human-operated checks and must stay `NOT RUN` until an operator records evidence for the exact staging URL, date/time, browser/device/viewport and result. Browser CI does not mark those rows complete.
