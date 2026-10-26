@@ -50,6 +50,8 @@ const recoveryPage = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
 assert.match(recoveryPage, /<meta name="robots" content="noindex,follow">/,
   '404 recovery page must remain out of search results while allowing recovery links to be followed');
 assert.match(recoveryPage, /<h1\b/i, '404 recovery page must have a primary heading');
+assert.doesNotMatch(recoveryPage, /<link\b[^>]*\brel=["']canonical["']|property=["']og:url["']/i,
+  '404 recovery page must keep canonical/OG URL publication gated until owner host approval');
 assert.equal((recoveryPage.match(/id="contact-status"/g) || []).length, 1,
   '404 recovery page must provide one accessible contact fallback');
 for (const route of ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'directions.html', 'gallery.html']) {
