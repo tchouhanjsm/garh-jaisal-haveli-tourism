@@ -123,3 +123,11 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 - Dining uses a real rooftop table image and a distinct fort view. About and Directions are differentiated around the fort panorama and practical final-walk information, avoiding generic filler and duplicated hero images.
 - Run `node scripts/test-experience-carousel.js` for previous/next/wraparound behavior, live slide status and incomplete-markup fallback. The full quality runner invokes this test and the expanded static UX gates.
 - Current menu approval, booking-provider browser verification, live contact-channel reachability, canonical-host approval and staging UAT remain manual release gates.
+
+
+### Real-browser guest-journey smoke coverage
+- The full quality gate now runs `scripts/test-browser-smoke.py` in Chromium against a temporary local HTTP server. It checks all seven pages, title uniqueness, main/H1 and current-navigation contracts, Open Graph/Twitter image-alt parity, local image decoding, local 404s, and responsive overflow at 360, 768 and 1440 CSS pixels.
+- It also exercises the mobile skip link, menu Escape/focus return, reduced-motion preference, all six experience galleries (next/previous/wraparound/no autoplay), the no-JavaScript gallery fallback, and centralized booking/contact-link hydration. It inspects the external destinations but never opens the provider or submits guest data.
+- For local browser QA, install `python3 -m pip install -r requirements-test.txt` and `python3 -m playwright install chromium`, then run `bash scripts/check-pr-quality.sh`. On Linux, install the required Chromium OS dependencies if they are not already present.
+- CI installs the pinned Playwright dependency and Chromium inside the existing quality job on the standard `ubuntu-latest` runner; no additional workflow job or paid runner is introduced.
+- This is a local-browser smoke test, not staging UAT, a formal accessibility audit, Lighthouse/Core Web Vitals evidence or proof that booking/contact endpoints are live.
