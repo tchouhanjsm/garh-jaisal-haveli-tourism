@@ -323,7 +323,7 @@ The full GitHub-hosted Site quality gates must pass on the exact feature/PR head
 
 ## Guest-journey editorial and experience gallery phase — 26 October 2026
 
-- Added manual, accessible next/previous photo galleries to all six source-listed experience cards. Each has two locally hosted photos, useful alt text/captions, a live slide counter and keyboard-operable buttons; there is no autoplay. Secondary photographs are visual context only, never a promise that the pictured place is on the current itinerary.
+- Added manual, accessible next/previous photo galleries to five of the six source-listed experience cards. Swiss-tent remains a single-photo reference because only one distinct source-reviewed photo is mapped; it is not filled with a duplicate or unreviewed substitute. The five galleries use local photos, useful alt text/captions, a live slide counter and keyboard-operable buttons; there is no autoplay. Secondary photographs are visual context only, never a promise that the pictured place is on the current itinerary.
 - Reworked the Experiences introduction to use plainer language and keep the source/availability distinction explicit.
 - Reworked Dining to pair a rooftop-table photograph with a fort-at-dusk view rather than repeating the same photo. Copy points visitors to current menu, service-hour, dietary and table-availability confirmation. The unapproved menu remains unpublished.
 - Reworked Directions to lead with the key arrival constraint—cars cannot reach the hotel door—followed by a scannable vehicle-access / final-walk / meeting-point summary and map link. Corrected wording that implied configured source-authorized contacts were still disabled.
@@ -332,6 +332,16 @@ The full GitHub-hosted Site quality gates must pass on the exact feature/PR head
 
 ### Validation and release boundary
 - Added a Node regression test for next/previous/wraparound behavior, the live slide counter, aria-hidden state and fallback behavior when carousel markup is incomplete. It is part of scripts/check-pr-quality.sh.
-- Static UX tests now require two distinct local photos on every experience card, accessible carousel controls, practical arrival content, About CTA ordering and the Dining/fort-photo pairing.
+- Static UX tests require unique local image sources across Experiences, two distinct local photos on carousel-enabled cards, the Swiss-tent single-photo exception, accessible controls, practical arrival content, About CTA ordering and the Dining/fort-photo pairing.
 - GitHub-hosted exact-head validation must pass before merge. This chat does not have a complete local checkout for local browser/device QA, Lighthouse or staging UAT.
 - No production deployment, menu-price publication, live room availability or new service guarantees were added.
+
+
+## Confirmed regression failures and remediation — 26 October 2026
+
+- [Run #40320474942](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40320474942) failed because `camp-evening.jpeg` was reused on cultural-evening and Swiss-tent cards.
+- [Run #40321058117](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40321058117) confirmed the duplicate and missing Dining copy that a candlelight photo is not confirmation of date-specific availability.
+- [Run #40321406270](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40321406270) failed to parse an over-escaped JavaScript regex; [run #40321768698](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40321768698) exposed remaining matcher/test-contract failures; [run #40322023069](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40322023069) still reported duplicate images, carousel matcher failures, Dining copy and a strict Directions class assertion.
+- [Run #40322526343](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40322526343) passed the content/UX gate but failed the new carousel test because it assumed an `experiences.html` `.page-hero` section. The page intentionally uses a text-led intro instead. The test now validates the page's actual Open Graph image is present in the locally hosted content instead of imposing an unrelated page template.
+
+The duplicate photo is removed from Swiss-tent, which retains its one reviewed image until another subject-matched source is reviewed. The other five galleries have unique sources. Dining's date-specific caveat, Directions copy and the relevant regression tests are corrected. A fresh exact-head quality run is required; the historical runs above remain failures.
