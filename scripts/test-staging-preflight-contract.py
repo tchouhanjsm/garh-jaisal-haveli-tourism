@@ -265,6 +265,21 @@ missing_visual_evidence = browser_smoke.build_report(
 assert missing_visual_evidence["automatedResult"] == "FAIL"
 assert missing_visual_evidence["automatedFailureCount"] == 1
 assert missing_visual_evidence["evidenceCoverage"]["complete"] is False
+
+malformed_screenshots = [dict(record) for record in complete_screenshots]
+malformed_screenshots[0]["sha256"] = "not-a-sha256"
+invalid_visual_evidence = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=malformed_screenshots,
+)
+assert invalid_visual_evidence["automatedResult"] == "FAIL"
+assert invalid_visual_evidence["automatedFailureCount"] == 1
+assert invalid_visual_evidence["evidenceCoverage"]["complete"] is False
 assert report["safety"]["externalLinkNavigationPerformed"] is False
 assert report["crossOriginNavigationAttemptsBlocked"] == []
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
