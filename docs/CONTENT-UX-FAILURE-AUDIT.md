@@ -51,7 +51,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 
 - Source-level inspection: completed through connected GitHub file reads; the four existing local image files were retrieved and visually inspected.
 - Local full-suite commands: **not run**. The execution environment cannot resolve GitHub (`git ls-remote https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism.git refs/heads/main` failed with `Could not resolve host: github.com`).
-- GitHub Actions for this feature head: **not reported yet** because the branch has not been opened as a PR at the time this audit was drafted.
+- GitHub Actions: the initial PR #8 head `10ad476d937c26af4e362fd43503e7bf7a213be5` passed `Site quality gates / quality` in [run #40263823939](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40263823939). The job log confirms the static-site integrity suite, four image-localization regression tests, mobile-navigation tests, the new content/UX gate, renderer checks/tests (zero live tours/articles; drafts excluded), pack-importer regression, enquiry-flow tests, content-contract tests, Python compilation and shell syntax all passed. This evidence applies only to that exact SHA; the audit/format cleanup in this commit advances the head and must be revalidated before merge.
 - Browser/device, Lighthouse, visual regression and production/staging tests: **not run**.
 - No deployment or production changes were made.
 
