@@ -16,7 +16,11 @@ browser_smoke = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(browser_smoke)
 
 
-def expect_rejected(url: str, operator: str = "QA operator", report: str = "preflight.json") -> None:
+REPORT_OUTSIDE_CHECKOUT = str(Path(tempfile.gettempdir()) / "garh-jaisal-preflight-contract.json")
+
+
+def expect_rejected(url: str, operator: str = "QA operator",
+                    report: str = REPORT_OUTSIDE_CHECKOUT) -> None:
     try:
         browser_smoke.validate_staging_target(url, operator, report)
     except ValueError:
@@ -25,7 +29,7 @@ def expect_rejected(url: str, operator: str = "QA operator", report: str = "pref
 
 
 valid = browser_smoke.validate_staging_target(
-    "https://staging.example.test/", "QA operator", "artifacts/preflight.json"
+    "https://staging.example.test/", "QA operator", REPORT_OUTSIDE_CHECKOUT
 )
 assert valid == "https://staging.example.test/"
 assert browser_smoke.same_origin("https://staging.example.test/rooms.html", valid)
@@ -107,6 +111,43 @@ for unsafe_url in (
 expect_rejected("https://staging.example.test/", operator="")
 expect_rejected("https://staging.example.test/", report="")
 expect_rejected("https://staging.example.test/", report="preflight.txt")
+expect_rejected("https://staging.example.test/", report=str(ROOT / "artifacts" / "preflight.json"))
+
+with tempfile.TemporaryDirectory() as evidence_directory:
+    assert browser_smoke.validate_screenshot_directory(evidence_directory) == Path(evidence_directory).resolve()
+    screenshot_dir = Path(evidence_directory) / "screens"
+    screenshot_dir.mkdir()
+    assert browser_smoke.validate_screenshot_directory(str(screenshot_dir)) == screenshot_dir.resolve()
+    (screenshot_dir / "old-run.png").write_bytes(b"old evidence")
+    try:
+        browser_smoke.validate_screenshot_directory(str(screenshot_dir))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("A non-empty screenshot directory must be refused to prevent mixing runs")
+
+try:
+    browser_smoke.validate_screenshot_directory(str(ROOT / "artifacts" / "screenshots"))
+except ValueError:
+    pass
+else:
+    raise AssertionError("Screenshot evidence inside the repository must be refused")
+
+with tempfile.TemporaryDirectory() as temporary_directory:
+    png_path = Path(temporary_directory) / "header-only.png"
+    png_path.write_bytes(
+        b"\\x89PNG\\r\\n\\x1a\\n" + (13).to_bytes(4, "big") + b"IHDR"
+        + (360).to_bytes(4, "big") + (1200).to_bytes(4, "big")
+    )
+    assert browser_smoke.read_png_dimensions(png_path) == (360, 1200)
+    png_path.write_bytes(b"not a png header")
+    try:
+        browser_smoke.read_png_dimensions(png_path)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Invalid screenshot bytes must be rejected")
+
 assert browser_smoke.resolve_http_credentials(None, None) is None
 assert browser_smoke.resolve_http_credentials("qa-user", "qa-password") == {
     "username": "qa-user",
@@ -120,6 +161,27 @@ for username, password in (("qa-user", None), (None, "qa-password"), ("", "qa-pa
     else:
         raise AssertionError("Incomplete Basic Auth credentials must be refused")
 
+def valid_screenshot_records() -> list[dict]:
+    records = []
+    for width, height in browser_smoke.VIEWPORTS:
+        for page_name in browser_smoke.PAGES:
+            records.append({
+                "filename": f"{Path(page_name).stem}-{width}px.png",
+                "viewportWidthCssPixels": width,
+                "viewportHeightCssPixels": height,
+                "imageWidthPixels": width,
+                "imageHeightPixels": 1200,
+                "fullPage": True,
+                "bytes": 12345,
+                "sha256": "a" * 64,
+            })
+    return records
+
+
+complete_screenshots = valid_screenshot_records()
+assert len(complete_screenshots) == 21
+assert [record["filename"] for record in complete_screenshots] == browser_smoke.expected_screenshot_names()
+
 incomplete_report = browser_smoke.build_report(
     "staging-read-only",
     valid,
@@ -127,15 +189,17 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 2
+assert incomplete_report["schemaVersion"] == 3
 assert incomplete_report["automatedResult"] == "FAIL"
-assert incomplete_report["automatedFailureCount"] == 3
+assert incomplete_report["automatedFailureCount"] == 4
 assert incomplete_report["evidenceCoverage"] == {
     "pageNavigationComplete": False,
     "pageHttp200Complete": False,
     "responsiveViewportsComplete": False,
     "complete": False,
 }
+assert incomplete_report["visualEvidence"]["complete"] is False
+assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 21
 assert incomplete_report["pagesAttempted"] == []
 assert incomplete_report["pagesWithHttp200OnTargetOrigin"] == []
 assert incomplete_report["completedResponsiveViewportWidthsCssPixels"] == []
@@ -152,6 +216,7 @@ report = browser_smoke.build_report(
     "Chromium test version",
     [],
     *complete_evidence,
+    screenshot_evidence=complete_screenshots,
 )
 assert report["automatedResult"] == "PASS"
 assert report["automatedFailureCount"] == 0
@@ -161,6 +226,9 @@ assert report["evidenceCoverage"] == {
     "responsiveViewportsComplete": True,
     "complete": True,
 }
+assert report["visualEvidence"]["complete"] is True
+assert report["visualEvidence"]["capturedScreenshotCount"] == 21
+assert report["visualEvidence"]["capturedFiles"] == complete_screenshots
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
 assert report["operator"] == "QA operator"
 assert report["targetUrl"] == valid
@@ -183,7 +251,20 @@ partial_report = browser_smoke.build_report(
 )
 assert partial_report["automatedResult"] == "FAIL"
 assert partial_report["evidenceCoverage"]["complete"] is False
-assert partial_report["automatedFailureCount"] == 3
+assert partial_report["automatedFailureCount"] == 4
+
+missing_visual_evidence = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=[],
+)
+assert missing_visual_evidence["automatedResult"] == "FAIL"
+assert missing_visual_evidence["automatedFailureCount"] == 1
+assert missing_visual_evidence["evidenceCoverage"]["complete"] is False
 assert report["safety"]["externalLinkNavigationPerformed"] is False
 assert report["crossOriginNavigationAttemptsBlocked"] == []
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
@@ -208,6 +289,7 @@ blocked_navigation = ["Blocked cross-origin navigation request: https://qa-user:
 blocked_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version", [],
     *complete_evidence, blocked_navigation_attempts=blocked_navigation,
+    screenshot_evidence=complete_screenshots,
 )
 assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [
     "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
@@ -218,6 +300,7 @@ failed_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version",
     ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"],
     *complete_evidence,
+    screenshot_evidence=complete_screenshots,
 )
 assert failed_report["automatedResult"] == "FAIL"
 assert failed_report["automatedFailureCount"] == 1
