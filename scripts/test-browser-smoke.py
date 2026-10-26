@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import os
 import re
 import socket
 import subprocess
@@ -109,8 +110,21 @@ def validate_staging_target(raw_url: str, operator: str, report_path: str) -> st
     if hostname in production_hosts:
         raise ValueError("configured production hosts are refused by the staging-only preflight")
 
+    if port == 0:
+        raise ValueError("staging URL port must be between 1 and 65535")
     normalized_host = hostname if port in (None, 443) else f"{hostname}:{port}"
     return f"https://{normalized_host}/"
+
+
+def resolve_http_credentials(username: str | None, password: str | None) -> dict[str, str] | None:
+    """Read optional Basic Auth credentials without placing them in URLs or reports."""
+    if bool(username) != bool(password):
+        raise ValueError("set both STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD, or neither")
+    if username is None and password is None:
+        return None
+    if not username or not password:
+        raise ValueError("staging Basic Auth username and password must both be non-empty")
+    return {"username": username, "password": password}
 
 
 def build_report(mode: str, base_url: str, operator: str | None,
@@ -407,7 +421,8 @@ def check_keyboard_navigation(page, base_url: str) -> None:
           "Selecting Rooms from the mobile navigation must reach the Rooms page")
 
 
-def check_carousels(page, base_url: str, browser) -> None:
+def check_carousels(page, base_url: str, browser,
+                    http_credentials: dict[str, str] | None = None) -> None:
     page.set_viewport_size({"width": 360, "height": 800})
     page.goto(base_url + "experiences.html", wait_until="domcontentloaded", timeout=15000)
     cards = page.locator("[data-experience-carousel]")
@@ -480,7 +495,11 @@ def check_carousels(page, base_url: str, browser) -> None:
         check(cards.nth(0).locator("[data-carousel-status]").inner_text() == first_status,
               "Experience galleries must not autoplay")
 
-    no_js = browser.new_context(java_script_enabled=False, viewport={"width": 360, "height": 800})
+    no_js = browser.new_context(
+        java_script_enabled=False,
+        viewport={"width": 360, "height": 800},
+        http_credentials=http_credentials,
+    )
     try:
         fallback = no_js.new_page()
         fallback.goto(base_url + "experiences.html", wait_until="domcontentloaded", timeout=15000)
@@ -510,16 +529,24 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--operator and --report are required with --base-url")
         try:
             base_url = validate_staging_target(args.base_url, args.operator, args.report)
+            http_credentials = resolve_http_credentials(
+                os.environ.get("STAGING_BASIC_AUTH_USERNAME"),
+                os.environ.get("STAGING_BASIC_AUTH_PASSWORD"),
+            )
+            if http_credentials:
+                http_credentials["origin"] = base_url.rstrip("/")
         except ValueError as error:
-            print(f"BLOCKED: staging target rejected before any network request: {error}", file=sys.stderr)
+            print(f"BLOCKED: staging target/auth rejected before any network request: {error}", file=sys.stderr)
             return 2
     else:
         if args.operator or args.report:
             parser.error("--operator and --report require --base-url")
         base_url = ""
+        http_credentials = None
 
     server = None
     browser = None
+    context = None
     browser_version = None
     try:
         if not staging_mode:
@@ -527,7 +554,11 @@ def main(argv: list[str] | None = None) -> int:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             browser_version = browser.version
-            page = browser.new_page(viewport={"width": 1440, "height": 900})
+            context = browser.new_context(
+                viewport={"width": 1440, "height": 900},
+                http_credentials=http_credentials,
+            )
+            page = context.new_page()
             page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{page.url}: {error}"))
 
             def record_response(response) -> None:
@@ -564,7 +595,9 @@ def main(argv: list[str] | None = None) -> int:
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url)
             check_keyboard_navigation(page, base_url)
-            check_carousels(page, base_url, browser)
+            check_carousels(page, base_url, browser, http_credentials)
+            context.close()
+            context = None
             browser.close()
             browser = None
 
@@ -579,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as error:
         FAILURES.append(f"Browser smoke suite could not complete: {type(error).__name__}: {error}")
     finally:
+        if context is not None:
+            context.close()
         if browser is not None:
             browser.close()
         if server is not None:
