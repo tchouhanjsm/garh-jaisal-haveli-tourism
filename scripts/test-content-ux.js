@@ -113,6 +113,42 @@ function imageDimensions(buffer) {
   return null;
 }
 
+function webpChunkIds(buffer) {
+  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') return [];
+  const chunks = [];
+  let offset = 12;
+  while (offset + 8 <= buffer.length) {
+    const id = buffer.toString('ascii', offset, offset + 4);
+    const size = buffer.readUInt32LE(offset + 4);
+    if (offset + 8 + size > buffer.length) return [];
+    chunks.push(id);
+    offset += 8 + size + (size % 2);
+  }
+  return offset === buffer.length ? chunks : [];
+}
+
+function jpegHasExifOrXmp(buffer) {
+  if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return false;
+  let offset = 2;
+  while (offset + 4 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9 || marker === 0x01
+        || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    const length = buffer.readUInt16BE(offset);
+    if (length < 2 || offset + length > buffer.length) break;
+    const payload = buffer.toString('ascii', offset + 2, Math.min(offset + length, offset + 100));
+    if (marker === 0xe1 && (payload.startsWith('Exif')
+        || payload.includes('http://ns.adobe.com/xap/1.0/'))) return true;
+    offset += length;
+  }
+  return false;
+}
+
 function localFile(relativePath, pageLabel, purpose) {
   const resolved = path.resolve(ROOT, relativePath);
   if (!resolved.startsWith(ROOT + path.sep)) {
@@ -185,10 +221,23 @@ for (const rule of PAGE_RULES) {
     }
     const resolved = localFile(src, rule.file, 'image');
     if (resolved) {
-      const dimensions = imageDimensions(fs.readFileSync(resolved));
+      const imageBuffer = fs.readFileSync(resolved);
+      const dimensions = imageDimensions(imageBuffer);
       if (!dimensions) fail(`${rule.file}: image format/dimensions could not be verified: ${src}`);
       else if (Number(attr.width) !== dimensions.width || Number(attr.height) !== dimensions.height) {
         fail(`${rule.file}: declared image geometry ${attr.width}×${attr.height} does not match ${dimensions.width}×${dimensions.height}: ${src}`);
+      }
+      if (src === 'assets/images/dining/rooftop-candlelit-table.jpg') {
+        if (fs.statSync(resolved).size > 100 * 1024) fail('dining.html: candlelit-table image exceeds the 100 KiB supporting-image budget');
+        if (jpegHasExifOrXmp(imageBuffer)) fail('dining.html: candlelit-table image must not contain EXIF/XMP metadata');
+      }
+      if (src === 'assets/images/directions/haveli-facade.webp') {
+        if (fs.statSync(resolved).size > 600 * 1024) fail('directions.html: facade image exceeds the 600 KiB supporting-image budget');
+        const chunks = webpChunkIds(imageBuffer);
+        if (!chunks.length) fail('directions.html: facade WebP chunk structure could not be verified');
+        if (chunks.some((id) => ['ICCP', 'EXIF', 'XMP '].includes(id))) {
+          fail('directions.html: facade WebP must not retain ICCP/EXIF/XMP metadata chunks');
+        }
       }
     }
   }
@@ -285,6 +334,32 @@ for (const rule of PAGE_RULES) {
     }
   }
 
+  if (rule.file === 'dining.html') {
+    if (!html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"')) {
+      fail('dining.html: candlelight section and Open Graph metadata must use the reviewed night-time table image');
+    }
+    if (!/not confirmation that a candlelit setup is available for your date/i.test(html)) {
+      fail('dining.html: candlelight image must not imply date-specific setup availability');
+    }
+  }
+
+  if (rule.file === 'directions.html') {
+    const arrivalVisual = html.match(/<section class="section wrap arrival-visual"[^>]*>[\s\S]*?<\/section>/i);
+    if (!arrivalVisual) {
+      fail('directions.html: missing the accessible facade reference section');
+    } else {
+      if (!arrivalVisual[0].includes('src="assets/images/directions/haveli-facade.webp"')) {
+        fail('directions.html: facade reference must use the reviewed local asset');
+      }
+      if (!/not as a guaranteed pickup point or route marker/i.test(arrivalVisual[0])) {
+        fail('directions.html: facade photo must not imply a guaranteed pickup point or route');
+      }
+      if (!/confirm the current meeting point/i.test(arrivalVisual[0])) {
+        fail('directions.html: facade reference must remind guests to confirm the current meeting point');
+      }
+    }
+  }
+
   const navMatch = html.match(/<nav id=["']primary-navigation["'][^>]*>[\s\S]*?<\/nav>/i);
   if (!navMatch) fail(rule.file + ': missing primary navigation');
   else {
@@ -348,4 +423,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`PASS: content/UX regression gate audited ${PAGE_RULES.length} pages for depth, unique metadata, internal discovery, room-reference cards, local image paths/alt/geometry, duplicate images and canonical publication gates.`);
+console.log(`PASS: content/UX regression gate audited ${PAGE_RULES.length} pages for depth, unique metadata, internal discovery, room-reference cards, experience comparisons, dining/arrival image context and metadata budgets, local image paths/alt/geometry, duplicate images and canonical publication gates.`);

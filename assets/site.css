@@ -128,3 +128,13 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 @media(max-width:900px){.experience-option-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.experience-option-grid{grid-template-columns:1fr;gap:16px}.experience-option__media{aspect-ratio:4/3}.experience-option__body{padding:22px}.experience-option h2{font-size:28px}.experience-context-links{flex-direction:column;align-items:flex-start;gap:12px}}
 @media(prefers-reduced-motion:reduce){.experience-option__media img{transition:none}}
+
+
+/* Arrival reference: preserve the complete facade so the sign remains useful for orientation. */
+.arrival-visual{display:grid;grid-template-columns:minmax(220px,.72fr) minmax(0,1fr);gap:clamp(24px,4vw,56px);align-items:center}
+.arrival-visual__media{margin:0;max-width:420px}
+.arrival-visual__media img{display:block;width:100%;height:auto;max-height:680px;object-fit:contain;object-position:center}
+.arrival-visual__media figcaption{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.7}
+.arrival-visual__copy p:not(.eyebrow){max-width:620px;color:var(--muted);font-size:13px;line-height:1.9}
+.arrival-visual__copy h2{margin:0 0 18px}
+@media(max-width:760px){.arrival-visual{grid-template-columns:minmax(0,1fr);gap:24px}.arrival-visual__media{max-width:min(100%,380px);margin-inline:auto}.arrival-visual__copy h2{font-size:clamp(30px,8vw,44px)}}
