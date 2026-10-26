@@ -281,7 +281,7 @@ Next phase after the Experiences comparison: improve relevant Dining and Directi
 
 Main baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8.
 
-The Experiences phase presents six legacy-source concepts with distinct, locally hosted desert/heritage imagery and card-level prompts to confirm duration, timing, transport, access, inclusions and exclusions. The legacy records' old status: live values are not treated as current operating approval. The cultural programme, open-sky stay, Swiss-tent option and both guided-tour formats remain enquiry-only until the hotel confirms what is currently offered. The heritage image is explicitly not a promised stop.
+The Experiences phase presents six legacy-source concepts with distinct, locally hosted desert/heritage imagery and card-level prompts to confirm duration, timing, transport, access, inclusions and exclusions. The legacy records' historical status values of "live" are not treated as current operating approval. The cultural programme, open-sky stay, Swiss-tent option and both guided-tour formats remain enquiry-only until the hotel confirms what is currently offered. The heritage image is explicitly not a promised stop.
 
 Contact/booking endpoints, canonical-host approval, robots/sitemap policy and draft publication gates remain unchanged. No Content Studio pack adapter work is included.
 
