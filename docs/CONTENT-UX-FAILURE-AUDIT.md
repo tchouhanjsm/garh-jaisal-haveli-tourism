@@ -1,6 +1,6 @@
 # Content and UX Failure Audit
 
-**Baseline:** `main` at `bc7e4c5d3bc5a87c88c06eb95dedcddfc027de8b` (26 October 2026; PR #8 merged). This audit now tracks the next room-reference UX phase.  
+**Baseline:** main at 2c501f868e51f0baa1eb34d35ab90e0f39d274d8 (26 October 2026; PR #10 merged). This audit now tracks the Experiences comparison phase.
 **Scope:** public static HTML/CSS/vanilla-JS routes. Content Studio pack import and adapter work are explicitly out of scope for this recovery phase.
 
 ## Evidence from the pre-change pages
@@ -60,10 +60,10 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 
 ## Next bulk phases
 
-1. Complete the image-led room-reference phase and its regression checks; do not merge until the exact-head quality gate is green and the full local suite can be executed against the reviewed source.
-2. Obtain owner approval for the canonical host, staffed contact/booking endpoints and current room facts before publishing operational claims.
-3. After publication prerequisites are approved, prepare one source-reviewed Journal article plus a useful archive with source links, date checks, internal links and strict draft/sitemap gates.
-4. Reconsider the legacy Content Studio adapter only after website content/UX recovery is accepted. Studio/pack integration is not part of the current phase.
+1. Improve Experiences with six source-listed desert/heritage concepts, distinct locally hosted imagery, comparison-oriented prompts and clear non-live-offer language.
+2. Improve relevant Dining and Directions imagery only where the source files are retrieved, visually reviewed and context-matched.
+3. Prepare a source-reviewed Journal article only after source/date review, internal-link validation and publication/canonical gates.
+4. Reconsider the legacy Content Studio adapter only after website content/UX recovery is accepted. Studio/pack integration remains out of scope.
 
 
 ## Follow-up recovery — seven-room catalogue and authentic room photography (2026-10-26)
@@ -84,3 +84,33 @@ The post-PR #9 review found that Rooms still did not answer the basic question �
 Source image bytes and JPEG geometry were reviewed before creating this patch. The first exact-head quality run caught a test expectation mismatch: “Fort-entrance outlook” was checked as a feature tag even though the source stores that detail in the Scarlet room description; the source-listed “City view” and “Window seat” are the correct feature tags. The regression expectation is corrected in the follow-up commit. The source preflight checks seven cards, SEO title/description ranges, main-content depth and unique image paths. GitHub Actions must pass on the updated exact PR head before the batch is treated as validated. Local full-suite, browser/device, Lighthouse and production/staging checks were not run in this connector-only execution.
 
 Next: improve Experiences with subject-matched locally hosted photos and clearer comparison of desert/heritage options, keeping operation and rates enquiry-only until confirmed. Then address relevant Dining/Directions imagery and a researched Journal article if source-reviewed and publishable. Studio integration remains deferred.
+
+
+## Experience comparison recovery — six source-listed options (2026-10-26)
+
+Baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8. This phase changes the existing static experiences.html route only; no new public tour detail pages are created.
+
+### Addressed in this batch
+
+- Reorganizes the six source-recorded concepts that the legacy data lists as published: sunset camel safari, cultural desert evening, Sleep Under the Stars, Swiss tent overnight, half-day guided Jaisalmer tour and full-day guided Jaisalmer tour.
+- Each concept has a distinct image, source-context caption, plain-language explanation and three confirmation prompts covering duration/timing, transport/access and inclusions/exclusions.
+- Reuses reviewed local images for the sunset camel, open-sky sleeping and Fort-temple references. Retrieved and visually reviewed three additional legacy source images before localizing them:
+  - img/Desert_Camp/Prog.jpeg → assets/images/experiences/cultural-programme.jpg (1280×1600; musicians and seated guests at a night-time camp performance).
+  - img/Desert_Camp/Tent.jpeg → assets/images/experiences/swiss-tent-interior.jpg (1600×1280; bed and patterned wall panels inside a tent).
+  - img/j2.jpg → assets/images/experiences/heritage-architecture.jpg (1366×768; ornate sandstone pavilion). Its caption explicitly says it is a heritage reference, not a promised stop.
+- Uses explicit image geometry, meaningful alt text, lazy loading and async decoding for all six option images. The layout collapses from three columns to two and then one.
+- Adds regression checks for exactly six named options, expected local image mappings, unique image paths, confirmation prompts, lazy loading and disabled enquiry actions.
+- Keeps booking/contact endpoints empty, canonical/OG URL and sitemap publication withheld, robots blocked from indexing, and all current content drafts unpublished.
+
+### Open blockers and validation truth
+
+- Legacy record status is treated as source inventory only, not proof of current operation. No current availability, price, exact route, duration, transport, access permission, meal, fee, inclusion or exclusion is promised by the comparison cards.
+- Owner Facts dated 14 October 2026 is used only for the recorded Swiss-tent facility list and planned Fort-walk focus; the current offer and date-specific details still require confirmation.
+- Local bash scripts/check-pr-quality.sh and bash scripts/check-site.sh: NOT RUN in this connector-only execution. The environment has no complete checkout and cannot resolve/connect to GitHub from the shell. Browser/device and Lighthouse checks are also not run.
+- The existing Site quality gates workflow is unchanged. The final PR head must have a successful exact-head quality run; absent, stale, pending, cancelled or failed runs are not passes.
+
+### Next bulk phases
+
+1. Address Dining/Directions imagery where actual source assets can be retrieved, visually reviewed and matched to the content.
+2. Consider one researched Journal article only after source/date verification and the canonical/publication prerequisites.
+3. Keep Content Studio/pack integration deferred until the website content/UX recovery is accepted.

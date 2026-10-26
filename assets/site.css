@@ -100,3 +100,30 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 .room-feature-list{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 15px;padding:0;list-style:none}
 .room-feature-list li{padding:5px 8px;border:1px solid var(--line);background:#f5f0e8;color:#565b53;font-size:10px;line-height:1.4}
 @media(max-width:540px){.room-card-grid--catalog{gap:16px}.room-card-grid--catalog .room-card__body{padding:21px 18px 22px}.room-feature-list li{font-size:10px}}
+
+/* Experiences: six source-listed options with explicit confirmation prompts. */
+.experience-option-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:stretch}
+.experience-option{display:flex;flex-direction:column;min-width:0;border:1px solid rgba(27,33,30,.14);background:var(--white)}
+.experience-option__media{position:relative;overflow:hidden;aspect-ratio:3/2;margin:0;background:#d8c9b1}
+.experience-option__media img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+.experience-option[data-option="cultural-evening"] .experience-option__media img{object-position:center 72%}
+.experience-option[data-option="open-sky"] .experience-option__media img{object-position:center 68%}
+.experience-option__media figcaption{position:absolute;right:0;bottom:0;left:0;padding:26px 14px 12px;background:linear-gradient(transparent,rgba(18,22,19,.78));color:#fff;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.experience-option__body{display:flex;flex:1;flex-direction:column;align-items:flex-start;padding:clamp(20px,2.2vw,28px)}
+.experience-option__body>.eyebrow{margin:0 0 9px}
+.experience-option h2{margin:0 0 12px;font-family:var(--serif);font-size:clamp(24px,2.5vw,31px);font-weight:400;line-height:1.18;letter-spacing:-.025em}
+.experience-option__summary{margin:0;color:var(--muted);font-size:12px;line-height:1.85}
+.experience-confirmation{width:100%;margin:18px 0 20px}
+.experience-confirmation>div{padding:11px 0;border-top:1px solid var(--line)}
+.experience-confirmation dt{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.experience-confirmation dd{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.75}
+.experience-option__body>.text-link{margin-top:auto}
+.experience-catalogue__intro{max-width:760px;margin-left:0;text-align:left}
+.experience-catalogue-note{margin-top:30px;padding:clamp(22px,3vw,34px);border-left:3px solid var(--gold-dark);background:var(--sand)}
+.experience-catalogue-note h2{margin:0 0 12px;font-family:var(--serif);font-size:clamp(28px,3vw,38px);font-weight:400;line-height:1.2}
+.experience-catalogue-note>p:not(.eyebrow){max-width:900px;margin:0;color:var(--ink-soft);font-size:13px;line-height:1.9}
+.experience-context-links{display:flex;flex-wrap:wrap;gap:16px 24px;margin-top:22px}
+.experience-context-links .text-link{font-size:11px}
+@media(max-width:900px){.experience-option-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.experience-option-grid{grid-template-columns:1fr;gap:16px}.experience-option__media{aspect-ratio:4/3}.experience-option__body{padding:22px}.experience-option h2{font-size:28px}.experience-context-links{flex-direction:column;align-items:flex-start;gap:12px}}
+@media(prefers-reduced-motion:reduce){.experience-option__media img{transition:none}}
