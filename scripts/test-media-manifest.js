@@ -100,7 +100,11 @@ for (const entry of manifest.entries) {
 
   if (entry.targetPath.includes('/hotel/')) assert.match(entry.visualSubject, /fort|rooftop/i, 'Fort/rooftop subject-role mismatch');
   else if (entry.targetPath.includes('/desert/')) assert.match(entry.visualSubject, /desert camp/i, 'Desert subject-role mismatch');
-  else if (/room/i.test(entry.intendedRole)) assert.match(entry.visualSubject, /room/i, 'Room media subject-role mismatch');
+  else if (/Room hero/i.test(entry.intendedRole)) {
+    assert.match(entry.visualSubject, /sitting (room|area)|interior/i, 'Room-hero interior subject-role mismatch');
+  } else if (/room/i.test(entry.intendedRole)) {
+    assert.match(entry.visualSubject, /room/i, 'Room media subject-role mismatch');
+  }
   else if (/Homepage hero — rooftop terrace/i.test(entry.intendedRole)) assert.match(entry.visualSubject, /rooftop|terrace/i, 'Homepage hero subject-role mismatch');
   else if (/Dining page — candlelit-table/i.test(entry.intendedRole)) assert.match(entry.visualSubject, /candlelit|table/i, 'Dining image subject-role mismatch');
   else assert.fail('Media target is outside the curated image taxonomy: ' + entry.targetPath);
