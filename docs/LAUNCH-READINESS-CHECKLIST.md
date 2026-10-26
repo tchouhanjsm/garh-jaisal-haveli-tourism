@@ -2,7 +2,7 @@
 
 **Status as of 26 October 2026: implementation checks pass; production release is blocked pending manual owner/UAT gates.**
 
-Baseline main at the start of this delivery phase: 68c4e3f4cfb064bd65843208b5ea1c88216fc169. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
+Baseline main at the start of this delivery phase: b3632c58693c5398854bc472cdb8a9dbdfa56e4d. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
 ## What automated checks can currently prove
 
@@ -56,6 +56,28 @@ Complete and record these checks against the intended staging site first. Do not
 - [ ] Confirm page titles/meta descriptions, social preview images/alt text, internal links, image status codes, privacy/terms links and owner-approved analytics/measurement configuration.
 - [ ] After deployment, test Book Now and contact links once more on the production hostname; monitor for failed redirects, broken assets, enquiries not received and email bounces.
 
+## Staging verification record — fill in during operator UAT
+
+Use the intended staging host only. Replace `NOT RUN` with a result only after the named operator performs the check in a normal browser/device and records evidence. A CI pass is not evidence for these rows. Do not enter guest personal data, booking tokens or payment details in this table.
+
+| Check | Exact staging URL | Date/time (Asia/Kolkata) | Operator | Browser / device / viewport | Result | Evidence / notes |
+|---|---|---|---|---|---|---|
+| STG-01 Desktop guest journey: Home → Rooms → Experiences → Dining → Directions |  |  |  |  | NOT RUN |  |
+| STG-02 Mobile guest journey and tap targets |  |  |  |  | NOT RUN |  |
+| STG-03 Images, config and styles: no 404 or mixed content |  |  |  |  | NOT RUN |  |
+| STG-04 Keyboard focus, Escape/menu state and reduced motion |  |  |  |  | NOT RUN |  |
+| STG-05 Page title, meta description and social preview consistency |  |  |  |  | NOT RUN |  |
+| STG-06 AsiaTech booking flow in desktop browser (no booking/payment) |  |  |  |  | NOT RUN |  |
+| STG-07 AsiaTech booking flow on mobile browser (no booking/payment) |  |  |  |  | NOT RUN |  |
+| STG-08 WhatsApp account and prefilled message reachability |  |  |  |  | NOT RUN |  |
+| STG-09 Primary mobile call answered by intended operator |  |  |  |  | NOT RUN |  |
+| STG-10 Alternate landline answered by intended operator |  |  |  |  | NOT RUN |  |
+| STG-11 Email delivery, no bounce and reply capability |  |  |  |  | NOT RUN |  |
+| STG-12 Owner review of current room, tour, dining and arrival facts |  |  |  |  | NOT RUN |  |
+| STG-13 Backup and rollback procedure reviewed |  |  |  |  | NOT RUN |  |
+
+Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and follow-up owner for every failure or blocked row. Keep canonical-host approval, menu publication and deployment decisions in their separate owner-approval gates.
+
 ## Owner decisions required before production launch
 
 1. Confirm the production domain/canonical hostname.
@@ -65,3 +87,10 @@ Complete and record these checks against the intended staging site first. Do not
 5. Approve the staging UAT result and production deployment window/rollback plan.
 
 **Release rule:** source-repository presence and green CI are necessary, but insufficient. Do not deploy or represent the new site as fully launch-ready while any P0 release gate remains unchecked.
+
+
+### Experience gallery and editorial smoke check
+- [ ] On desktop and mobile, try Next and Previous on all six experience galleries, including wraparound. Confirm there is no autoplay, the counter updates, keyboard focus is visible and the image/caption match the option shown.
+- [ ] With JavaScript disabled, confirm the first photo remains visible and hidden carousel controls do not claim to work.
+- [ ] Verify that all six photo pairs load from the local site, with no 404s; captions describing visual references must not be read as a promise that the site shown is an itinerary stop.
+- [ ] Check the About hero/social preview and Dining rooftop-table/fort-view image pairing at a social-preview aspect ratio; verify text remains readable over the real photographs and the arrival page surfaces the final walk before other details.
