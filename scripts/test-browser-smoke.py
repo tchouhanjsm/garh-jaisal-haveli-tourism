@@ -110,6 +110,8 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
     if title:
         titles[title] = page_name
     check(page.locator("main#main").count() == 1, f"{page_name}: expected exactly one main#main")
+    check(page.locator("main#main").get_attribute("tabindex") == "-1",
+          f"{page_name}: main must be programmatically focusable as the skip-link destination")
     check(page.locator("main h1").count() == 1, f"{page_name}: expected exactly one main h1")
 
     active = page.locator('#primary-navigation a[aria-current="page"]')
