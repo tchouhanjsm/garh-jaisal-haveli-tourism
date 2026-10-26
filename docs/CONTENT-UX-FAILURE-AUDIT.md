@@ -582,11 +582,11 @@ The follow-up code/test revision at `4ca778e6d959ff66b9aebacab41e0c43441345c6` p
 
 ### Implementation in `feat/404-recovery-contact-centralization-20261027`
 
-- Rebuilt `404.html` as a branded, responsive recovery page with clear homepage, rooms, experiences, dining, directions and Gallery routes.
+- Rebuilt `404.html` as a branded, responsive recovery page with clear homepage, rooms, experiences, dining, directions and Gallery routes. Its assets and page links are root-relative because Apache's `ErrorDocument 404 /404.html` can render while the browser address remains a nested missing path.
 - Added a concise page description and `noindex,follow`; no canonical or `og:url` was introduced.
 - Replaced the hard-coded WhatsApp URL with the existing data attributes consumed by `assets/site.js`: booking, WhatsApp, primary phone, alternate landline and email. If central configuration fails, actions remain disabled and the accessible contact-status message explains the failure.
 - Added responsive styling in `assets/site.css`, preserving visible keyboard focus and the existing reduced-motion contract.
-- Included `404.html` in `scripts/check-site.py` so local assets, links, in-page/target anchors, title, description and one-H1 structure are validated.
+- Included `404.html` in `scripts/check-site.py` so local assets, links, in-page/target anchors, title, description and one-H1 structure are validated; the checker now resolves root-relative local paths against the site root and still rejects paths that escape it.
 - Extended `scripts/test-launch-readiness.js` to require noindex, route links, all central contact markers, no hard-coded contact URLs, no inline styles, shared JavaScript hydration and responsive styling.
 - Updated README page inventory and the launch checklist. Added STG-18 for the actual unknown-route response/recovery flow; it remains `NOT RUN` until an operator tests the deployed host.
 
