@@ -78,6 +78,11 @@ assert report["automatedResult"] == "PASS"
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
 assert report["operator"] == "QA operator"
 assert report["targetUrl"] == valid
+assert report["pagesPlanned"] == browser_smoke.PAGES
+assert report["pagesAttempted"] == []
+assert report["pagesWithHttp200OnTargetOrigin"] == []
+assert report["plannedViewportWidthsCssPixels"] == [360, 768, 1440]
+assert report["completedResponsiveViewportWidthsCssPixels"] == []
 assert report["safety"]["externalLinkNavigationPerformed"] is False
 assert report["safety"]["bookingOrPaymentSubmitted"] is False
 assert report["safety"]["guestDataSubmitted"] is False
