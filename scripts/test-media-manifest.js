@@ -3,12 +3,18 @@
 
 /** Verify the curated legacy-media manifest and the local bytes used by gallery.html. */
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'MEDIA-MIGRATION-MANIFEST.json'), 'utf8'));
-const gallery = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
+const pageCache = new Map();
+function pageContent(name) {
+  assert.match(name, /^(index|rooms|experiences|dining|about|directions|gallery)\.html$/, 'Unapproved verification page: ' + name);
+  if (!pageCache.has(name)) pageCache.set(name, fs.readFileSync(path.join(ROOT, name), 'utf8'));
+  return pageCache.get(name);
+}
 const sources = new Set();
 const targets = new Set();
 const MAX_BYTES = 600 * 1024;
@@ -46,10 +52,13 @@ assert.equal(manifest.sourceRepository, 'https://github.com/tchouhanjsm/garh-jai
 assert.ok(Array.isArray(manifest.entries) && manifest.entries.length >= 3, 'At least three inspected source assets are required');
 
 for (const entry of manifest.entries) {
-  assert.ok(entry.sourcePath && entry.sourceBlobSha && entry.targetPath, 'Manifest entries require source and target provenance');
+  assert.ok(entry.sourcePath && entry.sourceBlobSha && entry.targetPath && entry.targetBlobSha, 'Manifest entries require source and target blob provenance');
+  assert.equal(entry.targetBlobSha, entry.sourceBlobSha, 'Curated image must match its source blob SHA: ' + entry.targetPath);
+  assert.ok(entry.verificationPage, 'Each asset needs a page-specific image/alt verification target: ' + entry.targetPath);
   assert.ok(entry.visualSubject && entry.intendedRole, 'Manifest entries require a reviewed subject and intended role');
   assert.ok(entry.altText && entry.altText.length >= 25, 'Alt text is too short: ' + entry.targetPath);
-  assert.equal(entry.approvalStatus, 'migrated-source-backed-asset', 'Only verified migrated files may use this status');
+  assert.ok(['migrated-source-backed-asset', 'source-verified-existing-asset'].includes(entry.approvalStatus),
+    'Only migrated or byte-verified source assets may be listed: ' + entry.targetPath);
   assert.ok(/does not promise/i.test(entry.publicationCaveat || ''), 'Each asset must preserve the no-availability-promise caveat');
   assert.ok(!sources.has(entry.sourcePath), 'Duplicate source path: ' + entry.sourcePath);
   assert.ok(!targets.has(entry.targetPath), 'Duplicate target path: ' + entry.targetPath);
@@ -60,14 +69,26 @@ for (const entry of manifest.entries) {
   assert.ok(fs.existsSync(filePath) && fs.statSync(filePath).isFile(), 'Missing local asset: ' + entry.targetPath);
   const buffer = fs.readFileSync(filePath);
   assert.equal(buffer.length, entry.bytes, 'Byte count differs from manifest: ' + entry.targetPath);
-  assert.ok(buffer.length > 0 && buffer.length <= MAX_BYTES, 'Asset exceeds 600 KiB budget: ' + entry.targetPath);
+  const isNamedRoom = /Room gallery — named room image/i.test(entry.intendedRole);
+  const budget = isNamedRoom ? 900 * 1024 : MAX_BYTES;
+  assert.ok(buffer.length > 0 && buffer.length <= budget,
+    'Asset exceeds ' + Math.round(budget / 1024) + ' KiB budget: ' + entry.targetPath);
   assert.deepEqual(getDimensions(buffer, entry.targetPath), entry.dimensions, 'Dimensions differ from manifest: ' + entry.targetPath);
-  assert.ok(gallery.includes('src="' + entry.targetPath + '"'), 'Gallery missing migrated image: ' + entry.targetPath);
-  assert.ok(gallery.includes('alt="' + entry.altText + '"'), 'Gallery alt text differs from manifest: ' + entry.targetPath);
+  const localBlobSha = crypto.createHash('sha1')
+    .update(Buffer.from('blob ' + buffer.length + '\0'))
+    .update(buffer)
+    .digest('hex');
+  assert.equal(localBlobSha, entry.targetBlobSha, 'Local file Git blob SHA differs from manifest: ' + entry.targetPath);
+  const page = pageContent(entry.verificationPage);
+  assert.ok(page.includes('src="' + entry.targetPath + '"'), entry.verificationPage + ' missing asset: ' + entry.targetPath);
+  assert.ok(page.includes('alt="' + entry.altText + '"'), entry.verificationPage + ' alt text differs from manifest: ' + entry.targetPath);
 
   if (entry.targetPath.includes('/hotel/')) assert.match(entry.visualSubject, /fort|rooftop/i, 'Fort/rooftop subject-role mismatch');
   else if (entry.targetPath.includes('/desert/')) assert.match(entry.visualSubject, /desert camp/i, 'Desert subject-role mismatch');
-  else assert.fail('Media target is outside the curated gallery taxonomy: ' + entry.targetPath);
+  else if (isNamedRoom) assert.match(entry.visualSubject, /room/i, 'Named-room gallery subject mismatch');
+  else if (/Homepage hero — rooftop terrace/i.test(entry.intendedRole)) assert.match(entry.visualSubject, /rooftop|terrace/i, 'Homepage hero subject-role mismatch');
+  else if (/Dining page — candlelit-table/i.test(entry.intendedRole)) assert.match(entry.visualSubject, /candlelit|table/i, 'Dining image subject-role mismatch');
+  else assert.fail('Media target is outside the curated image taxonomy: ' + entry.targetPath);
 }
 
-console.log('PASS: media manifest, exact local bytes, dimensions, size budgets, alt text and gallery subject-role mapping.');
+console.log('PASS: curated media manifest, source/target Git blob SHA and byte integrity, dimensions, size budgets, named-room/dining/fort/desert roles and page-specific alt text.');

@@ -306,3 +306,14 @@ Next after this editorial draft: audit and improve the homepage's first-impressi
 The current feature branch centralizes source-authorized external booking/contact channels and applies them throughout the shared navigation/footer/mobile booking affordance, alongside source-backed room/tour/restaurant/transport context. The legacy menu remains `owner_confirmed=false`, and research-only Longewala/Rajasthan-tour entries remain unpublished. Three visually inspected source images were migrated with a machine-checkable media manifest. This work does not approve the canonical host, enable new server-side form capture, publish draft content, or represent live service/endpoint confirmation.
 
 Content/UX/SEO recovery remains the delivery priority. Content Studio/importer integration stays deferred until the main guest journeys, media provenance checks and release safeguards are stable.
+
+
+## Named-room Gallery and explicit launch gates — 26 October 2026
+
+The static site's room gallery has been expanded into seven named source-backed room cards. Each card links to the matching room section and carries a page-specific alt-text/image-geometry assertion. The existing named room images were not recopied; source/target Git blob hashes and byte counts were checked for exact matches in the legacy and target repositories. The media manifest now covers 12 selected assets: three previously migrated fort/desert images, seven existing named-room images, and two rooftop/dining assets.
+
+The media test computes the local Git blob SHA from each target file, checks the exact source match, dimensions, file size budget, image-to-subject role and the page-specific alt text. The existing Green Room image is 799,571 bytes and remains a candidate for a smaller visually reviewed WebP derivative; don't replace it with an uninspected or incorrectly mapped image.
+
+docs/LAUNCH-READINESS-CHECKLIST.md is now the explicit source of launch gates. A read-only automated request to the AsiaTech booking URL returned HTTP 403 on 26 October 2026. Treat that as a manual verification blocker, not proof that standard browsers are blocked. Verify it with the provider/owner in a regular browser, then test WhatsApp, primary mobile, alternate landline and email. Approve current room and tour operation facts, restaurant menu/prices, reception and arrival details before relying on them in public copy. The canonical hostname remains unapproved and no production release has occurred.
+
+The new launch-readiness script validates link wiring, contact centralization, menu/canonical/sitemap safeguards and records the human checks as outstanding. Studio/pack integration stays deferred. Production release is not permitted until the manual P0 gates in the launch checklist are signed off.

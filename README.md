@@ -80,11 +80,15 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 - It is explicit that the hotel is inside the fort and vehicles cannot reach the door.
 - No fabricated testimonials or current online rating have been added. Collect approved, attributed review excerpts before adding a testimonial carousel.
 - Calls to action say “enquire”, “check availability” or “ask about options” where the answer depends on current inventory.
+- Read the explicit launch gates in docs/LAUNCH-READINESS-CHECKLIST.md. Source-authorized contact values are not proof of live reachability; the AsiaTech destination returned HTTP 403 to an automated read-only probe on 26 October 2026, so a standard-browser check is required before production launch.
 
 ## Project documentation
 
 - `docs/CONTENT-AND-CONVERSION.md` — message hierarchy, sections and service-page copy
-- `docs/LAUNCH-CHECKLIST.md` — QA, SEO, accessibility, speed and deployment checklist
+- `docs/LAUNCH-CHECKLIST.md` — original QA, SEO, accessibility, speed and deployment checklist
+- `docs/LAUNCH-READINESS-CHECKLIST.md` — current P0/P1 manual gates, including the booking provider 403 probe, contact verification, property fact approval, DNS/canonical decision, staging UAT and rollback.
+- `docs/MEDIA-MIGRATION-MANIFEST.json` — curated source/target photo provenance, byte-identical source hashes, roles, dimensions, byte budgets and page-specific alt-text contracts.
+- `scripts/test-media-manifest.js` and `scripts/test-launch-readiness.js` — media integrity and automated release-safeguard checks included in the quality runner.
 - `docs/TESTIMONIAL-COLLECTION.md` — how to add authentic guest proof without inventing quotes
 
 

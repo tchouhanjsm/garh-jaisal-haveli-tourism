@@ -274,3 +274,25 @@ The designated legacy repository was reviewed directly for public configuration 
 ### Validation checkpoint
 
 The newly added regression tests and content changes must pass the exact final feature-branch/PR-head GitHub quality run before merge. No complete local checkout was available in this chat, so local execution of `bash scripts/check-pr-quality.sh`, browser/device rendering, Lighthouse, accessibility tooling and staging UAT remain **not run** unless a later verified run records otherwise.
+
+
+## Named-room gallery and launch-readiness recovery — 26 October 2026
+
+### Room and dining media audit
+
+- Audited the seven source room records and matching images in the legacy repository. The target room files are byte-identical to the named source files (matching Git blob SHA and byte count); no duplicate copies were created merely to satisfy the Gallery.
+- Replaced three generic/ambiguous bedroom Gallery cards with a dedicated seven-room gallery: Sweet Purple, Rising Sun, Scarlet, Opium, Red Maharani, Green and BlueSky. Each card uses the mapped local room photo, explicit geometry, descriptive alt text, responsive layout, a link to the corresponding named room section, Book Now and a room-specific WhatsApp enquiry.
+- Audited the existing homepage/dining rooftop images. The homepage hero remains mapped to the source rooftop-terrace photograph; the dining page's candlelit image remains a separate source-matched table photograph. Their distinct roles are now explicit in the media manifest.
+- Expanded docs/MEDIA-MIGRATION-MANIFEST.json from 3 to 12 image records: the 3 previously migrated gallery binaries plus 7 byte-verified existing room images and 2 byte-verified existing rooftop/dining images. Each record declares source and target blob SHA, verification page, dimensions, byte count, subject/role, alt text, approval state and a current-availability caveat.
+- Extended the media regression test to compute the actual Git blob SHA from each local file, confirm equality with the recorded source SHA, validate byte size/dimensions, enforce image budgets and verify the image/alt contract on the page appropriate to its role. The larger existing Green Room source photo is retained and called out as a candidate for a future optimized derivative rather than silently claiming it is optimized.
+
+### Launch checks and release boundary
+
+- Added docs/LAUNCH-READINESS-CHECKLIST.md and scripts/test-launch-readiness.js, wired into scripts/check-pr-quality.sh.
+- A read-only automated request to the AsiaTech booking destination returned HTTP 403 on 26 October 2026. This does **not** prove normal guests are blocked, but a normal-browser staging check is required before release. The automated browser tool could not independently verify the WhatsApp endpoint either.
+- The checklist separates automated wiring checks from human UAT for Book Now, WhatsApp, mobile and landline reachability, email delivery/reply, live room facts, current restaurant menu, currently operating tours, DNS/SSL/canonical host, staging rendering, rollback and post-deploy smoke testing.
+- The canonical host remains unapproved, sitemap/robots publication gates remain unchanged, menu/prices remain unpublished while owner confirmation is false, and no production deploy or live reservation/payment test was performed.
+
+### Validation statement
+
+The full GitHub-hosted Site quality gates must pass on the exact feature/PR head and post-merge main SHA. This connected environment does not contain a complete local checkout; local browser/device, Lighthouse, accessibility-tooling and staging UAT are still not run from this chat. A green automated suite does not satisfy the manual release gates.
