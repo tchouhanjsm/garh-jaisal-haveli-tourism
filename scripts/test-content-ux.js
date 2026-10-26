@@ -186,6 +186,30 @@ for (const rule of PAGE_RULES) {
     }
   }
 
+  if (rule.file === 'rooms.html') {
+    const referenceCards = [...html.matchAll(/<figure\b[^>]*class=["'][^"']*\broom-reference-card\b[^"']*["'][^>]*>[\s\S]*?<\/figure>/gi)];
+    if (referenceCards.length !== 2) fail('rooms.html: expected two distinct image-led room reference cards');
+    const roomGrid = html.match(/<div\b[^>]*class=["'][^"']*\broom-reference-grid\b[^"']*["'][^>]*>/i);
+    if (!roomGrid || !/\brole=["']group["']/.test(roomGrid[0]) || !/\baria-label=["']Room photo references["']/.test(roomGrid[0])) {
+      fail('rooms.html: room reference grid needs an accessible group role and name');
+    }
+    for (const [index, match] of referenceCards.entries()) {
+      if (!/<img\b/i.test(match[0]) || !/<figcaption\b/i.test(match[0])) {
+        fail(`rooms.html: room reference card ${index + 1} needs an image and visible caption`);
+      }
+    }
+    if (!/<article\b[^>]*class=["'][^"']*\broom-reference-guide\b[^"']*["'][^>]*>[\s\S]*?<\/article>/i.test(html)) {
+      fail('rooms.html: missing the room-details checklist beside the photo references');
+    }
+    if (/class=["'][^"']*\broom-card-grid\b/.test(html)
+        || /<h3>\s*(?:Haveli Rooms|Your Jaisalmer Base)\s*<\/h3>/i.test(html)) {
+      fail('rooms.html: generic text-only room placeholder cards remain');
+    }
+    if (!/not live inventory/i.test(html)) {
+      fail('rooms.html: photo references must be clearly distinguished from live room inventory');
+    }
+  }
+
   const navMatch = html.match(/<nav id=["']primary-navigation["'][^>]*>[\s\S]*?<\/nav>/i);
   if (!navMatch) fail(rule.file + ': missing primary navigation');
   else {
@@ -249,4 +273,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`PASS: content/UX regression gate audited ${PAGE_RULES.length} pages for depth, unique metadata, internal discovery, local image paths/alt/geometry, duplicate images and canonical publication gates.`);
+console.log(`PASS: content/UX regression gate audited ${PAGE_RULES.length} pages for depth, unique metadata, internal discovery, room-reference cards, local image paths/alt/geometry, duplicate images and canonical publication gates.`);

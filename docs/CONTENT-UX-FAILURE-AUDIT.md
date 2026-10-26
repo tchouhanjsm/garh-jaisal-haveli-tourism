@@ -1,6 +1,6 @@
 # Content and UX Failure Audit
 
-**Checkpoint:** main at `e7dc8bd9d664e9ad6985b8e32333a200a669471e` (26 October 2026).  
+**Baseline:** `main` at `bc7e4c5d3bc5a87c88c06eb95dedcddfc027de8b` (26 October 2026; PR #8 merged). This audit now tracks the next room-reference UX phase.  
 **Scope:** public static HTML/CSS/vanilla-JS routes. Content Studio pack import and adapter work are explicitly out of scope for this recovery phase.
 
 ## Evidence from the pre-change pages
@@ -29,6 +29,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
   - `tent.jpg` — open-sky sleeping scene beneath stars (750×750); captions/alt text do not mislabel it as a tent.
 - Added explicit width/height attributes, below-the-fold lazy loading and decoding hints to retained photographs. Removed repeated or contextually misleading images rather than reusing a photo as proof of a room, meal or package.
 - Expanded Rooms with a factual checklist of details to confirm rather than asserting unverified room amenities, availability or rates.
+- In the follow-on room-reference phase, moved two visually reviewed local interior photos into an image-led comparison grid beside a room-details checklist. Removed the generic text-only `Haveli Rooms` / `Your Jaisalmer Base` placeholders and the duplicated lower photo section. The two reference images are not assigned room names or operational features; current inventory, room details and rates remain unverified.
 - Expanded Experiences with facts expressly recorded in legacy Owner Facts: Swiss-tent facilities, the planned Fort-walk focus, recorded guide languages, and the conditional nature of SUV/sedan arrangements. Date-dependent route, language, availability and package details remain confirmation items.
 - Expanded Dining with a useful enquiry checklist while keeping menu, prices, hours and table availability unconfirmed.
 - Expanded About and homepage discovery links. Removed the unapproved “Since 2005” proof claim and replaced the generic Google search link presented as current guest reviews.
@@ -46,18 +47,20 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 6. Confirm whether the family hospitality start date may be published.
 7. Family ownership/story and the hospitality start year remain owner-confirmation gates; no public claim should be restored until the owner approves the wording and evidence.
 8. Only six selected legacy images were localized after retrieval and visual review; no full-library import was attempted. Any additional image requires the same byte-level retrieval, visual review, local hosting, meaningful alt text and geometry validation.
-8. The Journal/blog archive remains deferred until at least one article passes source review, fact/date checks, local-link validation and the publication/canonical gates.
+9. The Journal/blog archive remains deferred until at least one article passes source review, fact/date checks, local-link validation and the publication/canonical gates.
 
 ## Validation evidence for this checkpoint
 
-- Source-level inspection: completed through connected GitHub file reads; the four existing local image files were retrieved and visually inspected.
-- Local full-suite commands: **not run**. The execution environment cannot resolve GitHub (`git ls-remote https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism.git refs/heads/main` failed with `Could not resolve host: github.com`).
-- GitHub Actions: the initial PR #8 head `10ad476d937c26af4e362fd43503e7bf7a213be5` passed `Site quality gates / quality` in [run #40263823939](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40263823939). Its job log confirmed static-site integrity, image-localization regression tests, mobile-navigation tests, the then-current content/UX gate, renderer checks/tests (zero live tours/articles; drafts excluded), pack-importer regression, enquiry-flow tests, content-contract tests, Python compilation and shell syntax. This evidence applies only to that exact SHA; subsequent curated-image, About-dropdown and public-copy audit corrections require a fresh exact-head result before merge.
+- Source-level inspection: completed through connected GitHub file reads; the six legacy source images added by PR #8 were retrieved as actual bytes and visually reviewed, along with the existing target-repository room photographs.
+- Local full-suite commands for the room-reference phase: **not run**. The current execution environment has no complete checkout and DNS lookup / `git ls-remote` failed with `Could not resolve host: github.com`.
+- PR #8 exact head `48e58ff965d07999bcf4cfa89e043fee4c9ed604` passed `Site quality gates / quality` in [run #40264880774](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40264880774), then merged as `bc7e4c5d3bc5a87c88c06eb95dedcddfc027de8b`. This is historical evidence for PR #8 only, not for the room-reference changes.
+- The active room-reference batch must be judged by the final `Site quality gates / quality` result on its exact PR head; see the active PR for that run. Do not treat an absent, stale, pending, cancelled or failed result as a pass.
 - Browser/device, Lighthouse, visual regression and production/staging tests: **not run**.
 - No deployment or production changes were made.
 
 ## Next bulk phases
 
-1. Complete the content/UX recovery review and exact-head quality checks for this PR.
-2. After owner approval of the canonical host and content facts, prepare a source-reviewed Journal article plus a discoverable archive, with publication gates and internal links.
-3. Only after the website recovery is accepted, reconsider a legacy Content Studio adapter as a separate roadmap decision.
+1. Complete the image-led room-reference phase and its regression checks; do not merge until the exact-head quality gate is green and the full local suite can be executed against the reviewed source.
+2. Obtain owner approval for the canonical host, staffed contact/booking endpoints and current room facts before publishing operational claims.
+3. After publication prerequisites are approved, prepare one source-reviewed Journal article plus a useful archive with source links, date checks, internal links and strict draft/sitemap gates.
+4. Reconsider the legacy Content Studio adapter only after website content/UX recovery is accepted. Studio/pack integration is not part of the current phase.

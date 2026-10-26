@@ -72,3 +72,18 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 .feature-photo__copy h3{margin:0 0 12px;font-family:var(--serif);font-size:clamp(25px,3vw,34px);font-weight:400;line-height:1.2}
 .feature-photo__copy p:not(.eyebrow){margin:0;color:var(--muted);font-size:13px;line-height:1.85}
 @media(max-width:900px){.primary-nav .nav-about-group{display:flex;align-items:center;justify-content:flex-start;width:100%}.primary-nav .nav-about-group>a{flex:1;padding:12px 0}.primary-nav .nav-dropdown{margin-left:10px}.primary-nav .nav-dropdown summary{min-width:44px;min-height:44px}.primary-nav .nav-dropdown__menu{position:static;min-width:0;padding:0 0 0 18px;border:0;box-shadow:none;background:transparent}.primary-nav .nav-dropdown__menu a{padding:12px 0}.feature-photo{grid-template-columns:minmax(0,1fr);gap:20px}.feature-photo>img{max-height:360px;object-fit:cover}}
+
+/* Room discovery: make verified visual references useful without implying live inventory */
+.room-reference-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch}
+.room-reference-card{display:flex;flex-direction:column;min-width:0}
+.room-reference-card .gallery-card__media{aspect-ratio:3/2}
+.room-reference-card figcaption{flex:1}
+.room-reference-card h3{margin:0 0 12px;font-family:var(--serif);font-size:clamp(24px,2.6vw,30px);font-weight:400;line-height:1.2}
+.room-reference-guide{min-width:0;display:flex;flex-direction:column;align-items:flex-start;padding:clamp(22px,3vw,30px);border:1px solid rgba(27,33,30,.14);border-left:3px solid var(--gold-dark);background:var(--sand)}
+.room-reference-guide h3{margin:0 0 12px;font-family:var(--serif);font-size:clamp(24px,2.6vw,30px);font-weight:400;line-height:1.2}
+.room-reference-guide p:not(.eyebrow){margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.85}
+.room-reference-guide .text-link{margin-top:auto}
+#room-planning .content-depth__grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:900px){.room-reference-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.room-reference-guide{grid-column:1/-1}#room-planning .content-depth__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.room-reference-grid,#room-planning .content-depth__grid{grid-template-columns:1fr}.room-reference-guide{grid-column:auto}}
+
