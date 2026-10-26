@@ -10,8 +10,14 @@
     const next = carousel.querySelector('[data-carousel-next]');
     const status = carousel.querySelector('[data-carousel-status]');
 
-    // Leave the first real photograph visible when a carousel is incomplete or JS cannot enhance it.
+    // Keep the authored first photo visible if markup is incomplete or JavaScript cannot enhance it.
     if (slides.length < 2 || !controls || !previous || !next || !status) return;
+
+    const sources = slides.map((slide) => {
+      const image = slide.querySelector('img');
+      return image ? (image.getAttribute('src') || '').trim() : '';
+    });
+    if (sources.some((src) => !src) || new Set(sources).size !== sources.length) return;
 
     let activeIndex = slides.findIndex((slide) => !slide.hidden);
     if (activeIndex < 0) activeIndex = 0;
@@ -21,9 +27,12 @@
       slides.forEach((slide, slideIndex) => {
         const active = slideIndex === activeIndex;
         slide.hidden = !active;
+        slide.setAttribute('role', 'group');
+        slide.setAttribute('aria-roledescription', 'slide');
+        slide.setAttribute('aria-label', 'Photo ' + (slideIndex + 1) + ' of ' + slides.length);
         slide.setAttribute('aria-hidden', String(!active));
       });
-      status.textContent = `${activeIndex + 1} of ${slides.length}`;
+      status.textContent = 'Photo ' + (activeIndex + 1) + ' of ' + slides.length;
     }
 
     previous.addEventListener('click', () => showSlide(activeIndex - 1));
