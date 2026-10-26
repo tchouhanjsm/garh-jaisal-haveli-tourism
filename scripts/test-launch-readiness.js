@@ -58,15 +58,15 @@ for (const route of ['index.html', 'rooms.html', 'experiences.html', 'dining.htm
 for (const marker of ['data-booking-link', 'data-enquiry-link', 'data-contact-phone', 'data-contact-alt-phone', 'data-contact-email']) {
   assert.ok(recoveryPage.includes(marker), '404 recovery page must use centralized channel marker ' + marker);
 }
-assert.doesNotMatch(recoveryPage, /href="(?:tel:\\+?\\d+|mailto:[^"]+)|https:\\/\\/wa\\.me\\/\\d{8,15}/i,
 assert.doesNotMatch(recoveryPage, /href="(?:tel:\+?\d+|mailto:[^"]+)|https:\/\/wa\.me\/\d{8,15}/i,
-assert.doesNotMatch(recoveryPage, /\sstyle=["']/i,
-assert.match(recoveryPage, /<script src="assets\\/site\\.js" defer><\\/script>/,
+  '404 recovery page must not hard-code contact endpoints');
+assert.doesNotMatch(recoveryPage, /\sstyle=["']/i, '404 recovery page must use shared responsive CSS, not inline styles');
 assert.match(recoveryPage, /<script src="assets\/site\.js" defer><\/script>/,
-assert.match(siteCss, /\\.not-found-page__routes[\\s\\S]*?@media\\(max-width:600px\\)/,
+  '404 recovery page must hydrate centrally configured contact actions');
 assert.match(siteCss, /\.not-found-page__routes[\s\S]*?@media\(max-width:600px\)/,
-assert.match(siteCss, /\\.not-found-page__route:focus-visible|a:focus-visible/,
+  '404 recovery routes must have a responsive mobile layout');
 assert.match(siteCss, /\.not-found-page__route:focus-visible|a:focus-visible/,
+  '404 recovery links must retain a visible keyboard focus indicator');
 
 const dining = fs.readFileSync(path.join(ROOT, 'dining.html'), 'utf8');
 assert.match(dining, /source menu record is still marked as awaiting owner confirmation/i,
