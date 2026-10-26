@@ -353,6 +353,15 @@ for (const rule of PAGE_RULES) {
     if (!/not confirmation that a candlelit setup is available for your date/i.test(html)) {
       fail('dining.html: candlelight image must not imply date-specific setup availability');
     }
+    if (!html.includes('href="https://maps.app.goo.gl/28gGJ6tX8xoanQ9D8"')) {
+      fail('dining.html: missing the owner-confirmed Garh Jaisal Kitchen map destination');
+    }
+    if (/our team can guide you/i.test(html)) {
+      fail('dining.html: arrival or luggage help must not be presented as guaranteed');
+    }
+    if (!/verified contact route in your booking confirmation to ask whether guidance can be arranged/i.test(html)) {
+      fail('dining.html: arrival-help wording must direct guests to a verified booking contact');
+    }
   }
 
   if (rule.file === 'directions.html') {
@@ -369,6 +378,15 @@ for (const rule of PAGE_RULES) {
       if (!/confirm the current meeting point/i.test(arrivalVisual[0])) {
         fail('directions.html: facade reference must remind guests to confirm the current meeting point');
       }
+    }
+    if (html.includes('We’ll help you plan the final stretch.')) {
+      fail('directions.html: do not promise help through unverified contact endpoints');
+    }
+    if (!/verified contact route from your booking confirmation to confirm the current meeting point/i.test(html)) {
+      fail('directions.html: final arrival assistance must be framed as date-specific confirmation');
+    }
+    if (!html.includes('Contact channel pending verification')) {
+      fail('directions.html: visible arrival contact CTA must show its unverified status');
     }
   }
 
