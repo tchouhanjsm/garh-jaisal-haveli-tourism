@@ -13,6 +13,7 @@ node scripts/test-page-media-performance.js
 
 echo "== Staging preflight safety/report contract tests =="
 python3 scripts/test-staging-preflight-contract.py
+python3 scripts/test-staging-visual-review.py
 
 echo "== Real Chromium browser guest-journey smoke tests =="
 python3 scripts/test-browser-smoke.py
