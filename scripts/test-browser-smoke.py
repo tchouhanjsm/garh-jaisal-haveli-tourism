@@ -130,7 +130,7 @@ def resolve_http_credentials(username: str | None, password: str | None) -> dict
 def build_report(mode: str, base_url: str, operator: str | None,
                  browser_version: str | None, failures: list[str]) -> dict:
     manual_checks = [
-        ("STG-01", "Human desktop guest journey from Home through Arrival"),
+        ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
         ("STG-03", "Human network-panel check for missing assets and mixed content"),
         ("STG-04", "Human keyboard focus, menu Escape and reduced-motion review"),
