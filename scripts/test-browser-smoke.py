@@ -56,7 +56,9 @@ def origin_key(value: str) -> tuple[str, str, int | None] | None:
 
 
 def same_origin(value: str, base_url: str) -> bool:
-    return origin_key(value) == origin_key(base_url)
+    value_origin = origin_key(value)
+    base_origin = origin_key(base_url)
+    return value_origin is not None and value_origin == base_origin
 
 
 def validate_staging_target(raw_url: str, operator: str, report_path: str) -> str:
