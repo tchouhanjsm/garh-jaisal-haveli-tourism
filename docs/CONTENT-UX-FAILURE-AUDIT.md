@@ -238,3 +238,39 @@ No new image binaries were copied or claimed as migrated in this phase. Existing
 ### Validation status and limitations
 
 The base commit's Site quality gates workflow passed on the exact main SHA before this batch; that is not evidence for the new feature head. A fresh exact-head GitHub Actions result is required for this implementation and any subsequent commit. The connected GitHub tools do not provide a complete local checkout in this chat, so the local full suite, browser/device rendering, accessibility tooling, Lighthouse and staging UAT were not run here. Do not treat those items as passed.
+
+
+## Source-authorized booking, contact and bulk guest-journey recovery — 2026-10-26
+
+### Confirmed source inputs
+
+The designated legacy repository was reviewed directly for public configuration and factual hotel records:
+
+- `include/site-config.php`: external AsiaTech booking-engine URL, primary WhatsApp number, phone display, alternate landline and hotel email.
+- `docs/OWNER-FACTS.md`: source-listed seven-room context, SUV/sedan arrangements across Rajasthan and Delhi, driver languages, source-recorded Swiss-tent facilities, and the planned Jaisalmer Fort walk.
+- `include/rooms-data.php`: Sweet Purple, Rising Sun, Scarlet, Opium, Red Maharani, Green and BlueSky source records. These match the existing seven-room presentation; rates and live inventory are not implied.
+- `include/experience-data.php`: source itineraries for sunset camel safari, cultural desert evening, Sleep Under the Stars, Swiss-tent overnight, and half-/full-day guided Jaisalmer tours. These were used to add meaningful context, not to guarantee that each service is operating on a particular date.
+- `include/menu-data.php`: `owner_confirmed=false`. Current menu items and prices therefore remain unpublished.
+- `restaurant.php` and owner facts: Garh Jaisal's Kitchen map destination and Instagram profile.
+
+### Implementation in the current branch
+
+- Populated `content/site-config.json` with the owner-directed legacy booking URL, WhatsApp, phone, alternate landline, email, restaurant map and Instagram URL. The configuration explicitly uses `owner-authorized-source` / `source-authorized` to distinguish owner authorization to reuse repository details from an independent live endpoint/staffing test.
+- Extended `assets/site.js` to hydrate Book Now, WhatsApp, telephone, alternate landline and email links from the central JSON configuration; provider/format validation remains in place, and configuration-fetch failures leave links disabled. Direct booking opens the external AsiaTech flow and does not mean a reservation is confirmed.
+- Added Book Now in the shared navigation, mobile bar and footer across the seven core HTML pages; added direct booking alongside room enquiry actions.
+- Expanded Experiences copy using the legacy itinerary records, retaining date-specific confirmation boundaries for operation, duration, stop access, guide language, route, transport, current price and inclusions.
+- Added a Garh Jaisal's Kitchen contact/location panel with the owner-supplied Google Maps destination and Instagram profile. Kept menu prices hidden while the legacy menu remains unconfirmed.
+- Added a directions/transport panel describing source-listed SUV/sedan arrangements across Rajasthan and Delhi, with route, pickup, fare, timing and availability to be confirmed per booking.
+- Visually inspected and migrated three source images into the curated Gallery taxonomy: fort-side rooftop view, desert camp from above, and illuminated desert tents at night. Each has exact byte count, dimensions, alt text, source blob SHA, intended role and an explicit availability caveat in `docs/MEDIA-MIGRATION-MANIFEST.json`.
+- Added automated enquiry/contact tests for booking, WhatsApp, primary phone, alternate landline and email; added a media manifest integrity test to the consolidated GitHub quality script.
+
+### Guardrails and unresolved work
+
+- Legacy contact details were reused at the owner's explicit request, but **live reachability, current staffing, booking-engine behavior, email delivery and WhatsApp response have not been independently smoke-tested**. Check them during staging/UAT before production launch.
+- The source menu remains unconfirmed; no dish prices or claims about today's menu were migrated as current.
+- Keep the canonical host unapproved, tour/article draft publication rules unchanged, and current room availability/rates, reception hours, luggage assistance, transfer fares and travel-time promises unconfirmed.
+- No production deployment, indexing/canonical switch, server-side enquiry storage or menu publication occurred.
+
+### Validation checkpoint
+
+The newly added regression tests and content changes must pass the exact final feature-branch/PR-head GitHub quality run before merge. No complete local checkout was available in this chat, so local execution of `bash scripts/check-pr-quality.sh`, browser/device rendering, Lighthouse, accessibility tooling and staging UAT remain **not run** unless a later verified run records otherwise.

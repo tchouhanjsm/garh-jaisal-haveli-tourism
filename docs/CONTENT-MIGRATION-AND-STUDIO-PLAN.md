@@ -216,7 +216,7 @@ Known legacy Studio limitation: the old runbook states that optional `images` me
 ## URL and booking integration
 
 - First verify whether the existing public static website’s domain and URLs are approved for the new site. Legacy pages used .php paths; new pages are .html files. Do not silently change canonical URLs or assume .php redirects exist.
-- Preserve the booking-engine URL and WhatsApp/phone/email values in one configuration manifest only after owner verification. Test both desktop and mobile behavior, URL-encode the enquiry payload and never claim a booking is confirmed when the gateway or hotel still needs to confirm.
+- The current static tourism site centrally stores the booking-engine URL and WhatsApp/phone/email details copied from the designated legacy repository at the owner's explicit request. These are marked `source-authorized`, not independently live-tested. Validate the booking engine, telephone reachability, WhatsApp delivery and email contact on staging before production launch. Test desktop/mobile behavior, URL-encode enquiry payloads and never claim a booking is confirmed merely because a link opened or a message was prepared.
 - Keep dates/party size in enquiry messages where helpful, with no guest data sent to an analytics platform unnecessarily.
 - Do not copy the legacy site's secret/local config or server-side credentials. Public contact configuration only; no cPanel credentials, API tokens, or reCAPTCHA secret.
 
@@ -300,3 +300,9 @@ Source reference set: Rajasthan Tourism's Jaisalmer overview; UNESCO World Herit
 The article avoids unverified walking distances, temple hours/fees, guide access, room/dining prices and assistance promises. Stale related-blog references have been cleared. The article remains status=draft with lastReviewed and publishedAt null. The existing renderer test prevents drafts from generating public HTML or changing the sitemap; new content-contract assertions protect article depth, sources and draft-only state.
 
 Next after this editorial draft: audit and improve the homepage's first-impression and guest decision journey in one substantial batch. Public Journal/index creation remains gated by editorial/date review, owner confirmation and canonical/contact/indexing approval. Studio/pack integration remains deferred.
+
+## Bulk contact and source-content delivery — 26 October 2026
+
+The current feature branch centralizes source-authorized external booking/contact channels and applies them throughout the shared navigation/footer/mobile booking affordance, alongside source-backed room/tour/restaurant/transport context. The legacy menu remains `owner_confirmed=false`, and research-only Longewala/Rajasthan-tour entries remain unpublished. Three visually inspected source images were migrated with a machine-checkable media manifest. This work does not approve the canonical host, enable new server-side form capture, publish draft content, or represent live service/endpoint confirmation.
+
+Content/UX/SEO recovery remains the delivery priority. Content Studio/importer integration stays deferred until the main guest journeys, media provenance checks and release safeguards are stable.
