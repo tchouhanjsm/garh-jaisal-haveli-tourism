@@ -481,6 +481,6 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - Extend the staging contract tests to cover empty evidence, partial route/viewport coverage and fully complete evidence. Even complete automated evidence keeps the release status blocked pending human UAT; STG-01 through STG-17 remain `NOT RUN`.
 
 ### Validation boundary
-- Implementation and contract-test commits are on the feature branch; final exact-head `Site quality gates / quality` is pending.
+- The first exact-head `Site quality gates / quality` run #40356760697 passed on implementation head `1c4e8a1ba5b3140aa7ef0e27f34a63a4c94ed227` (the staging contract tests and Chromium smoke suite both completed successfully). This audit update creates a new head, so that earlier result is now historical evidence only; a fresh run on the resulting exact final head is required before merge.
 - Local `bash scripts/check-pr-quality.sh` is NOT RUN because this connector environment has no complete local checkout.
 - No staging host, booking provider, contact endpoint or production service was contacted. No deployment, canonical approval or publication-policy change was made.
