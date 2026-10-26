@@ -251,6 +251,78 @@ for (const rule of PAGE_RULES) {
     }
   }
 
+  if (rule.file === 'index.html') {
+    const planningSection = html.match(/<section id="plan-stay"[\s\S]*?<\/section>/i);
+    if (!planningSection) {
+      fail('index.html: missing the primary guest-planning section');
+    } else {
+      const planning = planningSection[0];
+      if (!/aria-labelledby="planning-title"/i.test(planning)
+          || !/<h2 id="planning-title">Choose what you need to plan first\.<\/h2>/i.test(planning)) {
+        fail('index.html: planning section needs a clear, programmatically associated heading');
+      }
+      if (!/class="home-plan-paths" aria-label="Planning routes"/i.test(planning)) {
+        fail('index.html: guest-planning links need a named navigation group');
+      }
+      const cards = [...planning.matchAll(/<a class="home-plan-path" href="([^"]+)">([\s\S]*?)<\/a>/g)];
+      const expected = [
+        { href: 'rooms.html', title: 'Compare the rooms' },
+        { href: 'experiences.html', title: 'Choose your experience' },
+        { href: 'dining.html', title: 'Plan a rooftop meal' },
+        { href: 'directions.html', title: 'Know the final walk' },
+      ];
+      if (cards.length !== expected.length) {
+        fail('index.html: expected four distinct guest-planning paths, found ' + cards.length);
+      }
+      for (const route of expected) {
+        const card = cards.find((candidate) => candidate[1] === route.href);
+        if (!card) {
+          fail('index.html: missing planning path to ' + route.href);
+          continue;
+        }
+        if (!stripMarkup(card[2]).toLocaleLowerCase().includes(route.title.toLocaleLowerCase())) {
+          fail('index.html: planning path has unclear or missing label for ' + route.href);
+        }
+      }
+      if (/data-booking-form|name="arrival"|name="departure"/i.test(planning)) {
+        fail('index.html: unverified booking form must not occupy the primary planning panel');
+      }
+      if (!/Direct enquiry through this website is disabled/i.test(planning)
+          || !/does not collect or transmit your travel dates/i.test(planning)) {
+        fail('index.html: disabled enquiry and data-collection boundary must be explicit');
+      }
+      if (!/vehicles cannot reach the hotel door/i.test(planning)) {
+        fail('index.html: planning panel must set expectations about fort vehicle access');
+      }
+    }
+
+    const hero = html.match(/<section class="hero"[\s\S]*?<\/section>/i);
+    if (!hero || !/src="assets\/images\/rest3\.jpg"/i.test(hero[0])
+        || !/alt="Golden sandstone rooftop terrace overlooking Jaisalmer at dusk"/i.test(hero[0])) {
+      fail('index.html: homepage hero must keep its locally hosted, accurately described rooftop image');
+    }
+    if (!/<meta property="og:image" content="assets\/images\/rest3\.jpg">/i.test(html)
+        || !/<meta property="og:image:alt" content="Rooftop terrace overlooking Jaisalmer at dusk">/i.test(html)) {
+      fail('index.html: Open Graph image and alt text must stay aligned with the reviewed homepage hero');
+    }
+
+    const finalCta = html.match(/<section class="final-cta"[\s\S]*?<\/section>/i);
+    if (!finalCta || !/class="home-final-actions"/i.test(finalCta[0])
+        || /data-enquiry-link|href="#contact-status"/i.test(finalCta[0])
+        || !/Direct enquiry is not enabled on this website/i.test(finalCta[0])
+        || !/verified contact route from your booking confirmation/i.test(finalCta[0])) {
+      fail('index.html: closing CTA must offer useful next steps without implying a live booking channel');
+    }
+
+    const css = fs.readFileSync(path.join(ROOT, 'assets/site.css'), 'utf8');
+    if (!css.includes('.home-plan-paths')
+        || !css.includes('.home-plan-path:focus-visible')
+        || !/@media\s*\(\s*max-width:\s*760px\s*\)[\s\S]*?\.home-plan-paths/.test(css)
+        || !/prefers-reduced-motion:\s*reduce/.test(css)) {
+      fail('index.html: planning paths need responsive, keyboard-visible and reduced-motion styling');
+    }
+  }
+
   if (rule.file === 'rooms.html') {
     const catalogue = [
       { name: 'Sweet Purple Room', image: 'assets/images/rooms/sweet-purple.jpg', features: ['Carved bed', 'Second bed', 'Air conditioning', 'Private bathroom', 'City view'] },

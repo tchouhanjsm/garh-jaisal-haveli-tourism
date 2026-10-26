@@ -12,6 +12,8 @@ Status: proposed foundation for the static tourism website. Source material revi
 
 This plan distinguishes verified source inventory from future implementation. No legacy PHP runtime, content, media or booking link is copied into this website by this document.
 
+**Priority update — 26 October 2026:** Content, UX and SEO recovery takes precedence over Content Studio integration. First complete and validate the core visitor pages, page-to-page discovery, authentic image provenance/role mapping, useful editorial drafts and content-quality gates. Keep tour and blog records in draft until the relevant facts and publication prerequisites are approved. Studio/importer enhancements remain deferred and must not delay this recovery work or relax canonical-host, contact/booking, indexing or publication safeguards.
+
 ## Objective
 
 Make it possible for a non-technical hotel operator using Content Studio to prepare a complete, polished tour or article once, preview it, approve it, and have it render predictably in the static tourism website. Content should be immersive and useful without inventing operational claims. A tour should communicate sequence and experience through a readable timeline, clear inclusions/exclusions, practical trip facts, photo narrative, FAQs and direct-enquiry CTA. Articles should answer travel-planning questions and link naturally to relevant tours and enquiry paths.
