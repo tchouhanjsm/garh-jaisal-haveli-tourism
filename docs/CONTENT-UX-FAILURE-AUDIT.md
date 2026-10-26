@@ -501,9 +501,11 @@ The operator-run staging preflight now requires a local visual evidence bundle i
 
 ### Validation boundary
 - Baseline at phase start: main `3961b3cdb8a74f07446a38bc34537448e2176d94`; PR #23 was merged and no implementation PR was open.
-- The exact feature-head `Site quality gates / quality` run is required after the code and test changes; no CI result is claimed in this entry until that run is inspected.
-- Local `bash scripts/check-pr-quality.sh`: NOT RUN; this connector execution has no complete local checkout.
+- `Site quality gates / quality` run #40366969895 passed on exact feature head `454ee7052f445e2a6b0c7c4b2b1dca8f2067daf0`. Its log confirms the staging preflight contract tests and Chromium local-browser suite passed; the suite generated and integrity-checked all 21 temporary full-page PNGs.
+- Source review caught an over-escaped PNG signature in the synthetic geometry fixture before the final run; the fixture was corrected to use the actual PNG signature. The earlier run #40366556107 was cancelled after the branch advanced, not treated as a pass.
+- Local `bash scripts/check-pr-quality.sh`: NOT RUN in this connector environment because no complete local checkout is available. The full command did run successfully on the standard GitHub-hosted runner.
 - Actual staging browser/device review, Lighthouse, formal accessibility tooling and owner-run booking/contact checks: NOT RUN. No staging host was contacted and no external booking/contact action was performed.
+- This audit update changes the feature head; a fresh exact-head quality run is required before merge consideration.
 - The operator must supply an owner-approved HTTPS staging origin and complete the manual UAT rows with real evidence. Canonical-host approval, menu publication, draft publication and production deployment remain blocked.
 
 ### Acceptance criteria
