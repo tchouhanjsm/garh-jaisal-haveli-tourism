@@ -120,6 +120,7 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
 with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     folder = Path(temp)
     report_path, screenshots, output_path, report = build_fixture(folder)
+    assert review.report_contract_issues(report) == []
     checked, issues = review.inspect_bundle(report, screenshots)
     assert not issues, issues
     incomplete_coverage = json.loads(json.dumps(report))
@@ -133,7 +134,51 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     assert 'src="screenshots/index-360px.png"' in page
     assert "staging.example.test" in page
     assert "BLOCKED — manual UAT required" in page
+    assert "PASS — report records no external actions" in page
     assert "<script>alert('xss')</script>" not in page
+
+    def expect_contract_issue(candidate: dict, fragment: str) -> None:
+        contract_issues = review.report_contract_issues(candidate)
+        assert any(fragment in issue for issue in contract_issues), (fragment, contract_issues)
+
+    inconsistent_count = json.loads(json.dumps(report))
+    inconsistent_count["automatedFailureCount"] = 1
+    expect_contract_issue(inconsistent_count, "does not match automatedFailures length")
+
+    contradictory_result = json.loads(json.dumps(report))
+    contradictory_result["automatedFailureCount"] = 1
+    contradictory_result["automatedFailures"] = ["a recorded browser failure"]
+    expect_contract_issue(contradictory_result, "automatedResult must be FAIL")
+
+    false_release = json.loads(json.dumps(report))
+    false_release["releaseStatus"] = "READY"
+    expect_contract_issue(false_release, "releaseStatus must remain BLOCKED_PENDING_MANUAL_UAT")
+
+    unsafe_run = json.loads(json.dumps(report))
+    unsafe_run["safety"]["bookingOrPaymentSubmitted"] = True
+    expect_contract_issue(unsafe_run, "bookingOrPaymentSubmitted must be present and false")
+
+    missing_safety = json.loads(json.dumps(report))
+    del missing_safety["safety"]["contactMessageSent"]
+    expect_contract_issue(missing_safety, "contactMessageSent must be present and false")
+
+    invalid_timestamp = json.loads(json.dumps(report))
+    invalid_timestamp["recordedAtAsiaKolkata"] = "2026-10-26T23:00:00"
+    expect_contract_issue(invalid_timestamp, "valid ISO-8601 Asia/Kolkata timestamp")
+
+    missing_browser = json.loads(json.dumps(report))
+    missing_browser["browser"] = {}
+    expect_contract_issue(missing_browser, "browser name and version metadata")
+
+    wrong_visual_count = json.loads(json.dumps(report))
+    wrong_visual_count["visualEvidence"]["expectedScreenshotCount"] = 20
+    expect_contract_issue(wrong_visual_count, "expectedScreenshotCount must equal 21")
+
+    unsafe_html = review.build_html(
+        unsafe_run, screenshots, *review.inspect_bundle(unsafe_run, screenshots)
+    )
+    assert "INVALID REPORT" in unsafe_html
+    assert "FAIL — safety assertions missing or contradictory" in unsafe_html
     assert "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;" in page
     assert str(folder) not in page
     assert "<script" not in page
@@ -173,6 +218,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     failed_report["automatedFailures"] = [
         "failure at https://qa-user:qa-password@outside.example/path?token=secret#fragment while reading /tmp/private/staging.json"
     ]
+    failed_report["automatedFailureCount"] = len(failed_report["automatedFailures"])
     failed_report_path = folder / "failed-preflight.json"
     failed_report_path.write_text(json.dumps(failed_report), encoding="utf-8")
     for record in failed_report["visualEvidence"]["capturedFiles"]:
