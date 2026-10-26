@@ -13,12 +13,12 @@ The initial content pass measured main-region text (navigation and footer exclud
 | `rooms.html` | 244 | Too little decision support; the same Scarlet photograph repeated and generic rooftop/corridor images were used as room cards. |
 | `experiences.html` | 359 | The open-sky photograph was repeated and a bedroom image was used for a general trip-planning card; owner-confirmed facts were not easy to discover. |
 | `dining.html` | 359 | The rooftop image appeared three times and a corridor image was used to illustrate a candlelit dinner. |
-| `about.html` | 386 | The corridor photograph repeated; the public page stated a 2005 hospitality start date and unverified family-history claims even though the legacy launch checklist says the family story/date still requires approval. |
+| `about.html` | 386 | The corridor photograph repeated; the public page stated a 2005 hospitality start date and unverified family-history claims the legacy Owner Facts file does not list a decided family story or start year and explicitly instructs readers not to guess blank facts. |
 | `directions.html` | 503 | The corridor photograph repeated; copy implied luggage assistance, transfers and a fixed one-day advance-notice rule despite those operational details not being approved. |
 
 The six root pages used the same rooftop photograph for Open Graph metadata and contained canonical/OG URL values pointing at `https://hotelgarhjaisal.com`, while `content/site-config.json` explicitly says `canonicalHostApproved: false`. The pre-launch `robots.txt` blocked indexing but still advertised a sitemap containing six absolute URLs on that unapproved host.
 
-These observations came from the checked-in HTML/configuration and legacy `docs/OWNER-FACTS.md` / `docs/LAUNCH-CHECKLIST.md`; they are source-level findings, not browser or analytics measurements.
+These observations came from the checked-in HTML/configuration and legacy `docs/OWNER-FACTS.md` / `docs/SITE-ARCHITECTURE.md`; the Owner Facts file says blank facts must not be guessed and contains no decided family story/start year. These are source-level findings, not browser or analytics measurements.
 
 ## Addressed in this recovery batch
 
@@ -52,7 +52,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 
 - Source-level inspection: completed through connected GitHub file reads; the four existing local image files were retrieved and visually inspected.
 - Local full-suite commands: **not run**. The execution environment cannot resolve GitHub (`git ls-remote https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism.git refs/heads/main` failed with `Could not resolve host: github.com`).
-- GitHub Actions: the initial PR #8 head `10ad476d937c26af4e362fd43503e7bf7a213be5` passed `Site quality gates / quality` in [run #40263823939](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40263823939). Its job log confirmed static-site integrity, image-localization regression tests, mobile-navigation tests, the then-current content/UX gate, renderer checks/tests (zero live tours/articles; drafts excluded), pack-importer regression, enquiry-flow tests, content-contract tests, Python compilation and shell syntax. This evidence applies only to that exact SHA; subsequent curated-image and About-dropdown changes require a fresh exact-head result before merge.
+- GitHub Actions: the initial PR #8 head `10ad476d937c26af4e362fd43503e7bf7a213be5` passed `Site quality gates / quality` in [run #40263823939](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40263823939). Its job log confirmed static-site integrity, image-localization regression tests, mobile-navigation tests, the then-current content/UX gate, renderer checks/tests (zero live tours/articles; drafts excluded), pack-importer regression, enquiry-flow tests, content-contract tests, Python compilation and shell syntax. This evidence applies only to that exact SHA; subsequent curated-image, About-dropdown and public-copy audit corrections require a fresh exact-head result before merge.
 - Browser/device, Lighthouse, visual regression and production/staging tests: **not run**.
 - No deployment or production changes were made.
 
