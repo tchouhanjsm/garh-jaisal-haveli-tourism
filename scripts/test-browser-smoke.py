@@ -74,7 +74,8 @@ def safe_url_label(value: str) -> str:
         return "<invalid URL>"
     if not parts.scheme or not parts.netloc:
         return value.split("?", 1)[0].split("#", 1)[0]
-    return f"{parts.scheme}://{parts.netloc}{parts.path}"
+    safe_netloc = parts.netloc.rsplit("@", 1)[-1]
+    return f"{parts.scheme}://{safe_netloc}{parts.path}"
 
 
 def is_actionable_request_failure(failure: str | None) -> bool:

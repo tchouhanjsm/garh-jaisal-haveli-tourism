@@ -32,6 +32,7 @@ assert browser_smoke.same_origin("https://staging.example.test/rooms.html", vali
 assert not browser_smoke.same_origin("https://staging.example.test.evil/rooms.html", valid)
 assert not browser_smoke.same_origin("not-a-url", "also-not-a-url")
 assert browser_smoke.safe_url_label("https://outside.example/path?token=secret#section") == "https://outside.example/path"
+assert browser_smoke.safe_url_label("https://qa-user:qa-password@outside.example/path?token=secret#section") == "https://outside.example/path"
 assert browser_smoke.safe_url_label("not-a-url?token=secret") == "not-a-url"
 assert not browser_smoke.is_actionable_request_failure("net::ERR_ABORTED")
 assert browser_smoke.is_actionable_request_failure("net::ERR_CONNECTION_RESET")
