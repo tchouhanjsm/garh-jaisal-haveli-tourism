@@ -562,3 +562,12 @@ The staging runner now captures a reproducible 21-image bundle, but the operator
 **Validation evidence:** pending exact-head GitHub quality run for PR #26. Local `bash scripts/check-pr-quality.sh`, real staging UAT, accessibility tooling and Lighthouse were not run in the connector environment. The prior main quality result is not a substitute for the new PR-head result.
 
 **Release state:** all 17 manual staging checks remain `NOT RUN`; AsiaTech/contact-channel reachability, current owner facts, menu approval, canonical-host approval and deployment authorization remain unresolved. No production deployment or publication-gate change occurred.
+
+
+### Follow-up finding — evidence summary could contradict coverage failures
+
+The rerun of the original PR #26 head `a59bc240ea82227e891e92cd764687c8e5559c84` passed GitHub quality run #40375220750. A subsequent full-diff review found one remaining fail-closed gap: the renderer checked route/viewport arrays, but did not require every `evidenceCoverage` boolean to be explicitly true, and the summary could still display automated `PASS` while the bundle had other integrity issues.
+
+The follow-up on this same PR now validates all four coverage flags (`pageNavigationComplete`, `pageHttp200Complete`, `responsiveViewportsComplete`, and `complete`). The top-line result becomes `INVALID REPORT` for report-contract violations and `FAIL — INCOMPLETE EVIDENCE` for any remaining bundle/coverage issue; it cannot be styled as a pass while issues exist. Regression cases cover false/missing coverage flags, incomplete route evidence and missing visual-evidence metadata.
+
+The changes below are a new revision of PR #26; the prior run is baseline evidence only. The updated exact-head quality result must be checked before merge. Local full-suite, actual staging UAT, accessibility tooling and Lighthouse remain NOT RUN.
