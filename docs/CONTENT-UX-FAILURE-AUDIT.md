@@ -200,3 +200,12 @@ The registry already contained a Jaisalmer Fort guide, but its copy read like a 
 The record remains status=draft, lastReviewed=null and publishedAt=null. The canonical host, booking/contact endpoints, current room/dining/tour operations and date-specific arrival arrangements remain owner-verification gates. No HTML route, Journal index, sitemap or robots setting was changed.
 
 The updated content-contract tests are not called passed until GitHub Actions completes on the exact final PR head. Local full-suite, browser/device, accessibility and Lighthouse checks were not run in the connector-only environment. No deployment is included.
+
+### PR #13 CI debugging notes — 2026-10-26
+
+Two exact-head quality runs exposed test-fixture issues, not content or publication-gate failures:
+
+- Run [#40285424677](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40285424677) failed in the existing renderer test because it still expected the former article section id `overview`. The new article uses `living-fort`; the fixture assertion was updated to match the current table-of-contents/section contract.
+- Follow-up run [#40285672161](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40285672161) passed renderer, importer, enquiry and schema checks but failed the new article depth assertion. The test's whitespace regex was over-escaped, so the counter counted the article as one token. The assertion has been corrected to split on actual whitespace while retaining the 1,200-word minimum.
+
+Both failures are explicitly recorded rather than labelled as environment failures. The follow-up fixes need a fresh quality run against the next exact PR HEAD. No local full suite, browser/device, Lighthouse or staging checks have been performed here, and the PR must not be merged until the exact-head CI and all required review/local-validation gates are satisfied.

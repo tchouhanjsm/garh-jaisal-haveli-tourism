@@ -92,7 +92,7 @@ assert.equal(fortGuide.publishedAt, null, 'article must not claim a publication 
 assert.equal(fortGuide.relatedBlogs.length, 0, 'draft must not point at non-existent article slugs');
 assert.ok(fortGuide.sections.length >= 8, 'Fort guide must have substantive section coverage');
 const fortGuideText = [fortGuide.title, fortGuide.lede, ...fortGuide.sections.flatMap(section => [section.heading, ...section.body])].join(' ');
-const fortGuideWords = fortGuideText.split(/\\s+/).filter(Boolean).length;
+const fortGuideWords = fortGuideText.split(/\s+/).filter(Boolean).length;
 assert.ok(fortGuideWords >= 1200, 'Fort guide should remain substantive, not thin (' + fortGuideWords + ' words)');
 assert.ok(fortGuide.sources.some(source => source.url === 'https://whc.unesco.org/en/list/247/'), 'Fort guide must cite UNESCO Hill Forts');
 assert.ok(fortGuide.sources.some(source => source.url === 'https://www.tourism.rajasthan.gov.in/jaisalmer.html'), 'Fort guide must cite Rajasthan Tourism');
