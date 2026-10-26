@@ -547,3 +547,18 @@ The staging runner now captures a reproducible 21-image bundle, but the operator
 - Actual staging browser/device UAT, screenshot review of a live staging origin, formal accessibility tooling, Lighthouse/Core Web Vitals and owner-run booking/contact checks remain NOT RUN.
 - No staging URL was supplied in this run, so no staging host was contacted and no screenshots were represented as real staging evidence.
 - Canonical-host approval, menu publication, draft publication, server-side guest-enquiry storage and production deployment remain blocked. Content Studio/importer integration stays deferred.
+
+
+## 26 October 2026 — Staging evidence report consistency hardening
+
+**Baseline:** main `f2cabb3e89645be787f19e61087711414c58c1ca`, after PR #25's offline visual-review index. The current main quality workflow was observed passing on that exact SHA in run #40372742888.
+
+**Finding:** the offline review renderer verified screenshot bytes, SHA-256 and geometry, but it did not validate all report-level assertions together. A report could carry contradictory `automatedFailureCount` / `automatedFailures` values, a `PASS` label inconsistent with the recorded failures, a release status other than the mandatory manual-UAT block, or missing/true safety assertions. The HTML footer also phrased run-level safety as an unconditional claim instead of distinguishing the renderer's own behavior from the report's assertions.
+
+**Implementation in PR #26:** `scripts/render-staging-visual-review.py` now validates schema/mode, non-empty operator, ISO-8601 Asia/Kolkata timestamp with +05:30 offset, browser metadata, failure-list/count consistency, PASS/FAIL consistency, mandatory `BLOCKED_PENDING_MANUAL_UAT`, explicit false values for external navigation/booking-payment/guest-data/contact-message flags, and the exact 21-image visual evidence contract. Contradictions produce an invalid-report indicator and a non-zero renderer result. The HTML now labels run-level safety assertions explicitly and states only what the renderer itself guarantees.
+
+**Regression coverage:** `scripts/test-staging-visual-review.py` includes valid-report coverage and negative cases for inconsistent counts, contradictory result, premature release status, true or missing safety flags, invalid timestamp, missing browser metadata and incorrect screenshot count. The failed-report fixture now carries a matching failure count.
+
+**Validation evidence:** pending exact-head GitHub quality run for PR #26. Local `bash scripts/check-pr-quality.sh`, real staging UAT, accessibility tooling and Lighthouse were not run in the connector environment. The prior main quality result is not a substitute for the new PR-head result.
+
+**Release state:** all 17 manual staging checks remain `NOT RUN`; AsiaTech/contact-channel reachability, current owner facts, menu approval, canonical-host approval and deployment authorization remain unresolved. No production deployment or publication-gate change occurred.
