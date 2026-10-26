@@ -13,7 +13,7 @@ import ipaddress
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
@@ -159,8 +159,85 @@ def load_report(path: Path) -> dict:
     return report
 
 
-def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[str]]:
+
+def report_contract_issues(report: dict) -> list[str]:
+    """Reject contradictory or unsafe claims in a saved staging evidence report."""
     issues: list[str] = []
+    if report.get("schemaVersion") != 3:
+        issues.append("Report schemaVersion must be 3.")
+    if report.get("mode") != "staging-read-only":
+        issues.append("Report mode must be staging-read-only.")
+
+    operator = report.get("operator")
+    if not isinstance(operator, str) or not operator.strip():
+        issues.append("Report must include a non-empty operator name.")
+
+    recorded = report.get("recordedAtAsiaKolkata")
+    try:
+        parsed_recorded = datetime.fromisoformat(recorded) if isinstance(recorded, str) else None
+    except ValueError:
+        parsed_recorded = None
+    if (parsed_recorded is None or parsed_recorded.utcoffset() != timedelta(hours=5, minutes=30)):
+        issues.append("Report timestamp must be a valid ISO-8601 Asia/Kolkata timestamp with +05:30 offset.")
+
+    browser = report.get("browser")
+    if (not isinstance(browser, dict)
+            or not isinstance(browser.get("name"), str) or not browser["name"].strip()
+            or not isinstance(browser.get("version"), str) or not browser["version"].strip()):
+        issues.append("Report must include browser name and version metadata.")
+
+    failures = report.get("automatedFailures")
+    failures_valid = isinstance(failures, list) and all(isinstance(item, str) for item in failures)
+    if not failures_valid:
+        issues.append("automatedFailures must be a list of diagnostic strings.")
+    count = report.get("automatedFailureCount")
+    count_valid = isinstance(count, int) and not isinstance(count, bool) and count >= 0
+    if not count_valid:
+        issues.append("automatedFailureCount must be a non-negative integer.")
+    if count_valid and failures_valid and count != len(failures):
+        issues.append("automatedFailureCount does not match automatedFailures length.")
+
+    result = report.get("automatedResult")
+    if result not in ("PASS", "FAIL"):
+        issues.append("automatedResult must be PASS or FAIL.")
+    elif count_valid and failures_valid and count == len(failures):
+        expected_result = "PASS" if count == 0 else "FAIL"
+        if result != expected_result:
+            issues.append(f"automatedResult must be {expected_result} for the recorded failure count.")
+
+    if report.get("releaseStatus") != "BLOCKED_PENDING_MANUAL_UAT":
+        issues.append("releaseStatus must remain BLOCKED_PENDING_MANUAL_UAT.")
+
+    safety = report.get("safety")
+    safety_flags = (
+        "externalLinkNavigationPerformed",
+        "bookingOrPaymentSubmitted",
+        "guestDataSubmitted",
+        "contactMessageSent",
+    )
+    for flag in safety_flags:
+        if not isinstance(safety, dict) or safety.get(flag) is not False:
+            issues.append(f"Safety assertion {flag} must be present and false.")
+
+    evidence = report.get("visualEvidence")
+    if not isinstance(evidence, dict):
+        issues.append("visualEvidence must be an object.")
+    else:
+        if evidence.get("required") is not True:
+            issues.append("visualEvidence.required must be true.")
+        if evidence.get("captureMode") != "full-page PNG":
+            issues.append("visualEvidence.captureMode must be full-page PNG.")
+        for key in ("expectedScreenshotCount", "capturedScreenshotCount"):
+            if evidence.get(key) != 21:
+                issues.append(f"visualEvidence.{key} must equal 21.")
+        if evidence.get("complete") is not True:
+            issues.append("visualEvidence.complete must be true.")
+
+    return issues
+
+
+def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[str]]:
+    issues: list[str] = report_contract_issues(report)
     origin = safe_origin(report.get("targetUrl"))
     if origin is None:
         issues.append("Target origin is invalid; it is withheld from the HTML.")
@@ -195,10 +272,6 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
         issues.append("Report does not list the exact 21 screenshot names in the planned order.")
     if evidence.get("complete") is not True or evidence.get("capturedScreenshotCount") != 21:
         issues.append("Report does not declare complete 21-image visual evidence.")
-    if report.get("automatedResult") not in ("PASS", "FAIL"):
-        issues.append("Report has no recognized automatedResult.")
-    if report.get("automatedResult") == "PASS" and report.get("automatedFailures"):
-        issues.append("Report claims automated PASS but contains automated failures.")
     manual = report.get("manualReleaseChecks")
     expected_ids = [f"STG-{number:02d}" for number in range(1, 18)]
     if (not isinstance(manual, list) or len(manual) != 17
@@ -293,9 +366,23 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     recorded = html.escape(redact_urls(report.get("recordedAtAsiaKolkata") or "Not recorded"))
     browser = report.get("browser") if isinstance(report.get("browser"), dict) else {}
     browser_text = html.escape(redact_urls(f"{browser.get('name', 'Unknown')} {browser.get('version', 'Unknown')}"))
+    contract_issues = report_contract_issues(report)
     automated = report.get("automatedResult")
-    if automated not in ("PASS", "FAIL"):
+    if contract_issues:
+        automated = "INVALID REPORT"
+    elif automated not in ("PASS", "FAIL"):
         automated = "UNKNOWN"
+    safety = report.get("safety")
+    safety_flags = (
+        "externalLinkNavigationPerformed",
+        "bookingOrPaymentSubmitted",
+        "guestDataSubmitted",
+        "contactMessageSent",
+    )
+    safety_ok = isinstance(safety, dict) and all(safety.get(flag) is False for flag in safety_flags)
+    safety_text = ("PASS — report records no external actions" if safety_ok
+                   else "FAIL — safety assertions missing or contradictory")
+    safety_class = "pass" if safety_ok else "fail"
     verified = sum(item["valid"] for item in results)
     bundle_ok = not issues and verified == 21
     bundle_text = "PASS — 21 files verified" if bundle_ok else f"FAIL — evidence issues; {verified}/21 screenshots verified"
@@ -374,12 +461,13 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 <div class="metric">Evidence integrity<strong class="{bundle_class}">{html.escape(bundle_text)}</strong></div>
 <div class="metric">Target origin<strong>{origin_text}</strong></div><div class="metric">Operator<strong>{operator}</strong></div>
 <div class="metric">Recorded at (Asia/Kolkata)<strong>{recorded}</strong></div><div class="metric">Browser<strong>{browser_text}</strong></div>
+<div class="metric">Run safety assertions<strong class="{"{safety_class}"}">{html.escape(safety_text)}</strong></div>
 <div class="metric">Human release status<strong class="fail">BLOCKED — manual UAT required</strong></div></div>
 <div class="notice"><strong>Release guard:</strong> A verified screenshot bundle is not staging UAT or launch approval. Human booking/contact checks, owner fact confirmation, canonical/DNS/SSL approval, backup/rollback and deployment authorization remain separate.</div>
 <p>Review index generated at {generated}. Image links use relative filenames only; no local filesystem path is embedded in this HTML.</p></header>
 <nav aria-label="Jump to page screenshots">{nav}</nav>{issues_html}{failures_html}
 {"".join(sections)}
-<footer><p>Local review only. No booking, payment, guest-data submission, WhatsApp message, phone call or email was initiated.</p>
+<footer><p>This HTML renderer itself does not contact the staging host or initiate a booking, payment, guest-data submission, WhatsApp message, phone call or email. The run-level safety assertions above must be present and consistent before its evidence is trusted.</p>
 <p>This page never clears human release gates; STG-01 through STG-17 remain blocked pending real operator evidence.</p></footer>
 </main></body></html>
 """
