@@ -54,12 +54,11 @@ const optionIds = ['sunset-camel', 'cultural-evening', 'open-sky', 'swiss-tent',
 const articles = [...html.matchAll(/<article class="experience-option" data-option="([^"]+)"[^>]*>([\s\S]*?)<\/article>/g)];
 assert.equal(articles.length, 6, 'all six source-listed experience options remain present');
 assert.deepEqual(articles.map(match => match[1]), optionIds);
-const hero = html.match(/<section class="page-hero"[\s\S]*?<\/section>/i);
-assert.ok(hero, 'Experiences page hero exists');
-assert.match(hero[0], /fetchpriority="high"/i, 'hero image receives priority');
-assert.match(hero[0], /\balt=["'][^"']+["']/i, 'hero image has meaningful alt text');
-assert.match(hero[0], /\bwidth=["']\d+["']/i, 'hero image declares width');
-assert.match(hero[0], /\bheight=["']\d+["']/i, 'hero image declares height');
+const socialImageMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
+const socialAltMatch = html.match(/<meta property="og:image:alt" content="([^"]+)"/i);
+assert.ok(socialImageMatch, 'Experiences page has an Open Graph image');
+assert.ok(socialAltMatch && socialAltMatch[1].trim(), 'Experiences social image has descriptive alt text');
+assert.ok(html.includes('src="' + socialImageMatch[1] + '"'), 'social image is one of the page\'s locally hosted option images');
 
 const pageImageTags = [...html.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
 const pageImageSources = pageImageTags.map(tag => (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || '');
