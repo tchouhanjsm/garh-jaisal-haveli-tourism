@@ -39,21 +39,32 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 .service-block--text-only{grid-template-columns:minmax(0,1fr)}
 .rooftop-band--text-only{background:linear-gradient(120deg,#27312a,#565347)}
 .rooftop-band--text-only .rooftop-band__overlay{background:linear-gradient(90deg,rgba(16,21,18,.35),rgba(16,21,18,.1))}
-.gallery-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
-.gallery-card{min-width:0;margin:0;border:1px solid rgba(27,33,30,.12);background:var(--white)}
+.gallery-page .content-depth__intro{max-width:860px}
+.gallery-category-nav{display:flex;flex-wrap:wrap;gap:10px;margin:28px 0 8px}
+.gallery-category-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 16px;border:1px solid rgba(27,33,30,.18);background:var(--sand);color:var(--ink);font-size:12px;text-decoration:none;transition:background .2s,border-color .2s}
+.gallery-category-nav a:hover{border-color:var(--gold-dark);background:var(--white)}
+.gallery-category-nav a:focus-visible{outline:3px solid var(--gold-dark);outline-offset:3px}
+.gallery-category{scroll-margin-top:120px;margin-top:clamp(36px,5vw,62px);padding-top:clamp(24px,3vw,34px);border-top:1px solid rgba(27,33,30,.16)}
+.gallery-category__heading{max-width:780px;margin-bottom:24px}
+.gallery-category__heading h2{margin:0 0 12px;font-family:var(--serif);font-size:clamp(30px,4vw,44px);font-weight:400;line-height:1.15}
+.gallery-category__heading p:not(.eyebrow){max-width:720px;margin:0;color:var(--muted);font-size:13px;line-height:1.85}
+.gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.gallery-card{display:flex;flex-direction:column;min-width:0;margin:0;border:1px solid rgba(27,33,30,.12);background:var(--white)}
 .gallery-card__media{overflow:hidden;background:#d4c4aa;aspect-ratio:3/2}
 .gallery-card__media--square{aspect-ratio:1/1}
-.gallery-card__media img{width:100%;height:100%;object-fit:cover;transition:transform .55s}
+.gallery-card__media--portrait{aspect-ratio:5/4}
+.gallery-card__media img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .55s}
 .gallery-card:hover .gallery-card__media img{transform:scale(1.025)}
-.gallery-card figcaption{padding:clamp(20px,3vw,30px)}
+.gallery-card figcaption{display:flex;flex:1;flex-direction:column;align-items:flex-start;padding:clamp(20px,2.5vw,28px)}
 .gallery-card figcaption .eyebrow{margin:0 0 10px}
-.gallery-card h2{margin:0 0 12px;font-family:var(--serif);font-size:clamp(24px,3vw,32px);font-weight:400;line-height:1.2}
+.gallery-card h3{margin:0 0 12px;font-family:var(--serif);font-size:clamp(22px,2.2vw,28px);font-weight:400;line-height:1.2}
 .gallery-card p:not(.eyebrow){margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.85}
-.gallery-card a{font-size:12px}
+.gallery-card .text-link{margin-top:auto;font-size:12px}
 .gallery-note{margin-top:32px;padding:24px;border-left:3px solid var(--gold-dark);background:#efe7d9}
 .gallery-note p{margin:0;max-width:850px}
-@media(max-width:760px){.content-depth__grid,.gallery-grid{grid-template-columns:1fr}.content-depth__card{padding:22px}.gallery-card__media{aspect-ratio:4/3}.gallery-card__media--square{aspect-ratio:1/1}}
-@media(prefers-reduced-motion:reduce){.gallery-card__media img{transition:none}.gallery-card:hover .gallery-card__media img{transform:none}}
+@media(max-width:1100px){.gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.content-depth__grid,.gallery-grid{grid-template-columns:1fr}.content-depth__card{padding:22px}.gallery-card__media{aspect-ratio:4/3}.gallery-card__media--portrait{aspect-ratio:5/4}.gallery-card__media--square{aspect-ratio:1/1}.gallery-category-nav{gap:8px}.gallery-category-nav a{flex:1 1 calc(50% - 8px);text-align:center}}
+@media(prefers-reduced-motion:reduce){.gallery-category-nav a,.gallery-card__media img{transition:none}.gallery-card:hover .gallery-card__media img{transform:none}}
 
 
 /* About submenu: native details keeps the dropdown keyboard-operable without extra JavaScript */
