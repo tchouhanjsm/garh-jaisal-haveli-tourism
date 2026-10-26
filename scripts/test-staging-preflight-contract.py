@@ -136,7 +136,7 @@ else:
 with tempfile.TemporaryDirectory() as temporary_directory:
     png_path = Path(temporary_directory) / "header-only.png"
     png_path.write_bytes(
-        b"\\x89PNG\\r\\n\\x1a\\n" + (13).to_bytes(4, "big") + b"IHDR"
+        b"\x89PNG\r\n\x1a\n" + (13).to_bytes(4, "big") + b"IHDR"
         + (360).to_bytes(4, "big") + (1200).to_bytes(4, "big")
     )
     assert browser_smoke.read_png_dimensions(png_path) == (360, 1200)
