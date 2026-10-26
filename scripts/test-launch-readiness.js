@@ -55,7 +55,7 @@ assert.doesNotMatch(recoveryPage, /<link\b[^>]*\brel=["']canonical["']|property=
 assert.equal((recoveryPage.match(/id="contact-status"/g) || []).length, 1,
   '404 recovery page must provide one accessible contact fallback');
 for (const route of ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'directions.html', 'gallery.html']) {
-  assert.ok(recoveryPage.includes('href="' + route + '"'), '404 recovery page must link to ' + route);
+  assert.ok(recoveryPage.includes('href="/' + route + '"'), '404 recovery page must link to ' + route);
 }
 for (const marker of ['data-booking-link', 'data-enquiry-link', 'data-contact-phone', 'data-contact-alt-phone', 'data-contact-email']) {
   assert.ok(recoveryPage.includes(marker), '404 recovery page must use centralized channel marker ' + marker);
@@ -63,8 +63,10 @@ for (const marker of ['data-booking-link', 'data-enquiry-link', 'data-contact-ph
 assert.doesNotMatch(recoveryPage, /href="(?:tel:\+?\d+|mailto:[^"]+)|https:\/\/wa\.me\/\d{8,15}/i,
   '404 recovery page must not hard-code contact endpoints');
 assert.doesNotMatch(recoveryPage, /\sstyle=["']/i, '404 recovery page must use shared responsive CSS, not inline styles');
-assert.match(recoveryPage, /<script src="assets\/site\.js" defer><\/script>/,
+assert.match(recoveryPage, /<script src="\/assets\/site\.js" defer><\/script>/,
   '404 recovery page must hydrate centrally configured contact actions');
+assert.match(recoveryPage, /<link rel="stylesheet" href="\/assets\/site\.css">/,
+  '404 recovery stylesheet must resolve from the site root at arbitrary missing paths');
 assert.match(siteCss, /\.not-found-page__routes[\s\S]*?@media\(max-width:600px\)/,
   '404 recovery routes must have a responsive mobile layout');
 assert.match(siteCss, /\.not-found-page__route:focus-visible|a:focus-visible/,
