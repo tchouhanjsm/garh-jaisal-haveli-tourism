@@ -131,3 +131,14 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 - For local browser QA, install `python3 -m pip install -r requirements-test.txt` and `python3 -m playwright install chromium`, then run `bash scripts/check-pr-quality.sh`. On Linux, install the required Chromium OS dependencies if they are not already present.
 - CI installs the pinned Playwright dependency and Chromium inside the existing quality job on the standard `ubuntu-latest` runner; no additional workflow job or paid runner is introduced.
 - This is a local-browser smoke test, not staging UAT, a formal accessibility audit, Lighthouse/Core Web Vitals evidence or proof that booking/contact endpoints are live.
+
+
+### Operator-run staging preflight
+- The command `python3 scripts/test-browser-smoke.py` runs the real Chromium smoke suite against a temporary local server. For an operator-run staging check, set STAGING_URL to the exact owner-approved **HTTPS staging origin** (not a production hostname), STAGING_OPERATOR to the operator's name, and STAGING_REPORT to a local .json output path, then run:
+
+  ~~~bash
+  python3 scripts/test-browser-smoke.py --base-url "$STAGING_URL" --operator "$STAGING_OPERATOR" --report "$STAGING_REPORT"
+  ~~~
+
+- Staging mode refuses HTTP, URL credentials, paths, queries, fragments, IP/local hostnames, and the production hostnames recorded in content/site-config.json. Cross-origin top-level/frame navigations are blocked and publication-guard requests do not follow redirects. If the staging subdomain uses HTTP Basic Auth, set STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD in the local shell; the credentials are scoped to the staging origin and are never written to the report. It does not navigate to Book Now/WhatsApp/phone/email destinations, submit forms, send messages or create a reservation/payment.
+- The local JSON report records the staging origin, Asia/Kolkata timestamp, operator, Chromium version, viewport sizes, automated result/failures and all 17 human staging checks as NOT RUN. URLs embedded in failure diagnostics are reduced to scheme/host/path; credentials, query strings and fragments are excluded from evidence and failure output. A green browser result does not clear those manual release gates or authorize deployment.

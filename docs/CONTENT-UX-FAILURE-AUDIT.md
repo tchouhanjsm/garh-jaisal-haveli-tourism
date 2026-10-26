@@ -415,3 +415,54 @@ It adds real Chromium layout/rendering and interaction checks to the existing qu
 - WhatsApp, primary mobile, alternate landline and email require reachability/response checks.
 - Owner confirmation is still required for room inventory/rates/facilities, tour operations/inclusions, current restaurant menu/prices/hours and arrival/transfer details.
 - Canonical hostname, DNS/SSL, staging UAT, backup/rollback and production deployment remain unapproved. Content Studio/importer integration stays deferred.
+
+
+## Operator-run staging preflight and keyboard gallery QA — 26 October 2026
+
+### Live checkpoint at phase start
+- Authoritative main: 1fccf9ba1dc312b6148905514bd28555e3668bd9, commit [Add real-browser guest journey QA](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/commit/1fccf9ba1dc312b6148905514bd28555e3668bd9).
+- Open PR count: zero before this phase.
+- PR #21, [Add real-browser guest journey QA to the quality gate](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/pull/21), is merged at the current main commit. Its exact head 88e7ca35fa09ce4bcc37996ef573cf89a40f7819 passed [Site quality gates run #40329804946](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40329804946).
+- Main push run #40330343351 on exact main SHA 1fccf9ba1dc312b6148905514bd28555e3668bd9 had attempt 1 CANCELLED and attempt 2 PASS. The cancelled attempt is not counted as a pass; the successful second attempt completed the existing quality job.
+- PR #21's earlier browser run #40329472342 exposed a real skip-link focus defect: activating the link did not move DOM focus to the main content. The root cause was missing tabindex="-1" on the seven main#main targets. The targets were fixed and the final PR head passed.
+
+### Phase outcome and acceptance criteria
+- Extend the existing real-browser smoke test with a guarded, read-only HTTPS staging mode that reuses the same seven-page, image, responsive-layout, navigation and carousel checks rather than creating a second browser suite.
+- Refuse the configured production hostnames, HTTP, URL credentials, paths/queries/fragments, IP addresses and local hostnames before any browser request. Support optional HTTP Basic Auth from local environment variables, scoped to the staging origin and excluded from the evidence report.
+- Check the deployed robots.txt, empty sitemap URL set and central config so staging remains non-indexable and canonical-host approval remains false.
+- Detect same-origin HTTP/request failures and any HTTP mixed-content requests from HTTPS staging; block cross-origin top-level/frame navigation, disable redirects on robots/sitemap/config fetches, and strip URL query/fragment values from evidence logs.
+- Exercise carousel buttons with keyboard Enter and Space, assert focus remains on the activated control, and verify slide visibility matches aria-hidden.
+- Write a local JSON evidence report with exact staging origin, Asia/Kolkata timestamp, operator, Chromium version, planned and actually completed page/viewport evidence, blocked cross-origin navigation attempts, automated result/failures and all 17 manual UAT rows still marked NOT RUN.
+- Add deterministic contract tests for unsafe-target refusal and report semantics, then wire them into the existing scripts/check-pr-quality.sh job. No new workflow job, paid runner, production endpoint interaction or Content Studio integration is required.
+
+### Validation boundary for this branch
+- The implementation is on feat/operator-staging-preflight-20261026. The exact final PR head and its quality workflow must be recorded after the branch is ready; earlier main/PR runs are not evidence for new changes.
+- Local bash scripts/check-pr-quality.sh, browser/device UAT, formal accessibility tools, Lighthouse/Core Web Vitals and actual staging-host checks remain NOT RUN in the connector environment because no complete local checkout is available.
+- The staging CLI is not being run against any live host during CI. Contract tests use an example-only hostname and verify target rejection/report semantics without network requests.
+- The JSON report's automated PASS can never mark a human STG row complete or clear booking/contact/owner/domain/backup blockers.
+- Exact-head run #40338578985 on head bd8fd885a6b3c702f4a27e847ddc63dfb246a7d7 failed in scripts/test-staging-preflight-contract.py:146 because one assertion still expected the removed viewportWidthsCssPixels field after the report schema was tightened to distinguish planned from completed viewports. The underlying site/browser checks before that contract test passed; the suite stopped at the stale assertion. The assertion was removed in commit 0c4ea558bc73a8df468819fa397b6774b93a6e24. The cancelled/pending/stale runs for earlier heads are not evidence for the final head; fresh exact-head runs are required.
+- Exact-head run #40338923451 on head 8a2b509ec49fd138fdab00fdbea0f6bb508b4bc1 then failed because the new request-failure listener treated normal Chromium net::ERR_ABORTED cancellations of lazy images during page navigation as genuine resource failures (Rising Sun, Sweet Purple and the fort-temple image). The existing response listener already catches HTTP 4xx/5xx; commit 036573090b6df925e510488507381d5f126ca343 now ignores only ERR_ABORTED while retaining other request failures, with contract coverage in the same PR. The final head still requires a fresh green quality run.
+
+### Existing release blockers unchanged
+- Owner/operator must test AsiaTech in a normal desktop and mobile browser without completing a reservation/payment; the read-only automated HTTP 403 is not proof of guest-facing failure.
+- WhatsApp, primary phone, alternate landline and email require reachability/response checks.
+- Owner confirmation remains required for current room inventory/rates/facilities, tour operations/routes/inclusions, current menu/prices/hours and arrival/transfer details.
+- Canonical hostname, DNS/SSL, staging UAT, backup/rollback and production deployment remain unapproved. Content Studio/importer integration stays deferred.
+
+
+## Staging evidence URL-redaction finding — 26 October 2026
+
+### Finding and root cause
+- During review of PR #22 at head `7928163888955ee2297388bfcba700634b9cc7ee`, `safe_url_label()` correctly removed URL credentials, query strings and fragments from request labels, but some browser failure diagnostics interpolated raw `currentSrc` or Playwright exception text. `build_report()` copied failure strings without sanitization. A staging URL containing a token or other query value could therefore have appeared in a local JSON evidence report or CI failure output.
+- The exact-head quality workflow on the pre-fix head passed in [run #40340353166](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40340353166), but that result is stale for the remediation commits and is not evidence for the new head.
+
+### Fix on the same PR branch
+- Added `sanitize_diagnostic_text()` to reduce any embedded HTTP(S) URL to scheme/host/path, removing credentials, query strings and fragments.
+- Applied redaction when building the JSON report and before printing failure output; blocked-navigation evidence is also sanitized.
+- Extended `scripts/test-staging-preflight-contract.py` with regression assertions covering credential-bearing URLs, token query values and fragments in both failure diagnostics and blocked-navigation evidence.
+- Updated the README's operator guidance to describe the actual redaction boundary.
+
+### Validation boundary
+- The contract and source changes are present on `feat/operator-staging-preflight-20261026`; a fresh exact-head `Site quality gates / quality` run is required after these edits.
+- Local `bash scripts/check-pr-quality.sh` remains NOT RUN because the connector environment has no complete checkout.
+- No staging host was contacted, no external booking/contact endpoint was opened, and no production change was made.

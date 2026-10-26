@@ -135,3 +135,23 @@ bash scripts/check-pr-quality.sh
 ```
 
 The 17 `STG-01`–`STG-17` rows below remain human-operated checks and must stay `NOT RUN` until an operator records evidence for the exact staging URL, date/time, browser/device/viewport and result. Browser CI does not mark those rows complete.
+
+
+## Read-only staging browser preflight
+
+The same Chromium smoke suite can be pointed at an owner-approved staging origin to validate the deployed static files without following third-party links or submitting guest data. It refuses the configured production hosts (legacyProductionUrl and newStaticSiteCanonicalHost) even if someone accidentally supplies them.
+
+Set these variables locally to the real staging origin, operator name and an output file path; do not commit the resulting evidence file unless it has been reviewed for environment details. If the staging subdomain uses HTTP Basic Auth, set STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD in the local shell. The runner scopes these credentials to the staging origin and never writes them to the JSON report; do not put credentials in the URL.
+
+~~~bash
+python3 scripts/test-browser-smoke.py \
+  --base-url "$STAGING_URL" \
+  --operator "$STAGING_OPERATOR" \
+  --report "$STAGING_REPORT"
+~~~
+
+STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credentials, IP address or local hostname. Cross-origin top-level/frame navigation is blocked, and the robots/sitemap/config requests do not follow redirects. The runner checks all seven page routes, unique titles, description ranges, one main/H1, social image/alt parity, canonical-host withholding, local image decoding, same-origin HTTP/request failures, mixed-content requests, responsive overflow at 360/768/1440 CSS pixels, mobile navigation/skip-link focus, reduced motion, keyboard Enter/Space activation and wraparound for all six photo galleries, no autoplay, and the no-JavaScript gallery fallback. It also fetches the deployed robots.txt, sitemap.xml and content/site-config.json to verify that staging remains blocked from indexing and the canonical host is still unapproved.
+
+The JSON evidence report records the exact origin, Asia/Kolkata timestamp, operator, Chromium version, viewport widths and automated failures. Query and fragment values are stripped from request URLs before they are written to the report. It always leaves STG-01 through STG-17 as NOT RUN, because those rows require human browser/device, contact-channel, owner-fact, backup/rollback and social-preview evidence. The script never navigates to the AsiaTech provider, opens WhatsApp, dials a number, sends email, submits guest data, creates a reservation or makes a payment. The provider's previously observed automated HTTP 403 still requires normal-browser verification by the owner/operator.
+
+This tool is not a production deploy, canonical approval, sitemap/robots activation or a substitute for formal accessibility/Lighthouse testing.
