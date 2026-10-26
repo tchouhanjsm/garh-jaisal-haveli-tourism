@@ -1,88 +1,131 @@
 {
   "schemaVersion": 1,
   "slug": "jaisalmer-fort-guide",
-  "title": "Jaisalmer Fort Guide | Staying Inside the Living Fort",
+  "title": "Jaisalmer Fort Guide: Plan a Better Visit",
   "seo": {
-    "title": "Jaisalmer Fort Visitor Guide",
-    "description": "A practical Jaisalmer Fort guide covering arrival, walking, heritage stays and desert planning. Verify details before your visit."
+    "title": "Jaisalmer Fort Guide for First-Time Visitors",
+    "description": "Plan your Jaisalmer Fort visit with heritage context, Jain temples, arrival guidance and practical questions to confirm before travel."
   },
   "status": "draft",
-  "lede": "A practical Jaisalmer Fort guide from Garh Jaisal Haveli, covering arrival, walking inside the fort, guided tours, heritage stays and combining the Fort with the desert.",
+  "lede": "Jaisalmer Fort is more than a viewpoint on a Rajasthan itinerary. It is a historic urban place where temples, homes, shops and guest accommodation share narrow lanes. This practical guide explains why the fort is distinctive, how to prepare for the final walk, what to know before visiting sacred sites, and how to combine heritage time with a wider Jaisalmer stay—without assuming that unverified services or schedules are available.",
   "tableOfContents": [
     {
-      "id": "overview",
-      "label": "Jaisalmer Fort as a living part of the city"
+      "id": "living-fort",
+      "label": "Understand the living fort"
     },
     {
-      "id": "arrive",
-      "label": "Plan the final walk into the fort"
+      "id": "heritage",
+      "label": "Why the fort matters"
+    },
+    {
+      "id": "arrival",
+      "label": "Plan the final walk"
     },
     {
       "id": "explore",
-      "label": "Explore the fort at a comfortable pace"
+      "label": "Explore with care"
     },
     {
-      "id": "stay",
-      "label": "Understand the experience of staying inside"
+      "id": "temples",
+      "label": "Visiting the Jain temples"
     },
     {
-      "id": "desert",
-      "label": "Combine the Fort with a desert experience"
+      "id": "stay-inside",
+      "label": "What an inside-fort stay means"
     },
     {
-      "id": "plan",
-      "label": "Plan a realistic short stay"
+      "id": "beyond-fort",
+      "label": "Combine the fort and desert"
+    },
+    {
+      "id": "short-stay",
+      "label": "Build a realistic short stay"
+    },
+    {
+      "id": "confirm",
+      "label": "What to confirm before travelling"
     }
   ],
   "sections": [
     {
-      "id": "overview",
-      "heading": "Jaisalmer Fort is a living part of the city",
+      "id": "living-fort",
+      "heading": "Understand the living fort before you arrive",
       "body": [
-        "The legacy article describes Jaisalmer Fort as a place where people live and work, not simply a monument that visitors see and leave. Its lanes are part of everyday Jaisalmer, and the feel of a visit changes with the time of day.",
-        "Garh Jaisal Haveli's legacy guest guide focused on practical questions: how to arrive, how to explore the fort, what to combine with a fort visit, and where a desert excursion might fit into a short stay. The specific hotel and service details in this draft need owner review before publication."
+        "Jaisalmer Fort—also called Sonar Qila or the Golden Fort—is unusual because it is not only a landmark to visit and leave behind. Rajasthan Tourism describes it as a place where shops, hotels and historic havelis sit among homes where generations continue to live. That everyday activity is central to the experience: these lanes are also part of a neighbourhood, not just a visitor attraction.",
+        "For a traveller, that changes how to plan. Leave room to walk rather than trying to drive from one doorway to another, take time to notice the sandstone setting, and remember that residents, shopkeepers, workers and worshippers are moving through the same spaces. Keep conversations and photography respectful, avoid blocking narrow passages, and follow signs or local instructions around private homes and religious places.",
+        "The best first question is not simply how many attractions can be fitted in, but what sort of visit you want: a gentle orientation walk, a deeper look at architecture and sacred sites, time for shopping and food, or a base inside the fort from which to explore the wider city. Build the day around that priority and confirm access details that could affect your plans."
       ]
     },
     {
-      "id": "arrive",
-      "heading": "Plan the final walk into the fort",
+      "id": "heritage",
+      "heading": "Why Jaisalmer Fort matters",
       "body": [
-        "The legacy article states that vehicles cannot enter the narrow fort lanes and describes guests continuing on foot from Fort Parking. Confirm the current arrival route, parking arrangements and any luggage assistance with the hotel before travel; do not rely on unconfirmed meet-and-assist services.",
-        "The legacy article quotes approximate walking distances of about 300 metres / 5–6 minutes from Fort Parking and about 200 metres / 3–4 minutes from the fort entrance. These figures are retained as unverified source notes and must be checked before they are shown to guests.",
-        "Confirm current reception, check-in and check-out arrangements with the hotel. The final route, surfaces and steps are useful accessibility information to communicate clearly."
+        "Jaisalmer Fort forms part of the UNESCO World Heritage property called Hill Forts of Rajasthan, inscribed in 2013. The property brings together six forts across Rajasthan and recognises the relationship between fortifications, landscape, urban settlements, temples, palaces and historic trade. UNESCO describes Jaisalmer as an example of a hill fort adapted to desert terrain, with a township within its defensive walls that remains inhabited.",
+        "This context helps explain why the fort feels different from a freestanding palace or a museum complex. Its built fabric reflects defence and settlement, while its lanes, sacred buildings and commercial activity continue to shape how the place is used. The value is in the ensemble, not one single photo stop: the plan of the lanes, the sandstone construction, the active neighbourhood and the religious architecture all contribute to the experience.",
+        "Heritage is also a responsibility. UNESCO notes conservation pressures affecting individual buildings within the wider urban area. Visitors can help by respecting access boundaries, avoiding damage to stonework, using marked routes where provided and following local rules in places that remain homes or places of worship."
+      ]
+    },
+    {
+      "id": "arrival",
+      "heading": "Plan the final walk into Jaisalmer Fort",
+      "body": [
+        "If your accommodation is inside Jaisalmer Fort, the final approach deserves its own plan. Garh Jaisal Haveli's source guidance says vehicles cannot enter the narrow fort lanes all the way to the hotel door, so a guest should expect to continue on foot from the current accessible drop-off or parking point. Confirm the exact meeting point and route for the travel date; a map pin alone does not guarantee vehicle access to the door.",
+        "Ask the hotel what route it currently recommends, where a driver should stop, whether the walking surface includes uneven paving or steps, and whether any luggage assistance can actually be arranged. Do not assume assistance is staffed or available outside an agreed time. If your travel plans change, reconfirm the approach rather than relying on an old message or an approximate distance copied from an earlier page.",
+        "Think about the walk when deciding what to carry. A manageable bag, footwear suited to historic streets and enough time to orient yourself can make arrival less stressful. If someone in your group has mobility needs, is travelling with small children, or cannot manage steps or uneven surfaces, ask for specific information about the route before booking. This page does not claim step-free access."
       ]
     },
     {
       "id": "explore",
-      "heading": "Explore the fort at a comfortable pace",
+      "heading": "Explore at a comfortable pace",
       "body": [
-        "The legacy guide recommends starting with orientation: the lanes around the accommodation, architecture, viewpoints and the areas most active during the day. A second walk can provide a different view as light and activity change.",
-        "Travellers who want more context may consider a guided Jaisalmer tour. The new site's available routes and offerings must be verified before this article links to a specific tour page."
+        "A useful first walk is an orientation loop rather than a checklist of every attraction. Learn the turns around your accommodation, notice where the main lanes open up, and identify landmarks that will help you find your way back. Historic lanes can look similar when you first arrive, so save the hotel's confirmed location and allow extra time to get your bearings.",
+        "A second walk can have a different purpose: look more closely at carved stonework and building details, spend time in the commercial lanes, or seek out a guide if you want context about the fort's history and architecture. The official destination material is a good starting point for understanding Jaisalmer, but actual tour availability, guide languages, timings, routes and entry arrangements should be confirmed for your date.",
+        "Keep your expectations flexible. Heat, weather, religious activity, business hours and local access rules can change how a visit unfolds. Avoid assigning fixed visit durations to individual lanes or sites until the current schedule has been checked. If you are travelling in a group, agree a simple meeting point and keep a little unallocated time rather than scheduling every part of the day back-to-back."
       ]
     },
     {
-      "id": "stay",
-      "heading": "Understand the experience of staying inside",
+      "id": "temples",
+      "heading": "Approach the Jain temples with care",
       "body": [
-        "The defining point of an inside-the-fort stay is location: guests are among the lanes and sandstone buildings rather than returning to accommodation outside the fort after sightseeing.",
-        "Room names, room count, facilities, restaurant availability and current guest arrangements have not been independently reconfirmed in this migration. They must be reviewed by the hotel before this section is expanded or published.",
-        "The legacy article also mentions rooftop dining and planning a special trip as a couple. Add current dining details only after the hotel confirms what is available on the guest's dates."
+        "Rajasthan Tourism identifies seven Jain temples within the Jaisalmer Fort complex and highlights their detailed architectural work. The temples are an important part of the fort's sacred and cultural landscape, not simply another attraction to pass through. Treat this as a place of worship first and a visitor destination second.",
+        "Before visiting, check current opening and access arrangements locally. This draft does not state temple hours, entry fees, photography permissions or dress requirements because those details can change and have not been confirmed for the intended publication date. Follow instructions from temple staff, respect spaces that are closed to visitors, and be considerate of worshippers and other visitors.",
+        "If a guide is part of your plan, confirm whether the guide can accompany you into the relevant areas and what the visit includes. A guide's availability or language should not be assumed from a historical website list. Keep the route flexible so that any current access restrictions can be followed without disrupting the rest of your day."
       ]
     },
     {
-      "id": "desert",
-      "heading": "Combine the Fort with a desert experience",
+      "id": "stay-inside",
+      "heading": "What to understand about staying inside the fort",
       "body": [
-        "The legacy guide presents a fort visit and a desert outing as complementary parts of a Jaisalmer stay: explore the city and heritage lanes, then consider a separately arranged desert experience.",
-        "The legacy repository lists a sunset camel safari, a cultural desert evening, sleeping under the stars and an overnight Swiss tent option. The current operator, route, availability, accommodation, schedule, prices and inclusions must be confirmed before promoting any of these as current offers."
+        "Staying inside the fort places you among the lanes and buildings that make the neighbourhood distinctive. It can be appealing for travellers who want the fort to remain part of the day rather than a stop reached only by transport. It also means that the final walk, the character of the lanes and the relationship between accommodation and everyday neighbourhood life should be understood before arrival.",
+        "For Garh Jaisal Haveli, compare the individually named rooms and their source-listed features, then ask the hotel to confirm the actual room assigned, current availability, bed setup, inclusions, cancellation wording and final rate for your dates. Source-listed room features are not a live inventory system, and an enquiry is not a confirmed booking.",
+        "The same principle applies to dining. The haveli's rooftop restaurant is a separate part of the experience, but the current menu, prices, service hours, table availability and any candlelit arrangement need date-specific confirmation. A photograph can show the setting; it cannot guarantee that a particular table setup or service will be available during your visit."
       ]
     },
     {
-      "id": "plan",
-      "heading": "Plan a realistic short stay",
+      "id": "beyond-fort",
+      "heading": "Combine the fort with a desert experience—only after confirming the details",
       "body": [
-        "A draft planning sequence is to allow time to arrive and settle in, explore the fort, add a guided heritage route if it suits your interests, and then choose between a relaxed evening in town or a confirmed desert outing.",
-        "Treat this as a planning framework rather than a fixed itinerary. Leave room for travel, weather and operator confirmation, and check the current route, opening/access rules and arrangements close to departure."
+        "Jaisalmer is a useful base for considering both heritage time and a desert outing, but these are different parts of a trip and should be planned separately. Decide whether you prefer to stay in town for the evening, enquire about a same-evening desert outing, or compare an overnight concept. Each option changes the amount of time away, transport needs and accommodation arrangements.",
+        "Garh Jaisal Haveli's current Experiences page presents six concepts for enquiry, including a sunset camel safari, a cultural desert evening, open-air overnight camping, Swiss-tent accommodation and guided city-tour options. That comparison helps explain the kinds of questions worth asking, but it does not certify that every concept is operating for every date. Confirm the provider, route, duration, departure, transport, fees, meals, inclusions and exclusions before deciding.",
+        "For any overnight idea, ask exactly where guests sleep, whether the accommodation includes a private bathroom, what bedding and meals are provided, how the return journey works and what happens if the weather affects the plan. Do not infer these details from the words “camp”, “tent” or “under the stars”. Do not assume wildlife sightings, a particular cultural programme or a specific route is guaranteed."
+      ]
+    },
+    {
+      "id": "short-stay",
+      "heading": "Build a realistic short stay",
+      "body": [
+        "For a short visit, use a sequence rather than a fixed timetable. Start by allowing time for arrival and settling in, then explore the fort at a pace that leaves space for unplanned discoveries. Add a guided heritage route if it fits your interests, and choose an evening plan only after checking current dining or desert availability.",
+        "If you have a second day, use it to broaden the itinerary rather than trying to do everything on arrival day. Depending on your interests and the current offers available, that might mean revisiting the fort in quieter conditions, exploring other Jaisalmer heritage sites, spending time at a market, or enquiring about a desert experience. Specific attractions, opening times, guide slots and travel times need current checking before they become a timetable.",
+        "A useful planning buffer is practical, not wasted time. It gives you space for the final walk, finding your bearings, religious-site access, a meal, weather or a changed transport arrangement. Keep the itinerary flexible and treat any draft sequence as an idea, not a promise that a particular operator, place or service is available."
+      ]
+    },
+    {
+      "id": "confirm",
+      "heading": "What to confirm before you travel",
+      "body": [
+        "Before finalising a stay inside the fort, ask for the current arrival point and route, the expected walking conditions, the exact room and inclusions, check-in and reception arrangements, cancellation policy wording, and the total price for your dates. If you require help with luggage or have accessibility requirements, ask a specific question and wait for an affirmative response rather than assuming support is available.",
+        "For a guided walk, confirm the route, language, duration, current access rules and any entry fees. For a desert outing, confirm the exact operator and package, departure and return plan, transport, overnight arrangements, meals and what is not included. For dining, confirm the current menu, prices, operating hours and whether a table or special setup has actually been accepted.",
+        "Use the official sources listed below for heritage context, then reconfirm date-sensitive logistics with the relevant venue or provider. Treat this as a planning guide rather than a confirmation of current room, dining or tour availability."
       ]
     }
   ],
@@ -92,21 +135,24 @@
       "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
     },
     {
-      "label": "Rajasthan Tourism Development Corporation — Travel Tips",
-      "url": "https://rtdc.tourism.rajasthan.gov.in/Pages/TravelTips.aspx"
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    },
+    {
+      "label": "Rajasthan Tourism — Jain Temples of Jaisalmer",
+      "url": "https://www.tourism.rajasthan.gov.in/content/rajasthan-tourism/en/tourist-destinations/jain-temples-of-jaisalmer.html"
+    },
+    {
+      "label": "Garh Jaisal Haveli — owner facts and current-verification notes",
+      "url": "https://github.com/tchouhanjsm/garh-jaisal-website/blob/main/docs/OWNER-FACTS.md"
     }
   ],
   "lastReviewed": null,
   "publishedAt": null,
   "relatedTours": [
-    "sunset-camel-safari",
-    "half-day-jaisalmer-tour",
-    "full-day-jaisalmer-tour"
+    "sunset-camel-safari"
   ],
-  "relatedBlogs": [
-    "how-to-reach-jaisalmer",
-    "jaisalmer-2-day-itinerary"
-  ],
+  "relatedBlogs": [],
   "enquiryCta": {
     "label": "Ask about planning your stay",
     "mode": "whatsapp"

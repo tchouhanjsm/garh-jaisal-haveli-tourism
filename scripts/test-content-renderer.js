@@ -130,7 +130,7 @@ try {
   assert.ok(new URL(whatsappHref[1].replace(/&amp;/g, '&')).searchParams.get('text').includes('I understand this is an enquiry, not a confirmed booking.'));
   assert.ok(tourHtml.includes('rel="noopener noreferrer"'));
   assert.ok(blogHtml.includes('aria-label="On this page"'));
-  assert.ok(blogHtml.includes('id="overview"'));
+  assert.ok(blogHtml.includes('id="living-fort"'));
   assert.ok(blogHtml.includes('Rajasthan Tourism — Jaisalmer destination guide'));
   assert.ok(blogHtml.includes('../tours/sunset-camel-safari.html'), 'related link must resolve only to a published tour');
   assert.ok(sitemap.includes(SITEMAP_BEGIN) && sitemap.includes(SITEMAP_END));

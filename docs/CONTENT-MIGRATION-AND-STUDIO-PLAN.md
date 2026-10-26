@@ -274,7 +274,7 @@ Do not copy all 11 legacy experience records, all 12 article records, or the ent
 
 The current phase restores the seven source-recorded room names in Rooms, uses mapped photographs as locally hosted assets, presents source-listed features with explicit live-inventory caveats, and adds regression coverage for the name/image/feature mapping. Contact, canonical-host, robots/sitemap and draft-publication gates remain unchanged.
 
-Next phase after the Experiences comparison: improve relevant Dining and Directions imagery only where the source assets are retrieved, visually reviewed and context-matched. Consider a Journal article only after source review and owner/publication prerequisites. The legacy Studio adapter and pack integration remain deferred.
+The next imagery phase was delivered in PR #12 and merged on main as 2d31b80fbc4f9ee6f6abb0c50ddbd9db0c84a939. The subsequent phase is a source-backed Jaisalmer Fort guide draft; keep it unpublished while official sources, owner facts and canonical/contact prerequisites are reviewed. The legacy Studio adapter and pack integration remain deferred.
 
 
 ## Current implementation checkpoint — six experience options comparison (2026-10-26)
@@ -287,4 +287,14 @@ Contact/booking endpoints, canonical-host approval, robots/sitemap policy and dr
 
 Validation checkpoint: source imagery was fetched as binary bytes and visually reviewed before inclusion; the changed regression suite covers six distinct option cards, local image mappings, accessible text, confirmation prompts and inactive enquiry actions. Local full-suite commands remain not run because the environment has no checkout and shell DNS/network access to GitHub fails. Exact-head GitHub quality status must be verified on the final PR commit before merge consideration.
 
-Next: improve relevant Dining and Directions imagery using reviewed local assets, then consider a source-reviewed Journal article only when factual/date and publication prerequisites are satisfied. Studio/pack integration remains deferred.
+Dining/Directions image recovery was completed in PR #12 (merged as 2d31b80fbc4f9ee6f6abb0c50ddbd9db0c84a939). The next batch is a substantive source-backed Fort guide draft with regression coverage; do not add a public Journal archive, generated article route, sitemap URL or production change until source/date review and owner publication prerequisites are satisfied. Studio/pack integration remains deferred.
+
+## Source-backed Jaisalmer Fort guide draft — 2026-10-26
+
+The existing content/blogs/jaisalmer-fort-guide.json record has been rewritten as a more useful, nine-section editorial draft. It covers the living fort, its precise UNESCO property context, the final walk, respectful exploration, Jain temples, inside-fort accommodation expectations, desert-option comparison and a practical confirmation checklist.
+
+Source reference set: Rajasthan Tourism's Jaisalmer overview; UNESCO World Heritage Centre's Hill Forts of Rajasthan entry; the official Jain Temples of Jaisalmer page; and the legacy owner-facts notes for property-specific access caveats.
+
+The article avoids unverified walking distances, temple hours/fees, guide access, room/dining prices and assistance promises. Stale related-blog references have been cleared. The article remains status=draft with lastReviewed and publishedAt null. The existing renderer test prevents drafts from generating public HTML or changing the sitemap; new content-contract assertions protect article depth, sources and draft-only state.
+
+Next after this editorial draft: audit and improve the homepage's first-impression and guest decision journey in one substantial batch. Public Journal/index creation remains gated by editorial/date review, owner confirmation and canonical/contact/indexing approval. Studio/pack integration remains deferred.
