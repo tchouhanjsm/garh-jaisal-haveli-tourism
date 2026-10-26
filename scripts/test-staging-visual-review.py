@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""Contract tests for the offline staging visual review renderer."""
+from __future__ import annotations
+
+import binascii
+import importlib.util
+import json
+import struct
+import sys
+import tempfile
+import zlib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+review = load_module("staging_visual_review", ROOT / "scripts" / "render-staging-visual-review.py")
+browser_smoke = load_module("browser_smoke_for_visual_review", ROOT / "scripts" / "test-browser-smoke.py")
+assert [page for page, _title in review.PAGES] == browser_smoke.PAGES
+assert [width for width, _height, _label in review.VIEWPORTS] == [width for width, _height in browser_smoke.VIEWPORTS]
+
+
+def png_chunk(kind: bytes, data: bytes) -> bytes:
+    return (struct.pack(">I", len(data)) + kind + data
+            + struct.pack(">I", binascii.crc32(kind + data) & 0xFFFFFFFF))
+
+
+def make_png(width: int, height: int, shade: int) -> bytes:
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    row = b"\x00" + bytes((shade, (shade + 37) % 256, (shade + 91) % 256)) * width
+    pixels = row * height
+    return (review.PNG_SIGNATURE + png_chunk(b"IHDR", header)
+            + png_chunk(b"IDAT", zlib.compress(pixels))
+            + png_chunk(b"IEND", b""))
+
+
+def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
+    screenshots = directory / "screenshots"
+    screenshots.mkdir()
+    records = []
+    counter = 1
+    for width, viewport_height, _label in review.VIEWPORTS:
+        for page_file, _page_title in review.PAGES:
+            filename = f"{Path(page_file).stem}-{width}px.png"
+            payload = make_png(width, 3, counter)
+            counter += 1
+            (screenshots / filename).write_bytes(payload)
+            records.append({
+                "filename": filename,
+                "viewportWidthCssPixels": width,
+                "viewportHeightCssPixels": viewport_height,
+                "imageWidthPixels": width,
+                "imageHeightPixels": 3,
+                "fullPage": True,
+                "bytes": len(payload),
+                "sha256": __import__("hashlib").sha256(payload).hexdigest(),
+            })
+    pages = [page for page, _title in review.PAGES]
+    widths = [width for width, _height, _label in review.VIEWPORTS]
+    report = {
+        "schemaVersion": 3,
+        "mode": "staging-read-only",
+        "targetUrl": "https://staging.example.test/",
+        "recordedAtAsiaKolkata": "2026-10-26T23:00:00+05:30",
+        "operator": "<script>alert('xss')</script>",
+        "browser": {"name": "Chromium", "version": "test-version"},
+        "pagesPlanned": pages,
+        "pagesAttempted": pages,
+        "pagesWithHttp200OnTargetOrigin": pages,
+        "plannedViewportWidthsCssPixels": widths,
+        "completedResponsiveViewportWidthsCssPixels": widths,
+        "evidenceCoverage": {
+            "pageNavigationComplete": True,
+            "pageHttp200Complete": True,
+            "responsiveViewportsComplete": True,
+            "complete": True,
+        },
+        "automatedResult": "PASS",
+        "automatedFailureCount": 0,
+        "automatedFailures": [],
+        "visualEvidence": {
+            "required": True,
+            "captureMode": "full-page PNG",
+            "expectedScreenshotCount": 21,
+            "capturedScreenshotCount": 21,
+            "complete": True,
+            "capturedFiles": records,
+        },
+        "manualReleaseChecks": [
+            {"id": f"STG-{number:02d}", "check": f"Manual check {number}", "result": "NOT RUN"}
+            for number in range(1, 18)
+        ],
+        "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
+        "safety": {
+            "externalLinkNavigationPerformed": False,
+            "bookingOrPaymentSubmitted": False,
+            "guestDataSubmitted": False,
+            "contactMessageSent": False,
+        },
+    }
+    report_path = directory / "preflight.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    output_path = directory / "visual-review.html"
+    return report_path, screenshots, output_path, report
+
+
+with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
+    folder = Path(temp)
+    report_path, screenshots, output_path, report = build_fixture(folder)
+    checked, issues = review.inspect_bundle(report, screenshots)
+    assert not issues, issues
+    assert len(checked) == 21 and all(item["valid"] for item in checked)
+    page = review.build_html(report, screenshots, checked, issues)
+    assert page.count('class="card"') == 21
+    assert page.count('<section id="page-') == 7
+    assert 'src="screenshots/index-360px.png"' in page
+    assert "staging.example.test" in page
+    assert "BLOCKED — manual UAT required" in page
+    assert "<script>alert('xss')</script>" not in page
+    assert "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;" in page
+    assert str(folder) not in page
+    assert "<script" not in page
+    assert 'src="https://' not in page
+
+    # CLI writes the review beside the screenshot folder and returns PASS only
+    # when the report result and all 21 file hashes/byte counts/geometry agree.
+    exit_code = review.main([
+        "--report", str(report_path),
+        "--screenshots-dir", str(screenshots),
+        "--output", str(output_path),
+    ])
+    assert exit_code == 0
+    assert output_path.is_file()
+    assert "21 files verified" in output_path.read_text(encoding="utf-8")
+
+    # Tampering with a real PNG while leaving the JSON unchanged must fail closed.
+    target = screenshots / "rooms-360px.png"
+    target.write_bytes(make_png(360, 3, 201))
+    changed, changed_issues = review.inspect_bundle(report, screenshots)
+    changed_room = next(item for item in changed if item["filename"] == "rooms-360px.png")
+    assert not changed_room["valid"]
+    assert any("SHA-256 mismatch" in issue for issue in changed_issues)
+    changed_html = review.build_html(report, screenshots, changed, changed_issues)
+    assert "Evidence integrity issues" in changed_html
+    assert "Screenshot integrity mismatch" in changed_html
+    assert "src=\\"screenshots/rooms-360px.png\\"" not in changed_html
+    assert review.main([
+        "--report", str(report_path),
+        "--screenshots-dir", str(screenshots),
+        "--output", str(output_path),
+    ]) == 1
+
+    # A failed browser report is still reviewable, but cannot exit successfully.
+    failed_report = dict(report)
+    failed_report["automatedResult"] = "FAIL"
+    failed_report["automatedFailures"] = [
+        "failure at https://qa-user:qa-password@outside.example/path?token=secret#fragment"
+    ]
+    failed_report_path = folder / "failed-preflight.json"
+    failed_report_path.write_text(json.dumps(failed_report), encoding="utf-8")
+    for record in failed_report["visualEvidence"]["capturedFiles"]:
+        (screenshots / record["filename"]).write_bytes(
+            make_png(record["viewportWidthCssPixels"], 3, 17)
+        )
+        payload = (screenshots / record["filename"]).read_bytes()
+        record["bytes"] = len(payload)
+        record["sha256"] = __import__("hashlib").sha256(payload).hexdigest()
+    failed_report_path.write_text(json.dumps(failed_report), encoding="utf-8")
+    failed_html = review.build_html(
+        failed_report, screenshots, *review.inspect_bundle(failed_report, screenshots)
+    )
+    assert "outside.example/path" in failed_html
+    assert "qa-password" not in failed_html and "token=secret" not in failed_html
+    assert "BLOCKED — manual UAT required" in failed_html
+
+    # Invalid origin tokens are never echoed into HTML.
+    bad_origin_report = dict(failed_report)
+    bad_origin_report["targetUrl"] = "https://staging.example.test/?token=secret"
+    bad_origin_html = review.build_html(
+        bad_origin_report, screenshots, *review.inspect_bundle(bad_origin_report, screenshots)
+    )
+    assert "token=secret" not in bad_origin_html
+    assert "Origin withheld" in bad_origin_html
+
+    # Output paths are guarded against accidental evidence commits and path mismatch.
+    try:
+        review.validate_paths(str(ROOT / "content" / "site-config.json"), str(screenshots), str(output_path))
+    except ValueError as error:
+        assert "outside" in str(error)
+    else:
+        raise AssertionError("Report input inside the checkout must be rejected")
+    try:
+        review.validate_paths(str(report_path), str(ROOT / "assets"), str(output_path))
+    except ValueError as error:
+        assert "outside" in str(error)
+    else:
+        raise AssertionError("Screenshot directory inside the checkout must be rejected")
+    try:
+        review.validate_paths(str(report_path), str(screenshots), str(ROOT / "visual-review.html"))
+    except ValueError as error:
+        assert "outside" in str(error)
+    else:
+        raise AssertionError("HTML output inside the checkout must be rejected")
+    try:
+        review.validate_paths(str(report_path), str(screenshots), str(folder / "nested" / "visual-review.html"))
+    except ValueError as error:
+        assert "beside" in str(error)
+    else:
+        raise AssertionError("HTML output must be beside the screenshot directory")
+
+print("PASS: offline staging visual review validates 21 screenshot hashes/bytes/geometry, escapes report text, redacts URLs, and preserves manual release gates.")
