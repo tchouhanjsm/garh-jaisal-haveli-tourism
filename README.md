@@ -119,7 +119,7 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 
 
 ### Guest-journey editorial and experience photography
-- The six source-listed experience options each have two locally hosted photographs with manual next/previous controls. The gallery does not autoplay; captions are visual context, not guaranteed itinerary stops.
+- Five of the six source-listed experience options have two locally hosted photographs with manual next/previous controls. Swiss-tent remains single-photo until a second distinct source image is reviewed. Galleries do not autoplay; captions are visual context, not guaranteed itinerary stops.
 - Dining uses a real rooftop table image and a distinct fort view. About and Directions are differentiated around the fort panorama and practical final-walk information, avoiding generic filler and duplicated hero images.
 - Run `node scripts/test-experience-carousel.js` for previous/next/wraparound behavior, live slide status and incomplete-markup fallback. The full quality runner invokes this test and the expanded static UX gates.
 - Current menu approval, booking-provider browser verification, live contact-channel reachability, canonical-host approval and staging UAT remain manual release gates.
