@@ -337,3 +337,16 @@ Dining now places the actual rooftop-table photograph alongside specific menu/se
 The new carousel logic is isolated in assets/experience-carousel.js, has no timer/autoplay, updates the live slide counter and aria-hidden state, and is covered by scripts/test-experience-carousel.js. The quality runner also requires distinct local images per tour, accessible controls, local asset paths and accurate content/media pairing. The fort rooftop manifest record now validates its same image/alt on Gallery, About and Dining.
 
 No menus/prices, rates, live inventory or transfer/tour availability were invented. The launch blocker for the standard-browser AsiaTech booking test and human contact-channel checks is unchanged.
+
+
+## Current delivery checkpoint — 26 October 2026, 18:15 IST
+
+This checkpoint supersedes earlier "next batch" notes above where they conflict with the current live repository state.
+
+- Authoritative main at phase start: `476dd625fce29cdc524da33214c4f260885d4e18`.
+- PR #19 "Complete tour photo galleries and guest-journey safeguards" is merged as `476dd625fce29cdc524da33214c4f260885d4e18`; exact-head PR quality run #40324814286 and post-merge main run #40325052513 both passed.
+- The next bulk phase is staging preflight, technical SEO and visual QA: enforce explicit social image/alt parity, page-wide role-based image budgets, hero priority/lazy loading and evidence-bearing staging checks.
+- Current media audit shows `assets/images/courtyard.jpg` is the largest referenced image at 619,209 bytes. The source repository's `img/optimized/v2/courtyard.webp` was visually reviewed and is a different photograph, so it must not replace the current image. Any derivative must be created from the exact intended source image and visually compared before remapping.
+- The canonical host remains unapproved; current menu/prices remain unpublished; draft tour/article records remain non-public; booking/contact channels are source-authorized but not live-tested.
+- Local full-suite execution, browser/device QA, accessibility tooling, Lighthouse and staging UAT remain not run in the connector environment. Do not mark manual release gates passed based on CI.
+- Content Studio/importer integration remains deferred until website guest-journey, media provenance and release readiness are accepted.

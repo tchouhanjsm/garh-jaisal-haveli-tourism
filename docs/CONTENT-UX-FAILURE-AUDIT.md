@@ -345,3 +345,47 @@ The full GitHub-hosted Site quality gates must pass on the exact feature/PR head
 - [Run #40322526343](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40322526343) passed the content/UX gate but failed the new carousel test because it assumed an `experiences.html` `.page-hero` section. The page intentionally uses a text-led intro instead. The test now validates the page's actual Open Graph image is present in the locally hosted content instead of imposing an unrelated page template.
 
 The duplicate photo is removed from Swiss-tent, which retains its one reviewed image until another subject-matched source is reviewed. The other five galleries have unique sources. Dining's date-specific caveat, Directions copy and the relevant regression tests are corrected. The then-current head `cfb5e64d65058a81fb8900d6cf400600e9eec351` passed [PR quality run #40322822668](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40322822668). Any later commit, including audit/checklist corrections, requires a fresh exact-head run; historical failed runs above remain failures.
+
+
+## Staging preflight, technical SEO and visual QA — 26 October 2026
+
+### Authoritative checkpoint
+- Main at phase start: `476dd625fce29cdc524da33214c4f260885d4e18`.
+- PR #19, `Complete tour photo galleries and guest-journey safeguards`, is confirmed merged at `476dd625fce29cdc524da33214c4f260885d4e18`.
+- PR #19 exact head `e42f9fb1dc7609013344f70a87d6dc10ec3e20da` passed the exact-head `Site quality gates / quality` workflow in [run #40324814286](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40324814286).
+- Post-merge main passed in [run #40325052513](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40325052513). At the start of this phase, GitHub reported no open PRs.
+
+### Media audit — actual GitHub blob sizes
+- Homepage/dining hero `assets/images/rest3.jpg`: 75,390 bytes.
+- Rooms hero JPEG fallback `assets/images/rooms/haveli-interior.jpg`: 519,598 bytes; source-provided WebP `assets/images/rooms/haveli-sitting-room.webp`: 307,548 bytes.
+- Largest named-room JPEG `assets/images/rooms/sweet-purple.jpg`: 537,837 bytes; WebP alternate: 275,778 bytes.
+- Green Room: 114,126 bytes (the previous source JPEG was 799,571 bytes; 85.7% smaller).
+- Dining candlelit-table image: 92,506 bytes.
+- Fort/rooftop image: 388,404 bytes.
+- Directions facade image: 587,056 bytes.
+- Largest currently referenced supporting image: `assets/images/courtyard.jpg`, 619,209 bytes.
+
+The legacy `img/optimized/v2/courtyard.webp` was retrieved and visually compared with the current target courtyard JPEG. It is a different photograph (upper-level carved balcony/red-curtain view versus the current interior passage), so it was rejected as a replacement. No image mapping was changed in this phase.
+
+### Implementation scope for this phase
+- Add explicit Twitter image and image-alt metadata that match the existing local Open Graph image/alt for all seven core pages. The canonical host remains unapproved; no absolute canonical/OG URL is introduced.
+- Add deterministic page-wide image byte budgets, hero fetch-priority checks, and below-fold lazy/async loading checks for all seven pages and responsive source candidates.
+- Tighten existing curated-manifest budgets for hero, named-room, WebP, dining and fort/rooftop roles.
+- Extend the staging UAT record with explicit responsive-image, keyboard-carousel, reduced-motion and social-preview rows. Every human result remains `NOT RUN` until an operator records exact URL, timestamp, operator, browser/device/viewport and evidence.
+- Preserve the existing canonical-host, robots/sitemap, menu-owner-confirmation, draft-publication and source-provenance gates.
+
+### Validation boundaries
+- Baseline main quality run #40325052513 passed on the exact main SHA above.
+- Local `bash scripts/check-pr-quality.sh` was not run because the connector environment has no complete checkout and shell GitHub DNS resolution is unavailable.
+- Browser/device visual QA, accessibility-tool runs, Lighthouse and staging UAT remain NOT RUN. A green automated suite must not be described as proof of live booking/contact reachability or production readiness.
+- Exact-head quality evidence for this new phase must be checked after its final commit; earlier/main runs are not a substitute.
+
+### Remaining release blockers
+- Human desktop/mobile test of the AsiaTech link (the automated read-only probe returned HTTP 403; normal-browser access remains unknown).
+- WhatsApp, primary mobile, alternate landline and email reachability/response.
+- Owner confirmation of current room inventory/rates/facilities, tour operation/inclusions and dining menu/prices/hours.
+- Approved canonical hostname, DNS/SSL/routing, staging UAT, backup/rollback and deployment approval.
+- Content Studio/importer integration remains deferred.
+
+
+Review finding before merge: adding the follow-up-owner column made the staging UAT header eight columns wide while its Markdown separator still had seven. The separator has been corrected on this PR branch; the exact final-head quality run must be checked after this commit.
