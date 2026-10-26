@@ -148,3 +148,8 @@ Baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8
 ### Deferred
 
 The restaurant image remains a visual reference, not a promise of a live menu, service schedule or candlelit setup. The facade photograph is a historical source image and does not establish the current approach or meeting point. The owner must still verify canonical host, contact endpoints, current menu/service hours and arrival arrangements before those publication/booking gates can change. A source-reviewed Journal article remains deferred until source/date and publication gates are satisfied; Studio/pack integration remains out of scope.
+
+
+### Exact-head check evidence for the Dining/Directions phase
+
+- The first implementation commit `dd9f270eafd8d8dae33b6d8272d335e8ec3387fb` passed `Site quality gates / quality` in [run #40278374512](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40278374512). The follow-up adds explicit Open Graph image/alt verification and checks that WebP metadata feature flags are cleared as well as the chunks being absent. The prior run is historical evidence for `dd9f270eafd8d8dae33b6d8272d335e8ec3387fb` only; a fresh exact-head run is required for the follow-up commit and will be verified separately. Local full-suite and browser/device checks remain not run.

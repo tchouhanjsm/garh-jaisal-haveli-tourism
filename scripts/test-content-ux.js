@@ -127,6 +127,14 @@ function webpChunkIds(buffer) {
   return offset === buffer.length ? chunks : [];
 }
 
+function webpHasMetadataFlags(buffer) {
+  if (buffer.toString('ascii', 0, 4) !== 'RIFF'
+      || buffer.toString('ascii', 8, 12) !== 'WEBP'
+      || buffer.toString('ascii', 12, 16) !== 'VP8X'
+      || buffer.length < 21) return true;
+  return Boolean(buffer[20] & (0x20 | 0x08 | 0x04));
+}
+
 function jpegHasExifOrXmp(buffer) {
   if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return false;
   let offset = 2;
@@ -238,6 +246,7 @@ for (const rule of PAGE_RULES) {
         if (chunks.some((id) => ['ICCP', 'EXIF', 'XMP '].includes(id))) {
           fail('directions.html: facade WebP must not retain ICCP/EXIF/XMP metadata chunks');
         }
+        if (webpHasMetadataFlags(imageBuffer)) fail('directions.html: facade WebP must clear ICCP/EXIF/XMP feature flags');
       }
     }
   }
@@ -337,6 +346,9 @@ for (const rule of PAGE_RULES) {
   if (rule.file === 'dining.html') {
     if (!html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"')) {
       fail('dining.html: candlelight section and Open Graph metadata must use the reviewed night-time table image');
+    }
+    if (!html.includes('<meta property="og:image" content="assets/images/dining/rooftop-candlelit-table.jpg"><meta property="og:image:alt" content="Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond">')) {
+      fail('dining.html: Open Graph image and alt text must match the reviewed night-time table image');
     }
     if (!/not confirmation that a candlelit setup is available for your date/i.test(html)) {
       fail('dining.html: candlelight image must not imply date-specific setup availability');
