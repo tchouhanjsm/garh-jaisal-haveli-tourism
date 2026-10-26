@@ -6,19 +6,44 @@
   const contactStatus = document.querySelector('#contact-status');
   const enquiryLinks = Array.from(document.querySelectorAll('[data-enquiry-link]'));
   const phoneLinks = Array.from(document.querySelectorAll('[data-contact-phone]'));
+  const alternatePhoneLinks = Array.from(document.querySelectorAll('[data-contact-alt-phone]'));
+  const emailLinks = Array.from(document.querySelectorAll('[data-contact-email]'));
+  const bookingLinks = Array.from(document.querySelectorAll('[data-booking-link]'));
   const bookingForms = Array.from(document.querySelectorAll('[data-booking-form]'));
   let activeWhatsAppBaseUrl = '';
 
-  function disableContactLink(link) {
+  function disableContactLink(link, fallbackText) {
     link.setAttribute('href', '#contact-status');
     link.setAttribute('aria-disabled', 'true');
     link.setAttribute('aria-describedby', 'contact-status');
     link.removeAttribute('target');
     link.removeAttribute('rel');
+    if (fallbackText) link.textContent = fallbackText;
+  }
+
+  function channelIsAuthorized(config, channel) {
+    if (!config || !channel) return false;
+    return (config.verificationStatus === 'owner-verified' && channel.status === 'verified')
+      || (config.verificationStatus === 'owner-authorized-source' && channel.status === 'source-authorized');
+  }
+
+  function enableLink(link, href, options = {}) {
+    link.setAttribute('href', href);
+    if (options.targetBlank) {
+      link.setAttribute('target', '_blank');
+      link.setAttribute('rel', 'noopener noreferrer');
+    } else {
+      link.removeAttribute('target');
+      link.removeAttribute('rel');
+    }
+    link.removeAttribute('aria-disabled');
+    link.removeAttribute('aria-describedby');
+    if (options.text) link.textContent = options.text;
   }
 
   async function configureContactChannels() {
-    if (!enquiryLinks.length && !phoneLinks.length && !bookingForms.length) return;
+    if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
+        && !emailLinks.length && !bookingLinks.length && !bookingForms.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
       const scriptUrl = document.currentScript && document.currentScript.src;
@@ -27,53 +52,95 @@
       if (!response.ok) throw new Error('Contact configuration could not be loaded');
       const config = await response.json();
       const contact = config && config.contact ? config.contact : {};
-      const ownerVerified = config && config.verificationStatus === 'owner-verified' && contact.status === 'verified';
+      const booking = config && config.booking ? config.booking : {};
+      const contactAuthorized = channelIsAuthorized(config, contact);
+      const bookingAuthorized = channelIsAuthorized(config, booking);
+
       let whatsappBaseUrl = '';
-      if (ownerVerified) {
+      if (contactAuthorized) {
         try {
           const url = new URL(contact.whatsappBaseUrl);
-          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me' && url.port === ''
-              && /^\/\d{8,15}\/?$/.test(url.pathname)
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me'
+              && url.port === '' && /^\\/\\d{8,15}\\/?$/.test(url.pathname)
               && !url.username && !url.password && !url.search && !url.hash) {
-            whatsappBaseUrl = url.origin + url.pathname.replace(/\/$/, '');
+            whatsappBaseUrl = url.origin + url.pathname.replace(/\\/$/, '');
           }
         } catch (_) {
-          // Invalid or incomplete owner configuration keeps every WhatsApp action disabled.
+          // Invalid configuration keeps every WhatsApp action disabled.
         }
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
 
-      const phoneE164 = ownerVerified && typeof contact.primaryPhoneE164 === 'string'
-        && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
-      const phoneDisplay = ownerVerified && typeof contact.primaryPhoneDisplay === 'string'
-        && contact.primaryPhoneDisplay.trim() && !/[<>\r\n]/.test(contact.primaryPhoneDisplay)
+      const phoneE164 = contactAuthorized && typeof contact.primaryPhoneE164 === 'string'
+        && /^\\+[1-9]\\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
+      const phoneDisplay = contactAuthorized && typeof contact.primaryPhoneDisplay === 'string'
+        && contact.primaryPhoneDisplay.trim() && !/[<>\\r\\n]/.test(contact.primaryPhoneDisplay)
         ? contact.primaryPhoneDisplay.trim() : '';
+      const alternatePhoneE164 = contactAuthorized && typeof contact.alternatePhoneE164 === 'string'
+        && /^\\+[1-9]\\d{7,14}$/.test(contact.alternatePhoneE164) ? contact.alternatePhoneE164 : '';
+      const alternatePhoneDisplay = contactAuthorized && typeof contact.alternatePhoneDisplay === 'string'
+        && contact.alternatePhoneDisplay.trim() && !/[<>\\r\\n]/.test(contact.alternatePhoneDisplay)
+        ? contact.alternatePhoneDisplay.trim() : '';
+      const email = contactAuthorized && typeof contact.email === 'string'
+        && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(contact.email) ? contact.email.trim() : '';
+
+      let bookingUrl = '';
+      if (bookingAuthorized && typeof booking.legacyBookingEngineUrl === 'string') {
+        try {
+          const url = new URL(booking.legacyBookingEngineUrl);
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'asiatech.in'
+              && url.port === '' && url.pathname === '/booking_engine/index3'
+              && url.searchParams.has('token') && !url.username && !url.password && !url.hash) {
+            bookingUrl = url.toString();
+          }
+        } catch (_) {
+          // A malformed or unexpected booking host stays disabled.
+        }
+      }
 
       enquiryLinks.forEach(link => {
         if (!whatsappBaseUrl) {
-          disableContactLink(link);
+          disableContactLink(link, 'WhatsApp unavailable');
           return;
         }
         const message = link.getAttribute('data-enquiry-message')
           || 'Namaste Garh Jaisal Haveli, I would like to make an enquiry. Please share the current details.';
-        link.setAttribute('href', whatsappBaseUrl + '?text=' + encodeURIComponent(message));
-        link.setAttribute('target', '_blank');
-        link.setAttribute('rel', 'noopener');
-        link.removeAttribute('aria-disabled');
-        link.removeAttribute('aria-describedby');
+        enableLink(link, whatsappBaseUrl + '?text=' + encodeURIComponent(message), { targetBlank: true });
       });
 
       phoneLinks.forEach(link => {
         if (!phoneE164 || !phoneDisplay) {
-          disableContactLink(link);
-          link.textContent = 'Phone contact pending verification';
+          disableContactLink(link, 'Phone unavailable');
           return;
         }
-        const prefix = link.getAttribute('data-contact-prefix') || '';
-        link.setAttribute('href', 'tel:' + phoneE164);
-        link.textContent = (prefix ? prefix + ' ' : '') + phoneDisplay;
-        link.removeAttribute('aria-disabled');
-        link.removeAttribute('aria-describedby');
+        const prefix = link.getAttribute('data-contact-prefix') || 'Call';
+        enableLink(link, 'tel:' + phoneE164, { text: (prefix ? prefix + ' ' : '') + phoneDisplay });
+      });
+
+      alternatePhoneLinks.forEach(link => {
+        if (!alternatePhoneE164 || !alternatePhoneDisplay) {
+          disableContactLink(link, 'Landline unavailable');
+          return;
+        }
+        const prefix = link.getAttribute('data-contact-prefix') || 'Landline';
+        enableLink(link, 'tel:' + alternatePhoneE164, { text: (prefix ? prefix + ' ' : '') + alternatePhoneDisplay });
+      });
+
+      emailLinks.forEach(link => {
+        if (!email) {
+          disableContactLink(link, 'Email unavailable');
+          return;
+        }
+        const prefix = link.getAttribute('data-contact-prefix') || 'Email';
+        enableLink(link, 'mailto:' + email, { text: (prefix ? prefix + ' ' : '') + email });
+      });
+
+      bookingLinks.forEach(link => {
+        if (!bookingUrl) {
+          disableContactLink(link, 'Booking link unavailable');
+          return;
+        }
+        enableLink(link, bookingUrl, { targetBlank: true });
       });
 
       bookingForms.forEach(form => {
@@ -82,21 +149,28 @@
         if (submit) submit.disabled = !whatsappBaseUrl;
         if (note) note.textContent = whatsappBaseUrl
           ? 'Opens WhatsApp to ask about availability. This is an enquiry, not a reservation; no payment is taken here.'
-          : 'Direct enquiry is temporarily unavailable while contact details are being verified. Your travel details will not be sent.';
+          : 'WhatsApp enquiry is unavailable. Your travel details will not be sent.';
       });
 
       const hasUnavailableChannel = (enquiryLinks.length > 0 && !whatsappBaseUrl)
         || (phoneLinks.length > 0 && (!phoneE164 || !phoneDisplay))
+        || (alternatePhoneLinks.length > 0 && (!alternatePhoneE164 || !alternatePhoneDisplay))
+        || (emailLinks.length > 0 && !email)
+        || (bookingLinks.length > 0 && !bookingUrl)
         || (bookingForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
-      // Fail closed: keep the static fallback links pointed at the explanation, never an unverified endpoint.
       if (contactStatus) contactStatus.hidden = false;
+      enquiryLinks.forEach(link => disableContactLink(link, 'WhatsApp unavailable'));
+      phoneLinks.forEach(link => disableContactLink(link, 'Phone unavailable'));
+      alternatePhoneLinks.forEach(link => disableContactLink(link, 'Landline unavailable'));
+      emailLinks.forEach(link => disableContactLink(link, 'Email unavailable'));
+      bookingLinks.forEach(link => disableContactLink(link, 'Booking link unavailable'));
       bookingForms.forEach(form => {
         const submit = form.querySelector('[data-booking-submit]');
         const note = form.querySelector('[data-booking-note]');
         if (submit) submit.disabled = true;
-        if (note) note.textContent = 'Direct enquiry is unavailable because verified contact details could not be loaded. Your travel details have not been sent.';
+        if (note) note.textContent = 'Contact details could not be loaded. No travel details have been sent.';
       });
     }
   }

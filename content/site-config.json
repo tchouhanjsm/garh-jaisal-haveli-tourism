@@ -1,29 +1,39 @@
 {
   "schemaVersion": 1,
-  "verificationStatus": "legacy-source-unverified",
+  "verificationStatus": "owner-authorized-source",
   "site": {
     "legacyProductionUrl": "https://www.hotelgarhjaisal.com",
     "newStaticSiteCanonicalHost": "https://hotelgarhjaisal.com",
     "canonicalHostApproved": false
   },
   "booking": {
-    "legacyBookingEngineUrl": "",
-    "status": "owner-verification-required",
-    "primaryLabel": "Check availability"
+    "legacyBookingEngineUrl": "https://asiatech.in/booking_engine/index3?token=NjA2Ng==",
+    "status": "source-authorized",
+    "primaryLabel": "Book Now",
+    "provider": "AsiaTech",
+    "note": "This is the booking-engine URL stored in the designated legacy repository. It opens an external booking flow; this website does not itself confirm availability or payment."
   },
   "contact": {
-    "whatsappBaseUrl": "",
-    "primaryPhoneDisplay": "",
-    "alternatePhoneDisplay": "",
-    "email": "",
-    "status": "owner-verification-required",
-    "primaryPhoneE164": ""
+    "whatsappBaseUrl": "https://wa.me/917727047567",
+    "primaryPhoneE164": "+917727047567",
+    "primaryPhoneDisplay": "+91 77270 47567",
+    "alternatePhoneE164": "+912992253836",
+    "alternatePhoneDisplay": "+91 2992 253836",
+    "email": "info@hotelgarhjaisal.com",
+    "status": "source-authorized"
+  },
+  "restaurant": {
+    "name": "Garh Jaisal's Kitchen",
+    "address": "Fort Kotari Para, Inside Jaisalmer Fort, Jaisalmer, Rajasthan 345001",
+    "tagline": "Rajasthani food on the rooftop.",
+    "googleMapsUrl": "https://maps.app.goo.gl/28gGJ6tX8xoanQ9D8",
+    "instagramUrl": "https://www.instagram.com/garhjaisal/"
   },
   "rules": [
-    "Contact and booking endpoint fields remain empty until the owner verifies the exact live channel and confirms it is staffed.",
-    "Public page CTAs must stay inactive until verificationStatus is owner-verified and the relevant endpoint passes its format checks.",
-    "Never claim that an enquiry is a confirmed reservation.",
-    "Use WhatsApp enquiry as a fallback only after the endpoint has been owner-verified; never route guest details to an unverified endpoint.",
-    "Do not include server secrets or hosting credentials in this file."
+    "Public booking and contact values were migrated from the designated legacy repository at the owner's explicit instruction on 2026-10-26. This is source authorization, not an independent live endpoint or staffing test.",
+    "The booking engine is external. Never imply that opening it, clicking an enquiry link, or sending a message confirms a reservation.",
+    "Keep the canonical host unapproved until the owner completes the separate canonical-host launch decision.",
+    "Do not publish current restaurant menu items or prices while the legacy menu data remains owner_confirmed=false.",
+    "Do not add credentials, private guest information or server secrets to this file."
   ]
 }
