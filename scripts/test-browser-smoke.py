@@ -39,6 +39,7 @@ RUNTIME_ERRORS: list[str] = []
 HTTP_ERRORS: list[str] = []
 FAILED_REQUESTS: list[str] = []
 MIXED_CONTENT_ERRORS: list[str] = []
+CROSS_ORIGIN_NAVIGATION_ERRORS: list[str] = []
 PAGES_ATTEMPTED: list[str] = []
 PAGES_HTTP_OK: list[str] = []
 VIEWPORTS_COMPLETED: list[int] = []
@@ -63,6 +64,19 @@ def same_origin(value: str, base_url: str) -> bool:
     value_origin = origin_key(value)
     base_origin = origin_key(base_url)
     return value_origin is not None and value_origin == base_origin
+
+
+def install_navigation_guard(context, base_url: str) -> None:
+    """Block top-level or frame navigation away from the requested site origin."""
+    def guard(route) -> None:
+        request = route.request
+        if request.is_navigation_request() and not same_origin(request.url, base_url):
+            CROSS_ORIGIN_NAVIGATION_ERRORS.append(f"Blocked cross-origin navigation request: {request.url}")
+            route.abort()
+            return
+        route.continue_()
+
+    context.route("**/*", guard)
 
 
 def validate_staging_target(raw_url: str, operator: str, report_path: str) -> str:
@@ -134,7 +148,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
                  browser_version: str | None, failures: list[str],
                  pages_attempted: list[str] | None = None,
                  pages_http_ok: list[str] | None = None,
-                 completed_viewports: list[int] | None = None) -> dict:
+                 completed_viewports: list[int] | None = None,
+                 blocked_navigation_attempts: list[str] | None = None) -> dict:
     manual_checks = [
         ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
@@ -169,6 +184,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         "automatedResult": "PASS" if not failures else "FAIL",
         "automatedFailureCount": len(failures),
         "automatedFailures": list(failures),
+        "crossOriginNavigationAttemptsBlocked": list(blocked_navigation_attempts or []),
         "manualReleaseChecks": [
             {"id": check_id, "check": name, "result": "NOT RUN",
              "note": "Requires a human operator; automated browser smoke does not follow external links or submit data."}
@@ -324,7 +340,7 @@ def check_contact_hydration(page, base_url: str) -> None:
 def check_staging_publication_guards(page, base_url: str) -> None:
     def fetch_text(path: str) -> str:
         try:
-            response = page.request.get(base_url + path, timeout=10000)
+            response = page.request.get(base_url + path, timeout=10000, max_redirects=0)
         except Exception as error:
             check(False, f"{path}: same-origin staging request failed: {error}")
             return ""
@@ -510,6 +526,7 @@ def check_carousels(page, base_url: str, browser,
         viewport={"width": 360, "height": 800},
         http_credentials=http_credentials,
     )
+    install_navigation_guard(no_js, base_url)
     try:
         fallback = no_js.new_page()
         fallback.goto(base_url + "experiences.html", wait_until="domcontentloaded", timeout=15000)
@@ -568,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
                 viewport={"width": 1440, "height": 900},
                 http_credentials=http_credentials,
             )
+            install_navigation_guard(context, base_url)
             page = context.new_page()
             page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{page.url}: {error}"))
 
@@ -621,6 +639,8 @@ def main(argv: list[str] | None = None) -> int:
             FAILURES.append("Same-origin request failed: " + error)
         for error in MIXED_CONTENT_ERRORS:
             FAILURES.append(error)
+        for error in CROSS_ORIGIN_NAVIGATION_ERRORS:
+            FAILURES.append(error)
         for error in RUNTIME_ERRORS:
             FAILURES.append("Browser JavaScript exception: " + error)
     except Exception as error:
@@ -641,7 +661,7 @@ def main(argv: list[str] | None = None) -> int:
     if staging_mode:
         report = build_report(
             "staging-read-only", base_url, args.operator, browser_version, FAILURES,
-            PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
+            PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
         )
         try:
             destination = write_report(args.report, report)
