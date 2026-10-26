@@ -237,6 +237,12 @@ for (const rule of PAGE_RULES) {
     if (cards.length !== catalogue.length) {
       fail('experiences.html: expected six source-listed experience option cards, found ' + cards.length);
     }
+    if (!/data-option="sunset-camel" id="desert"/.test(html)) {
+      fail('experiences.html: homepage desert deep link must target the sunset camel option');
+    }
+    if (!/data-option="half-day-city" id="city-tours"/.test(html)) {
+      fail('experiences.html: homepage city-tours deep link must target the guided city options');
+    }
     const expectedSources = catalogue.map((option) => option.image);
     if (new Set(expectedSources).size !== catalogue.length) {
       fail('experiences.html: experience options must use six distinct image paths');

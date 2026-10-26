@@ -115,3 +115,10 @@ Baseline: PR #10 is confirmed merged as 2c501f868e51f0baa1eb34d35ab90e0f39d274d8
 1. Address Dining/Directions imagery where actual source assets can be retrieved, visually reviewed and matched to the content.
 2. Consider one researched Journal article only after source/date verification and the canonical/publication prerequisites.
 3. Keep Content Studio/pack integration deferred until the website content/UX recovery is accepted.
+
+
+### Regression discovered during exact-head CI — fixed on this branch
+
+- The first Site quality gates run for PR #11, run 40273347840, failed in the static website integrity step. The log identified two broken homepage deep links: index.html targets experiences.html#desert and experiences.html#city-tours, but the first Experiences rewrite removed those anchors.
+- Restored the existing deep-link targets on the corresponding sunset-desert and guided-city cards, added scroll margin for the sticky header, and added regression assertions to keep both anchors present.
+- This is a confirmed navigation regression, not an infrastructure failure. The same PR branch must pass the quality workflow on the post-fix exact head before it is considered green.
