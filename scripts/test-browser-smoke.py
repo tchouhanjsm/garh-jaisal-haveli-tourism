@@ -66,6 +66,12 @@ def same_origin(value: str, base_url: str) -> bool:
     return value_origin is not None and value_origin == base_origin
 
 
+def is_actionable_request_failure(failure: str | None) -> bool:
+    # Chromium reports navigation-cancelled lazy image requests as ERR_ABORTED;
+    # HTTP 4xx/5xx responses are separately captured by the response listener.
+    return failure is None or "ERR_ABORTED" not in failure
+
+
 def install_navigation_guard(context, base_url: str) -> None:
     """Block top-level or frame navigation away from the requested site origin."""
     def guard(route) -> None:
@@ -598,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
                     MIXED_CONTENT_ERRORS.append(f"HTTP resource requested from HTTPS staging: {request.url}")
 
             def record_request_failed(request) -> None:
-                if same_origin(request.url, base_url):
+                if same_origin(request.url, base_url) and is_actionable_request_failure(request.failure):
                     FAILED_REQUESTS.append(f"{request.url}: {request.failure or 'request failed'}")
 
             page.on("response", record_response)
