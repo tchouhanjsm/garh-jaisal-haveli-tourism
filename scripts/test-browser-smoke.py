@@ -16,6 +16,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -766,9 +767,12 @@ def main(argv: list[str] | None = None) -> int:
     browser = None
     context = None
     browser_version = None
+    screenshot_tempdir = None
     try:
         if not staging_mode:
             server, base_url = start_server()
+            screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
+            screenshots_dir = Path(screenshot_tempdir.name)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             browser_version = browser.version
@@ -848,6 +852,20 @@ def main(argv: list[str] | None = None) -> int:
             except subprocess.TimeoutExpired:
                 server.kill()
                 server.wait(timeout=5)
+        if screenshot_tempdir is not None:
+            screenshot_tempdir.cleanup()
+
+    if not staging_mode:
+        local_visual_report = build_report(
+            "local-browser-smoke", base_url, None, browser_version, [],
+            PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
+            screenshot_evidence=SCREENSHOT_EVIDENCE,
+        )
+        if not local_visual_report["visualEvidence"]["complete"]:
+            FAILURES.append(
+                "Local browser smoke did not produce all 21 valid full-page screenshot records; "
+                "visual evidence generation must be exercised by the standard quality suite."
+            )
 
     if staging_mode:
         report = build_report(
@@ -879,7 +897,8 @@ def main(argv: list[str] | None = None) -> int:
         f"PASS: Chromium {mode_label} browser smoke suite covered seven pages, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
-        "wraparound, no-autoplay and no-JavaScript fallback. "
+        "wraparound, no-autoplay and no-JavaScript fallback, plus 21 full-page PNG captures "
+        "with measured geometry, byte size and SHA-256 in a temporary directory. "
         "No external links were followed and no booking, payment or guest data was submitted."
     )
     if staging_mode:
