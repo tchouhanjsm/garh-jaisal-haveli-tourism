@@ -37,7 +37,7 @@ PAGES = [
 ]
 VIEWPORTS = [(360, 800), (768, 1024), (1440, 900)]
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
-NOT_FOUND_RECOVERY_LINKS = ["/directions.html", "/dining.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
+NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
 FAILURES: list[str] = []
 RUNTIME_ERRORS: list[str] = []
@@ -655,7 +655,7 @@ def check_404_recovery(page, base_url: str) -> dict:
                       && [booking, whatsapp, phone, landline, email]
                         .every(link => link.getAttribute('aria-disabled') !== 'true')
                       && booking.target === '_blank'
-                      && new Set((booking.rel || '').split(/\s+/)).has('noopener')
+                      && new Set((booking.rel || '').split(' ')).has('noopener')
                       && new Set((booking.rel || '').split(' ')).has('noreferrer');
                   } catch (_) {}
                   const recoveryLinks = Array.from(new Set(
