@@ -762,6 +762,135 @@ def check_contact_hydration(page, base_url: str) -> None:
     # This test only inspects links; it never navigates to the provider or submits guest data.
 
 
+def check_guest_enquiry_forms(page, base_url: str) -> None:
+    # Capture the intended WhatsApp destination in-page. The test never opens
+    # a real external tab, sends a message, or submits guest data to a service.
+    page.add_init_script(
+        """window.__guestEnquiryOpenCalls = [];
+        window.open = function(url, target, features) {
+          window.__guestEnquiryOpenCalls.push({
+            url: String(url), target: String(target || ''), features: String(features || '')
+          });
+          return null;
+        };"""
+    )
+    dates = None
+    for page_name in ("experiences.html", "experience-details.html", "dining.html"):
+        response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"{page_name}: guest-enquiry test expected HTTP 200")
+        check(response is not None and same_origin(response.url, base_url),
+              f"{page_name}: guest-enquiry test must stay on the requested origin")
+        page.wait_for_function(
+            """() => {
+              const form = document.querySelector('[data-guest-enquiry-form]');
+              const submit = form && form.querySelector('[data-guest-enquiry-submit]');
+              const status = form && form.querySelector('[data-guest-enquiry-status]');
+              return Boolean(form && submit && !submit.disabled && status && status.dataset.state === 'ready');
+            }""",
+            timeout=7000,
+        )
+        form = page.locator("[data-guest-enquiry-form]")
+        check(form.count() == 1, f"{page_name}: exactly one shared guest-enquiry form must render")
+        arrival = form.locator('[name="arrival"]')
+        departure = form.locator('[name="departure"]')
+        interest = form.locator('[name="experience"]')
+        notes = form.locator('[name="notes"]')
+        submit = form.locator("[data-guest-enquiry-submit]")
+        dates = page.evaluate(
+            """() => {
+              const iso = value => {
+                const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+                return local.toISOString().slice(0, 10);
+              };
+              const shift = amount => {
+                const value = new Date();
+                value.setHours(12, 0, 0, 0);
+                value.setDate(value.getDate() + amount);
+                return iso(value);
+              };
+              return { yesterday: shift(-1), today: shift(0), day2: shift(2), day3: shift(3), day5: shift(5) };
+            }"""
+        )
+        check(arrival.get_attribute("min") == dates["today"],
+              f"{page_name}: arrival must not permit a date before today")
+        check(departure.get_attribute("min") == dates["today"],
+              f"{page_name}: departure must not permit a date before today when arrival is empty")
+        interest.select_option(label="Sunset camel safari")
+
+        # A past arrival is rejected by native min-date validation. The
+        # departure minimum must stay at today rather than following a past
+        # arrival into the past.
+        arrival.fill(dates["yesterday"])
+        departure.fill(dates["day3"])
+        check(arrival.get_attribute("min") == dates["today"],
+              f"{page_name}: arrival min date must remain today")
+        check(departure.get_attribute("min") == dates["today"],
+              f"{page_name}: departure min date must not move into the past")
+        check(not form.evaluate("(element) => element.checkValidity()"),
+              f"{page_name}: a past arrival must fail browser validation")
+
+        # Same-day departure is invalid. Changing arrival alone to an earlier
+        # valid date must clear the custom error without forcing a departure edit.
+        arrival.fill(dates["day3"])
+        departure.fill(dates["day3"])
+        check(not form.evaluate("(element) => element.checkValidity()"),
+              f"{page_name}: same-day departure must be rejected")
+        validation_message = departure.evaluate("(element) => element.validationMessage")
+        check(validation_message == "Departure must be after arrival.",
+              f"{page_name}: departure error must explain the date rule")
+        arrival.fill(dates["day2"])
+        check(departure.get_attribute("min") == dates["day2"],
+              f"{page_name}: departure minimum must follow the revised arrival date")
+        check(departure.evaluate("(element) => element.validationMessage") == "",
+              f"{page_name}: changing arrival to a valid range must clear the stale departure error")
+        check(form.evaluate("(element) => element.checkValidity()"),
+              f"{page_name}: correcting arrival alone must restore form validity")
+
+        arrival.fill(dates["day3"])
+        departure.fill(dates["day5"])
+        notes.fill("Vegetarian meal request & early arrival")
+        check(form.evaluate("(element) => element.checkValidity()"),
+              f"{page_name}: valid future dates must allow an enquiry draft")
+        submit.click()
+        page.wait_for_function(
+            "() => Array.isArray(window.__guestEnquiryOpenCalls) && window.__guestEnquiryOpenCalls.length === 1",
+            timeout=5000,
+        )
+        draft = page.evaluate(
+            """() => {
+              const call = window.__guestEnquiryOpenCalls[0];
+              const url = new URL(call.url);
+              return {
+                host: url.hostname, path: url.pathname, text: url.searchParams.get('text') || '',
+                target: call.target, features: call.features, currentUrl: window.location.href
+              };
+            }"""
+        )
+        check(draft["host"] == "wa.me" and draft["path"] == "/917727047567",
+              f"{page_name}: valid form must prepare a draft for the configured WhatsApp destination")
+        check(draft["target"] == "_blank",
+              f"{page_name}: draft must request a separate tab")
+        check({"noopener", "noreferrer"}.issubset(set(draft["features"].split(","))),
+              f"{page_name}: draft tab must use noopener and noreferrer")
+        for expected in (
+            "Interest: Sunset camel safari",
+            "Arrival: " + dates["day3"],
+            "Departure: " + dates["day5"],
+            "Guests: 2",
+            "Vegetarian meal request & early arrival",
+            "does not confirm a booking",
+        ):
+            check(expected in draft["text"],
+                  f"{page_name}: encoded draft must contain the expected field ({expected.split(':')[0]})")
+        check("draft is ready to review" in page.locator("[data-guest-enquiry-status]").inner_text().lower(),
+              f"{page_name}: status must describe a draft for guest review, not a confirmed booking")
+        check(same_origin(draft["currentUrl"], base_url),
+              f"{page_name}: browser smoke must not navigate to WhatsApp or send the draft")
+        check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 1,
+              f"{page_name}: one user submission must prepare exactly one draft")
+
+
 def check_staging_publication_guards(page, base_url: str) -> None:
     def fetch_text(path: str) -> str:
         try:
@@ -1062,6 +1191,7 @@ def main(argv: list[str] | None = None) -> int:
 
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
+            check_guest_enquiry_forms(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
             check_keyboard_navigation(page, base_url)
