@@ -6,7 +6,7 @@ Baseline main at the start of the current staging-preflight phase: 22f40dd1f0700
 
 ## What automated checks can currently prove
 
-- The seven core HTML pages expose the shared Book Now, WhatsApp, primary phone, alternate landline and email markers.
+- The eight core HTML pages expose the shared Book Now, WhatsApp, primary phone, alternate landline and email markers.
 - Contact and booking destinations are centrally configured in content/site-config.json, marked owner-authorized-source / source-authorized, and pass format/host validation in the client runtime.
 - If the central config cannot load, or a channel is malformed, the JavaScript keeps that action disabled instead of guessing a destination.
 - The named-room gallery uses locally hosted assets mapped to the legacy room catalogue, and the media manifest checks source/target blob SHA, bytes, dimensions, page-specific alt text and content role.
@@ -19,7 +19,7 @@ A passing automated suite is not proof that the hotel’s live phone is answered
 
 ## Automated media performance contracts
 
-The quality suite checks actual bytes for every local image and responsive `srcset` candidate referenced by the seven core pages, not only the curated manifest. Current role budgets are:
+The quality suite checks actual bytes for every local image and responsive `srcset` candidate referenced by the eight core pages, not only the curated manifest. Current role budgets are:
 
 | Role | Maximum | Current measured reference |
 |---|---:|---|
@@ -154,7 +154,7 @@ python3 scripts/test-browser-smoke.py \
   --screenshots-dir "$STAGING_SCREENSHOTS"
 ~~~
 
-STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credentials, IP address or local hostname. Cross-origin top-level/frame navigation is blocked, and the robots/sitemap/config requests do not follow redirects. The runner checks all seven page routes, unique titles, description ranges, one main/H1, social image/alt parity, canonical-host withholding, local image decoding, same-origin HTTP/request failures, mixed-content requests, responsive overflow at 360/768/1440 CSS pixels, mobile navigation/skip-link focus, reduced motion, keyboard Enter/Space activation and wraparound for all six photo galleries, no autoplay, and the no-JavaScript gallery fallback. It also fetches the deployed robots.txt, sitemap.xml and content/site-config.json to verify that staging remains blocked from indexing and the canonical host is still unapproved.
+STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credentials, IP address or local hostname. Cross-origin top-level/frame navigation is blocked, and the robots/sitemap/config requests do not follow redirects. The runner checks all eight page routes, unique titles, description ranges, one main/H1, social image/alt parity, canonical-host withholding, local image decoding, same-origin HTTP/request failures, mixed-content requests, responsive overflow at 360/768/1440 CSS pixels, mobile navigation/skip-link focus, reduced motion, keyboard Enter/Space activation and wraparound for all six photo galleries, no autoplay, and the no-JavaScript gallery fallback. It also fetches the deployed robots.txt, sitemap.xml and content/site-config.json to verify that staging remains blocked from indexing and the canonical host is still unapproved.
 
 The schema-version 4 JSON evidence report records the exact origin, Asia/Kolkata timestamp, operator, Chromium version, route/viewport coverage, sanitized failures and 24 full-page PNG records with filename, viewport, actual pixel geometry, byte size and SHA-256. It captures every public route at 360, 768 and 1440 CSS pixels after requesting font readiness and image decoding. Only screenshot filenames—not local filesystem paths—are stored in the report. Query and fragment values are stripped from request URLs before they are written to the report. It always leaves STG-01 through STG-18 as NOT RUN, because those rows require human browser/device, contact-channel, owner-fact, backup/rollback and social-preview evidence. The standard local/CI Chromium smoke run exercises the same capture path in a temporary directory, validates the screenshot records, and removes those images after the run; explicit staging mode retains the operator's bundle. The script never navigates to the AsiaTech provider, opens WhatsApp, dials a number, sends email, submits guest data, creates a reservation or makes a payment. The provider's previously observed automated HTTP 403 still requires normal-browser verification by the owner/operator.
 
@@ -241,3 +241,12 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Expanded the staging visual evidence contract from seven routes / 21 screenshots to eight routes / 24 screenshots at 360, 768 and 1440 CSS pixels.
 - [ ] Actual HTTPS staging inspection and STG-01–STG-18 remain NOT RUN. This code and CI coverage does not complete manual UAT, owner confirmation, contact-channel reachability or production authorization.
 
+
+
+## Shared staging route and viewport contract — 27 October 2026
+
+- [x] Added `content/staging-route-contract.json` as the QA source of truth for the eight core public HTML routes and the mobile/tablet/desktop viewport matrix. It is deliberately separate from the production sitemap and does not authorize indexing.
+- [x] Chromium smoke, launch wiring checks and the offline screenshot reviewer now consume the shared route contract. The screenshot count is derived from route count × viewport count (currently 8 × 3 = 24) rather than maintained independently in each runner.
+- [x] Added `scripts/test-public-route-contract.py` to the full quality suite. It validates route order, unique names, safe root-level files, the viewport matrix, consumer wiring and documentation parity.
+- [x] Removed stale seven-route and 21-image descriptions and fixed the screenshot reviewer’s completion message to report the computed evidence count.
+- [ ] Owner-approved HTTPS staging execution, visual inspection of the retained 24 screenshots, STG-01–STG-18, Lighthouse/formal accessibility evaluation, booking/contact verification and owner fact approvals remain NOT RUN. Automated route coverage is not staging acceptance.
