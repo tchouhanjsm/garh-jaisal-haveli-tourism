@@ -45,7 +45,8 @@ for (const [name, type, id, required] of fields) {
   assert.ok(tag, name + ' field has an input/select element');
   if (required) assert.match(tag, /required/, name + ' field is required');
   else assert.doesNotMatch(tag, /required/, name + ' preference must remain optional');
-  assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
+  if (type === 'select') assert.match(tag, /^<select\\b/, name + ' uses a native select control');
+  else assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
 }
 const timeSelect = form.match(/<select\b(?=[^>]*id="restaurant-table-time")[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
 const slotEntries = [...timeSelect.matchAll(/<option\s+value="(\d{2}:\d{2})">([^<]+)<\/option>/g)].map(match => ({value:match[1],label:match[2]}));
