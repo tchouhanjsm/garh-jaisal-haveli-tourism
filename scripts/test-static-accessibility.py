@@ -96,8 +96,9 @@ def is_focusable(node: Node) -> bool:
     attrs = node.attrs
     if "tabindex" in attrs:
         try:
-            if int(attrs["tabindex"]) >= 0:
-                return True
+            int(attrs["tabindex"])
+            # tabindex="-1" is out of sequential tab order but remains programmatically focusable.
+            return True
         except ValueError:
             pass
     if node.tag == "a":
