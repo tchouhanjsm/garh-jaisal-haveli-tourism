@@ -1311,6 +1311,8 @@ def check_room_finder(page, base_url: str, browser) -> None:
           "Rooms: multiple feature selections must require all selected source-listed features")
     check(finder.locator("[data-room-finder-empty]").is_visible(),
           "Rooms: no-match state must be explained to the visitor")
+    check(finder.locator('[data-room-finder-empty] a[href="#room-planning"]').is_visible(),
+          "Rooms: no-match state must expose a room-fit enquiry recovery path")
     check(not reset.is_disabled(), "Rooms: Clear filters must be available when filters are active")
 
     reset.click()
