@@ -32,10 +32,11 @@ assert.ok(formMatch, 'Dining includes a dedicated restaurant table-enquiry form'
 const form = formMatch[1];
 const fields = [
   ['name', 'text', 'restaurant-guest-name', true],
-  ['email', 'email', 'restaurant-guest-email', true],
+  ['email', 'email', 'restaurant-guest-email', false],
   ['mobile', 'tel', 'restaurant-guest-mobile', true],
+  ['guests', 'number', 'restaurant-guest-count', true],
   ['date', 'date', 'restaurant-table-date', true],
-  ['time', 'select', 'restaurant-table-time', true],
+  ['time', 'text', 'restaurant-table-time', false],
 ];
 for (const [name, type, id, required] of fields) {
   assert.match(form, new RegExp('name="' + name + '"'), name + ' field is present');
@@ -44,25 +45,29 @@ for (const [name, type, id, required] of fields) {
   const tag = form.match(new RegExp('<input(?=[^>]*id="' + id + '")[^>]*>|<select(?=[^>]*id="' + id + '")[^>]*>'))?.[0] || '';
   assert.ok(tag, name + ' field has an input/select element');
   if (required) assert.match(tag, /required/, name + ' field is required');
-  else assert.doesNotMatch(tag, /required/, name + ' preference must remain optional');
-  if (type === 'select') assert.match(tag, /^<select\b/, name + ' uses a native select control');
-  else assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
+  else assert.doesNotMatch(tag, /required/, name + ' field must remain optional');
+  assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
 }
-const timeSelect = form.match(/<select\b(?=[^>]*id="restaurant-table-time")[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
-const slotEntries = [...timeSelect.matchAll(/<option\s+value="(\d{2}:\d{2})">([^<]+)<\/option>/g)].map(match => ({value:match[1],label:match[2]}));
-const expectedSlots = [];
-for (let minutes = 7 * 60; minutes <= 22 * 60 + 30; minutes += 30) {
-  expectedSlots.push(String(Math.floor(minutes / 60)).padStart(2,'0') + ':' + String(minutes % 60).padStart(2,'0'));
-}
-assert.deepEqual(slotEntries.map(entry => entry.value), expectedSlots,
-  'The 32 preferred slots run every 30 minutes from 07:00 to 22:30 inclusive');
-assert.equal(new Set(slotEntries.map(entry => entry.value)).size, 32, 'Every preferred time slot is unique');
-assert.equal(slotEntries[0].label, '7:00 AM', 'Opening preferred slot uses a readable 12-hour label');
-assert.equal(slotEntries.at(-1).label, '10:30 PM', 'Final preferred slot uses a readable 12-hour label');
-assert.match(form, /preferred enquiry times only, not verified restaurant opening hours/i,
-  'Preferred slots must not be represented as verified service hours');
-assert.match(js, /allowedSlot/, 'Runtime validates submitted time slot against allowed values');
-assert.match(js, /minutes >= 7 \* 60 && minutes <= 22 \* 60 \+ 30/, 'Runtime bounds the offered time preference');
+const preferredTimeTag = form.match(new RegExp('<input(?=[^>]*id="restaurant-table-time")[^>]*>'))?.[0] || '';
+assert.match(preferredTimeTag, /maxlength="40"/, 'Preferred time is bounded to 40 characters');
+assert.match(form, /id="restaurant-table-time-help"/, 'Preferred-time guidance has a stable help id');
+assert.match(form, /confirm current service hours and availability/i,
+  'Preferred time is a request, not a promise about service hours');
+assert.doesNotMatch(form, /<option[^>]*value="[0-9]{2}:[0-9]{2}"/,
+  'No fixed restaurant time slots are published before owner confirmation');
+const guestTag = form.match(new RegExp('<input(?=[^>]*id="restaurant-guest-count")[^>]*>'))?.[0] || '';
+assert.match(guestTag, /min="1"/, 'Party size has a lower bound');
+assert.match(guestTag, /max="20"/, 'Party size uses the source form’s 20-guest input limit');
+assert.match(guestTag, /value="2"/, 'Party size defaults to two but remains editable');
+assert.match(form, /restaurant-guest-count-help/, 'Party-size guidance requires confirmation of capacity');
+assert.equal((form.match(/name="guests"/g) || []).length, 1, 'Dining table form has exactly one party-size field');
+assert.doesNotMatch(form, /guest-enquiry-|data-guest-enquiry/, 'Table form must not contain stay-enquiry fields');
+assert.match(form, /data-restaurant-table-submit/, 'Table form includes its own submit control');
+assert.match(form, /data-restaurant-table-status/, 'Table form includes its own status message');
+assert.ok(!js.includes('allowedSlot') && !js.includes('7 * 60') && !js.includes('22 * 60 + 30') && !js.includes('Guests: 2'),
+  'Runtime must not invent restaurant hours or hard-code a party size');
+assert.ok(js.includes("'Guests: ' + guests"), 'The draft must use the guest-selected party size');
+
 assert.ok(html.includes('Current menu items and prices are not displayed because the source menu record is still marked as awaiting owner confirmation.'),
   'Unconfirmed menu values remain unpublished and the approval caveat remains explicit');
 assert.match(html, /does not publish dishes or prices as current/i, 'No current dishes/prices are presented as confirmed');
