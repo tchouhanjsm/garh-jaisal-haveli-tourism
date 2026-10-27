@@ -888,3 +888,24 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The full GitHub-hosted quality suite must pass on the exact final PR head and the resulting `main` SHA. Local full-suite execution is not claimed from this environment.
 - All room facts remain source-catalogue references, not live inventory. Do not add rates, occupancy, cancellation terms or unlisted bed/amenity guarantees. The finder does not change contact endpoints, booking behavior or storage.
 - No approved staging origin was found; staging/browser-device UAT, current room fact confirmation, formal accessibility testing, Lighthouse and production deployment remain outside this implementation.
+
+## 27 October 2026 — navigation contrast and screenshot image readiness
+
+### Finding
+
+- The shared About navigation group used cream text and toggle colors on the light header. When the Gallery dropdown was open, the dark menu panel could appear blank or low-contrast in small full-page captures.
+- The screenshot capture routine requested each image's decode but swallowed decode failures. This could let visual evidence be saved even when an image was still unavailable to the browser capture.
+
+### Implementation
+
+- Changed the About link and dropdown toggle to use the same dark foreground as the other top-level links on the light header; the dropdown's Gallery item remains light on the dark panel.
+- Extended the Chromium keyboard/navigation journey to open and close the desktop dropdown and assert computed foreground colors and item visibility.
+- Extended the static UX contract to guard the header color rules.
+- Changed screenshot readiness to fail the capture if any document image cannot decode or has zero intrinsic width/height. This reports the failing asset names instead of silently saving an incomplete capture.
+- Kept local images and their source mappings unchanged. The user confirmed that photographs render on the live website; screenshot placeholders alone are not classified as a broken asset without browser/network evidence.
+
+### Validation and release boundary
+
+- Exact-head GitHub CI must prove that all eight routes' screenshot capture remains successful with strict image decoding and that the dropdown interaction/contrast assertions pass.
+- This is automated rendering-readiness evidence, not human visual approval of image subject, crop, color, or layout. No live staging UAT, Lighthouse/Core Web Vitals or formal accessibility audit is claimed.
+- Canonical host, robots/sitemap publication, guest-data handling, booking/contact endpoints and deployment remain unchanged.

@@ -713,6 +713,17 @@ for (const type of ['tours', 'blogs']) {
   }
 }
 
+const sharedCss = fs.readFileSync(path.join(ROOT, 'assets', 'site.css'), 'utf8');
+if (!/\.primary-nav \.nav-about-group>a\{[^}]*color:#4a4f49/.test(sharedCss)) {
+  fail('site.css: About navigation link must have readable dark text on the light header');
+}
+if (!/\.primary-nav \.nav-dropdown summary\{[^}]*color:#4a4f49/.test(sharedCss)) {
+  fail('site.css: dropdown toggle must have readable dark text on the light header');
+}
+if (!/\.primary-nav \.nav-dropdown__menu a\{[^}]*color:var\(--sand\)/.test(sharedCss)) {
+  fail('site.css: dropdown menu items must use the defined light sand token on the dark panel');
+}
+
 if (errors.length) {
   console.error(`FAIL: content/UX regression gate found ${errors.length} issue(s)`);
   for (const message of errors) console.error(` - ${message}`);

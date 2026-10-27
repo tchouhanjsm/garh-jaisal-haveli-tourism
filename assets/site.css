@@ -58,14 +58,14 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 
 /* About submenu: native details keeps the dropdown keyboard-operable without extra JavaScript */
 .primary-nav .nav-about-group{display:flex;align-items:center;gap:0;position:relative}
-.primary-nav .nav-about-group>a{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream);opacity:.72;transition:opacity .3s}
+.primary-nav .nav-about-group>a{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#4a4f49;opacity:1;transition:color .3s}
 .primary-nav .nav-about-group>a:hover,.primary-nav .nav-about-group>a.is-active{opacity:1}
 .primary-nav .nav-dropdown{position:relative;margin-left:4px}
-.primary-nav .nav-dropdown summary{display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:30px;cursor:pointer;list-style:none;color:var(--cream);opacity:.72}
+.primary-nav .nav-dropdown summary{display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:30px;cursor:pointer;list-style:none;color:#4a4f49;opacity:1}
 .primary-nav .nav-dropdown summary::-webkit-details-marker{display:none}
 .primary-nav .nav-dropdown[open] summary,.primary-nav .nav-dropdown summary:focus-visible{opacity:1;outline:1px solid var(--gold-dark);outline-offset:3px}
 .primary-nav .nav-dropdown__menu{position:absolute;top:calc(100% + 10px);left:0;min-width:170px;padding:8px;background:var(--ink);border:1px solid rgba(255,255,255,.15);box-shadow:0 14px 28px rgba(0,0,0,.22);z-index:50}
-.primary-nav .nav-dropdown__menu a{display:block;padding:12px 14px;color:var(--cream);font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.8;text-decoration:none}
+.primary-nav .nav-dropdown__menu a{display:block;padding:12px 14px;color:var(--sand);font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.8;text-decoration:none}
 .primary-nav .nav-dropdown__menu a:hover,.primary-nav .nav-dropdown__menu a.is-active{opacity:1;background:rgba(255,255,255,.08)}
 .feature-photo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.85fr);gap:clamp(24px,4vw,56px);align-items:center;margin:0 0 38px;padding:clamp(18px,3vw,28px);border:1px solid rgba(27,33,30,.12);background:rgba(255,255,255,.48)}
 .feature-photo>img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}

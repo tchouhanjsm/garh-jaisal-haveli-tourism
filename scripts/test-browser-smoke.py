@@ -427,7 +427,19 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
               await document.fonts.ready;
               const images = Array.from(document.images);
               for (const image of images) image.loading = 'eager';
-              await Promise.all(images.map(image => image.decode().catch(() => null)));
+              const decodeResults = await Promise.all(images.map(async image => {
+                try {
+                  await image.decode();
+                  return {src: image.currentSrc || image.src, ok: image.naturalWidth > 0 && image.naturalHeight > 0};
+                } catch (error) {
+                  return {src: image.currentSrc || image.src, ok: false, reason: String(error)};
+                }
+              }));
+              const failedImages = decodeResults.filter(result => !result.ok);
+              if (failedImages.length) {
+                throw new Error('image decode/intrinsic-size failure (' + failedImages.length + '/' + decodeResults.length + '): '
+                  + failedImages.map(result => result.src.split('/').pop() + (result.reason ? ' [' + result.reason + ']' : '')).join(', '));
+              }
               window.scrollTo(0, 0);
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             }"""
@@ -1200,6 +1212,49 @@ def check_keyboard_navigation(page, base_url: str) -> None:
     page.wait_for_url("**/rooms.html", timeout=7000)
     check(page.locator('#primary-navigation a[aria-current="page"]').get_attribute("href") == "rooms.html",
           "Selecting Rooms from the mobile navigation must reach the Rooms page")
+
+    # Desktop About dropdown must have readable light-header text and a real menu item.
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.goto(base_url + "about.html", wait_until="domcontentloaded", timeout=15000)
+    about_link = page.locator(".nav-about-group > a")
+    dropdown = page.locator(".nav-dropdown")
+    summary = dropdown.locator("summary")
+    check(about_link.is_visible(), "About navigation link must be visible on desktop")
+    about_color = about_link.evaluate("(el) => getComputedStyle(el).color")
+    check(about_color == "rgb(74, 79, 73)",
+          "About navigation link must use readable dark text on the light header")
+    summary_color = summary.evaluate("(el) => getComputedStyle(el).color")
+    check(summary_color == "rgb(74, 79, 73)",
+          "Dropdown toggle must use readable dark text on the light header")
+    summary.click()
+    menu_item = dropdown.locator(".nav-dropdown__menu a[href='gallery.html']")
+    check(menu_item.is_visible(), "Opening the About dropdown must reveal the Gallery link")
+    contrast = menu_item.evaluate("""(el) => {
+      const foreground = getComputedStyle(el);
+      const background = getComputedStyle(el.closest('.nav-dropdown__menu'));
+      const parse = (color) => {
+        const values = color.match(/[0-9.]+/g) || [];
+        return values.slice(0, 3).map(Number);
+      };
+      const fg = parse(foreground.color);
+      const bg = parse(background.backgroundColor);
+      const alpha = Number(foreground.opacity || 1);
+      const blended = fg.map((channel, index) => channel * alpha + bg[index] * (1 - alpha));
+      const luminance = (rgb) => {
+        const linear = rgb.map(value => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+      };
+      const first = luminance(blended);
+      const second = luminance(bg);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    }""")
+    check(contrast >= 4.5,
+          "Gallery link must retain at least 4.5:1 contrast on the dark dropdown panel")
+    summary.click()
+    check(menu_item.is_hidden(), "Closing the About dropdown must hide its menu panel")
 
 
 
