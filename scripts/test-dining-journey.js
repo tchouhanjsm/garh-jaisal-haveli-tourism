@@ -47,8 +47,8 @@ for (const [name, type, id, required] of fields) {
   else assert.doesNotMatch(tag, /required/, name + ' preference must remain optional');
   assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
 }
-const timeSelect = form.match(/<select\\b(?=[^>]*id="restaurant-table-time")[^>]*>([\\s\\S]*?)<\\/select>/)?.[1] || '';
-const slotEntries = [...timeSelect.matchAll(/<option\\s+value="(\\d{2}:\\d{2})">([^<]+)<\\/option>/g)].map(match => ({value:match[1],label:match[2]}));
+const timeSelect = form.match(/<select\b(?=[^>]*id="restaurant-table-time")[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
+const slotEntries = [...timeSelect.matchAll(/<option\s+value="(\d{2}:\d{2})">([^<]+)<\/option>/g)].map(match => ({value:match[1],label:match[2]}));
 const expectedSlots = [];
 for (let minutes = 7 * 60; minutes <= 22 * 60 + 30; minutes += 30) {
   expectedSlots.push(String(Math.floor(minutes / 60)).padStart(2,'0') + ':' + String(minutes % 60).padStart(2,'0'));
@@ -61,7 +61,7 @@ assert.equal(slotEntries.at(-1).label, '10:30 PM', 'Final preferred slot uses a 
 assert.match(form, /preferred enquiry times only, not verified restaurant opening hours/i,
   'Preferred slots must not be represented as verified service hours');
 assert.match(js, /allowedSlot/, 'Runtime validates submitted time slot against allowed values');
-assert.match(js, /minutes >= 7 \\* 60 && minutes <= 22 \\* 60 \\+ 30/, 'Runtime bounds the offered time preference');
+assert.match(js, /minutes >= 7 \* 60 && minutes <= 22 \* 60 \+ 30/, 'Runtime bounds the offered time preference');
 assert.ok(html.includes('Current menu items and prices are not displayed because the source menu record is still marked as awaiting owner confirmation.'),
   'Unconfirmed menu values remain unpublished and the approval caveat remains explicit');
 assert.match(html, /does not publish dishes or prices as current/i, 'No current dishes/prices are presented as confirmed');
