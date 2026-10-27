@@ -69,6 +69,18 @@
   const timeField = form.elements.namedItem('time');
   let approvedWhatsAppBase = '';
 
+  const disable = message => {
+    if (submit) submit.disabled = true;
+    if (status) {
+      status.dataset.state = 'error';
+      status.textContent = message;
+    }
+  };
+  if (!submit || !status || !nameField || !emailField || !mobileField || !dateField || !timeField) {
+    disable('Table enquiries are unavailable because a required field is missing. No details have been sent.');
+    return;
+  }
+
   const localDateString = value => {
     const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 10);
@@ -101,17 +113,6 @@
   updateDateConstraint();
   updateMobileConstraint();
 
-  const disable = message => {
-    if (submit) submit.disabled = true;
-    if (status) {
-      status.dataset.state = 'error';
-      status.textContent = message;
-    }
-  };
-  if (!submit || !status || !nameField || !emailField || !mobileField || !dateField || !timeField) {
-    disable('Table enquiries are unavailable because a required field is missing. No details have been sent.');
-    return;
-  }
 
   async function loadApprovedContact() {
     try {
