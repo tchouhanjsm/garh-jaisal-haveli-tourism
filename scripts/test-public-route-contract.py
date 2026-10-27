@@ -96,5 +96,5 @@ assert "experience-details.html" in readme and "experience-details.html" in laun
 
 print(
     "PASS: one shared eight-route/three-viewport contract drives Chromium, "
-    "launch wiring and screenshot review; all 24 evidence images and release docs agree."
+    "launch wiring, media checks and screenshot review; the 24-image evidence contract and release docs agree."
 )
