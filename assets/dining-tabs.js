@@ -99,7 +99,6 @@
       ? 'Enter a mobile number with 8–15 digits, including the country code where needed.' : '');
     mobileField.setAttribute('aria-invalid', String(Boolean(mobileField.value && !mobileField.validity.valid)));
   };
-  };
 
   ['input', 'change'].forEach(type => {
     dateField.addEventListener(type, updateDateConstraint);
