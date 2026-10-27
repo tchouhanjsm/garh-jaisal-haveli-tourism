@@ -25,16 +25,16 @@ assert.match(experiences, /assets\/css\/experience-discovery\.css/, 'Experiences
 assert.match(experiences, /Explore the desert, the Fort and the road beyond\./, 'Catalogue heading covers the broader guest journey');
 const metaValue = (html, pattern) => (html.match(pattern) || [null, null])[1] || null;
 for (const [label, html] of [['Experiences', experiences], ['Experience details', details]]) {
-  const title = metaValue(html, /<title[^>]*>([\\s\\S]*?)<\\/title>/i);
-  const description = metaValue(html, /<meta\\b[^>]*\\bname=["']description["'][^>]*\\bcontent=["']([^"']*)["'][^>]*>/i);
+  const title = metaValue(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
+  const description = metaValue(html, /<meta\b[^>]*\bname=["']description["'][^>]*\bcontent=["']([^"']*)["'][^>]*>/i);
   assert.ok(title && description, label + ' has title and description metadata');
-  assert.equal(metaValue(html, /<meta\\b[^>]*\\bproperty=["']og:title["'][^>]*\\bcontent=["']([^"']*)["'][^>]*>/i), title,
+  assert.equal(metaValue(html, /<meta\b[^>]*\bproperty=["']og:title["'][^>]*\bcontent=["']([^"']*)["'][^>]*>/i), title,
     label + ' Open Graph title matches its page title');
-  assert.equal(metaValue(html, /<meta\\b[^>]*\\bname=["']twitter:title["'][^>]*\\bcontent=["']([^"']*)["'][^>]*>/i), title,
+  assert.equal(metaValue(html, /<meta\b[^>]*\bname=["']twitter:title["'][^>]*\bcontent=["']([^"']*)["'][^>]*>/i), title,
     label + ' Twitter title matches its page title');
-  assert.equal(metaValue(html, /<meta\\b[^>]*\\bproperty=["']og:description["'][^>]*\\bcontent=["']([^"']*)["'][^>]*>/i), description,
+  assert.equal(metaValue(html, /<meta\b[^>]*\bproperty=["']og:description["'][^>]*\bcontent=["']([^"']*)["'][^>]*>/i), description,
     label + ' Open Graph description matches its meta description');
-  assert.equal(metaValue(html, /<meta\\b[^>]*\\bname=["']twitter:description["'][^>]*\\bcontent=["']([^"']*)["'][^>]*>/i), description,
+  assert.equal(metaValue(html, /<meta\b[^>]*\bname=["']twitter:description["'][^>]*\bcontent=["']([^"']*)["'][^>]*>/i), description,
     label + ' Twitter description matches its meta description');
 }
 assert.match(experiences, /planned Fort heritage walk, car and road arrangements, and route ideas to discuss/, 'Catalogue explains the additional enquiry paths');
