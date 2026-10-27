@@ -775,7 +775,9 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
         };"""
     )
     dates = None
-    for page_name in ("experiences.html", "experience-details.html", "dining.html"):
+    # Dining now has its own table-enquiry form; its dedicated Chromium coverage
+    # runs in check_dining_table_enquiry below.
+    for page_name in ("experiences.html", "experience-details.html"):
         response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
         check(response is not None and response.status == 200,
               f"{page_name}: guest-enquiry test expected HTTP 200")
