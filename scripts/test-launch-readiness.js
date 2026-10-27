@@ -10,7 +10,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
-const PAGE_NAMES = ['index.html', 'rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
+const routeContract = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
+assert.equal(routeContract.schemaVersion, 1, 'Staging route contract schema must be supported');
+const PAGE_NAMES = routeContract.routes.map(route => route.file);
+assert.equal(PAGE_NAMES.length, 8, 'Launch wiring must cover all eight core public HTML routes');
+assert.equal(new Set(PAGE_NAMES).size, PAGE_NAMES.length, 'Public route filenames must be unique');
+assert.deepEqual(routeContract.viewports.map(viewport => viewport.width), [360, 768, 1440],
+  'Staging visual evidence must cover mobile, tablet and desktop widths');
 const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'site-config.json'), 'utf8'));
 const launchDoc = fs.readFileSync(path.join(ROOT, 'docs', 'LAUNCH-READINESS-CHECKLIST.md'), 'utf8');
 const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
