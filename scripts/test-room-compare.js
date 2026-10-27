@@ -42,6 +42,8 @@ for (const id of expectedIds) {
 assert.match(script, /const MAX_SELECTED = 3/,
   'the shortlist must cap comparison at three rooms');
 assert.match(script, /aria-live/);
+assert.ok(script.includes("compareHeading.id = 'room-compare-heading'"),
+  'the dynamic comparison section must have a valid accessible name');
 assert.match(script, /aria-pressed/);
 assert.ok(script.includes('row.dataset.roomCompareRow = key'));
 assert.match(script, /scope', 'col'/);
