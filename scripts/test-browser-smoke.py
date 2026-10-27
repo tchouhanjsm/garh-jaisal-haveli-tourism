@@ -1404,7 +1404,8 @@ def check_room_finder(page, base_url: str, browser) -> None:
     green_compare = page.locator("#room-green [data-room-compare-toggle]")
     opium_compare = page.locator("#room-opium [data-room-compare-toggle]")
     rising_compare = page.locator("#room-rising-sun [data-room-compare-toggle]")
-    sweet_compare.click()
+    sweet_compare.focus()
+    page.keyboard.press("Space")
     check(sweet_compare.get_attribute("aria-pressed") == "true",
           "Rooms: selecting a room must expose its pressed state")
     check(compare_panel.is_visible() and "1 room selected" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
