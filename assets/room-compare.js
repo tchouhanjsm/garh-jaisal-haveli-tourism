@@ -30,7 +30,6 @@
   const MAX_SELECTED = 3;
   const selected = new Set();
   const toggleById = new Map();
-  let activated = false;
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -209,7 +208,6 @@
   }
 
   function render(message) {
-    activated = true;
     panel.hidden = false;
     syncToggles();
     clearButton.disabled = selected.size === 0;
@@ -251,7 +249,4 @@
     panel.hidden = false;
     renderStatus('Shortlist cleared. Choose two or three rooms to compare them side by side.');
   });
-
-  // Kept for clarity in debugging: panel visibility is intentionally progressive.
-  void activated;
 })();
