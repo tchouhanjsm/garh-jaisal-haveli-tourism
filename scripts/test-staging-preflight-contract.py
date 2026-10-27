@@ -182,6 +182,34 @@ complete_screenshots = valid_screenshot_records()
 assert len(complete_screenshots) == 21
 assert [record["filename"] for record in complete_screenshots] == browser_smoke.expected_screenshot_names()
 
+
+def valid_unknown_route_evidence() -> dict:
+    return {
+        "path": "/" + browser_smoke.NOT_FOUND_SMOKE_PATH,
+        "expectedHttpStatus": 404,
+        "recoveryLinks": list(browser_smoke.NOT_FOUND_RECOVERY_LINKS),
+        "viewportChecks": [
+            {
+                "viewportWidthCssPixels": width,
+                "httpStatus": 404,
+                "targetOrigin": True,
+                "brandedRecoveryPage": True,
+                "noindex": True,
+                "rootRelativeAssets": True,
+                "contactChannelsHydrated": True,
+                "responsiveLayoutValid": True,
+            }
+            for width, _height in browser_smoke.VIEWPORTS
+        ],
+        "complete": True,
+    }
+
+
+bad_unknown_route = valid_unknown_route_evidence()
+bad_unknown_route["viewportChecks"][1]["httpStatus"] = 200
+assert not browser_smoke.unknown_route_evidence_is_complete(bad_unknown_route)
+assert browser_smoke.unknown_route_evidence_is_complete(valid_unknown_route_evidence())
+
 incomplete_report = browser_smoke.build_report(
     "staging-read-only",
     valid,
@@ -189,15 +217,17 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 3
+assert incomplete_report["schemaVersion"] == 4
 assert incomplete_report["automatedResult"] == "FAIL"
-assert incomplete_report["automatedFailureCount"] == 4
+assert incomplete_report["automatedFailureCount"] == 5
 assert incomplete_report["evidenceCoverage"] == {
     "pageNavigationComplete": False,
     "pageHttp200Complete": False,
     "responsiveViewportsComplete": False,
+    "unknownRouteRecoveryComplete": False,
     "complete": False,
 }
+assert incomplete_report["unknownRouteEvidence"]["complete"] is False
 assert incomplete_report["visualEvidence"]["complete"] is False
 assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 21
 assert incomplete_report["pagesAttempted"] == []
@@ -217,6 +247,7 @@ report = browser_smoke.build_report(
     [],
     *complete_evidence,
     screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert report["automatedResult"] == "PASS"
 assert report["automatedFailureCount"] == 0
@@ -224,8 +255,10 @@ assert report["evidenceCoverage"] == {
     "pageNavigationComplete": True,
     "pageHttp200Complete": True,
     "responsiveViewportsComplete": True,
+    "unknownRouteRecoveryComplete": True,
     "complete": True,
 }
+assert report["unknownRouteEvidence"]["complete"] is True
 assert report["visualEvidence"]["complete"] is True
 assert report["visualEvidence"]["capturedScreenshotCount"] == 21
 assert report["visualEvidence"]["capturedFiles"] == complete_screenshots
@@ -251,7 +284,7 @@ partial_report = browser_smoke.build_report(
 )
 assert partial_report["automatedResult"] == "FAIL"
 assert partial_report["evidenceCoverage"]["complete"] is False
-assert partial_report["automatedFailureCount"] == 4
+assert partial_report["automatedFailureCount"] == 5
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
@@ -261,6 +294,7 @@ missing_visual_evidence = browser_smoke.build_report(
     [],
     *complete_evidence,
     screenshot_evidence=[],
+    unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert missing_visual_evidence["automatedResult"] == "FAIL"
 assert missing_visual_evidence["automatedFailureCount"] == 1
@@ -276,6 +310,7 @@ invalid_visual_evidence = browser_smoke.build_report(
     [],
     *complete_evidence,
     screenshot_evidence=malformed_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert invalid_visual_evidence["automatedResult"] == "FAIL"
 assert invalid_visual_evidence["automatedFailureCount"] == 1
@@ -287,7 +322,7 @@ assert report["safety"]["guestDataSubmitted"] is False
 assert report["safety"]["contactMessageSent"] is False
 assert "qa-password" not in str(report)
 assert [item["id"] for item in report["manualReleaseChecks"]] == [
-    f"STG-{number:02d}" for number in range(1, 18)
+    f"STG-{number:02d}" for number in range(1, 19)
 ]
 assert all(item["result"] == "NOT RUN" for item in report["manualReleaseChecks"])
 with tempfile.TemporaryDirectory() as temporary_directory:
@@ -305,6 +340,7 @@ blocked_report = browser_smoke.build_report(
     "staging-read-only", valid, "QA operator", "Chromium test version", [],
     *complete_evidence, blocked_navigation_attempts=blocked_navigation,
     screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [
     "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
@@ -316,6 +352,7 @@ failed_report = browser_smoke.build_report(
     ["request failed at https://qa-user:qa-password@outside.example/path?token=secret#fragment"],
     *complete_evidence,
     screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert failed_report["automatedResult"] == "FAIL"
 assert failed_report["automatedFailureCount"] == 1
