@@ -54,7 +54,8 @@ assert.match(script, /makeCell\(headingRow, 'th', 'Compare details', 'col'\)/,
   'the first comparison header must be a column header');
 assert.match(script, /makeCell\(row, 'th', label, 'row'\)/,
   'each comparison data row must create a row header');
-assert.match(script, /data-room-compare-remove/);
+assert.match(script, /remove\.dataset\.roomCompareRemove = record\.id/,
+  'each comparison column must expose a room-specific remove control');
 assert.match(script, /data-room-compare-card-link/);
 assert.match(script, /record\.imageSrc/);
 assert.match(script, /record\.features/);
