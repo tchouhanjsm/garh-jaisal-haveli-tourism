@@ -201,6 +201,10 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 `experiences.html` now starts with a category-led discovery path for desert evenings, overnight stays, Fort/city tours and road/route ideas. Its six source-listed package cards keep a dedicated itinerary/details link before a separate enquiry action; Fort walking, car/road arrangements and other route ideas remain distinct and clearly unconfirmed. `experience-details.html` contains the detailed source-backed outlines, all nine stable route anchors and the questions guests should settle before travel. Neither page publishes unapproved prices, fixed operating hours or live availability. Booking and enquiry links continue to hydrate from `content/site-config.json`, and canonical-host approval remains false until the owner explicitly approves it.
 
 
+### Visual capture and header navigation QA
+
+The Chromium screenshot path now fails closed if any document image cannot decode or has zero intrinsic dimensions. Previously, the capture path swallowed image decode errors and could save a screenshot containing empty image frames without flagging the cause. This remains an automated asset-readiness check, not a human image-subject/crop approval. The shared navigation contract also checks the About/Gallery dropdown's light-header contrast, visible open state and hidden closed state in Chromium.
+
 ### Source-backed room discovery
 
 The Rooms page adds a progressive finder for the seven source-listed named rooms. Guests can filter by the floor recorded in the owner-maintained catalogue and by explicitly listed features (king bed, second bed, city view, window seat and carved bed). Selecting multiple features requires every selected feature to be listed for a room. A live result count, no-match explanation and clear-filters action are provided. The filter controls stay hidden when JavaScript is unavailable, leaving all seven room cards readable.
