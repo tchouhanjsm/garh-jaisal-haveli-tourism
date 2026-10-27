@@ -1445,10 +1445,23 @@ def check_room_finder(page, base_url: str, browser) -> None:
     compare_images = compare_table.locator("[data-room-compare-image]")
     check(compare_images.count() == 2,
           "Rooms: each comparison column must show its mapped room photograph")
-    check(all((image.get_attribute("alt") or "").strip()
-              and same_origin(image.get_attribute("src") or "", base_url)
-              for image in compare_images.all()),
-          "Rooms: comparison thumbnails must retain descriptive alt text and local image sources")
+    compare_image_evidence = [
+        image.evaluate("""img => ({
+          alt: img.getAttribute("alt") || "",
+          src: img.getAttribute("src") || "",
+          currentSrc: img.currentSrc || "",
+          complete: img.complete,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight
+        })""")
+        for image in compare_images.all()
+    ]
+    check(all(item["alt"].strip()
+              and (item["src"].startswith("/") or same_origin(item["src"], base_url))
+              and same_origin(item["currentSrc"], base_url)
+              and item["complete"] and item["naturalWidth"] > 0 and item["naturalHeight"] > 0
+              for item in compare_image_evidence),
+          "Rooms: comparison thumbnails must preserve alt text, use local sources and successfully load")
 
     opium_compare.click()
     check(compare_table.locator("thead [data-room-compare-card-link]").count() == 3,
