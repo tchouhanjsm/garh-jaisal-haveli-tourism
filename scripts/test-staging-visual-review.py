@@ -108,7 +108,7 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
                     "responsiveLayoutValid": True,
                     "recoveryLinks": list(browser_smoke.NOT_FOUND_RECOVERY_LINKS),
                 }
-                for width in [360, 768, 1440]
+                for width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS
             ],
             "complete": True,
         },
