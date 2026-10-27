@@ -24,12 +24,14 @@ PAGES = [
     ("index.html", "Home"),
     ("rooms.html", "Rooms"),
     ("experiences.html", "Experiences"),
+    ("experience-details.html", "Experience details"),
     ("dining.html", "Dining"),
     ("about.html", "About"),
     ("directions.html", "Directions"),
     ("gallery.html", "Gallery"),
 ]
 VIEWPORTS = [(360, 800, "Mobile"), (768, 1024, "Tablet"), (1440, 900, "Desktop")]
+EXPECTED_SCREENSHOT_COUNT = len(PAGES) * len(VIEWPORTS)
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 UNKNOWN_ROUTE_PATH = "/__garh-jaisal-404-smoke-not-found-20261027__"
 UNKNOWN_ROUTE_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
@@ -270,8 +272,8 @@ def report_contract_issues(report: dict) -> list[str]:
         if evidence.get("captureMode") != "full-page PNG":
             issues.append("visualEvidence.captureMode must be full-page PNG.")
         for key in ("expectedScreenshotCount", "capturedScreenshotCount"):
-            if evidence.get(key) != 21:
-                issues.append(f"visualEvidence.{key} must equal 21.")
+            if evidence.get(key) != EXPECTED_SCREENSHOT_COUNT:
+                issues.append(f"visualEvidence.{key} must equal {EXPECTED_SCREENSHOT_COUNT}.")
         if evidence.get("complete") is not True:
             issues.append("visualEvidence.complete must be true.")
 
@@ -303,11 +305,11 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     expected_pages = [page for page, _title in PAGES]
     expected_widths = [width for width, _height, _label in VIEWPORTS]
     if report.get("pagesPlanned") != expected_pages:
-        issues.append("Planned routes do not match the seven expected site pages.")
+        issues.append("Planned routes do not match the eight expected site pages.")
     if report.get("pagesAttempted") != expected_pages:
-        issues.append("The report does not record attempts for all seven routes in the expected order.")
+        issues.append("The report does not record attempts for all eight routes in the expected order.")
     if report.get("pagesWithHttp200OnTargetOrigin") != expected_pages:
-        issues.append("The report does not record target-origin HTTP 200 responses for all seven routes.")
+        issues.append("The report does not record target-origin HTTP 200 responses for all eight routes.")
     if report.get("plannedViewportWidthsCssPixels") != expected_widths:
         issues.append("Planned viewport widths do not match 360, 768 and 1440 CSS pixels.")
     if report.get("completedResponsiveViewportWidthsCssPixels") != expected_widths:
@@ -326,8 +328,8 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     names = [item.get("filename") if isinstance(item, dict) else None for item in records]
     expected = expected_names()
     if names != expected:
-        issues.append("Report does not list the exact 21 screenshot names in the planned order.")
-    if evidence.get("complete") is not True or evidence.get("capturedScreenshotCount") != 21:
+        issues.append("Report does not list the exact 24 screenshot names in the planned order.")
+    if evidence.get("complete") is not True or evidence.get("capturedScreenshotCount") != EXPECTED_SCREENSHOT_COUNT:
         issues.append("Report does not declare complete 21-image visual evidence.")
     manual = report.get("manualReleaseChecks")
     expected_ids = [f"STG-{number:02d}" for number in range(1, 19)]
@@ -443,8 +445,8 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
                    else "FAIL — safety assertions missing or contradictory")
     safety_class = "pass" if safety_ok else "fail"
     verified = sum(item["valid"] for item in results)
-    bundle_ok = not issues and verified == 21
-    bundle_text = "PASS — 21 files verified" if bundle_ok else f"FAIL — evidence issues; {verified}/21 screenshots verified"
+    bundle_ok = not issues and verified == EXPECTED_SCREENSHOT_COUNT
+    bundle_text = f"PASS — {EXPECTED_SCREENSHOT_COUNT} files verified" if bundle_ok else f"FAIL — evidence issues; {verified}/{EXPECTED_SCREENSHOT_COUNT} screenshots verified"
     bundle_class = "pass" if bundle_ok else "fail"
     automated_class = "pass" if automated == "PASS" and not issues else "fail"
     folder = quote(screenshots.name, safe="-._~")
@@ -557,7 +559,7 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 @media print{{body{{background:white}}main{{max-width:none;padding:0}}nav{{display:none}}section{{break-inside:avoid}}.grid{{gap:.4rem}}.card{{box-shadow:none}}.notice{{break-inside:avoid}}}}
 </style></head><body><main id="top">
 <header class="hero"><p class="eyebrow">Garh Jaisal Haveli · Offline QA artifact</p><h1>Staging visual review</h1>
-<p>Compare the seven-page guest journey at mobile, tablet and desktop widths. This page uses saved evidence only and does not contact the staging host.</p>
+<p>Compare the eight-page guest journey at mobile, tablet and desktop widths. This page uses saved evidence only and does not contact the staging host.</p>
 <div class="summary" aria-label="Evidence summary">
 <div class="metric">Automated browser result<strong class="{automated_class}">{html.escape(automated)}</strong></div>
 <div class="metric">Evidence integrity<strong class="{bundle_class}">{html.escape(bundle_text)}</strong></div>
@@ -577,7 +579,7 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Render an offline HTML review for a saved staging screenshot bundle.")
-    parser.add_argument("--report", required=True, help="Existing schema-v3 staging JSON report outside the checkout")
+    parser.add_argument("--report", required=True, help="Existing schema-v4 staging JSON report outside the checkout")
     parser.add_argument("--screenshots-dir", required=True, help="Directory containing the screenshot PNGs, outside the checkout")
     parser.add_argument("--output", required=True, help="HTML output beside the screenshot directory and outside the checkout")
     args = parser.parse_args(argv)
@@ -590,10 +592,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"BLOCKED: visual review was not generated ({type(error).__name__}): {redact_urls(error)}", file=sys.stderr)
         return 2
     verified = sum(item["valid"] for item in results)
-    if issues or verified != 21 or report.get("automatedResult") != "PASS":
-        print(f"FAIL: HTML review written; screenshot integrity {verified}/21; automated result {report.get('automatedResult')}; manual UAT remains blocked.")
+    if issues or verified != EXPECTED_SCREENSHOT_COUNT or report.get("automatedResult") != "PASS":
+        print(f"FAIL: HTML review written; screenshot integrity {verified}/{EXPECTED_SCREENSHOT_COUNT}; automated result {report.get('automatedResult')}; manual UAT remains blocked.")
         return 1
-    print("PASS: offline HTML review written; all 21 screenshots match report byte counts, SHA-256 and PNG geometry. Manual UAT remains blocked.")
+    print("PASS: offline HTML review written; all {EXPECTED_SCREENSHOT_COUNT} screenshots match report byte counts, SHA-256 and PNG geometry. Manual UAT remains blocked.")
     return 0
 
 

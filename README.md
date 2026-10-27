@@ -194,3 +194,8 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 - A content record that sets `seo.ogImage` must also provide meaningful `seo.ogAlt`; the schemas define the field, while the repository validator and live renderer enforce the requirement so an explicit social image cannot ship with a missing description.
 - The pre-launch canonical/OG URL safeguard recursively checks root HTML and every nested HTML page under `tours/` and `blogs/`, while ignoring symlinked routes. This closes the gap where a deeply nested generated page could bypass publication protection.
 - These are offline source and renderer checks. They do not activate canonical URLs, change robots/sitemap publication, or replace staging social-preview review.
+
+### Experience detail route
+
+`experience-details.html` is the detail companion to `experiences.html`. Each of the six source-listed desert/city options, the Fort heritage walk, car/road arrangements and unconfirmed route ideas has a stable in-page anchor. The page presents source-backed itinerary outlines and questions to settle before travel; it does not publish prices, fixed departure times or current availability. Enquiry and booking links continue to hydrate from `content/site-config.json`, and canonical-host approval remains false until the owner explicitly approves it.
+

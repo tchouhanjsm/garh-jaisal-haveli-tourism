@@ -231,3 +231,13 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] Manual social-preview inspection on an owner-approved HTTPS staging origin remains NOT RUN. No canonical-host, sitemap, robots or deployment setting was changed.
 
 **Baseline:** main `4fbd67d78aa99c4b601da84e59ac08bdc11809d0`; post-merge Site quality gates run [#40457135825](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40457135825) passed before this feature branch. STG-01–STG-18 and owner-dependent release gates remain unchanged.
+
+## 27 October 2026 — experience detail route and responsive coverage
+
+- [x] Added `experience-details.html` as the destination for all six itinerary links and the Fort-walk, car/road and other-route detail links from `experiences.html`.
+- [x] Kept route descriptions source-backed and caveated; no rates, fixed clock times, current operation or availability are promised.
+- [x] Added a deterministic contract test for all nine anchors, metadata parity, local social-preview assets, central-config contact hydration and canonical-host publication guards.
+- [x] Added the detail route to content/UX and media-performance checks, Chromium smoke coverage, and staging visual-review coverage.
+- [x] Expanded the staging visual evidence contract from seven routes / 21 screenshots to eight routes / 24 screenshots at 360, 768 and 1440 CSS pixels.
+- [ ] Actual HTTPS staging inspection and STG-01–STG-18 remain NOT RUN. This code and CI coverage does not complete manual UAT, owner confirmation, contact-channel reachability or production authorization.
+

@@ -7,7 +7,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const KIB = 1024;
 const DEFAULT_MAX_BYTES = 650 * KIB;
-const PAGES = ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
+const PAGES = ['index.html', 'rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
 const HERO_BUDGETS = new Map([
   ['index.html', 150 * KIB],
   ['rooms.html', 550 * KIB],

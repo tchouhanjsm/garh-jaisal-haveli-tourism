@@ -13,6 +13,7 @@ const PAGE_RULES = [
   { file: 'index.html', minWords: 650 },
   { file: 'rooms.html', minWords: 400 },
   { file: 'experiences.html', minWords: 500 },
+  { file: 'experience-details.html', minWords: 1000 },
   { file: 'dining.html', minWords: 480 },
   { file: 'about.html', minWords: 480 },
   { file: 'directions.html', minWords: 520 },

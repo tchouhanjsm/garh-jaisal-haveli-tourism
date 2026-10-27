@@ -196,7 +196,7 @@ def valid_screenshot_records() -> list[dict]:
 
 
 complete_screenshots = valid_screenshot_records()
-assert len(complete_screenshots) == 21
+assert len(complete_screenshots) == 24
 assert [record["filename"] for record in complete_screenshots] == browser_smoke.expected_screenshot_names()
 
 
@@ -250,7 +250,7 @@ assert incomplete_report["evidenceCoverage"] == {
 }
 assert incomplete_report["unknownRouteEvidence"]["complete"] is False
 assert incomplete_report["visualEvidence"]["complete"] is False
-assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 21
+assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 24
 assert incomplete_report["pagesAttempted"] == []
 assert incomplete_report["pagesWithHttp200OnTargetOrigin"] == []
 assert incomplete_report["completedResponsiveViewportWidthsCssPixels"] == []
@@ -281,7 +281,7 @@ assert report["evidenceCoverage"] == {
 }
 assert report["unknownRouteEvidence"]["complete"] is True
 assert report["visualEvidence"]["complete"] is True
-assert report["visualEvidence"]["capturedScreenshotCount"] == 21
+assert report["visualEvidence"]["capturedScreenshotCount"] == 24
 assert report["visualEvidence"]["capturedFiles"] == complete_screenshots
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
 assert report["operator"] == "QA operator"

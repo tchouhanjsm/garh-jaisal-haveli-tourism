@@ -802,3 +802,23 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The full GitHub-hosted quality suite on the exact PR head is required before merge; local `bash scripts/check-pr-quality.sh` was not run because a complete checkout is unavailable in this environment.
 - No public page copy, property facts, source images, menu, contact endpoints, canonical approval, robots policy, sitemap entries or deployment settings were changed.
 - The pre-launch guard intentionally still rejects canonical/OG URL activation. Manual staging social-preview review, STG-01–STG-18, booking-provider browser verification and human contact-channel checks remain NOT RUN.
+
+## 27 October 2026 — broken experience detail links
+
+### Finding
+
+- The push quality run [#40463575073](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40463575073) failed in the static-site integrity gate.
+- `experiences.html` linked to `experience-details.html` for six tour options, the Fort heritage walk, car/road arrangements and other route ideas, but the destination page did not exist. The integrity checker correctly reported nine broken local links.
+
+### Fix in progress
+
+- Added the detail page with nine stable anchors, source-backed sequence outlines, source-listed inclusions/exclusions and questions to confirm before travel.
+- Kept all enquiries and booking links dependent on the existing `content/site-config.json` runtime hydration; no contact URL or phone number is duplicated in the new HTML.
+- Added a regression test that checks every source-page link resolves to exactly one destination anchor, verifies social-preview metadata and local image provenance, and prevents unapproved rates, fixed times or canonical publication.
+- Expanded content, media, Chromium smoke and staging visual-review coverage to include the new route. The staging evidence contract now expects eight pages across three viewport widths (24 full-page screenshots).
+
+### Release boundary
+
+- This is an offline implementation. The current operating status of each experience, current prices, guide/vehicle availability and route access still require owner confirmation.
+- No production deployment, canonical-host activation, sitemap/robots change or external booking/contact action is part of this fix. HTTPS staging UAT remains a separate release gate.
+

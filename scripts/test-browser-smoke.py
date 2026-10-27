@@ -30,6 +30,7 @@ PAGES = [
     "index.html",
     "rooms.html",
     "experiences.html",
+    "experience-details.html",
     "dining.html",
     "about.html",
     "directions.html",
@@ -325,7 +326,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
     screenshot_complete = captured_names == expected_screenshots and screenshot_metadata_complete
     if not screenshot_complete:
         evidence_failures.append(
-            "Incomplete visual evidence: expected 21 full-page PNG screenshots (seven routes at 360, 768 and 1440 CSS pixels) "
+            "Incomplete visual evidence: expected 24 full-page PNG screenshots (eight routes at 360, 768 and 1440 CSS pixels) "
             f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
         )
 
@@ -968,11 +969,11 @@ def check_carousels(page, base_url: str, browser,
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Read-only Chromium smoke checks for the seven-page guest journey.")
+    parser = argparse.ArgumentParser(description="Read-only Chromium smoke checks for the eight-page guest journey.")
     parser.add_argument("--base-url", help="HTTPS staging origin; omitted to run against a temporary local server")
     parser.add_argument("--operator", help="Human operator name recorded in a staging evidence report")
     parser.add_argument("--report", help="Local JSON evidence-report path (required with --base-url)")
-    parser.add_argument("--screenshots-dir", help="Empty local directory outside the checkout for 21 visual evidence PNGs (required with --base-url)")
+    parser.add_argument("--screenshots-dir", help="Empty local directory outside the checkout for 24 visual evidence PNGs (required with --base-url)")
     args = parser.parse_args(argv)
     staging_mode = bool(args.base_url)
 
@@ -1136,10 +1137,10 @@ def main(argv: list[str] | None = None) -> int:
 
     mode_label = "staging" if staging_mode else "local"
     print(
-        f"PASS: Chromium {mode_label} browser smoke suite covered seven core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
+        f"PASS: Chromium {mode_label} browser smoke suite covered eight core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
-        "wraparound, no-autoplay and no-JavaScript fallback, plus 21 full-page PNG captures "
+        "wraparound, no-autoplay and no-JavaScript fallback, plus 24 full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
         "No external links were followed and no booking, payment or guest data was submitted."
     )
