@@ -151,7 +151,7 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 
 ## Staging evidence report semantics
 
-The read-only staging preflight writes report schema version 4. `automatedResult` is `PASS` only when the report contains complete evidence for all seven planned page routes, target-origin HTTP 200 responses for those routes, all planned responsive widths (360, 768 and 1440 CSS pixels), and all 21 full-page screenshot files with validated PNG geometry, non-zero byte sizes and SHA-256 hashes. Missing or partial evidence fails closed. Review the `evidenceCoverage` and `visualEvidence` objects rather than treating an empty failure list alone as success.
+The read-only staging preflight writes report schema version 4. `automatedResult` is `PASS` only when the report contains complete evidence for all seven planned page routes, target-origin HTTP 200 responses for those routes, all planned responsive widths (360, 768 and 1440 CSS pixels), the branded unknown-route HTTP 404 contract at all three widths, and all 21 full-page screenshot files with validated PNG geometry, non-zero byte sizes and SHA-256 hashes. Missing or partial evidence fails closed. Review `evidenceCoverage`, `unknownRouteEvidence` and `visualEvidence` rather than treating an empty failure list alone as success.
 
 Automated PASS never clears manual release gates: the report keeps `releaseStatus` as `BLOCKED_PENDING_MANUAL_UAT` and STG-01 through STG-18 as `NOT RUN` until an operator records actual staging evidence.
 
