@@ -719,4 +719,15 @@ if (errors.length) {
   process.exit(1);
 }
 
+const sharedCss = fs.readFileSync(path.join(ROOT, 'assets', 'site.css'), 'utf8');
+if (!/\.primary-nav \.nav-about-group>a\{[^}]*color:#4a4f49/.test(sharedCss)) {
+  fail('site.css: About navigation link must have readable dark text on the light header');
+}
+if (!/\.primary-nav \.nav-dropdown summary\{[^}]*color:#4a4f49/.test(sharedCss)) {
+  fail('site.css: dropdown toggle must have readable dark text on the light header');
+}
+if (!/\.primary-nav \.nav-dropdown__menu a\{[^}]*color:var\(--cream\)/.test(sharedCss)) {
+  fail('site.css: dropdown menu items must retain readable light text on the dark panel');
+}
+
 console.log(`PASS: content/UX regression gate audited ${PAGE_RULES.length} pages for depth, unique metadata, internal discovery, room-reference cards, experience comparisons, dining/arrival image context and metadata budgets, local image paths/alt/geometry, duplicate images and canonical publication gates.`);
