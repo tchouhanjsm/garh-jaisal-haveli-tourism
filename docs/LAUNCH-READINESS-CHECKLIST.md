@@ -297,3 +297,14 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] Verify the arrival constraint is clear, room photographs are not presented as live inventory, and current rates, menu, service hours, tours and assistance are explicitly left for confirmation.
 - [ ] Verify Book Now opens the external booking flow and the WhatsApp action creates a guest-reviewed draft only. Do not send a message or create a reservation as part of this check.
 - [ ] Record operator, exact staging URL, Asia/Kolkata date/time, browser/device/viewport, result, evidence and follow-up. Automated tests do not complete this gate.
+
+## 27 October 2026 — Cross-page arrival wayfinding
+
+- [x] Added the source-listed approximate walk from Fort Parking (about 300 metres / 5–6 minutes) and from the fort entrance (about 200 metres / 3–4 minutes) to Directions.
+- [x] Added a clearly caveated rickshaw access note from the owner-maintained legacy Directions page. The page says local access can vary and directs guests to confirm the current drop-off/meeting point.
+- [x] Linked the same arrival facts from Home, Rooms, Experiences, Experience details, Dining, About and Gallery to reduce inconsistencies between planning contexts.
+- [x] Added a scoped responsive stylesheet, a static source-fact/link contract and Chromium checks for the seven cross-page links, distance cards and responsive widths.
+- [ ] Owner must confirm the legacy walking estimates and busy-hours rickshaw guidance remain current before guests rely on them. These are approximate source facts, not live route measurements.
+- [ ] On an owner-approved HTTPS staging origin, manually verify the Directions card layout and the linked anchor at mobile and desktop widths; inspect image crop and keyboard operation. No staging URL is approved or assumed by this change.
+- [ ] Verify the exact map pin and contact-channel reachability through an operator-controlled check. Source authorization is not proof of live reachability, and no external link/message is opened or sent by the browser test.
+- [ ] STG-01–STG-18 remain NOT RUN until an operator records actual evidence. Canonical activation, public sitemap, robots-policy changes, production deployment and guest-data collection remain separately gated.
