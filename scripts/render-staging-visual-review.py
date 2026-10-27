@@ -20,17 +20,14 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-PAGES = [
-    ("index.html", "Home"),
-    ("rooms.html", "Rooms"),
-    ("experiences.html", "Experiences"),
-    ("experience-details.html", "Experience details"),
-    ("dining.html", "Dining"),
-    ("about.html", "About"),
-    ("directions.html", "Directions"),
-    ("gallery.html", "Gallery"),
+ROUTE_CONTRACT_PATH = ROOT / "content" / "staging-route-contract.json"
+with ROUTE_CONTRACT_PATH.open("r", encoding="utf-8") as route_contract_file:
+    ROUTE_CONTRACT = json.load(route_contract_file)
+PAGES = [(route["file"], route["title"]) for route in ROUTE_CONTRACT["routes"]]
+VIEWPORTS = [
+    (viewport["width"], viewport["height"], viewport["label"])
+    for viewport in ROUTE_CONTRACT["viewports"]
 ]
-VIEWPORTS = [(360, 800, "Mobile"), (768, 1024, "Tablet"), (1440, 900, "Desktop")]
 EXPECTED_SCREENSHOT_COUNT = len(PAGES) * len(VIEWPORTS)
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 UNKNOWN_ROUTE_PATH = "/__garh-jaisal-404-smoke-not-found-20261027__"
@@ -305,11 +302,11 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     expected_pages = [page for page, _title in PAGES]
     expected_widths = [width for width, _height, _label in VIEWPORTS]
     if report.get("pagesPlanned") != expected_pages:
-        issues.append("Planned routes do not match the eight expected site pages.")
+        issues.append(f"Planned routes do not match the {len(PAGES)} expected site pages.")
     if report.get("pagesAttempted") != expected_pages:
-        issues.append("The report does not record attempts for all eight routes in the expected order.")
+        issues.append(f"The report does not record attempts for all {len(PAGES)} routes in the expected order.")
     if report.get("pagesWithHttp200OnTargetOrigin") != expected_pages:
-        issues.append("The report does not record target-origin HTTP 200 responses for all eight routes.")
+        issues.append(f"The report does not record target-origin HTTP 200 responses for all {len(PAGES)} routes.")
     if report.get("plannedViewportWidthsCssPixels") != expected_widths:
         issues.append("Planned viewport widths do not match 360, 768 and 1440 CSS pixels.")
     if report.get("completedResponsiveViewportWidthsCssPixels") != expected_widths:
@@ -328,9 +325,9 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     names = [item.get("filename") if isinstance(item, dict) else None for item in records]
     expected = expected_names()
     if names != expected:
-        issues.append("Report does not list the exact 24 screenshot names in the planned order.")
+        issues.append(f"Report does not list the exact {EXPECTED_SCREENSHOT_COUNT} screenshot names in the planned order.")
     if evidence.get("complete") is not True or evidence.get("capturedScreenshotCount") != EXPECTED_SCREENSHOT_COUNT:
-        issues.append("Report does not declare complete 21-image visual evidence.")
+        issues.append(f"Report does not declare complete {EXPECTED_SCREENSHOT_COUNT}-image visual evidence.")
     manual = report.get("manualReleaseChecks")
     expected_ids = [f"STG-{number:02d}" for number in range(1, 19)]
     if (not isinstance(manual, list) or len(manual) != 18
@@ -595,7 +592,7 @@ def main(argv: list[str] | None = None) -> int:
     if issues or verified != EXPECTED_SCREENSHOT_COUNT or report.get("automatedResult") != "PASS":
         print(f"FAIL: HTML review written; screenshot integrity {verified}/{EXPECTED_SCREENSHOT_COUNT}; automated result {report.get('automatedResult')}; manual UAT remains blocked.")
         return 1
-    print("PASS: offline HTML review written; all {EXPECTED_SCREENSHOT_COUNT} screenshots match report byte counts, SHA-256 and PNG geometry. Manual UAT remains blocked.")
+    print(f"PASS: offline HTML review written; all {EXPECTED_SCREENSHOT_COUNT} screenshots match report byte counts, SHA-256 and PNG geometry. Manual UAT remains blocked.")
     return 0
 
 
