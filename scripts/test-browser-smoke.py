@@ -1330,6 +1330,69 @@ def check_experience_discovery_journey(page, base_url: str) -> None:
               "Return-to-catalogue action must land on the experience options")
 
 
+def check_arrival_wayfinding_journey(page, base_url: str) -> None:
+    """Verify the source-backed final-walk facts and their links from guest decision pages."""
+    routes = [
+        ("index.html", "Home"),
+        ("rooms.html", "Rooms"),
+        ("experiences.html", "Experiences"),
+        ("experience-details.html", "Experience details"),
+        ("dining.html", "Dining"),
+        ("about.html", "About"),
+        ("gallery.html", "Gallery"),
+    ]
+    for route, label in routes:
+        response = page.goto(base_url + route, wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"{label}: route must load for the arrival-planning handoff")
+        if response is None or response.status != 200:
+            continue
+        arrival_links = page.locator('a[href="directions.html#arrival-walk-distances-title"]')
+        check(arrival_links.count() > 0,
+              f"{label}: contextual arrival guidance must deep-link to the walking-distance section")
+
+    page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+    home_arrival_link = page.locator('a[href="directions.html#arrival-walk-distances-title"]').first
+    if home_arrival_link.count():
+        home_arrival_link.click()
+        page.wait_for_function(
+            "() => window.location.pathname.endsWith('/directions.html') "
+            "&& window.location.hash === '#arrival-walk-distances-title'",
+            timeout=5000,
+        )
+        check(page.locator("#arrival-walk-distances-title").is_visible(),
+              "Home: arrival shortcut must land on the distance facts heading")
+
+    response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200, "Directions: expected HTTP 200")
+    section = page.locator("#arrival-walk-distances")
+    check(section.count() == 1 and section.is_visible(),
+          "Directions: source-backed arrival distance section must be visible")
+    cards = section.locator(".arrival-distance-card")
+    check(cards.count() == 3,
+          "Directions: parking, fort-entrance and rickshaw-access facts must each have one card")
+    if cards.count() == 3:
+        parking = cards.nth(0).inner_text()
+        entrance = cards.nth(1).inner_text()
+        rickshaw = cards.nth(2).inner_text()
+        check("300 metres" in parking and "5–6 minutes" in parking,
+              "Directions: Fort Parking estimate must be about 300 metres / 5–6 minutes")
+        check("200 metres" in entrance and "3–4 minutes" in entrance,
+              "Directions: fort entrance estimate must be about 200 metres / 3–4 minutes")
+        check("8:00 AM–8:00 PM" in rickshaw and "Local access can vary" in rickshaw,
+              "Directions: rickshaw window must remain caveated as source guidance, not a guarantee")
+
+    for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
+        page.set_viewport_size({"width": width, "height": height})
+        dimensions = page.evaluate(
+            "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"
+        )
+        check(dimensions["document"] <= dimensions["viewport"] + 1,
+              f"Directions: arrival distance cards must not overflow horizontally at {width}px")
+        check(page.locator("#arrival-walk-distances-title").is_visible(),
+              f"Directions: arrival distance heading must remain available at {width}px")
+
+
 def check_room_finder(page, base_url: str, browser) -> None:
     """Exercise progressive room filters and verify the all-rooms no-JavaScript fallback."""
     page.set_viewport_size({"width": 360, "height": 800})
@@ -1723,6 +1786,7 @@ def main(argv: list[str] | None = None) -> int:
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
             check_room_finder(page, base_url, browser)
+            check_arrival_wayfinding_journey(page, base_url)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
