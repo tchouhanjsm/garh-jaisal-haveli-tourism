@@ -41,16 +41,16 @@ def make_fixture(root: Path) -> None:
         encoding="utf-8",
     )
     (root / "tours" / "desert" / "index.html").write_text(
-        page("Desert tour", "tour", '<a href="../../../../rooms.html#rooms">Rooms</a>'
-             '<img src="../../../../assets/room.jpg" alt="Sandstone guest room">'),
+        page("Desert tour", "tour", '<a href="../../rooms.html#rooms">Rooms</a>'
+             '<img src="../../assets/room.jpg" alt="Sandstone guest room">'),
         encoding="utf-8",
     )
     (root / "tours" / "desert" / "day" / "index.html").write_text(
-        page("Desert day", "day", '<a href="../../../../index.html#home">Home</a>'),
+        page("Desert day", "day", '<a href="../../../index.html#home">Home</a>'),
         encoding="utf-8",
     )
     (root / "blogs" / "guides" / "fort" / "index.html").write_text(
-        page("Fort guide", "fort", '<a href="../../../../index.html#home">Home</a>'),
+        page("Fort guide", "fort", '<a href="../../../index.html#home">Home</a>'),
         encoding="utf-8",
     )
 
