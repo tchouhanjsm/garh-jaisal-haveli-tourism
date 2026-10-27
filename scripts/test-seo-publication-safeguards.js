@@ -41,7 +41,7 @@ function publicHtmlFiles(rootDirectory) {
         if (entry.isSymbolicLink()) continue;
         const candidate = path.join(current, entry.name);
         if (entry.isDirectory()) walk(candidate);
-        else if (entry.isFile() && /\\.html$/i.test(entry.name)) files.push(candidate);
+        else if (entry.isFile() && /\.html$/i.test(entry.name)) files.push(candidate);
       }
     };
     walk(base);
