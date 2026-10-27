@@ -963,7 +963,7 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     tabs = page.get_by_role("tablist", name="Restaurant information").get_by_role("tab")
     check(tabs.count() == 4, "Dining must expose the four restaurant tabs")
     menu_tab = page.get_by_role("tab", name="Menu")
-    table_tab = page.get_by_role("tab", name="Book a Table")
+    table_tab = page.get_by_role("tab", name="Ask about a table")
     directions_tab = page.get_by_role("tab", name="Directions")
     menu_tab.click()
     check(menu_tab.get_attribute("aria-selected") == "true",
@@ -972,7 +972,7 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
           "Menu tab must show its panel")
     menu_tab.press("ArrowRight")
     check(table_tab.get_attribute("aria-selected") == "true",
-          "ArrowRight from Menu must activate Book a Table")
+          "ArrowRight from Menu must activate Ask about a table")
     check(table_tab.evaluate("(element) => document.activeElement === element"),
           "ArrowRight must move keyboard focus with the active tab")
     table_tab.press("End")
@@ -985,17 +985,15 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
 
     form = page.locator("[data-restaurant-table-form]")
     check(form.count() == 1, "Dining must render exactly one dedicated table-enquiry form")
-    name = form.locator('[name="name"]')
-    email = form.locator('[name="email"]')
-    mobile = form.locator('[name="mobile"]')
+    note = form.locator('[name="note"]')
     requested_date = form.locator('[name="date"]')
     requested_time = form.locator('[name="time"]')
     guests = form.locator('[name="guests"]')
     submit = form.locator("[data-restaurant-table-submit]")
     check(requested_date.get_attribute("aria-invalid") == "false",
           "An untouched required date field must not be announced as invalid")
-    check(mobile.get_attribute("aria-invalid") == "false",
-          "An untouched required mobile field must not be announced as invalid")
+    check(form.locator('[name="name"], [name="email"], [name="mobile"]').count() == 0,
+          "Dining table enquiry must not ask for redundant name, email or mobile details")
 
     dates = page.evaluate(
         """() => {
@@ -1028,36 +1026,36 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     check("confirm current service hours and availability" in page.locator("#restaurant-table-time-help").inner_text().lower(),
           "Dining preferred-time guidance must require restaurant confirmation")
     check(guests.get_attribute("type") == "number" and guests.get_attribute("min") == "1"
-          and guests.get_attribute("max") == "20",
-          "Dining party size must use the source form's 1–20 input bounds")
+          and guests.get_attribute("step") == "1" and guests.get_attribute("max") is None,
+          "Dining party size must accept positive whole-number requests without an unconfirmed maximum")
     check(guests.input_value() == "2",
           "Dining party size defaults to two but remains editable")
-    check(email.get_attribute("required") is None,
-          "Email must remain optional to minimize unnecessary guest data")
+    check(requested_time.get_attribute("required") is None,
+          "Dining preferred time must remain optional until service hours are owner-confirmed")
+    check(note.get_attribute("maxlength") == "240" and note.get_attribute("required") is None,
+          "The optional context note must remain bounded and optional")
+    check(note.get_attribute("aria-describedby") == "restaurant-table-note-help"
+          and page.locator("#restaurant-table-note-help").is_visible(),
+          "The optional context note must expose its privacy guidance to assistive technology")
 
-    name.fill("Aarav Guest")
-    email.fill("not-an-email")
-    mobile.fill("123")
-    check(not mobile.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must reject a mobile number with too few digits")
-    mobile.fill("+91 98765 43210")
-    check(not form.evaluate("(element) => element.checkValidity()"),
-          "A malformed optional email must be rejected when supplied")
-    email.fill("")
     guests.fill("0")
     check(not form.evaluate("(element) => element.checkValidity()"),
           "Dining table form must reject a party size below one")
-    guests.fill("21")
+    guests.fill("1.5")
     check(not form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must reject a party size above the source form limit")
+          "Dining table form must reject fractional party sizes")
+    guests.fill("21")
+    check(form.evaluate("(element) => element.checkValidity()"),
+          "Larger groups must be able to enquire; the restaurant confirms capacity and availability")
     guests.fill("4")
     requested_time.fill("")
+    note.fill("")
     check(form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must allow an enquiry without optional email or time preference")
-    email.fill("aarav@example.com")
+          "Dining form must allow an enquiry without optional time or note")
     requested_time.fill("7:30 PM")
+    note.fill("Anniversary dinner setup question")
     check(form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must accept valid required fields, party size and optional preferences")
+          "Dining form must accept date, party size and bounded optional preferences")
     submit.click()
     page.wait_for_function(
         "() => Array.isArray(window.__tableEnquiryOpenCalls) && window.__tableEnquiryOpenCalls.length === 1",
@@ -1081,17 +1079,17 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     check({"noopener", "noreferrer"}.issubset(set(draft["features"].split(","))),
           "Dining table enquiry must protect the new tab with noopener/noreferrer")
     for expected in (
-        "Name: Aarav Guest",
-        "Email: aarav@example.com",
-        "Mobile: +91 98765 43210",
         "Requested date: " + dates["tomorrow"],
         "Guests: 4",
         "Preferred time: 7:30 PM",
+        "Additional note: Anniversary dinner setup question",
         "not a reservation",
         "not booked until the restaurant replies and confirms it",
     ):
         check(expected.lower() in draft["text"].lower(),
               "Dining table WhatsApp draft must include " + expected.split(":")[0])
+    check(not any(label in draft["text"] for label in ("Name:", "Email:", "Mobile:")),
+          "Dining draft must not include redundant personal contact fields")
     status = page.locator("[data-restaurant-table-status]").inner_text().lower()
     check("table is not reserved" in status and "review and send it yourself" in status,
           "Dining table status must clearly say the request is unconfirmed and guest-controlled")

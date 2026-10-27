@@ -62,9 +62,7 @@
   if (!form) return;
   const submit = form.querySelector('[data-restaurant-table-submit]');
   const status = form.querySelector('[data-restaurant-table-status]');
-  const nameField = form.elements.namedItem('name');
-  const emailField = form.elements.namedItem('email');
-  const mobileField = form.elements.namedItem('mobile');
+  const noteField = form.elements.namedItem('note');
   const guestField = form.elements.namedItem('guests');
   const dateField = form.elements.namedItem('date');
   const timeField = form.elements.namedItem('time');
@@ -77,7 +75,7 @@
       status.textContent = message;
     }
   };
-  if (!submit || !status || !nameField || !emailField || !mobileField || !guestField || !dateField || !timeField) {
+  if (!submit || !status || !guestField || !dateField || !timeField || !noteField) {
     disable('Table enquiries are unavailable because a required field is missing. No details have been sent.');
     return;
   }
@@ -94,20 +92,12 @@
       ? 'Please choose today or a future date.' : '');
     dateField.setAttribute('aria-invalid', String(Boolean(dateField.value && !dateField.validity.valid)));
   };
-  const updateMobileConstraint = () => {
-    const digits = String(mobileField.value || '').replace(/\D/g, '');
-    mobileField.setCustomValidity(mobileField.value && (digits.length < 8 || digits.length > 15)
-      ? 'Enter a mobile number with 8–15 digits, including the country code where needed.' : '');
-    mobileField.setAttribute('aria-invalid', String(Boolean(mobileField.value && !mobileField.validity.valid)));
-  };
 
 
   ['input', 'change'].forEach(type => {
     dateField.addEventListener(type, updateDateConstraint);
-    mobileField.addEventListener(type, updateMobileConstraint);
   });
   updateDateConstraint();
-  updateMobileConstraint();
 
 
   async function loadApprovedContact() {
@@ -139,33 +129,22 @@
   form.addEventListener('submit', event => {
     event.preventDefault();
     updateDateConstraint();
-    updateMobileConstraint();
     if (!approvedWhatsAppBase) {
       disable('The contact channel is not available. No details have been sent.');
       return;
     }
     if (!form.reportValidity()) return;
-    const name = String(nameField.value || '').trim();
-    const email = String(emailField.value || '').trim();
-    const mobile = String(mobileField.value || '').trim();
+    const note = String(noteField.value || '').trim().slice(0, 240);
     const date = String(dateField.value || '');
     const time = String(timeField.value || '').trim().slice(0, 40);
     const guests = String(guestField.value || '').trim();
-    if (name.length < 2) {
-      nameField.setCustomValidity('Enter your name so the restaurant knows who is enquiring.');
-      form.reportValidity();
-      nameField.setCustomValidity('');
-      return;
-    }
     const message = [
-      'Namaste Garh Jaisal’s Kitchen, I would like to enquire about a table.',
-      'Name: ' + name,
-      'Email: ' + (email || 'Not provided'),
-      'Mobile: ' + mobile,
+      'Namaste Garh Jaisal’s Kitchen, I would like to ask about a table.',
       'Requested date: ' + date,
       'Guests: ' + guests,
       'Preferred time: ' + (time || 'Not specified'),
-      'Please confirm current opening hours and table availability for this request.',
+      ...(note ? ['Additional note: ' + note] : []),
+      'Please confirm current service hours, menu/prices and table availability for this request.',
       'I understand this is an enquiry, not a reservation. The table is not booked until the restaurant replies and confirms it.'
     ].join('\n');
     const draftUrl = approvedWhatsAppBase + '?text=' + encodeURIComponent(message);

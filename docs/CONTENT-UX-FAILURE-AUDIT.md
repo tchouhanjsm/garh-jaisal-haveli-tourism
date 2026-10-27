@@ -980,3 +980,28 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Removed the time-specific window from the static Directions card. The public copy now asks guests to confirm current local access and the drop-off/meeting point.
 - Retained the source-listed distances and clearly qualified walking-time guidance; the fort-entrance time is not present in the current source page, and owner confirmation remains required before release.
 - Added static and Chromium regression assertions that reject the unconfirmed time window.
+
+
+## 28 October 2026 — Dining enquiry data minimization
+
+### Finding
+- The static Dining page used WhatsApp as the delivery channel but still asked guests to enter their name and mobile number, plus an optional email, and repeated those details inside the draft. That duplicates contact information already associated with the guest's WhatsApp account and adds friction before a simple availability enquiry.
+- The tab and panel were labelled “Book a Table” even though the interface cannot reserve a table and requires a human confirmation.
+
+### Implementation
+- Changed the tab and panel heading to “Ask about a table” while retaining clear “not a reservation” language.
+- Reduced the form to the information needed to ask the question: date, party size, optional preferred-time text and a bounded optional note.
+- Removed name/email/mobile fields and their custom validation. The draft contains only the guest-selected planning details and optional note, asks the restaurant to confirm current hours/menu/prices/availability, and explicitly states that the table is not booked until the restaurant replies.
+- Added responsive textarea styling and static/Chromium regression coverage for required/optional fields, bounds, the generated draft and absence of redundant contact fields.
+
+### Validation and release boundary
+- Exact-head GitHub push and pull-request quality workflows must pass before merge, followed by the post-merge main quality run.
+- The browser test intercepts window.open; it does not navigate to WhatsApp, send a message, submit guest data to a server or create a reservation.
+- The menu remains owner-unconfirmed. Human service-hour, menu/price, availability and contact-channel checks remain open. Staging UAT, Lighthouse and formal accessibility evaluation are not claimed.
+- No canonical, sitemap, robots, deployment or server-side enquiry-storage settings are changed.
+
+
+### Review follow-up — do not imply an unconfirmed table capacity
+- Removed the inherited `max="20"` form ceiling because no owner-confirmed restaurant capacity was identified in the reviewed source menu record.
+- Retained a minimum of one guest and whole-number input. Larger groups can ask; the restaurant must confirm capacity and availability.
+- Updated static and Chromium regression checks to reject an arbitrary maximum while still rejecting zero and fractional party sizes.

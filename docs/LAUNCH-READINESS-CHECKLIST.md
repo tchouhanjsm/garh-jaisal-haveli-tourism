@@ -308,3 +308,15 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] On an owner-approved HTTPS staging origin, manually verify the Directions card layout and the linked anchor at mobile and desktop widths; inspect image crop and keyboard operation. No staging URL is approved or assumed by this change.
 - [ ] Verify the exact map pin and contact-channel reachability through an operator-controlled check. Source authorization is not proof of live reachability, and no external link/message is opened or sent by the browser test.
 - [ ] STG-01–STG-18 remain NOT RUN until an operator records actual evidence. Canonical activation, public sitemap, robots-policy changes, production deployment and guest-data collection remain separately gated.
+
+
+## 28 October 2026 — Dining enquiry data minimization
+
+- [x] Rename the table tab and heading to “Ask about a table” so the action is clearly an enquiry, not a reservation.
+- [x] Remove redundant name, email and mobile fields from the WhatsApp-only table enquiry. Keep only required date and party size, optional free-text time and a bounded optional context note.
+- [x] Keep the form fail-closed on invalid/unavailable contact configuration; only an explicit submit prepares a protected WhatsApp draft. No guest details are stored or sent automatically.
+- [x] Add static and Chromium regression coverage for field minimization, optional preferences, bounds, draft content and absence of personal-contact labels.
+- [ ] Human staging review remains NOT RUN: verify the shorter form, keyboard focus, mobile layout and optional note on an owner-approved HTTPS staging origin.
+- [ ] Do not send the draft or contact the restaurant as part of automated tests. Owner must still confirm current service hours, menu/prices and table availability. A table enquiry is not a reservation.
+
+- [x] Removed the inherited 20-guest form ceiling because restaurant capacity is not owner-confirmed; larger groups may enquire, with capacity and availability confirmed by the restaurant.

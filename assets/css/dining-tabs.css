@@ -40,10 +40,11 @@ body.dining-tabs-ready [data-restaurant-panel][hidden] { display: none !importan
 .dining-table-form { display: grid; gap: 18px; min-width: 0; }
 .dining-table-form__field { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .dining-table-form label { color: var(--ink); font-size: 12px; font-weight: 600; }
-.dining-table-form input, .dining-table-form select { width: 100%; min-width: 0; min-height: 48px; padding: 12px 13px; border: 1px solid #cfc6b8; border-radius: 0; background: #fffefa; color: var(--ink); font: inherit; font-size: 13px; }
-.dining-table-form input::placeholder { color: #797d76; }
-.dining-table-form input:focus-visible, .dining-table-form select:focus-visible { outline: 3px solid var(--gold-dark); outline-offset: 2px; border-color: var(--gold-dark); }
-.dining-table-form input[aria-invalid="true"], .dining-table-form select[aria-invalid="true"] { border-color: #9d3029; }
+.dining-table-form input, .dining-table-form select, .dining-table-form textarea { width: 100%; min-width: 0; min-height: 48px; padding: 12px 13px; border: 1px solid #cfc6b8; border-radius: 0; background: #fffefa; color: var(--ink); font: inherit; font-size: 13px; }
+.dining-table-form input::placeholder, .dining-table-form textarea::placeholder { color: #797d76; }
+.dining-table-form textarea { min-height: 108px; resize: vertical; }
+.dining-table-form input:focus-visible, .dining-table-form select:focus-visible, .dining-table-form textarea:focus-visible { outline: 3px solid var(--gold-dark); outline-offset: 2px; border-color: var(--gold-dark); }
+.dining-table-form input[aria-invalid="true"], .dining-table-form select[aria-invalid="true"], .dining-table-form textarea[aria-invalid="true"] { border-color: #9d3029; }
 .dining-table-form small { color: var(--muted); font-size: 11px; line-height: 1.6; }
 .dining-table-form__row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .dining-table-form__privacy { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.8; }
