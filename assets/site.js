@@ -69,7 +69,7 @@
         if (submit) submit.disabled = true;
         if (status) {
           status.dataset.state = 'error';
-          status.textContent = 'Enquiries are temporarily unavailable because the contact channel could not be verified. Please use your existing booking confirmation for contact details.';
+          status.textContent = 'The enquiry form is unavailable because an authorized WhatsApp destination could not be loaded. No message has been sent. Refresh this page and try again, or use contact details supplied directly by the hotel.';
         }
         return;
       }
@@ -262,7 +262,7 @@
         if (submit) submit.disabled = !whatsappBaseUrl;
         if (note) note.textContent = whatsappBaseUrl
           ? 'Opens WhatsApp to ask about availability. This is an enquiry, not a reservation; no payment is taken here.'
-          : 'WhatsApp enquiry is unavailable. Your travel details will not be sent.';
+          : 'The enquiry form cannot open an authorized WhatsApp destination right now. Your travel details have not been sent. Refresh the page and try again, or use contact details supplied directly by the hotel.';
       });
 
       const hasUnavailableChannel = (enquiryLinks.length > 0 && !whatsappBaseUrl)
@@ -285,7 +285,7 @@
         const submit = form.querySelector('[data-booking-submit]');
         const note = form.querySelector('[data-booking-note]');
         if (submit) submit.disabled = true;
-        if (note) note.textContent = 'Contact details could not be loaded. No travel details have been sent.';
+        if (note) note.textContent = 'The enquiry form could not load the contact configuration. Your travel details have not been sent. Refresh the page and try again, or use contact details supplied directly by the hotel.';
       });
       guestEnquiryForms.forEach(form => {
         const submit = form.querySelector('[data-guest-enquiry-submit]');
@@ -293,7 +293,7 @@
         if (submit) submit.disabled = true;
         if (status) {
           status.dataset.state = 'error';
-          status.textContent = 'Enquiries are temporarily unavailable because the contact configuration could not be loaded. No details have been sent.';
+          status.textContent = 'The enquiry form is unavailable because the contact configuration could not be loaded. No message has been sent. Refresh this page and try again, or use contact details supplied directly by the hotel.';
         }
       });
     }
@@ -363,8 +363,8 @@
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (!activeWhatsAppBaseUrl) {
-        if (note) note.textContent = 'Direct enquiry is unavailable until the hotel verifies its WhatsApp contact channel. Your travel details have not been sent.';
-        showToast('Direct enquiry is temporarily unavailable while contact details are being verified.');
+        if (note) note.textContent = 'The enquiry form cannot open an authorized WhatsApp destination right now. Your travel details have not been sent. Refresh the page and try again, or use contact details supplied directly by the hotel.';
+        showToast('WhatsApp enquiry is unavailable right now; no details were sent.');
         return;
       }
       if (!form.reportValidity()) return;

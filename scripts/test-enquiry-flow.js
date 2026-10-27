@@ -91,7 +91,7 @@ async function boot(config, fetchFails = false) {
   const header = element('header');
   const menuToggle = element('button', { 'aria-expanded': 'false', 'aria-label': 'Open navigation' });
   const nav = element('nav');
-  const status = element('div', {}, 'Contact channels are awaiting verification.');
+  const status = element('div', {}, 'Some contact options need attention. One or more configured contact channels could not load. This website does not itself confirm a reservation; refresh this page and try again. No enquiry message was sent and no reservation was created. If you need help now, use contact details already supplied directly by the hotel.');
   const enquiryLink = element('a', {
     href: '#contact-status',
     'data-enquiry-link': '',
@@ -139,7 +139,7 @@ async function boot(config, fetchFails = false) {
   const guests = element('select');
   guests.value = '2';
   guests.selectedOptions = [{ textContent: '2 guests' }];
-  const note = element('p', {}, 'Direct enquiry is temporarily unavailable while contact details are being verified.');
+  const note = element('p', {}, 'The enquiry form cannot open an authorized WhatsApp destination right now. Your travel details have not been sent. Refresh the page and try again, or use contact details supplied directly by the hotel.');
   const submit = element('button', { 'data-booking-submit': '' }, 'Check availability');
   const form = element('form', { 'data-booking-form': '' });
   form.elements = { namedItem(name) { return ({ arrival, departure, guests })[name] || null; } };
@@ -256,6 +256,10 @@ async function main() {
   assert.equal(blockedSubmit.defaultPrevented, true);
   assert.equal(unverified.window.location.href, 'https://example.test/rooms.html');
   assert.match(unverified.note.textContent, /not been sent/i);
+  assert.match(unverified.note.textContent, /refresh the page and try again/i);
+  assert.match(unverified.note.textContent, /contact details supplied directly by the hotel/i);
+  assert.match(unverified.status.textContent, /no enquiry message was sent/i);
+  assert.match(unverified.status.textContent, /refresh this page and try again/i);
 
   const verified = await boot(makeConfig({
     verified: true,
@@ -338,6 +342,10 @@ async function main() {
   assert.equal(fetchFailure.enquiryLink.getAttribute('aria-disabled'), 'true');
   assert.equal(fetchFailure.submit.disabled, true);
   assert.equal(fetchFailure.status.hidden, false);
+  assert.match(fetchFailure.status.textContent, /no enquiry message was sent/i);
+  assert.match(fetchFailure.note.textContent, /travel details have not been sent/i);
+  assert.match(fetchFailure.note.textContent, /refresh the page and try again/i);
+  assert.match(fetchFailure.note.textContent, /contact details supplied directly by the hotel/i);
 
   console.log('PASS: source-authorized booking, WhatsApp, telephone, landline, email and exact hotel map pin hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
 }
