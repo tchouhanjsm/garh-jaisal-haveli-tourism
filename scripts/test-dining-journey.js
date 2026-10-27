@@ -83,7 +83,7 @@ assert.match(js, /window\.open\(draftUrl, '_blank', 'noopener,noreferrer'\)/,
 assert.match(js, /loadApprovedContact\(\)/);
 assert.match(js, /owner-authorized-source/);
 assert.match(js, /owner-verified/);
-assert.match(js, /table is not reserved|not reserved/i);
+assert.match(js, /not a reservation|not booked until|not reserved/i);
 assert.doesNotMatch(js, /localStorage|sessionStorage|fetch\s*\([^)]*POST|method:\s*['"]POST['"]/i,
   'No guest data is persisted or POSTed to a new backend');
 assert.doesNotMatch(js, /\+917727047567|77270\s*47567/,
