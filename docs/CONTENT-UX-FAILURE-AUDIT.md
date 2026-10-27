@@ -972,3 +972,11 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Owner confirmation that legacy walking estimates and rickshaw access notes remain current is still required.
 - HTTPS staging review at mobile/tablet/desktop widths, map/contact reachability checks, STG-01–STG-18, formal accessibility review and Lighthouse remain NOT RUN.
 - This phase does not activate canonical URLs, publish a sitemap, relax robots rules, deploy to production or introduce server-side guest-data collection.
+
+
+## 27 October 2026 — Unconfirmed rickshaw hours withheld
+
+- The authoritative legacy Directions page contains an 8:00 AM–8:00 PM rickshaw-access note, but the current owner confirmation gate remains open.
+- Removed the time-specific window from the static Directions card. The public copy now asks guests to confirm current local access and the drop-off/meeting point.
+- Retained the source-listed approximate walking estimates with explicit caveats; owner confirmation remains required before release.
+- Added static and Chromium regression assertions that reject the unconfirmed time window.
