@@ -949,6 +949,7 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     mobile = form.locator('[name="mobile"]')
     requested_date = form.locator('[name="date"]')
     requested_time = form.locator('[name="time"]')
+    guests = form.locator('[name="guests"]')
     submit = form.locator("[data-restaurant-table-submit]")
     check(requested_date.get_attribute("aria-invalid") == "false",
           "An untouched required date field must not be announced as invalid")
@@ -977,29 +978,45 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
           "Dining table date input must reject a past date")
     requested_date.fill(dates["tomorrow"])
 
-    slot_values = requested_time.locator("option").evaluate_all(
-        "(options) => options.map(option => option.value).filter(Boolean)"
-    )
-    expected_slots = []
-    for minutes in range(7 * 60, 22 * 60 + 30 + 1, 30):
-        expected_slots.append(f"{minutes // 60:02d}:{minutes % 60:02d}")
-    check(slot_values == expected_slots,
-          "Dining table time slots must be 30-minute preferred enquiry values from 07:00 through 22:30")
-    check(len(slot_values) == 32 and len(set(slot_values)) == 32,
-          "Dining must offer exactly 32 unique preferred enquiry slots")
-    time_help = page.locator("#restaurant-table-time-help").inner_text().lower()
-    check("not verified restaurant opening hours" in time_help and "must confirm" in time_help,
-          "Time slots must be labelled as enquiry preferences, not verified service hours")
+    check(requested_time.get_attribute("type") == "text",
+          "Dining time must be a free-text preference, not an assumed opening-hours list")
+    check(requested_time.get_attribute("maxlength") == "40",
+          "Dining preferred-time text must have a bounded length")
+    check(requested_time.get_attribute("required") is None,
+          "Dining preferred time must remain optional until service hours are owner-confirmed")
+    check("confirm current service hours and availability" in page.locator("#restaurant-table-time-help").inner_text().lower(),
+          "Dining preferred-time guidance must require restaurant confirmation")
+    check(guests.get_attribute("type") == "number" and guests.get_attribute("min") == "1"
+          and guests.get_attribute("max") == "20",
+          "Dining party size must use the source form's 1–20 input bounds")
+    check(guests.input_value() == "2",
+          "Dining party size defaults to two but remains editable")
+    check(email.get_attribute("required") is None,
+          "Email must remain optional to minimize unnecessary guest data")
 
     name.fill("Aarav Guest")
-    email.fill("aarav@example.com")
+    email.fill("not-an-email")
     mobile.fill("123")
     check(not mobile.evaluate("(element) => element.checkValidity()"),
           "Dining table form must reject a mobile number with too few digits")
     mobile.fill("+91 98765 43210")
-    requested_time.select_option("19:30")
+    check(not form.evaluate("(element) => element.checkValidity()"),
+          "A malformed optional email must be rejected when supplied")
+    email.fill("")
+    guests.fill("0")
+    check(not form.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must reject a party size below one")
+    guests.fill("21")
+    check(not form.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must reject a party size above the source form limit")
+    guests.fill("4")
+    requested_time.fill("")
     check(form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must accept valid required fields and one of the offered preferred slots")
+          "Dining table form must allow an enquiry without optional email or time preference")
+    email.fill("aarav@example.com")
+    requested_time.fill("7:30 PM")
+    check(form.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must accept valid required fields, party size and optional preferences")
     submit.click()
     page.wait_for_function(
         "() => Array.isArray(window.__tableEnquiryOpenCalls) && window.__tableEnquiryOpenCalls.length === 1",
@@ -1027,6 +1044,7 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
         "Email: aarav@example.com",
         "Mobile: +91 98765 43210",
         "Requested date: " + dates["tomorrow"],
+        "Guests: 4",
         "Preferred time: 7:30 PM",
         "not a reservation",
         "not booked until the restaurant replies and confirms it",
