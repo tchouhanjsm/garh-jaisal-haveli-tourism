@@ -147,7 +147,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     incomplete_coverage = json.loads(json.dumps(report))
     incomplete_coverage["pagesAttempted"] = []
     _coverage_images, coverage_issues = review.inspect_bundle(incomplete_coverage, screenshots)
-    assert any("attempts for all eight routes" in issue for issue in coverage_issues)
+    assert any(f"attempts for all {len(review.PAGES)} routes" in issue for issue in coverage_issues)
     coverage_html = review.build_html(
         incomplete_coverage, screenshots, _coverage_images, coverage_issues
     )
