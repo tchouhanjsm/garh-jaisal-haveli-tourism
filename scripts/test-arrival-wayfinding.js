@@ -39,7 +39,7 @@ const rickshaw = directions.match(/<article class="arrival-distance-card arrival
 assert.match(parking, /Fort Parking[\s\S]*?300 metres[\s\S]*?5–6 minutes/i,
   'Fort Parking estimate must match the source-listed approximate 300 m / 5–6 minute walk');
 assert.match(entrance, /fort entrance[\s\S]*?200 metres[\s\S]*?3–4 minutes/i,
-  'Fort entrance estimate must match the source-listed approximate 200 m / 3–4 minute walk');
+  'Fort entrance distance must match the source-listed approximate 200 m; the separate 3–4 minute planning estimate remains provisional and requires owner confirmation');
 assert.match(rickshaw, /Rickshaw access rules and drop-off points can vary/i,
   'Rickshaw access must direct guests to confirm current local rules');
 assert.doesNotMatch(directions, /8:00 AM|Outside those times/i,

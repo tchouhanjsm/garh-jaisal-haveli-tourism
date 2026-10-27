@@ -300,7 +300,7 @@ This does **not** detect visually similar photographs encoded or cropped differe
 
 ## 27 October 2026 — Cross-page arrival wayfinding
 
-- [x] Added the source-listed approximate walk from Fort Parking (about 300 metres / 5–6 minutes) and from the fort entrance (about 200 metres / 3–4 minutes) to Directions.
+- [x] Added source-listed distances to Directions: about 300 metres from Fort Parking and about 200 metres from the fort entrance. The source lists 5–6 minutes from parking; the 3–4 minute entrance figure is a provisional owner-provided estimate, not present in the current source page. All walking-time guidance still requires owner confirmation before release.
 - [x] Added a general rickshaw-access enquiry prompt. Time-specific hours are omitted until the owner confirms current local rules; the page directs guests to confirm the drop-off/meeting point.
 - [x] Linked the same arrival facts from Home, Rooms, Experiences, Experience details, Dining, About and Gallery to reduce inconsistencies between planning contexts.
 - [x] Added a scoped responsive stylesheet, a static source-fact/link contract and Chromium checks for the seven cross-page links, distance cards and responsive widths.

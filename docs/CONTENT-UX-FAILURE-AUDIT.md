@@ -962,8 +962,8 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Guests encountered this missing practical detail at the point of choosing rooms, experiences or dining, increasing the need to navigate away before understanding the arrival constraint.
 
 ### Implementation
-- Added three compact arrival cards to Directions: Fort Parking (about 300 metres / 5–6 minutes), fort entrance (about 200 metres / 3–4 minutes), and rickshaw access guidance.
-- Labelled distances/times as approximate legacy-source estimates, noted that busy lanes can add time, and stated that vehicle access and the meeting point must be confirmed for the guest's date.
+- Added three compact arrival cards to Directions: source-listed distances from Fort Parking (about 300 metres) and the fort entrance (about 200 metres), plus rickshaw-access guidance.
+- The current source page supports the 5–6 minute estimate from Fort Parking. The 3–4 minute figure from the entrance is a provisional owner-provided planning estimate, not present in that source page. Both remain approximate; busy lanes can add time, and owner confirmation is required before release.
 - Updated contextual arrival copy/links across Home, Rooms, Experiences, Experience details, Dining, About and Gallery to deep-link to the same Directions heading. The existing exact hotel pin and centrally hydrated contact links remain unchanged.
 - Added scripts/test-arrival-wayfinding.js to the full quality runner and Chromium interaction/viewport coverage to scripts/test-browser-smoke.py.
 
@@ -978,5 +978,5 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 
 - The authoritative legacy Directions page contains an 8:00 AM–8:00 PM rickshaw-access note, but the current owner confirmation gate remains open.
 - Removed the time-specific window from the static Directions card. The public copy now asks guests to confirm current local access and the drop-off/meeting point.
-- Retained the source-listed approximate walking estimates with explicit caveats; owner confirmation remains required before release.
+- Retained the source-listed distances and clearly qualified walking-time guidance; the fort-entrance time is not present in the current source page, and owner confirmation remains required before release.
 - Added static and Chromium regression assertions that reject the unconfirmed time window.
