@@ -91,13 +91,13 @@
     dateField.min = today;
     dateField.setCustomValidity(dateField.value && dateField.value < today
       ? 'Please choose today or a future date.' : '');
-    dateField.setAttribute('aria-invalid', String(Boolean(dateField.validationMessage)));
+    dateField.setAttribute('aria-invalid', String(Boolean(dateField.value && !dateField.validity.valid)));
   };
   const updateMobileConstraint = () => {
     const digits = String(mobileField.value || '').replace(/\D/g, '');
     mobileField.setCustomValidity(mobileField.value && (digits.length < 8 || digits.length > 15)
       ? 'Enter a mobile number with 8–15 digits, including the country code where needed.' : '');
-    mobileField.setAttribute('aria-invalid', String(Boolean(mobileField.validationMessage)));
+    mobileField.setAttribute('aria-invalid', String(Boolean(mobileField.value && !mobileField.validity.valid)));
   };
   const allowedSlot = value => {
     if (!/^\d{2}:\d{2}$/.test(value)) return false;
