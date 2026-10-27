@@ -56,7 +56,8 @@ assert.match(script, /makeCell\(row, 'th', label, 'row'\)/,
   'each comparison data row must create a row header');
 assert.match(script, /remove\.dataset\.roomCompareRemove = record\.id/,
   'each comparison column must expose a room-specific remove control');
-assert.match(script, /data-room-compare-card-link/);
+assert.match(script, /nameLink\.dataset\.roomCompareCardLink = record\.id/,
+  'each comparison room name must link back to its corresponding catalogue card');
 assert.match(script, /record\.imageSrc/);
 assert.match(script, /record\.features/);
 assert.match(script, /document\.createElement/);
