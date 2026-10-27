@@ -1323,6 +1323,20 @@ def check_room_finder(page, base_url: str, browser) -> None:
     check(finder.locator("[data-room-finder-empty]").is_hidden(),
           "Rooms: clearing filters must hide the no-match state")
 
+    floor.focus()
+    page.keyboard.press("Tab")
+    keyboard_focus_ok = page.evaluate(
+        """() => Boolean(document.activeElement
+          && document.activeElement.matches('[data-room-feature-filter][value="king-bed"]'))"""
+    )
+    check(keyboard_focus_ok, "Rooms: Tab from the floor selector must reach the first feature checkbox")
+    page.keyboard.press("Space")
+    check(visible_room_ids() == ["room-red-maharani", "room-green"],
+          "Rooms: keyboard Space must apply the focused King bed checkbox")
+    page.keyboard.press("Space")
+    check(visible_room_ids() == all_ids,
+          "Rooms: keyboard Space must clear the focused King bed checkbox")
+
     # With JavaScript off, the controls stay hidden and the full catalogue is readable.
     nojs = browser.new_context(
         viewport={"width": 360, "height": 800},
