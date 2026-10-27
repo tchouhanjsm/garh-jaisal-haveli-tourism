@@ -27,12 +27,15 @@ function makeForm() {
   const form=element({'data-guest-enquiry-form':''});
   const submit=element({'data-guest-enquiry-submit':''},'Prepare WhatsApp enquiry');
   const status=element({'data-guest-enquiry-status':''},'Loading');
-  const departure=element({name:'departure'});
   const values={experience:'Swiss tent overnight',arrival:'2026-11-01',departure:'2026-11-03',guests:'2',notes:'Vegetarian meal request'};
-  form.children={'[data-guest-enquiry-submit]':submit,'[data-guest-enquiry-status]':status,'[name="departure"]':departure};
-  form.reportValidity=()=>true;
+  const arrival=element({name:'arrival'});
+  const departure=element({name:'departure'});
+  arrival.value=values.arrival; arrival.min='';
+  departure.value=values.departure; departure.min='';
+  form.children={'[data-guest-enquiry-submit]':submit,'[data-guest-enquiry-status]':status,'[name="arrival"]':arrival,'[name="departure"]':departure};
+  form.reportValidity=()=>!arrival.validationMessage&&!departure.validationMessage;
   form.dispatch=function(type,event={}){const ev={...event,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};for(const fn of this.listeners.get(type)||[])fn(ev);return ev;};
-  return {form,submit,status,departure,values};
+  return {form,submit,status,arrival,departure,values};
 }
 async function boot({config,fetchFails=false,departure='2026-11-03'}={}) {
   const enquiry=element({'data-enquiry-link':'','href':'#contact-status','aria-disabled':'true','data-enquiry-message':'Please share details.'});
@@ -51,6 +54,7 @@ async function boot({config,fetchFails=false,departure='2026-11-03'}={}) {
   baseForm.querySelector=s=>s==='[data-booking-submit]'?bookingSubmit:s==='[data-booking-note]'?bookingNote:null;
   const guest=makeForm();
   guest.values.departure=departure;
+  guest.departure.value=departure;
   guest.form.querySelector=s=>guest.form.children[s]||null;
   const header=element({'data-header':''});
   const toggle=element({'aria-expanded':'false','aria-label':'Open navigation'});
@@ -72,9 +76,13 @@ async function boot({config,fetchFails=false,departure='2026-11-03'}={}) {
 }
 const valid={verificationStatus:'owner-authorized-source',contact:{status:'source-authorized',whatsappBaseUrl:'https://wa.me/917727047567',primaryPhoneE164:'+917727047567',primaryPhoneDisplay:'+91 77270 47567',alternatePhoneE164:'+912992253836',alternatePhoneDisplay:'+91 2992 253836',email:'info@example.com'},booking:{status:'source-authorized',legacyBookingEngineUrl:'https://asiatech.in/booking_engine/index3?token=test'}};
 (async()=>{
+  const localTodayDate = new Date();
+  const localToday = new Date(localTodayDate.getTime() - localTodayDate.getTimezoneOffset() * 60000).toISOString().slice(0,10);
   const good=await boot({config:valid});
   assert.equal(good.guest.submit.disabled,false);
   assert.equal(good.guest.status.dataset.state,'ready');
+  assert.equal(good.guest.arrival.min,localToday);
+  assert.equal(good.guest.departure.min,good.guest.arrival.value);
   const event=good.guest.form.dispatch('submit');
   assert.equal(event.defaultPrevented,true);
   assert.equal(good.opened.length,1);
@@ -91,7 +99,20 @@ const valid={verificationStatus:'owner-authorized-source',contact:{status:'sourc
   const badDate=await boot({config:valid,departure:'2026-11-01'});
   badDate.guest.form.dispatch('submit');
   assert.equal(badDate.opened.length,0);
-  assert.equal(badDate.guest.departure.getAttribute('setCustomValidity'),null);
+  assert.equal(badDate.guest.departure.validationMessage,'Departure must be after arrival.');
+  // Correcting arrival alone must recompute the range and clear the stale
+  // custom error; requiring an edit to departure would trap the guest.
+  badDate.guest.arrival.value='2026-10-30';
+  badDate.guest.values.arrival='2026-10-30';
+  badDate.guest.arrival.dispatch('input');
+  assert.equal(badDate.guest.departure.min,'2026-10-30');
+  assert.equal(badDate.guest.departure.validationMessage,'');
+  assert.equal(badDate.guest.form.reportValidity(),true);
+  badDate.guest.form.dispatch('submit');
+  assert.equal(badDate.opened.length,1);
+  const recoveredText=new URL(badDate.opened[0][0]).searchParams.get('text');
+  assert.match(recoveredText,/Arrival: 2026-10-30/);
+  assert.match(recoveredText,/Departure: 2026-11-01/);
   const unauthorized=await boot({config:{...valid,verificationStatus:'legacy-source-unverified'}});
   assert.equal(unauthorized.guest.submit.disabled,true);
   assert.equal(unauthorized.opened.length,0);
