@@ -860,3 +860,31 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Run the full GitHub-hosted quality suite on the exact final PR head and again on post-merge `main`; local `bash scripts/check-pr-quality.sh` is not claimed from this environment.
 - The work does not change the source-authorized endpoints, the canonical-host approval flag, sitemap/robots publication, menu approval, content facts, deployment configuration or guest-data storage.
 - Source authorization is not proof of live channel reachability. The AsiaTech route still requires human desktop/mobile browser verification; contact channels, the exact hotel map pin, current service facts and STG-01–STG-18 remain human UAT gates.
+
+## 27 October 2026 — source-backed room finder and comparison support
+
+### Finding
+
+- The Rooms page presented seven correctly mapped room cards and a source-feature list, but visitors had no in-page way to narrow the list by the documented floor or by a particular bed/view/window-seat preference. Choosing among the cards required scanning every card manually.
+- Room selection must not imply that a photographed room is available, that an unlisted feature is absent, or that current occupancy/rates/cancellation terms are known.
+
+### Implementation
+
+- Added a scoped, progressively enhanced room finder above the existing seven-card catalogue. Floor options reflect the owner-maintained registry (three ground-floor entries and four first-floor entries).
+- Added source-listed feature filters for king bed, second bed, city view, window seat and carved bed. Multiple selected features are combined with AND semantics and only match features explicitly recorded in the visible catalogue.
+- Added a live count/status, a clear-filters action, and an explicit no-match state. Filter controls remain hidden until the seven-card catalogue and all control hooks pass basic initialization checks. With JavaScript disabled, all room cards stay visible and controls do not appear as inert UI.
+- Added deterministic coverage that verifies every room's floor and filter metadata match the visible source-list feature chips, then exercises floor filters, combined features, reset/focus recovery and malformed-catalogue fail-closed behavior. Extended the Chromium smoke suite to check the interaction at mobile width and the JavaScript-disabled fallback.
+
+### Changed paths
+
+- `rooms.html`
+- `assets/room-finder.css`, `assets/room-finder.js`
+- `scripts/test-room-finder.js`, `scripts/test-content-ux.js`
+- `scripts/test-browser-smoke.py`, `scripts/check-pr-quality.sh`
+- `README.md`, `docs/LAUNCH-READINESS-CHECKLIST.md`
+
+### Validation and release boundary
+
+- The full GitHub-hosted quality suite must pass on the exact final PR head and the resulting `main` SHA. Local full-suite execution is not claimed from this environment.
+- All room facts remain source-catalogue references, not live inventory. Do not add rates, occupancy, cancellation terms or unlisted bed/amenity guarantees. The finder does not change contact endpoints, booking behavior or storage.
+- No approved staging origin was found; staging/browser-device UAT, current room fact confirmation, formal accessibility testing, Lighthouse and production deployment remain outside this implementation.
