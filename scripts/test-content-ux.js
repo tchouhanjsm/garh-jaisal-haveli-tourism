@@ -720,8 +720,8 @@ if (!/\.primary-nav \.nav-about-group>a\{[^}]*color:#4a4f49/.test(sharedCss)) {
 if (!/\.primary-nav \.nav-dropdown summary\{[^}]*color:#4a4f49/.test(sharedCss)) {
   fail('site.css: dropdown toggle must have readable dark text on the light header');
 }
-if (!/\.primary-nav \.nav-dropdown__menu a\{[^}]*color:var\(--cream\)/.test(sharedCss)) {
-  fail('site.css: dropdown menu items must retain readable light text on the dark panel');
+if (!/\.primary-nav \.nav-dropdown__menu a\{[^}]*color:var\(--sand\)/.test(sharedCss)) {
+  fail('site.css: dropdown menu items must use the defined light sand token on the dark panel');
 }
 
 if (errors.length) {
