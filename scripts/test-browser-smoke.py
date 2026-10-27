@@ -36,6 +36,8 @@ PAGES = [
     "gallery.html",
 ]
 VIEWPORTS = [(360, 800), (768, 1024), (1440, 900)]
+NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
+NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
 FAILURES: list[str] = []
 RUNTIME_ERRORS: list[str] = []
@@ -212,13 +214,43 @@ def resolve_http_credentials(username: str | None, password: str | None) -> dict
     return {"username": username, "password": password}
 
 
+def unknown_route_evidence_is_complete(evidence: object) -> bool:
+    """Fail closed unless the branded 404 response is verified at every planned width."""
+    if not isinstance(evidence, dict):
+        return False
+    if (evidence.get("path") != "/" + NOT_FOUND_SMOKE_PATH
+            or evidence.get("expectedHttpStatus") != 404
+            or evidence.get("recoveryLinks") != NOT_FOUND_RECOVERY_LINKS
+            or evidence.get("complete") is not True):
+        return False
+    checks = evidence.get("viewportChecks")
+    expected_widths = [width for width, _height in VIEWPORTS]
+    if not isinstance(checks, list) or len(checks) != len(expected_widths):
+        return False
+    required_flags = (
+        "targetOrigin", "brandedRecoveryPage", "noindex",
+        "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
+    )
+    for record, expected_width in zip(checks, expected_widths):
+        if not isinstance(record, dict) or record.get("viewportWidthCssPixels") != expected_width:
+            return False
+        if record.get("httpStatus") != 404:
+            return False
+        if record.get("recoveryLinks") != NOT_FOUND_RECOVERY_LINKS:
+            return False
+        if any(record.get(flag) is not True for flag in required_flags):
+            return False
+    return True
+
+
 def build_report(mode: str, base_url: str, operator: str | None,
                  browser_version: str | None, failures: list[str],
                  pages_attempted: list[str] | None = None,
                  pages_http_ok: list[str] | None = None,
                  completed_viewports: list[int] | None = None,
                  blocked_navigation_attempts: list[str] | None = None,
-                 screenshot_evidence: list[dict] | None = None) -> dict:
+                 screenshot_evidence: list[dict] | None = None,
+                 unknown_route_evidence: dict | None = None) -> dict:
     manual_checks = [
         ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
@@ -237,6 +269,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         ("STG-15", "Keyboard-only use of all six experience galleries"),
         ("STG-16", "Human reduced-motion, carousel and layout-stability review"),
         ("STG-17", "Human review of social previews on the staging host"),
+        ("STG-18", "Human unknown-route response and recovery navigation on the intended staging host"),
     ]
     planned_pages = list(PAGES)
     attempted_pages = list(pages_attempted or [])
@@ -296,16 +329,25 @@ def build_report(mode: str, base_url: str, operator: str | None,
             f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
         )
 
+    unknown_route_complete = unknown_route_evidence_is_complete(unknown_route_evidence)
+    if not unknown_route_complete:
+        evidence_failures.append(
+            "Incomplete unknown-route evidence: the branded recovery page must return HTTP 404, "
+            "load root-relative assets and configured contact actions, expose all six recovery routes, "
+            "and fit at 360, 768 and 1440 CSS pixels."
+        )
+
     reported_failures = [
         sanitize_diagnostic_text(item) for item in [*failures, *evidence_failures]
     ]
     page_attempts_complete = attempted_pages == planned_pages
     page_http_complete = http_ok_pages == planned_pages
     viewport_complete = completed_viewport_list == planned_viewports
-    evidence_complete = page_attempts_complete and page_http_complete and viewport_complete and screenshot_complete
+    evidence_complete = (page_attempts_complete and page_http_complete and viewport_complete
+                         and screenshot_complete and unknown_route_complete)
 
     return {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -320,11 +362,19 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "pageNavigationComplete": page_attempts_complete,
             "pageHttp200Complete": page_http_complete,
             "responsiveViewportsComplete": viewport_complete,
+            "unknownRouteRecoveryComplete": unknown_route_complete,
             "complete": evidence_complete,
         },
         "automatedResult": "PASS" if not reported_failures else "FAIL",
         "automatedFailureCount": len(reported_failures),
         "automatedFailures": reported_failures,
+        "unknownRouteEvidence": unknown_route_evidence or {
+            "path": "/" + NOT_FOUND_SMOKE_PATH,
+            "expectedHttpStatus": 404,
+            "recoveryLinks": [],
+            "viewportChecks": [],
+            "complete": False,
+        },
         "visualEvidence": {
             "required": mode == "staging-read-only",
             "captureMode": "full-page PNG",
@@ -405,8 +455,8 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
     server = subprocess.Popen(
         [
             sys.executable,
-            "-m",
-            "http.server",
+            str(ROOT / "scripts" / "test-static-server.py"),
+            "--port",
             str(port),
             "--bind",
             "127.0.0.1",
@@ -496,6 +546,192 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
           f"{page_name}: canonical must remain gated pending host approval")
     check(page.locator('meta[property="og:url"]').count() == 0,
           f"{page_name}: og:url must remain gated pending host approval")
+
+
+def check_404_recovery(page, base_url: str) -> dict:
+    """Exercise Apache-style 404 recovery without following any external contact link."""
+    evidence = {
+        "path": "/" + NOT_FOUND_SMOKE_PATH,
+        "expectedHttpStatus": 404,
+        "recoveryLinks": [],
+        "viewportChecks": [],
+        "complete": False,
+    }
+    for width, height in VIEWPORTS:
+        page.set_viewport_size({"width": width, "height": height})
+        response = None
+        try:
+            response = page.goto(base_url + NOT_FOUND_SMOKE_PATH,
+                                 wait_until="domcontentloaded", timeout=15000)
+        except Exception as error:
+            check(False, f"Unknown route at {width}px could not be opened: {type(error).__name__}: {error}")
+
+        status = response.status if response is not None else None
+        target_origin = response is not None and same_origin(response.url, base_url)
+        check(status == 404, f"Unknown route at {width}px must preserve HTTP 404 (found {status})")
+        check(target_origin, f"Unknown route at {width}px must remain on the requested origin")
+
+        if response is None:
+            evidence["viewportChecks"].append({
+                "viewportWidthCssPixels": width,
+                "httpStatus": status,
+                "targetOrigin": False,
+                "brandedRecoveryPage": False,
+                "noindex": False,
+                "rootRelativeAssets": False,
+                "contactChannelsHydrated": False,
+                "responsiveLayoutValid": False,
+                "recoveryLinks": [],
+            })
+            continue
+
+        try:
+            page.wait_for_selector("main.not-found-page", timeout=5000)
+        except Exception:
+            check(False, f"Unknown route at {width}px did not render the branded 404 recovery page")
+        try:
+            page.wait_for_function(
+                """() => {
+                  const booking = document.querySelector('[data-booking-link]');
+                  const whatsapp = document.querySelector('[data-enquiry-link]');
+                  const phone = document.querySelector('[data-contact-phone]');
+                  const landline = document.querySelector('[data-contact-alt-phone]');
+                  const email = document.querySelector('[data-contact-email]');
+                  if (!booking || !whatsapp || !phone || !landline || !email) return false;
+                  try {
+                    const bookingUrl = new URL(booking.href);
+                    const whatsappUrl = new URL(whatsapp.href);
+                    return bookingUrl.protocol === 'https:'
+                      && bookingUrl.hostname === 'asiatech.in'
+                      && bookingUrl.pathname === '/booking_engine/index3'
+                      && bookingUrl.searchParams.has('token')
+                      && whatsappUrl.protocol === 'https:'
+                      && whatsappUrl.hostname === 'wa.me'
+                      && whatsappUrl.searchParams.has('text')
+                      && phone.href === 'tel:+917727047567'
+                      && landline.href === 'tel:+912992253836'
+                      && email.href === 'mailto:info@hotelgarhjaisal.com'
+                      && [booking, whatsapp, phone, landline, email]
+                        .every(link => link.getAttribute('aria-disabled') !== 'true');
+                  } catch (_) { return false; }
+                }""",
+                timeout=7000,
+            )
+        except Exception:
+            check(False, f"Unknown route at {width}px did not hydrate the centralized contact channels")
+
+        try:
+            details = page.evaluate(
+                """() => {
+                  const main = document.querySelector('main.not-found-page');
+                  const robots = document.querySelector('meta[name="robots"]');
+                  const stylesheet = document.querySelector('link[rel="stylesheet"][href="/assets/site.css"]');
+                  const script = document.querySelector('script[src="/assets/site.js"]');
+                  const loadedStylesheet = Array.from(document.styleSheets).some(sheet => {
+                    try { return new URL(sheet.href).pathname === '/assets/site.css'; }
+                    catch (_) { return false; }
+                  });
+                  const loadedScript = performance.getEntriesByType('resource').some(resource => {
+                    try { return new URL(resource.name).pathname === '/assets/site.js'; }
+                    catch (_) { return false; }
+                  });
+                  const booking = document.querySelector('[data-booking-link]');
+                  const whatsapp = document.querySelector('[data-enquiry-link]');
+                  const phone = document.querySelector('[data-contact-phone]');
+                  const landline = document.querySelector('[data-contact-alt-phone]');
+                  const email = document.querySelector('[data-contact-email]');
+                  let channelsHydrated = false;
+                  try {
+                    const bookingUrl = new URL(booking.href);
+                    const whatsappUrl = new URL(whatsapp.href);
+                    channelsHydrated = bookingUrl.hostname === 'asiatech.in'
+                      && bookingUrl.pathname === '/booking_engine/index3'
+                      && bookingUrl.searchParams.has('token')
+                      && whatsappUrl.hostname === 'wa.me'
+                      && whatsappUrl.searchParams.has('text')
+                      && phone.href === 'tel:+917727047567'
+                      && landline.href === 'tel:+912992253836'
+                      && email.href === 'mailto:info@hotelgarhjaisal.com'
+                      && [booking, whatsapp, phone, landline, email]
+                        .every(link => link.getAttribute('aria-disabled') !== 'true')
+                      && booking.target === '_blank'
+                      && new Set((booking.rel || '').split(' ')).has('noopener')
+                      && new Set((booking.rel || '').split(' ')).has('noreferrer');
+                  } catch (_) {}
+                  const recoveryLinks = Array.from(new Set(
+                    Array.from(document.querySelectorAll('.not-found-page a[href^="/"]'))
+                      .map(link => new URL(link.getAttribute('href'), location.href).pathname)
+                  )).sort();
+                  const width = window.innerWidth;
+                  const documentWidth = document.documentElement.scrollWidth;
+                  const bodyWidth = document.body.scrollWidth;
+                  return {
+                    brandedRecoveryPage: document.title === 'Page not found | Garh Jaisal Haveli'
+                      && !!main && document.querySelectorAll('main h1').length === 1,
+                    noindex: !!robots && robots.content.trim().toLowerCase() === 'noindex,follow'
+                      && document.querySelectorAll('link[rel="canonical"]').length === 0
+                      && document.querySelectorAll('meta[property="og:url"]').length === 0,
+                    rootRelativeAssets: !!stylesheet && !!script && loadedStylesheet && loadedScript
+                      && !!main && getComputedStyle(main).backgroundColor !== 'rgba(0, 0, 0, 0)',
+                    contactChannelsHydrated: channelsHydrated,
+                    recoveryLinks,
+                    responsiveLayoutValid: documentWidth <= width + 2 && bodyWidth <= width + 2,
+                    viewportWidthCssPixels: width,
+                    viewportHeightCssPixels: window.innerHeight
+                  };
+                }"""
+            )
+        except Exception as error:
+            check(False, f"Unknown route at {width}px could not be inspected: {type(error).__name__}: {error}")
+            details = {
+                "brandedRecoveryPage": False, "noindex": False, "rootRelativeAssets": False,
+                "contactChannelsHydrated": False, "recoveryLinks": [], "responsiveLayoutValid": False,
+            }
+
+        for key, description in (
+            ("brandedRecoveryPage", "must render one branded H1"),
+            ("noindex", "must stay noindex without canonical/og:url publication"),
+            ("rootRelativeAssets", "must load root-relative shared CSS/JavaScript"),
+            ("contactChannelsHydrated", "must hydrate booking/contact from the central config"),
+            ("responsiveLayoutValid", "must not overflow the viewport"),
+        ):
+            check(details.get(key) is True, f"Unknown route at {width}px {description}")
+        actual_links = details.get("recoveryLinks", [])
+        check(actual_links == NOT_FOUND_RECOVERY_LINKS,
+              f"Unknown route at {width}px must expose the six expected root-relative recovery routes")
+        if width == VIEWPORTS[0][0]:
+            evidence["recoveryLinks"] = actual_links
+
+        if width == 360:
+            page.keyboard.press("Tab")
+            skip_visible = page.evaluate(
+                """() => {
+                  const link = document.activeElement;
+                  if (!link || !link.classList.contains('skip-link')) return false;
+                  const box = link.getBoundingClientRect();
+                  return box.top >= 0 && box.bottom <= window.innerHeight;
+                }"""
+            )
+            check(skip_visible, "404 page: first keyboard Tab must reveal the skip link")
+            page.keyboard.press("Enter")
+            check(page.evaluate("document.activeElement === document.querySelector('main#main')"),
+                  "404 page: activating Skip to content must focus the main region")
+
+        evidence["viewportChecks"].append({
+            "viewportWidthCssPixels": width,
+            "httpStatus": status,
+            "targetOrigin": bool(target_origin),
+            "brandedRecoveryPage": details.get("brandedRecoveryPage") is True,
+            "noindex": details.get("noindex") is True,
+            "rootRelativeAssets": details.get("rootRelativeAssets") is True,
+            "contactChannelsHydrated": details.get("contactChannelsHydrated") is True,
+            "responsiveLayoutValid": details.get("responsiveLayoutValid") is True,
+            "recoveryLinks": details.get("recoveryLinks", []),
+        })
+
+    evidence["complete"] = unknown_route_evidence_is_complete({**evidence, "complete": True})
+    check(evidence["complete"], "Unknown-route recovery evidence is incomplete; release preflight must fail closed")
+    return evidence
 
 
 def check_contact_hydration(page, base_url: str) -> None:
@@ -763,6 +999,7 @@ def main(argv: list[str] | None = None) -> int:
         http_credentials = None
         screenshots_dir = None
 
+    unknown_route_evidence = None
     server = None
     browser = None
     context = None
@@ -785,7 +1022,9 @@ def main(argv: list[str] | None = None) -> int:
             page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{safe_url_label(page.url)}: {error}"))
 
             def record_response(response) -> None:
-                if same_origin(response.url, base_url) and response.status >= 400:
+                expected_404 = (response.status == 404 and same_origin(response.url, base_url)
+                                and urlsplit(response.url).path == "/" + NOT_FOUND_SMOKE_PATH)
+                if same_origin(response.url, base_url) and response.status >= 400 and not expected_404:
                     HTTP_ERRORS.append(f"HTTP {response.status}: {safe_url_label(response.url)}")
 
             def record_request(request) -> None:
@@ -818,6 +1057,7 @@ def main(argv: list[str] | None = None) -> int:
                 check(len(RUNTIME_ERRORS) == before_errors,
                       f"{page_name}: browser JavaScript exception(s): {RUNTIME_ERRORS[before_errors:]}")
 
+            unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
@@ -860,6 +1100,7 @@ def main(argv: list[str] | None = None) -> int:
             "local-browser-smoke", base_url, None, browser_version, [],
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
+            unknown_route_evidence=unknown_route_evidence,
         )
         if not local_visual_report["visualEvidence"]["complete"]:
             FAILURES.append(
@@ -872,6 +1113,7 @@ def main(argv: list[str] | None = None) -> int:
             "staging-read-only", base_url, args.operator, browser_version, FAILURES,
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
+            unknown_route_evidence=unknown_route_evidence,
         )
         # The console result and JSON report must agree. Missing route/viewport
         # evidence is a failure even when no individual assertion raised.
@@ -894,7 +1136,7 @@ def main(argv: list[str] | None = None) -> int:
 
     mode_label = "staging" if staging_mode else "local"
     print(
-        f"PASS: Chromium {mode_label} browser smoke suite covered seven pages, metadata ranges and parity, "
+        f"PASS: Chromium {mode_label} browser smoke suite covered seven core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
         "wraparound, no-autoplay and no-JavaScript fallback, plus 21 full-page PNG captures "

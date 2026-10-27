@@ -31,6 +31,9 @@ PAGES = [
 ]
 VIEWPORTS = [(360, 800, "Mobile"), (768, 1024, "Tablet"), (1440, 900, "Desktop")]
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
+UNKNOWN_ROUTE_PATH = "/__garh-jaisal-404-smoke-not-found-20261027__"
+UNKNOWN_ROUTE_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
+UNKNOWN_ROUTE_VIEWPORT_WIDTHS = [360, 768, 1440]
 URL_PATTERN = re.compile(r"""https?://[^\s<>'"]+""", re.IGNORECASE)
 
 
@@ -152,19 +155,56 @@ def load_report(path: Path) -> dict:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError(f"cannot read valid JSON report ({type(error).__name__})") from error
-    if not isinstance(report, dict) or report.get("schemaVersion") != 3:
-        raise ValueError("expected a schema-version 3 report")
+    if not isinstance(report, dict) or report.get("schemaVersion") != 4:
+        raise ValueError("expected a schema-version 4 report")
     if report.get("mode") != "staging-read-only":
         raise ValueError("report must come from staging-read-only mode")
     return report
 
 
 
+def unknown_route_evidence_issues(evidence: object) -> list[str]:
+    """Validate the explicit HTTP 404 recovery evidence recorded by Chromium."""
+    issues: list[str] = []
+    if not isinstance(evidence, dict):
+        return ["unknownRouteEvidence must be an object."]
+    if evidence.get("path") != UNKNOWN_ROUTE_PATH:
+        issues.append("unknownRouteEvidence.path must identify the deterministic unknown route.")
+    if evidence.get("expectedHttpStatus") != 404:
+        issues.append("unknownRouteEvidence.expectedHttpStatus must be 404.")
+    if evidence.get("recoveryLinks") != UNKNOWN_ROUTE_RECOVERY_LINKS:
+        issues.append("unknownRouteEvidence must record all six root-relative recovery routes.")
+    checks = evidence.get("viewportChecks")
+    if not isinstance(checks, list) or len(checks) != len(UNKNOWN_ROUTE_VIEWPORT_WIDTHS):
+        issues.append("unknownRouteEvidence must contain checks for 360, 768 and 1440 CSS pixels.")
+    else:
+        required_flags = (
+            "targetOrigin", "brandedRecoveryPage", "noindex",
+            "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
+        )
+        for record, width in zip(checks, UNKNOWN_ROUTE_VIEWPORT_WIDTHS):
+            if not isinstance(record, dict):
+                issues.append(f"unknownRouteEvidence at {width}px must be an object.")
+                continue
+            if record.get("viewportWidthCssPixels") != width:
+                issues.append("unknownRouteEvidence viewport checks must be ordered 360, 768, 1440.")
+            if record.get("httpStatus") != 404:
+                issues.append(f"unknownRouteEvidence at {width}px must report HTTP 404.")
+            if record.get("recoveryLinks") != UNKNOWN_ROUTE_RECOVERY_LINKS:
+                issues.append(f"unknownRouteEvidence at {width}px must include all six recovery routes.")
+            for flag in required_flags:
+                if record.get(flag) is not True:
+                    issues.append(f"unknownRouteEvidence at {width}px must pass {flag}.")
+    if evidence.get("complete") is not True:
+        issues.append("unknownRouteEvidence.complete must be true.")
+    return issues
+
+
 def report_contract_issues(report: dict) -> list[str]:
     """Reject contradictory or unsafe claims in a saved staging evidence report."""
     issues: list[str] = []
-    if report.get("schemaVersion") != 3:
-        issues.append("Report schemaVersion must be 3.")
+    if report.get("schemaVersion") != 4:
+        issues.append("Report schemaVersion must be 4.")
     if report.get("mode") != "staging-read-only":
         issues.append("Report mode must be staging-read-only.")
 
@@ -219,6 +259,8 @@ def report_contract_issues(report: dict) -> list[str]:
         if not isinstance(safety, dict) or safety.get(flag) is not False:
             issues.append(f"Safety assertion {flag} must be present and false.")
 
+    issues.extend(unknown_route_evidence_issues(report.get("unknownRouteEvidence")))
+
     evidence = report.get("visualEvidence")
     if not isinstance(evidence, dict):
         issues.append("visualEvidence must be an object.")
@@ -238,6 +280,7 @@ def report_contract_issues(report: dict) -> list[str]:
         "pageNavigationComplete",
         "pageHttp200Complete",
         "responsiveViewportsComplete",
+        "unknownRouteRecoveryComplete",
         "complete",
     )
     if not isinstance(coverage, dict):
@@ -287,8 +330,8 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     if evidence.get("complete") is not True or evidence.get("capturedScreenshotCount") != 21:
         issues.append("Report does not declare complete 21-image visual evidence.")
     manual = report.get("manualReleaseChecks")
-    expected_ids = [f"STG-{number:02d}" for number in range(1, 18)]
-    if (not isinstance(manual, list) or len(manual) != 17
+    expected_ids = [f"STG-{number:02d}" for number in range(1, 19)]
+    if (not isinstance(manual, list) or len(manual) != 18
             or [item.get("id") for item in manual if isinstance(item, dict)] != expected_ids
             or any(not isinstance(item, dict) or item.get("result") != "NOT RUN" for item in manual)):
         issues.append("Manual release checks are missing or changed; release remains blocked.")
@@ -445,6 +488,48 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
         failures_html = '<section class="issues"><h2>Automated browser findings</h2><ul>' + "".join(
             f"<li>{html.escape(redact_urls(item))}</li>" for item in failures[:100]) + "</ul></section>"
     nav = "".join(f'<a href="#page-{Path(page).stem}">{html.escape(title)}</a>' for page, title in PAGES)
+    unknown = report.get("unknownRouteEvidence") if isinstance(report.get("unknownRouteEvidence"), dict) else {}
+    unknown_issues = unknown_route_evidence_issues(unknown)
+    coverage_for_unknown = report.get("evidenceCoverage")
+    unknown_ok = (not unknown_issues and isinstance(coverage_for_unknown, dict)
+                  and coverage_for_unknown.get("unknownRouteRecoveryComplete") is True)
+    unknown_status = ("PASS — HTTP 404, recovery links and contact wiring verified"
+                      if unknown_ok else "FAIL — 404 evidence incomplete")
+    unknown_rows = []
+    unknown_checks = unknown.get("viewportChecks", [])
+    if not isinstance(unknown_checks, list):
+        unknown_checks = []
+    for record in unknown_checks:
+        if not isinstance(record, dict):
+            continue
+        width = html.escape(str(record.get("viewportWidthCssPixels", "Unknown")))
+        status = html.escape(str(record.get("httpStatus", "Not recorded")))
+        passed = (record.get("httpStatus") == 404
+                  and record.get("recoveryLinks") == UNKNOWN_ROUTE_RECOVERY_LINKS
+                  and all(
+                      record.get(flag) is True for flag in (
+                          "targetOrigin", "brandedRecoveryPage", "noindex",
+                          "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
+                      )
+                  ))
+        row_class = "pass" if passed else "fail"
+        summary = "Pass" if passed else "Fail / incomplete"
+        unknown_rows.append(
+            f'<tr><th scope="row">{width}px</th><td>HTTP {status}</td>'
+            f'<td class="{row_class}">{summary}</td></tr>'
+        )
+    unknown_class = "pass" if unknown_ok else "fail"
+    unknown_route_html = (
+        '<section class="unknown-route" aria-labelledby="unknown-route-title">'
+        '<h2 id="unknown-route-title">Unknown-route / 404 recovery evidence</h2>'
+        f'<p>Test path: <code>{html.escape(str(unknown.get("path", "Not recorded")))}</code>; '
+        f'expected status: HTTP {html.escape(str(unknown.get("expectedHttpStatus", "Not recorded")))}.</p>'
+        f'<p class="{unknown_class}">{html.escape(unknown_status)}</p>'
+        '<table class="evidence-table"><thead><tr><th scope="col">Viewport</th>'
+        '<th scope="col">Response</th><th scope="col">Recovery checks</th></tr></thead><tbody>'
+        + "".join(unknown_rows)
+        + '</tbody></table><p>Automated recovery evidence does not complete manual STG-18 or any other human release gate.</p></section>'
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light"><title>Garh Jaisal Haveli — Staging visual review</title>
@@ -465,6 +550,7 @@ section{{margin:2rem 0 3rem;scroll-margin-top:1rem}}.page-heading{{display:flex;
 .card a{{display:block;border:1px solid #e1d7c8;background:#eee7dc}}a:focus-visible{{outline:3px solid #8b5b20;outline-offset:3px}}
 .filename{{font-size:.78rem;color:#625b52;overflow-wrap:anywhere;margin:.6rem 0}}dl{{font-size:.75rem;margin:.5rem 0 0}}dl div{{margin:.35rem 0}}dt{{color:#6c6257}}dd{{margin:0;overflow-wrap:anywhere;word-break:break-word}}
 .placeholder{{min-height:8rem;display:grid;place-items:center;text-align:center;padding:1rem;background:#f8e8e4;color:#8b2727;border:1px dashed #b87970}}
+.evidence-table{{width:100%;border-collapse:collapse;background:#fffdf8}}.evidence-table th,.evidence-table td{{padding:.65rem;border:1px solid #d8cbb8;text-align:left;overflow-wrap:anywhere}}.unknown-route code{{overflow-wrap:anywhere}}
 .issues{{background:#fff5f2;border:1px solid #d7a69d;border-radius:.7rem;padding:1rem;margin:1.5rem 0}}.issues li{{overflow-wrap:anywhere;margin:.35rem 0}}
 footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9rem}}
 @media(max-width:900px){{.grid{{grid-template-columns:1fr 1fr}}}}@media(max-width:560px){{main{{padding:.8rem}}.grid{{grid-template-columns:1fr}}.page-heading{{align-items:start;flex-direction:column}}}}
@@ -481,10 +567,10 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 <div class="metric">Human release status<strong class="fail">BLOCKED — manual UAT required</strong></div></div>
 <div class="notice"><strong>Release guard:</strong> A verified screenshot bundle is not staging UAT or launch approval. Human booking/contact checks, owner fact confirmation, canonical/DNS/SSL approval, backup/rollback and deployment authorization remain separate.</div>
 <p>Review index generated at {generated}. Image links use relative filenames only; no local filesystem path is embedded in this HTML.</p></header>
-<nav aria-label="Jump to page screenshots">{nav}</nav>{issues_html}{failures_html}
+<nav aria-label="Jump to page screenshots">{nav}</nav>{issues_html}{failures_html}{unknown_route_html}
 {"".join(sections)}
 <footer><p>This HTML renderer itself does not contact the staging host or initiate a booking, payment, guest-data submission, WhatsApp message, phone call or email. The run-level safety assertions above must be present and consistent before its evidence is trusted.</p>
-<p>This page never clears human release gates; STG-01 through STG-17 remain blocked pending real operator evidence.</p></footer>
+<p>This page never clears human release gates; STG-01 through STG-18 remain NOT RUN until real operator evidence is recorded.</p></footer>
 </main></body></html>
 """
 
