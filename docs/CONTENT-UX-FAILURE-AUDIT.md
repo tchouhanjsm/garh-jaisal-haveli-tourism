@@ -600,3 +600,40 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Local `bash scripts/check-pr-quality.sh`: `NOT RUN`; the connector execution environment has no complete checkout and GitHub DNS resolution is unavailable.
 - Actual staging 404 HTTP status/redirect behavior, browser/device visual QA, formal accessibility tooling, Lighthouse and live booking/contact checks: `NOT RUN`.
 - The owner-approved HTTPS staging origin is still missing. STG-01 through STG-18 remain `NOT RUN`; no staging or production host was contacted and no external booking/contact action was performed.
+
+
+## 27 October 2026 — Browser-level 404 recovery and staging evidence contract
+
+### Live baseline and gap
+
+- Live main at phase start: `3c8bcb314ca41910e7d32d016fc769cd14b4e796`. There were no open PRs. Post-merge GitHub quality run #40424755768 completed successfully on that exact main commit; its `quality` job passed through dependency installation and the full project suite. The classic combined commit-status endpoint returned no status contexts, so the workflow run/job is the positive CI evidence.
+- The launch checklist already contained manual STG-18, but the staging JSON report only emitted STG-01 through STG-17. The Chromium smoke runner also checked only the seven core pages and used Python's generic `http.server`, which returned a generic error body for an unknown route. As a result, the automated browser evidence did not exercise the new branded `404.html` on a true HTTP 404 response or prove that root-relative assets and contact configuration work at a nested missing URL.
+- The offline screenshot renderer accepted only schema version 3 and required 17 manual gates, so it could not validate/report STG-18 parity.
+
+### Implementation on `feat/staging-404-browser-qa-20261027`
+
+- Added `scripts/test-static-server.py`, a local-only static server that models Apache `ErrorDocument 404`: it serves the repository's actual `404.html` body while preserving the HTTP 404 status for unknown paths. The server does not contact any external host.
+- Extended `scripts/test-browser-smoke.py` to probe a deterministic unknown route at 360, 768 and 1440 CSS pixels in both local smoke and explicitly authorized HTTPS staging mode. It verifies the status remains 404 on the same origin, the branded single-H1 page renders, `noindex,follow` remains set without canonical/`og:url`, root-relative CSS/JavaScript load, all six recovery routes are present, centralized booking/WhatsApp/phone/landline/email links hydrate, the layout does not overflow, and the skip link moves focus to main.
+- The browser runner never follows the configured booking or contact links and never submits guest data. The expected test-route 404 is excluded from generic HTTP-error reporting only when both the exact test path and HTTP 404 status match; all other same-origin HTTP errors still fail the run.
+- Bumped the staging evidence report contract to schema version 4. `unknownRouteEvidence` stores only the deterministic path, expected/observed status, six root-relative recovery paths and per-viewport pass flags. The overall automated evidence is incomplete unless all three viewport records are valid.
+- Updated `scripts/render-staging-visual-review.py` to reject missing/contradictory unknown-route evidence, require all 18 manual release gates in order, and display a per-viewport 404 evidence table in the offline review. A valid screenshot bundle cannot hide a bad 404 response or clear the manual STG-18 gate.
+- Updated `scripts/test-staging-preflight-contract.py`, `scripts/test-staging-visual-review.py`, `README.md` and `docs/LAUNCH-READINESS-CHECKLIST.md` for schema v4 and the explicit evidence contract.
+
+### Changed paths
+
+- `scripts/test-static-server.py`
+- `scripts/test-browser-smoke.py`
+- `scripts/test-staging-preflight-contract.py`
+- `scripts/render-staging-visual-review.py`
+- `scripts/test-staging-visual-review.py`
+- `docs/LAUNCH-READINESS-CHECKLIST.md`
+- `README.md`
+- `docs/CONTENT-UX-FAILURE-AUDIT.md`
+
+### Validation and release boundary
+
+- Exact-head GitHub CI must run after the final code/test/docs commit; this audit entry is not a pass claim for the feature branch.
+- Local `bash scripts/check-pr-quality.sh` remains NOT RUN because this connector session has no complete checkout.
+- The staging origin is still not owner-approved/available. No actual staging host was contacted, no screenshot report was generated against staging, and STG-01 through STG-18 remain NOT RUN.
+- The AsiaTech booking portal and all contact channels remain unverified in normal guest browsers. The automated 403 observation is not proof that ordinary guests are blocked.
+- Canonical-host approval remains false; the sitemap and robots policy are unchanged; no production deployment, unapproved menu publication, draft-content publication or server-side enquiry collection occurred.
