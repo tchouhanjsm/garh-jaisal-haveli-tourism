@@ -102,7 +102,7 @@
   };
 
   const allowedSlot = value => {
-    if (!/^\\d{2}:\\d{2}$/.test(value)) return false;
+    if (!/^\d{2}:\d{2}$/.test(value)) return false;
     const parts = value.split(':').map(Number);
     const minutes = parts[0] * 60 + parts[1];
     return minutes >= 7 * 60 && minutes <= 22 * 60 + 30 && (minutes - 7 * 60) % 30 === 0;
