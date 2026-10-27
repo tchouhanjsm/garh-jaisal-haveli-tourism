@@ -490,7 +490,9 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     nav = "".join(f'<a href="#page-{Path(page).stem}">{html.escape(title)}</a>' for page, title in PAGES)
     unknown = report.get("unknownRouteEvidence") if isinstance(report.get("unknownRouteEvidence"), dict) else {}
     unknown_issues = unknown_route_evidence_issues(unknown)
-    unknown_ok = not unknown_issues
+    coverage_for_unknown = report.get("evidenceCoverage")
+    unknown_ok = (not unknown_issues and isinstance(coverage_for_unknown, dict)
+                  and coverage_for_unknown.get("unknownRouteRecoveryComplete") is True)
     unknown_status = ("PASS — HTTP 404, recovery links and contact wiring verified"
                       if unknown_ok else "FAIL — 404 evidence incomplete")
     unknown_rows = []
