@@ -427,7 +427,19 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
               await document.fonts.ready;
               const images = Array.from(document.images);
               for (const image of images) image.loading = 'eager';
-              await Promise.all(images.map(image => image.decode().catch(() => null)));
+              const decodeResults = await Promise.all(images.map(async image => {
+                try {
+                  await image.decode();
+                  return {src: image.currentSrc || image.src, ok: image.naturalWidth > 0 && image.naturalHeight > 0};
+                } catch (error) {
+                  return {src: image.currentSrc || image.src, ok: false, reason: String(error)};
+                }
+              }));
+              const failedImages = decodeResults.filter(result => !result.ok);
+              if (failedImages.length) {
+                throw new Error('image decode/intrinsic-size failure (' + failedImages.length + '/' + decodeResults.length + '): '
+                  + failedImages.map(result => result.src.split('/').pop() + (result.reason ? ' [' + result.reason + ']' : '')).join(', '));
+              }
               window.scrollTo(0, 0);
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             }"""
