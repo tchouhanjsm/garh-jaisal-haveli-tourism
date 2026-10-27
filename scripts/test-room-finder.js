@@ -96,6 +96,8 @@ function testStaticCatalogueContract() {
     'the progressive room finder script must be loaded on the room page');
   assert.match(html, /<link rel="stylesheet" href="assets\/room-finder\.css">/,
     'room finder styling must be scoped to the room page');
+  assert.match(html, /href="#room-planning">Ask about room fit →<\/a>/,
+    'the no-results state must retain a useful path to ask about a room');
 
   const cardMatches = [...html.matchAll(/<article class="room-card room-card--named"[^>]*>[\s\S]*?<\/article>/g)];
   assert.equal(cardMatches.length, EXPECTED_ROOMS.length, 'all seven source-listed room cards must stay in the catalogue');
