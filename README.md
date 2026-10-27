@@ -119,11 +119,12 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 ### Premium design and media performance
 - The homepage uses one primary Book Now CTA, quieter room/arrival links, specific fort-arrival facts and a closing CTA that explains the external flow.
 - The media manifest records source-verified Green Room replacement bytes and WebP/JPEG source pairs. Do not change image-to-room mapping or describe photos as live room inventory without confirming the actual subject/source facts.
+- `scripts/test-public-image-uniqueness.js` checks referenced local image files across public root, tour and blog HTML for exact-byte duplicates at different paths; `scripts/test-public-image-uniqueness-contract.js` covers duplicate detection and path-safety behavior. The check is byte-exact, not perceptual, so screenshot review is still required for visually similar photos.
 - Run `bash scripts/check-pr-quality.sh` before opening/merging a PR. The media test checks file bytes, source blob SHA, dimensions, role budgets and page-specific references/alt text. Passing automation does not replace staging visual inspection.
 
 
 ### Guest-journey editorial and experience photography
-- Five of the six source-listed experience options have two locally hosted photographs with manual next/previous controls. Swiss-tent remains single-photo until a second distinct source image is reviewed. Galleries do not autoplay; captions are visual context, not guaranteed itinerary stops.
+- All six source-listed experience options have two distinct, locally hosted, source-reviewed photographs with manual next/previous controls. The Swiss-tent secondary image is tracked in `docs/MEDIA-MIGRATION-MANIFEST.json`. Galleries do not autoplay; captions are visual context, not guaranteed itinerary stops.
 - Dining uses a real rooftop table image and a distinct fort view. About and Directions are differentiated around the fort panorama and practical final-walk information, avoiding generic filler and duplicated hero images.
 - Run `node scripts/test-experience-carousel.js` for previous/next/wraparound behavior, live slide status and incomplete-markup fallback. The full quality runner invokes this test and the expanded static UX gates.
 - Current menu approval, booking-provider browser verification, live contact-channel reachability, canonical-host approval and staging UAT remain manual release gates.

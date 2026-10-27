@@ -182,3 +182,10 @@ The HTML output must be outside the repository checkout and in the same parent d
 The output includes no absolute filesystem paths, escapes operator/report text, redacts URLs in failure diagnostics, and loads no external scripts, fonts or images. Keep the JSON, PNGs and HTML review local until they have been reviewed for environment details. If a new browser capture is needed, create a new empty screenshot directory as required by the preflight runner.
 
 A successful visual review is evidence integrity only. It never changes the result of STG-01 through STG-18 and cannot clear manual UAT, booking/contact reachability, owner fact approval, canonical/DNS/SSL approval, backup/rollback or deployment gates.
+
+
+## Public image identity audit — 27 October 2026
+
+The quality runner now executes `scripts/test-public-image-uniqueness-contract.js` and `scripts/test-public-image-uniqueness.js`. The contract tests prove that identical bytes under different referenced paths are detected, reuse of the same path across pages is allowed, and missing or repository-escaping local image paths fail closed. The repository audit hashes locally referenced `img` and responsive `source` assets across root HTML plus generated `tours/` and `blogs/` HTML. Exact-byte duplicates at different paths fail CI.
+
+This does **not** detect visually similar photographs encoded or cropped differently. Human visual review remains required for subject accuracy, repeated-looking scenes, room-to-image mapping and tour-photo context. The test does not contact staging or external hosts and does not change the canonical-host, sitemap, robots, menu or deployment gates. Staging acceptance remains blocked until an owner-approved HTTPS staging origin and operator evidence are available.

@@ -637,3 +637,36 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The staging origin is still not owner-approved/available. No actual staging host was contacted, no screenshot report was generated against staging, and STG-01 through STG-18 remain NOT RUN.
 - The AsiaTech booking portal and all contact channels remain unverified in normal guest browsers. The automated 403 observation is not proof that ordinary guests are blocked.
 - Canonical-host approval remains false; the sitemap and robots policy are unchanged; no production deployment, unapproved menu publication, draft-content publication or server-side enquiry collection occurred.
+
+
+## 27 October 2026 — Public image identity and experience-copy consistency
+
+### Live baseline and gap
+
+- Live main at phase start: `07b440f41c4c46e93b24b45515a6ab86fd0af49a`; there were no open PRs. Post-merge workflow run [#40432415064](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40432415064) completed successfully on that exact main commit. The classic combined commit-status endpoint returned no status contexts, so the workflow job result—not an empty status list—is the positive CI evidence.
+- The current media manifest and `experiences.html` include the source-reviewed Swiss-tent secondary image `assets/images/experiences/swiss-tent-detail.jpeg` (source blob SHA `5b3a4022356e405df26a115963cb011c5051209c`, 240,485 bytes, 1600×1280). README copy still claimed only five of six experience options had two photos and Swiss-tent remained single-photo. That was stale and contradicted the shipped page/manifest.
+- Per-page UX checks already rejected repeated image source paths on a single page, but no gate compared file bytes when separate local paths pointed to identical copies across the public HTML surface.
+
+### Implementation on `feat/public-image-uniqueness-staging-qa-20261027`
+
+- Added `scripts/test-public-image-uniqueness.js`, a dependency-free audit of image `src` and responsive `srcset` references in root HTML and generated `tours/` / `blogs/` HTML. It hashes local referenced files with SHA-256, rejects exact-byte duplicates under distinct paths, and fails closed for missing or repository-escaping local references. Reuse of the same path across pages is allowed.
+- Added `scripts/test-public-image-uniqueness-contract.js` with fixture coverage for duplicate bytes, cross-page reuse of a single path, remote URL exclusion, missing files and path traversal.
+- Wired both tests into `scripts/check-pr-quality.sh` after the media manifest and page-media budget checks.
+- Corrected the stale README experience-photo statement and documented the exact-byte limitation. The check does not claim perceptual duplicate detection; images that look alike but differ by encoding, crop or pixels still need human visual review.
+- Added the media identity check and its limitations to the launch-readiness checklist.
+
+### Changed paths
+
+- `scripts/test-public-image-uniqueness.js`
+- `scripts/test-public-image-uniqueness-contract.js`
+- `scripts/check-pr-quality.sh`
+- `README.md`
+- `docs/LAUNCH-READINESS-CHECKLIST.md`
+- `docs/CONTENT-UX-FAILURE-AUDIT.md`
+
+### Validation and release boundary
+
+- The exact-head GitHub quality workflows must complete after these commits; no pass is claimed for this feature branch until those results are available.
+- Local `bash scripts/check-pr-quality.sh` was not run from this chat because a complete local checkout is unavailable.
+- No owner-approved staging origin was available. STG-01 through STG-18 remain `NOT RUN`; no staging host, booking provider or contact endpoint was contacted.
+- Canonical-host approval remains false. The sitemap and robots policy are unchanged; no production deployment, unapproved menu publication, draft-content publication or server-side enquiry collection occurred.
