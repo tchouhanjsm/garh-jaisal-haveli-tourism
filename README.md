@@ -128,6 +128,7 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 - Dining uses a real rooftop table image and a distinct fort view. About and Directions are differentiated around the fort panorama and practical final-walk information, avoiding generic filler and duplicated hero images.
 - Run `node scripts/test-experience-carousel.js` for previous/next/wraparound behavior, live slide status and incomplete-markup fallback. The full quality runner invokes this test and the expanded static UX gates.
 - Current menu approval, booking-provider browser verification, live contact-channel reachability, canonical-host approval and staging UAT remain manual release gates.
+- `scripts/test-seo-publication-safeguards.js` audits all root, `tours/` and `blogs/` HTML to keep canonical/`og:url` tags, sitemap URL entries and a sitemap directive in `robots.txt` unpublished while `canonicalHostApproved` is false. Its fixture contract test covers both allowed pre-launch state and accidental publication regressions.
 
 
 ### Real-browser guest-journey smoke coverage
