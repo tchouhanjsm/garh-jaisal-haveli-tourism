@@ -1233,7 +1233,7 @@ def check_keyboard_navigation(page, base_url: str) -> None:
       const foreground = getComputedStyle(el);
       const background = getComputedStyle(el.closest('.nav-dropdown__menu'));
       const parse = (color) => {
-        const values = color.match(/[\\d.]+/g) || [];
+        const values = color.match(/[0-9.]+/g) || [];
         return values.slice(0, 3).map(Number);
       };
       const fg = parse(foreground.color);
