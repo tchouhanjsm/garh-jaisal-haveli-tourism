@@ -32,7 +32,7 @@ PAGES = [
 VIEWPORTS = [(360, 800, "Mobile"), (768, 1024, "Tablet"), (1440, 900, "Desktop")]
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 UNKNOWN_ROUTE_PATH = "/__garh-jaisal-404-smoke-not-found-20261027__"
-UNKNOWN_ROUTE_RECOVERY_LINKS = ["/directions.html", "/dining.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
+UNKNOWN_ROUTE_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 UNKNOWN_ROUTE_VIEWPORT_WIDTHS = [360, 768, 1440]
 URL_PATTERN = re.compile(r"""https?://[^\s<>'"]+""", re.IGNORECASE)
 
