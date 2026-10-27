@@ -198,6 +198,7 @@ def valid_unknown_route_evidence() -> dict:
                 "rootRelativeAssets": True,
                 "contactChannelsHydrated": True,
                 "responsiveLayoutValid": True,
+                "recoveryLinks": list(browser_smoke.NOT_FOUND_RECOVERY_LINKS),
             }
             for width, _height in browser_smoke.VIEWPORTS
         ],
@@ -208,6 +209,9 @@ def valid_unknown_route_evidence() -> dict:
 bad_unknown_route = valid_unknown_route_evidence()
 bad_unknown_route["viewportChecks"][1]["httpStatus"] = 200
 assert not browser_smoke.unknown_route_evidence_is_complete(bad_unknown_route)
+bad_recovery_links = valid_unknown_route_evidence()
+bad_recovery_links["viewportChecks"][2]["recoveryLinks"] = []
+assert not browser_smoke.unknown_route_evidence_is_complete(bad_recovery_links)
 assert browser_smoke.unknown_route_evidence_is_complete(valid_unknown_route_evidence())
 
 incomplete_report = browser_smoke.build_report(
