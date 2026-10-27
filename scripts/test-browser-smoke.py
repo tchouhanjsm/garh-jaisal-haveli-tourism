@@ -1424,6 +1424,17 @@ def check_room_finder(page, base_url: str, browser) -> None:
     compare_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
     check(compare_names == ["Sweet Purple Room", "Green Room"],
           "Rooms: comparison columns must preserve the selected room names and selection order")
+    check(compare_table.locator("thead th[scope='col']").count() == 3,
+          "Rooms: every comparison column, including the detail label, must render a scoped column header")
+    row_headers = compare_table.locator("tbody th[scope='row']")
+    check(row_headers.count() == 3
+          and row_headers.all_text_contents() == [
+              "Floor listed", "Room description", "Features listed in the catalogue"
+          ],
+          "Rooms: each rendered comparison row must expose a scoped accessible row header")
+    check(compare_table.locator("tbody th:not([scope='row'])").count() == 0,
+          "Rooms: no comparison row heading may omit its row-header scope")
+
     floors = compare_table.locator("[data-room-compare-row='floor'] td").all_text_contents()
     check(floors == ["Ground floor", "First floor"],
           "Rooms: comparison must use each card's source-listed floor")
