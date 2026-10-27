@@ -859,7 +859,9 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
               f"{page_name}: arrival must not permit a date before today")
         check(departure.get_attribute("min") == dates["today"],
               f"{page_name}: departure must not permit a date before today when arrival is empty")
-        interest.select_option(label="Sunset camel safari")
+        interest.select_option(label="Swiss tent overnight")
+        check(departure.get_attribute("required") is not None,
+              f"{page_name}: overnight and room enquiries must require a departure date")
 
         # A past arrival is rejected by native min-date validation. The
         # departure minimum must stay at today rather than following a past
@@ -917,8 +919,8 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
         check({"noopener", "noreferrer"}.issubset(set(draft["features"].split(","))),
               f"{page_name}: draft tab must use noopener and noreferrer")
         for expected in (
-            "Interest: Sunset camel safari",
-            "Arrival: " + dates["day3"],
+            "Interest: Swiss tent overnight",
+            "Requested date / arrival: " + dates["day3"],
             "Departure: " + dates["day5"],
             "Guests: 2",
             "Vegetarian meal request & early arrival",
@@ -932,6 +934,38 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
               f"{page_name}: browser smoke must not navigate to WhatsApp or send the draft")
         check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 1,
               f"{page_name}: one user submission must prepare exactly one draft")
+
+        # A day experience needs one requested date only. A departure is
+        # optional and must not leak into the WhatsApp draft when left blank.
+        interest.select_option(label="Sunset camel safari")
+        departure.fill("")
+        arrival.fill(dates["day3"])
+        check(departure.get_attribute("required") is None,
+              f"{page_name}: day experiences must not require a departure date")
+        check(form.evaluate("(element) => element.checkValidity()"),
+              f"{page_name}: a single future date must validate for a day experience")
+        submit.click()
+        page.wait_for_function(
+            "() => Array.isArray(window.__guestEnquiryOpenCalls) && window.__guestEnquiryOpenCalls.length === 2",
+            timeout=5000,
+        )
+        day_draft = page.evaluate(
+            """() => {
+              const call = window.__guestEnquiryOpenCalls[1];
+              const url = new URL(call.url);
+              return { text: url.searchParams.get('text') || '', currentUrl: window.location.href };
+            }"""
+        )
+        check("Interest: Sunset camel safari" in day_draft["text"],
+              f"{page_name}: day draft must retain the selected experience")
+        check("Requested date / arrival: " + dates["day3"] in day_draft["text"],
+              f"{page_name}: day draft must include the requested date")
+        check(not re.search(r"^Departure:", day_draft["text"], re.M),
+              f"{page_name}: blank optional departure must be omitted from the draft")
+        check(same_origin(day_draft["currentUrl"], base_url),
+              f"{page_name}: day draft test must remain on the site and must not send the message")
+        check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 2,
+              f"{page_name}: each explicit submission must prepare exactly one draft")
 
 
 
