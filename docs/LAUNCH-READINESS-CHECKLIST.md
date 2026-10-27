@@ -278,3 +278,14 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Added `scripts/test-public-route-contract.py` to the full quality suite. It validates route order, unique names, safe root-level files, the viewport matrix, consumer wiring and documentation parity.
 - [x] Removed stale seven-route and 21-image descriptions and fixed the screenshot reviewer’s completion message to report the computed evidence count.
 - [ ] Owner-approved HTTPS staging execution, visual inspection of the retained 24 screenshots, STG-01–STG-18, Lighthouse/formal accessibility evaluation, booking/contact verification and owner fact approvals remain NOT RUN. Automated route coverage is not staging acceptance.
+
+
+## Room comparison shortlist — 27 October 2026
+
+- [x] Add a progressive, page-local shortlist for two or three rooms using the existing source-mapped photos, catalogue floor, visible description and visible feature list.
+- [x] Enforce the three-room limit, support removing one room and clearing the shortlist, and recover a shortlisted room hidden by an active finder filter.
+- [x] Keep controls absent when JavaScript is disabled; retain all seven room cards and existing enquiry handoffs.
+- [x] Add a semantic comparison table, live status messages, descriptive thumbnail alt text, visible keyboard focus and horizontal scrolling for narrow screens.
+- [x] Add deterministic contract coverage and Chromium interaction checks for selection, the limit, removal, filter recovery and no-JavaScript fallback.
+- [ ] On an owner-approved HTTPS staging origin, manually verify the comparison layout and keyboard operation at mobile and desktop sizes. This remains NOT RUN; automated browser CI is not human UAT.
+- [ ] Owner must confirm current room assignment, bed arrangements, occupancy, amenities and total rates for the guest's dates. The comparison uses the source catalogue only and is not live inventory.
