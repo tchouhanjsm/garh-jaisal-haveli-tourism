@@ -648,7 +648,7 @@ def check_404_recovery(page, base_url: str) -> dict:
                       && [booking, whatsapp, phone, landline, email]
                         .every(link => link.getAttribute('aria-disabled') !== 'true')
                       && booking.target === '_blank'
-                      && new Set((booking.rel || '').split(/\\s+/)).has('noopener')
+                      && new Set((booking.rel || '').split(/\s+/)).has('noopener')
                       && new Set((booking.rel || '').split(/\\s+/)).has('noreferrer');
                   } catch (_) {}
                   const recoveryLinks = Array.from(new Set(
@@ -1105,6 +1105,7 @@ def main(argv: list[str] | None = None) -> int:
             "staging-read-only", base_url, args.operator, browser_version, FAILURES,
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
+            unknown_route_evidence=unknown_route_evidence,
         )
         # The console result and JSON report must agree. Missing route/viewport
         # evidence is a failure even when no individual assertion raised.
