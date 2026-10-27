@@ -486,6 +486,40 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
         failures_html = '<section class="issues"><h2>Automated browser findings</h2><ul>' + "".join(
             f"<li>{html.escape(redact_urls(item))}</li>" for item in failures[:100]) + "</ul></section>"
     nav = "".join(f'<a href="#page-{Path(page).stem}">{html.escape(title)}</a>' for page, title in PAGES)
+    unknown = report.get("unknownRouteEvidence") if isinstance(report.get("unknownRouteEvidence"), dict) else {}
+    unknown_issues = unknown_route_evidence_issues(unknown)
+    unknown_ok = not unknown_issues
+    unknown_status = ("PASS — HTTP 404, recovery links and contact wiring verified"
+                      if unknown_ok else "FAIL — 404 evidence incomplete")
+    unknown_rows = []
+    for record in unknown.get("viewportChecks", []) if isinstance(unknown.get("viewportChecks"), list) else []:
+        if not isinstance(record, dict):
+            continue
+        width = html.escape(str(record.get("viewportWidthCssPixels", "Unknown")))
+        status = html.escape(str(record.get("httpStatus", "Not recorded")))
+        passed = (record.get("httpStatus") == 404 and all(
+            record.get(flag) is True for flag in (
+                "targetOrigin", "brandedRecoveryPage", "noindex",
+                "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
+            )
+        ))
+        row_class = "pass" if passed else "fail"
+        summary = "Pass" if passed else "Fail / incomplete"
+        unknown_rows.append(
+            f'<tr><th scope="row">{width}px</th><td>HTTP {status}</td>'
+            f'<td class="{row_class}">{summary}</td></tr>'
+        )
+    unknown_route_html = (
+        '<section class="unknown-route" aria-labelledby="unknown-route-title">'
+        '<h2 id="unknown-route-title">Unknown-route / 404 recovery evidence</h2>'
+        f'<p>Test path: <code>{html.escape(str(unknown.get("path", "Not recorded")))}</code>; '
+        f'expected status: HTTP {html.escape(str(unknown.get("expectedHttpStatus", "Not recorded")))}.</p>'
+        f'<p class="{"pass" if unknown_ok else "fail"}">{html.escape(unknown_status)}</p>'
+        '<table class="evidence-table"><thead><tr><th scope="col">Viewport</th>'
+        '<th scope="col">Response</th><th scope="col">Recovery checks</th></tr></thead><tbody>'
+        + "".join(unknown_rows)
+        + '</tbody></table><p>Automated recovery evidence does not complete manual STG-18 or any other human release gate.</p></section>'
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light"><title>Garh Jaisal Haveli — Staging visual review</title>
@@ -506,6 +540,7 @@ section{{margin:2rem 0 3rem;scroll-margin-top:1rem}}.page-heading{{display:flex;
 .card a{{display:block;border:1px solid #e1d7c8;background:#eee7dc}}a:focus-visible{{outline:3px solid #8b5b20;outline-offset:3px}}
 .filename{{font-size:.78rem;color:#625b52;overflow-wrap:anywhere;margin:.6rem 0}}dl{{font-size:.75rem;margin:.5rem 0 0}}dl div{{margin:.35rem 0}}dt{{color:#6c6257}}dd{{margin:0;overflow-wrap:anywhere;word-break:break-word}}
 .placeholder{{min-height:8rem;display:grid;place-items:center;text-align:center;padding:1rem;background:#f8e8e4;color:#8b2727;border:1px dashed #b87970}}
+.evidence-table{{width:100%;border-collapse:collapse;background:#fffdf8}}.evidence-table th,.evidence-table td{{padding:.65rem;border:1px solid #d8cbb8;text-align:left;overflow-wrap:anywhere}}.unknown-route code{{overflow-wrap:anywhere}}
 .issues{{background:#fff5f2;border:1px solid #d7a69d;border-radius:.7rem;padding:1rem;margin:1.5rem 0}}.issues li{{overflow-wrap:anywhere;margin:.35rem 0}}
 footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9rem}}
 @media(max-width:900px){{.grid{{grid-template-columns:1fr 1fr}}}}@media(max-width:560px){{main{{padding:.8rem}}.grid{{grid-template-columns:1fr}}.page-heading{{align-items:start;flex-direction:column}}}}
@@ -522,10 +557,10 @@ footer{{border-top:1px solid #c9b89e;padding-top:1rem;color:#5f574d;font-size:.9
 <div class="metric">Human release status<strong class="fail">BLOCKED — manual UAT required</strong></div></div>
 <div class="notice"><strong>Release guard:</strong> A verified screenshot bundle is not staging UAT or launch approval. Human booking/contact checks, owner fact confirmation, canonical/DNS/SSL approval, backup/rollback and deployment authorization remain separate.</div>
 <p>Review index generated at {generated}. Image links use relative filenames only; no local filesystem path is embedded in this HTML.</p></header>
-<nav aria-label="Jump to page screenshots">{nav}</nav>{issues_html}{failures_html}
+<nav aria-label="Jump to page screenshots">{nav}</nav>{issues_html}{failures_html}{unknown_route_html}
 {"".join(sections)}
 <footer><p>This HTML renderer itself does not contact the staging host or initiate a booking, payment, guest-data submission, WhatsApp message, phone call or email. The run-level safety assertions above must be present and consistent before its evidence is trusted.</p>
-<p>This page never clears human release gates; STG-01 through STG-17 remain blocked pending real operator evidence.</p></footer>
+<p>This page never clears human release gates; STG-01 through STG-18 remain NOT RUN until real operator evidence is recorded.</p></footer>
 </main></body></html>
 """
 
