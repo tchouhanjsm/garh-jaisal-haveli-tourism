@@ -7,7 +7,7 @@ A mobile-first, conversion-focused website for Garh Jaisal Haveli in Jaisalmer, 
 - `index.html` — homepage and guest decision journey, with direct Book Now, room and experience paths, FAQs and primary CTA
 - `rooms.html` — room discovery and direct availability enquiry
 - `experiences.html` — Thar Desert safari/camping and guided city tour service pages
-- `dining.html` — rooftop restaurant and candlelit dinner enquiry pages
+- `dining.html` — restaurant overview, approval-gated menu, table-enquiry draft and arrival directions in accessible tabs
 - `about.html` — the fort setting and practical guest-planning guidance, without unverified family-history claims
 - `directions.html` — arrival planning, access expectations and route questions to confirm
 - `gallery.html` — locally hosted, source-reviewed room, fort, rooftop and desert references
