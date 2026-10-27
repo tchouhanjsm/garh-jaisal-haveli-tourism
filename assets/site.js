@@ -293,7 +293,7 @@
         if (submit) submit.disabled = true;
         if (status) {
           status.dataset.state = 'error';
-          status.textContent = 'The enquiry form could not load the contact configuration. No message has been sent. Refresh this page and try again, or use contact details supplied directly by the hotel.';
+          status.textContent = 'The enquiry form is unavailable because the contact configuration could not be loaded. No message has been sent. Refresh this page and try again, or use contact details supplied directly by the hotel.';
         }
       });
     }
