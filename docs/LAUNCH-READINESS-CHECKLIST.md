@@ -75,6 +75,7 @@ Complete and record these checks against the intended staging site first. Do not
 
 - [ ] Confirm the seven named rooms shown on the site are still offered and each image depicts the named room.
 - [ ] Confirm current room inventory, occupancy/capacity, room-specific amenities, bed configuration, rates/taxes and cancellation/payment terms. The site deliberately does not claim live availability or publish room rates.
+- [ ] Use the Rooms finder on staging at narrow-mobile and desktop widths: floor selection, combined-feature filtering, live result status, no-results recovery and Clear filters must work with keyboard and pointer. With JavaScript disabled, all seven room cards must remain visible and inert filter controls must stay hidden. Automated CI is not human visual UAT.
 - [ ] Confirm check-in/check-out, reception/late-arrival process, and how guests should arrange the final walk through the fort lanes.
 - [ ] Confirm whether luggage assistance, airport/station pickup or local transfers can be arranged. Do not rely on a general statement as a guarantee.
 - [ ] Confirm which desert safari, open-sky overnight, Swiss-tent, cultural programme and guided-city tours are operating on sale dates. Validate route/stops, duration, vehicle, guide-language availability, fees, inclusions/exclusions, current price and seasonal timing.

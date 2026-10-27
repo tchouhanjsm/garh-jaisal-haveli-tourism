@@ -412,6 +412,34 @@ for (const rule of PAGE_RULES) {
         if (!card.includes('>' + feature + '</li>')) fail('rooms.html: ' + room.name + ' is missing source-listed feature: ' + feature);
       }
       if (!/width="\d+"\s+height="\d+"/.test(card)) fail('rooms.html: ' + room.name + ' image lacks explicit geometry');
+
+      const expectedFloor = ['Sweet Purple Room', 'Rising Sun Room', 'Scarlet Room'].includes(room.name) ? 'ground' : 'first';
+      const roomFloor = card.match(/data-room-floor="([^"]+)"/);
+      const roomFeatureData = card.match(/data-room-features="([^"]+)"/);
+      const visibleFeatureList = card.match(/<ul class="room-feature-list">([\s\S]*?)<\/ul>/);
+      if (!roomFloor || roomFloor[1] !== expectedFloor) {
+        fail('rooms.html: ' + room.name + ' filter floor must match the owner-maintained catalogue');
+      }
+      if (!roomFeatureData || !visibleFeatureList) {
+        fail('rooms.html: ' + room.name + ' needs filter metadata and a visible source-listed feature list');
+      } else {
+        const declaredFeatures = roomFeatureData[1].split(/\s+/).sort();
+        const visibleFeatures = [...visibleFeatureList[1].matchAll(/<li>([^<]+)<\/li>/g)]
+          .map((match) => stripMarkup(match[1]).toLocaleLowerCase().replace(/\s+/g, '-')).sort();
+        if (JSON.stringify(declaredFeatures) !== JSON.stringify(visibleFeatures)) {
+          fail('rooms.html: ' + room.name + ' filter features must exactly match the visible source-listed feature chips');
+        }
+      }
+    }
+    const finder = html.match(/<section class="room-finder"[^>]*>[\s\S]*?<\/section>/i);
+    if (!finder || !/data-room-finder hidden/.test(finder[0])
+        || !/data-room-floor-filter/.test(finder[0])
+        || !/data-room-feature-filter/.test(finder[0])
+        || !/data-room-finder-status/.test(finder[0])
+        || !/data-room-finder-empty hidden/.test(finder[0])
+        || !/href="#room-planning">Ask about room fit/.test(finder[0])
+        || !/data-room-reset/.test(finder[0])) {
+      fail('rooms.html: room finder must include progressive enhancement, floor/feature controls, live results and a reset/no-results path');
     }
     if (/class=["'][^"']*\broom-reference-grid\b/.test(html)) fail('rooms.html: old generic room-reference grid remains');
     if (!/not live inventory/i.test(html)) fail('rooms.html: source-listing must be distinguished from live inventory');
