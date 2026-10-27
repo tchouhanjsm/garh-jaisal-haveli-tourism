@@ -205,7 +205,7 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 
 The Rooms page adds a progressive finder for the seven source-listed named rooms. Guests can filter by the floor recorded in the owner-maintained catalogue and by explicitly listed features (king bed, second bed, city view, window seat and carved bed). Selecting multiple features requires every selected feature to be listed for a room. A live result count, no-match explanation and clear-filters action are provided. The filter controls stay hidden when JavaScript is unavailable, leaving all seven room cards readable.
 
-The feature list is not a live inventory or an exhaustive guarantee: a feature not listed for a room is not proof that it is absent. Room assignment, current amenities, occupancy, rates/taxes and booking terms still require direct confirmation. `scripts/test-room-finder.js` guards the catalogue metadata and filter/reset behavior; Chromium smoke also checks the floor/feature combinations and the no-JavaScript fallback.
+The feature list is not a live inventory or an exhaustive guarantee: a feature not listed for a room is not proof that it is absent. Room assignment, current amenities, occupancy, rates/taxes and booking terms still require direct confirmation. `scripts/test-room-finder.js` guards the catalogue metadata and filter/reset behavior; Chromium smoke also checks floor/feature combinations, keyboard Space activation, reset/focus recovery and the no-JavaScript fallback.
 
 
 
