@@ -19,7 +19,7 @@ function element(attrs = {}, text = '') {
     addEventListener(type, fn){if(!listeners.has(type))listeners.set(type,[]);listeners.get(type).push(fn);},
     dispatch(type,event={}){const ev={...event,preventDefault(){ev.defaultPrevented=true;}};for(const fn of listeners.get(type)||[])fn(ev);return ev;},
     querySelector(sel){return this.children?.[sel]||null;}, querySelectorAll(){return [];},
-    reportValidity(){return true;}, appendChild(){}, focus(){},
+    reportValidity(){return true;}, setCustomValidity(message){this.validationMessage=String(message);}, appendChild(){}, focus(){},
   };
   return el;
 }
