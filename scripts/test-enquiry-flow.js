@@ -343,7 +343,9 @@ async function main() {
   assert.equal(fetchFailure.submit.disabled, true);
   assert.equal(fetchFailure.status.hidden, false);
   assert.match(fetchFailure.status.textContent, /no enquiry message was sent/i);
-  assert.match(fetchFailure.note.textContent, /no message has been sent/i);
+  assert.match(fetchFailure.note.textContent, /travel details have not been sent/i);
+  assert.match(fetchFailure.note.textContent, /refresh the page and try again/i);
+  assert.match(fetchFailure.note.textContent, /contact details supplied directly by the hotel/i);
 
   console.log('PASS: source-authorized booking, WhatsApp, telephone, landline, email and exact hotel map pin hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
 }
