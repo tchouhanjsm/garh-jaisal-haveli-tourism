@@ -16,6 +16,8 @@ const panels = [...html.matchAll(/<div\b(?=[^>]*\brole="tabpanel")(?=[^>]*\bdata
 const expectedNames = ['overview', 'menu', 'table', 'directions'];
 assert.deepEqual(tabs.map(match => match[1]), expectedNames, 'Dining exposes exactly four ordered restaurant tabs');
 assert.deepEqual(panels.map(match => match[1]), expectedNames, 'Every restaurant tab has one corresponding panel');
+assert.equal(tabs[2][2].trim(), 'Ask about a table', 'The tab describes an enquiry rather than implying a reservation');
+assert.match(html, /id="dining-table-title">Ask about a table<\/h3>/, 'The table panel heading describes an enquiry');
 assert.equal(new Set(tabs.map(match => match[1])).size, 4, 'Tab names are unique');
 for (const [index, match] of tabs.entries()) {
   const panelId = 'restaurant-panel-' + match[1];
@@ -31,23 +33,22 @@ const formMatch = html.match(/<form\b(?=[^>]*data-restaurant-table-form)[^>]*>([
 assert.ok(formMatch, 'Dining includes a dedicated restaurant table-enquiry form');
 const form = formMatch[1];
 const fields = [
-  ['name', 'text', 'restaurant-guest-name', true],
-  ['email', 'email', 'restaurant-guest-email', false],
-  ['mobile', 'tel', 'restaurant-guest-mobile', true],
-  ['guests', 'number', 'restaurant-guest-count', true],
-  ['date', 'date', 'restaurant-table-date', true],
-  ['time', 'text', 'restaurant-table-time', false],
+  ['guests', 'number', 'restaurant-guest-count', true, 'input'],
+  ['date', 'date', 'restaurant-table-date', true, 'input'],
+  ['time', 'text', 'restaurant-table-time', false, 'input'],
+  ['note', null, 'restaurant-table-note', false, 'textarea'],
 ];
-for (const [name, type, id, required] of fields) {
+for (const [name, type, id, required, elementName] of fields) {
   assert.match(form, new RegExp('name="' + name + '"'), name + ' field is present');
   assert.match(form, new RegExp('id="' + id + '"'), name + ' field has a stable id');
   assert.match(form, new RegExp('<label[^>]*for="' + id + '"'), name + ' field has an explicit label');
-  const tag = form.match(new RegExp('<input(?=[^>]*id="' + id + '")[^>]*>|<select(?=[^>]*id="' + id + '")[^>]*>'))?.[0] || '';
-  assert.ok(tag, name + ' field has an input/select element');
+  const tag = form.match(new RegExp('<' + elementName + '(?=[^>]*id="' + id + '")[^>]*>'))?.[0] || '';
+  assert.ok(tag, name + ' field has an input/textarea element');
   if (required) assert.match(tag, /required/, name + ' field is required');
   else assert.doesNotMatch(tag, /required/, name + ' field must remain optional');
-  assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
+  if (type) assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
 }
+assert.doesNotMatch(form, /name="(?:name|email|mobile)"/, 'The WhatsApp form must not collect redundant name, email or mobile fields');
 const preferredTimeTag = form.match(new RegExp('<input(?=[^>]*id="restaurant-table-time")[^>]*>'))?.[0] || '';
 assert.match(preferredTimeTag, /maxlength="40"/, 'Preferred time is bounded to 40 characters');
 assert.match(form, /id="restaurant-table-time-help"/, 'Preferred-time guidance has a stable help id');
@@ -60,6 +61,8 @@ assert.match(guestTag, /min="1"/, 'Party size has a lower bound');
 assert.match(guestTag, /max="20"/, 'Party size uses the source form’s 20-guest input limit');
 assert.match(guestTag, /value="2"/, 'Party size defaults to two but remains editable');
 assert.match(form, /restaurant-guest-count-help/, 'Party-size guidance requires confirmation of capacity');
+assert.match(form, /maxlength="240"/, 'Optional note has a bounded length');
+assert.match(form, /Avoid payment details or sensitive personal information/i, 'Optional note warns against sensitive data');
 assert.equal((form.match(/name="guests"/g) || []).length, 1, 'Dining table form has exactly one party-size field');
 assert.doesNotMatch(form, /guest-enquiry-|data-guest-enquiry/, 'Table form must not contain stay-enquiry fields');
 assert.match(form, /data-restaurant-table-submit/, 'Table form includes its own submit control');
@@ -67,6 +70,8 @@ assert.match(form, /data-restaurant-table-status/, 'Table form includes its own 
 assert.ok(!js.includes('allowedSlot') && !js.includes('7 * 60') && !js.includes('22 * 60 + 30') && !js.includes('Guests: 2'),
   'Runtime must not invent restaurant hours or hard-code a party size');
 assert.ok(js.includes("'Guests: ' + guests"), 'The draft must use the guest-selected party size');
+assert.ok(js.includes("'Additional note: ' + note"), 'The draft includes only an optional guest-provided note');
+assert.doesNotMatch(js, /nameField|emailField|mobileField|updateMobileConstraint/, 'The table enquiry must not collect or validate redundant personal contact fields');
 
 assert.ok(html.includes('Current menu items and prices are not displayed because the source menu record is still marked as awaiting owner confirmation.'),
   'Unconfirmed menu values remain unpublished and the approval caveat remains explicit');
@@ -88,7 +93,7 @@ assert.match(js, /ArrowLeft/);
 assert.match(js, /key === 'Home'/);
 assert.match(js, /key === 'End'/);
 assert.match(js, /dateField\.min = today/);
-assert.match(js, /digits\.length < 8 \|\| digits\.length > 15/);
+assert.doesNotMatch(js, /digits\.length < 8 \|\| digits\.length > 15/, 'No mobile-number collection or validation remains');
 assert.match(js, /window\.open\(draftUrl, '_blank', 'noopener,noreferrer'\)/,
   'Only explicit form submission opens a draft, in a protected new tab');
 assert.match(js, /loadApprovedContact\(\)/);
@@ -100,4 +105,4 @@ assert.doesNotMatch(js, /localStorage|sessionStorage|fetch\s*\([^)]*POST|method:
 assert.doesNotMatch(js, /\+917727047567|77270\s*47567/,
   'The WhatsApp destination stays centralized in site-config.json');
 
-console.log('PASS: Dining tabs, menu-approval guard, accessible date/time table enquiry, contact authorization, and no-reservation/no-storage safeguards.');
+console.log('PASS: Dining tabs, menu-approval guard, minimized table-enquiry fields, accessible date/time preferences, contact authorization, and no-reservation/no-storage safeguards.');
