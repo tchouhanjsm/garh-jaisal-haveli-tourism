@@ -10,6 +10,7 @@
   const emailLinks = Array.from(document.querySelectorAll('[data-contact-email]'));
   const bookingLinks = Array.from(document.querySelectorAll('[data-booking-link]'));
   const bookingForms = Array.from(document.querySelectorAll('[data-booking-form]'));
+  const guestEnquiryForms = Array.from(document.querySelectorAll('[data-guest-enquiry-form]'));
   let activeWhatsAppBaseUrl = '';
 
   function disableContactLink(link, fallbackText) {
@@ -41,9 +42,73 @@
     if (options.text) link.textContent = options.text;
   }
 
+
+  function configureGuestEnquiryForms(config) {
+    guestEnquiryForms.forEach(form => {
+      const submit = form.querySelector('[data-guest-enquiry-submit]');
+      const status = form.querySelector('[data-guest-enquiry-status]');
+      const contact = config && config.contact ? config.contact : {};
+      const authorized = channelIsAuthorized(config, contact);
+      let whatsappBase = '';
+      if (authorized && typeof contact.whatsappBaseUrl === 'string') {
+        try {
+          const url = new URL(contact.whatsappBaseUrl);
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'wa.me'
+              && url.port === '' && /^\/\d{8,15}\/?$/.test(url.pathname)
+              && !url.username && !url.password && !url.search && !url.hash) {
+            whatsappBase = url.origin + url.pathname.replace(/\/$/, '');
+          }
+        } catch (_) {
+          whatsappBase = '';
+        }
+      }
+      if (!submit || !status || !whatsappBase) {
+        if (submit) submit.disabled = true;
+        if (status) {
+          status.dataset.state = 'error';
+          status.textContent = 'Enquiries are temporarily unavailable because the contact channel could not be verified. Please use your existing booking confirmation for contact details.';
+        }
+        return;
+      }
+      submit.disabled = false;
+      status.dataset.state = 'ready';
+      status.textContent = 'Ready. Review the details, then prepare a WhatsApp draft. Nothing is sent automatically.';
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        const data = new FormData(form);
+        const arrival = String(data.get('arrival') || '');
+        const departure = String(data.get('departure') || '');
+        const departureField = form.querySelector('[name="departure"]');
+        if (!arrival || !departure || departure <= arrival) {
+          if (departureField) {
+            departureField.setCustomValidity('Departure must be after arrival.');
+            departureField.reportValidity();
+            departureField.addEventListener('input', () => departureField.setCustomValidity(''), { once: true });
+          }
+          return;
+        }
+        const lines = [
+          'Namaste Garh Jaisal Haveli, I would like to enquire about a stay/experience.',
+          'Interest: ' + String(data.get('experience') || 'Not specified'),
+          'Arrival: ' + arrival,
+          'Departure: ' + departure,
+          'Guests: ' + String(data.get('guests') || 'Not specified')
+        ];
+        const notes = String(data.get('notes') || '').trim();
+        if (notes) lines.push('Additional details: ' + notes.slice(0, 500));
+        lines.push('Please confirm current availability, arrangements, inclusions and total price. I understand this enquiry does not confirm a booking.');
+        const target = whatsappBase + '?text=' + encodeURIComponent(lines.join('\n'));
+        window.open(target, '_blank', 'noopener,noreferrer');
+        status.dataset.state = 'ready';
+        status.textContent = 'WhatsApp opened with your draft message. Review the recipient and details before sending; no reservation is confirmed by this website.';
+      });
+    });
+  }
+
   async function configureContactChannels() {
     if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
-        && !emailLinks.length && !bookingLinks.length && !bookingForms.length) return;
+        && !emailLinks.length && !bookingLinks.length && !bookingForms.length && !guestEnquiryForms.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
       const scriptUrl = document.currentScript && document.currentScript.src;
@@ -53,6 +118,7 @@
       const config = await response.json();
       const contact = config && config.contact ? config.contact : {};
       const booking = config && config.booking ? config.booking : {};
+      configureGuestEnquiryForms(config);
       const contactAuthorized = channelIsAuthorized(config, contact);
       const bookingAuthorized = channelIsAuthorized(config, booking);
 
