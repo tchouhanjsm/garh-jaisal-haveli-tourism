@@ -1229,8 +1229,30 @@ def check_keyboard_navigation(page, base_url: str) -> None:
     summary.click()
     menu_item = dropdown.locator(".nav-dropdown__menu a[href='gallery.html']")
     check(menu_item.is_visible(), "Opening the About dropdown must reveal the Gallery link")
-    check(menu_item.evaluate("(el) => getComputedStyle(el).color") == "rgb(248, 245, 239)",
-          "Gallery link must retain readable light text on the dark dropdown panel")
+    contrast = menu_item.evaluate("""(el) => {
+      const foreground = getComputedStyle(el);
+      const background = getComputedStyle(el.closest('.nav-dropdown__menu'));
+      const parse = (color) => {
+        const values = color.match(/[\\d.]+/g) || [];
+        return values.slice(0, 3).map(Number);
+      };
+      const fg = parse(foreground.color);
+      const bg = parse(background.backgroundColor);
+      const alpha = Number(foreground.opacity || 1);
+      const blended = fg.map((channel, index) => channel * alpha + bg[index] * (1 - alpha));
+      const luminance = (rgb) => {
+        const linear = rgb.map(value => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+      };
+      const first = luminance(blended);
+      const second = luminance(bg);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    }""")
+    check(contrast >= 4.5,
+          "Gallery link must retain at least 4.5:1 contrast on the dark dropdown panel")
     summary.click()
     check(menu_item.is_hidden(), "Closing the About dropdown must hide its menu panel")
 
