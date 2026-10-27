@@ -891,6 +891,145 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
               f"{page_name}: one user submission must prepare exactly one draft")
 
 
+
+def check_dining_table_enquiry(page, base_url: str) -> None:
+    """Exercise the restaurant tabs and table-enquiry draft without leaving the site."""
+    page.add_init_script(
+        """window.__tableEnquiryOpenCalls = [];
+        window.open = function(url, target, features) {
+          window.__tableEnquiryOpenCalls.push({
+            url: String(url), target: String(target || ''), features: String(features || '')
+          });
+          return null;
+        };"""
+    )
+    response = page.goto(base_url + "dining.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200,
+          "Dining table enquiry: expected HTTP 200")
+    check(response is not None and same_origin(response.url, base_url),
+          "Dining table enquiry: page must remain on the requested origin")
+    page.wait_for_function(
+        """() => document.body.classList.contains('dining-tabs-ready')
+          && Boolean(document.querySelector('[data-restaurant-table-submit]')
+          && !document.querySelector('[data-restaurant-table-submit]').disabled)""",
+        timeout=7000,
+    )
+
+    tabs = page.get_by_role("tablist", name="Restaurant information").get_by_role("tab")
+    check(tabs.count() == 4, "Dining must expose the four restaurant tabs")
+    menu_tab = page.get_by_role("tab", name="Menu")
+    table_tab = page.get_by_role("tab", name="Book a Table")
+    directions_tab = page.get_by_role("tab", name="Directions")
+    menu_tab.click()
+    check(menu_tab.get_attribute("aria-selected") == "true",
+          "Menu tab must update its selected state")
+    check(page.locator("#restaurant-panel-menu").is_visible(),
+          "Menu tab must show its panel")
+    menu_tab.press("ArrowRight")
+    check(table_tab.get_attribute("aria-selected") == "true",
+          "ArrowRight from Menu must activate Book a Table")
+    check(table_tab.evaluate("(element) => document.activeElement === element"),
+          "ArrowRight must move keyboard focus with the active tab")
+    table_tab.press("End")
+    check(directions_tab.get_attribute("aria-selected") == "true",
+          "End key must activate the last Directions tab")
+    directions_tab.press("Home")
+    check(page.get_by_role("tab", name="Overview").get_attribute("aria-selected") == "true",
+          "Home key must activate the first Overview tab")
+    table_tab.click()
+
+    form = page.locator("[data-restaurant-table-form]")
+    check(form.count() == 1, "Dining must render exactly one dedicated table-enquiry form")
+    name = form.locator('[name="name"]')
+    email = form.locator('[name="email"]')
+    mobile = form.locator('[name="mobile"]')
+    requested_date = form.locator('[name="date"]')
+    requested_time = form.locator('[name="time"]')
+    submit = form.locator("[data-restaurant-table-submit]")
+
+    dates = page.evaluate(
+        """() => {
+          const iso = value => {
+            const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+            return local.toISOString().slice(0, 10);
+          };
+          const shift = amount => {
+            const value = new Date();
+            value.setHours(12, 0, 0, 0);
+            value.setDate(value.getDate() + amount);
+            return iso(value);
+          };
+          return { yesterday: shift(-1), today: shift(0), tomorrow: shift(1) };
+        }"""
+    )
+    check(requested_date.get_attribute("min") == dates["today"],
+          "Dining table date must not permit a past date")
+    requested_date.fill(dates["yesterday"])
+    check(requested_date.evaluate("(element) => element.validity.rangeUnderflow"),
+          "Dining table date input must reject a past date")
+    requested_date.fill(dates["tomorrow"])
+
+    slot_values = requested_time.locator("option").evaluate_all(
+        "(options) => options.map(option => option.value).filter(Boolean)"
+    )
+    expected_slots = []
+    for minutes in range(7 * 60, 22 * 60 + 30 + 1, 30):
+        expected_slots.append(f"{minutes // 60:02d}:{minutes % 60:02d}")
+    check(slot_values == expected_slots,
+          "Dining table time slots must be 30-minute values from 07:00 through 22:30")
+    check(len(slot_values) == 32 and len(set(slot_values)) == 32,
+          "Dining must offer exactly 32 unique table time slots")
+
+    name.fill("Aarav Guest")
+    email.fill("aarav@example.com")
+    mobile.fill("123")
+    check(not mobile.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must reject a mobile number with too few digits")
+    mobile.fill("+91 98765 43210")
+    requested_time.select_option("19:30")
+    check(form.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must accept valid name, email, phone, date and time fields")
+    submit.click()
+    page.wait_for_function(
+        "() => Array.isArray(window.__tableEnquiryOpenCalls) && window.__tableEnquiryOpenCalls.length === 1",
+        timeout=5000,
+    )
+    draft = page.evaluate(
+        """() => {
+          const call = window.__tableEnquiryOpenCalls[0];
+          const url = new URL(call.url);
+          return {
+            host: url.hostname, path: url.pathname,
+            text: url.searchParams.get('text') || '',
+            target: call.target, features: call.features, currentUrl: window.location.href
+          };
+        }"""
+    )
+    check(draft["host"] == "wa.me" and draft["path"] == "/917727047567",
+          "Dining table form must use the centrally configured authorized WhatsApp destination")
+    check(draft["target"] == "_blank",
+          "Dining table enquiry should open a reviewable draft in a new tab")
+    check({"noopener", "noreferrer"}.issubset(set(draft["features"].split(","))),
+          "Dining table enquiry must protect the new tab with noopener/noreferrer")
+    for expected in (
+        "Name: Aarav Guest",
+        "Email: aarav@example.com",
+        "Mobile: +91 98765 43210",
+        "Requested date: " + dates["tomorrow"],
+        "Preferred time: 7:30 PM",
+        "not a reservation",
+        "not booked until the restaurant replies and confirms it",
+    ):
+        check(expected.lower() in draft["text"].lower(),
+              "Dining table WhatsApp draft must include " + expected.split(":")[0])
+    status = page.locator("[data-restaurant-table-status]").inner_text().lower()
+    check("table is not reserved" in status and "review and send it yourself" in status,
+          "Dining table status must clearly say the request is unconfirmed and guest-controlled")
+    check(same_origin(draft["currentUrl"], base_url),
+          "Browser smoke must not navigate to WhatsApp or send the draft")
+    check(page.evaluate("window.__tableEnquiryOpenCalls.length") == 1,
+          "One table enquiry submission must prepare exactly one draft")
+
 def check_staging_publication_guards(page, base_url: str) -> None:
     def fetch_text(path: str) -> str:
         try:
@@ -1192,6 +1331,7 @@ def main(argv: list[str] | None = None) -> int:
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
             check_guest_enquiry_forms(page, base_url)
+            check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
             check_keyboard_navigation(page, base_url)
