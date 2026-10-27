@@ -56,6 +56,7 @@ assert expected_screenshot_count == 24, (
 browser = (ROOT / "scripts" / "test-browser-smoke.py").read_text(encoding="utf-8")
 review = (ROOT / "scripts" / "render-staging-visual-review.py").read_text(encoding="utf-8")
 launch_test = (ROOT / "scripts" / "test-launch-readiness.js").read_text(encoding="utf-8")
+media_performance = (ROOT / "scripts" / "test-page-media-performance.js").read_text(encoding="utf-8")
 quality_runner = (ROOT / "scripts" / "check-pr-quality.sh").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 launch_doc = (ROOT / "docs" / "LAUNCH-READINESS-CHECKLIST.md").read_text(encoding="utf-8")
@@ -70,6 +71,8 @@ assert 'VIEWPORTS = [\n    (viewport["width"], viewport["height"], viewport["lab
 assert "staging-route-contract.json" in launch_test
 assert "routeContract.routes.map(route => route.file)" in launch_test
 assert "routeContract.viewports.map(viewport => viewport.width)" in launch_test
+assert "staging-route-contract.json" in media_performance
+assert "routeContract.routes.map(route => route.file)" in media_performance
 assert "node scripts/test-public-route-contract.py" in quality_runner
 
 for stale in (
