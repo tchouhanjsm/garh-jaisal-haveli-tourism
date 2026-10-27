@@ -65,7 +65,6 @@
   const nameField = form.elements.namedItem('name');
   const emailField = form.elements.namedItem('email');
   const mobileField = form.elements.namedItem('mobile');
-  const guestField = form.elements.namedItem('guests');
   const dateField = form.elements.namedItem('date');
   const timeField = form.elements.namedItem('time');
   let approvedWhatsAppBase = '';
@@ -77,7 +76,7 @@
       status.textContent = message;
     }
   };
-  if (!submit || !status || !nameField || !emailField || !mobileField || !guestField || !dateField || !timeField) {
+  if (!submit || !status || !nameField || !emailField || !mobileField || !dateField || !timeField) {
     disable('Table enquiries are unavailable because a required field is missing. No details have been sent.');
     return;
   }
@@ -101,6 +100,12 @@
     mobileField.setAttribute('aria-invalid', String(Boolean(mobileField.value && !mobileField.validity.valid)));
   };
 
+  const allowedSlot = value => {
+    if (!/^\d{2}:\d{2}$/.test(value)) return false;
+    const parts = value.split(':').map(Number);
+    const minutes = parts[0] * 60 + parts[1];
+    return minutes >= 7 * 60 && minutes <= 22 * 60 + 30 && (minutes - 7 * 60) % 30 === 0;
+  };
 
   ['input', 'change'].forEach(type => {
     dateField.addEventListener(type, updateDateConstraint);
@@ -149,22 +154,28 @@
     const email = String(emailField.value || '').trim();
     const mobile = String(mobileField.value || '').trim();
     const date = String(dateField.value || '');
-    const time = String(timeField.value || '').trim().slice(0, 40);
-    const guests = String(guestField.value || '').trim();
+    const time = String(timeField.value || '');
     if (name.length < 2) {
       nameField.setCustomValidity('Enter your name so the restaurant knows who is enquiring.');
       form.reportValidity();
       nameField.setCustomValidity('');
       return;
     }
+    if (!allowedSlot(time) || !Array.from(timeField.options).some(option => option.value === time)) {
+      timeField.setCustomValidity('Choose one of the listed 30-minute preferred enquiry times, from 7:00 AM to 10:30 PM.');
+      form.reportValidity();
+      timeField.setCustomValidity('');
+      return;
+    }
+    const selectedLabel = timeField.selectedOptions && timeField.selectedOptions[0]
+      ? timeField.selectedOptions[0].textContent : time;
     const message = [
       'Namaste Garh Jaisal’s Kitchen, I would like to enquire about a table.',
       'Name: ' + name,
-      'Email: ' + (email || 'Not provided'),
+      'Email: ' + email,
       'Mobile: ' + mobile,
       'Requested date: ' + date,
-      'Guests: ' + guests,
-      'Preferred time: ' + (time || 'Not specified'),
+      'Preferred time: ' + selectedLabel,
       'Please confirm current opening hours and table availability for this request.',
       'I understand this is an enquiry, not a reservation. The table is not booked until the restaurant replies and confirms it.'
     ].join('\n');
