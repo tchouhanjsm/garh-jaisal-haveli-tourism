@@ -13,6 +13,10 @@
     "provider": "AsiaTech",
     "note": "This is the booking-engine URL stored in the designated legacy repository. It opens an external booking flow; this website does not itself confirm availability or payment."
   },
+  "propertyNavigation": {
+    "status": "source-authorized",
+    "hotelMapUrl": "https://maps.app.goo.gl/nAbRiZhv78FSbju48"
+  },
   "contact": {
     "whatsappBaseUrl": "https://wa.me/917727047567",
     "primaryPhoneE164": "+917727047567",
