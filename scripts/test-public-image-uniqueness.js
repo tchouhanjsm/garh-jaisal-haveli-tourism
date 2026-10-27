@@ -66,6 +66,8 @@ function auditPublicImages(rootDirectory) {
     }
   }
 
+  if (pages.length === 0) errors.push('no public HTML pages found to audit');
+
   for (const pagePath of pages) {
     const pageLabel = path.relative(root, pagePath).split(path.sep).join('/');
     const html = fs.readFileSync(pagePath, 'utf8');
@@ -94,10 +96,15 @@ function auditPublicImages(rootDirectory) {
         errors.push(pageLabel + ': missing local image: ' + reference);
         continue;
       }
+      const realTargetPath = fs.realpathSync(targetPath);
+      if (!isWithinRoot(root, realTargetPath)) {
+        errors.push(pageLabel + ': image symlink resolves outside repository root: ' + reference);
+        continue;
+      }
 
       referenceCount += 1;
       const relativePath = path.relative(root, targetPath).split(path.sep).join('/');
-      const digest = crypto.createHash('sha256').update(fs.readFileSync(targetPath)).digest('hex');
+      const digest = crypto.createHash('sha256').update(fs.readFileSync(realTargetPath)).digest('hex');
       if (!hashIndex.has(digest)) hashIndex.set(digest, new Map());
       const pathsForHash = hashIndex.get(digest);
       if (!pathsForHash.has(relativePath)) pathsForHash.set(relativePath, new Set());
