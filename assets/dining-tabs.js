@@ -99,11 +99,6 @@
       ? 'Enter a mobile number with 8–15 digits, including the country code where needed.' : '');
     mobileField.setAttribute('aria-invalid', String(Boolean(mobileField.value && !mobileField.validity.valid)));
   };
-  const allowedSlot = value => {
-    if (!/^\d{2}:\d{2}$/.test(value)) return false;
-    const parts = value.split(':').map(Number);
-    const minutes = parts[0] * 60 + parts[1];
-    return minutes >= 7 * 60 && minutes <= 22 * 60 + 30 && (minutes - 7 * 60) % 30 === 0;
   };
 
   ['input', 'change'].forEach(type => {
@@ -153,28 +148,14 @@
     const email = String(emailField.value || '').trim();
     const mobile = String(mobileField.value || '').trim();
     const date = String(dateField.value || '');
-    const time = String(timeField.value || '');
-    if (name.length < 2) {
-      nameField.setCustomValidity('Enter your name so the restaurant knows who is enquiring.');
-      form.reportValidity();
-      nameField.setCustomValidity('');
-      return;
-    }
-    if (!allowedSlot(time) || !Array.from(timeField.options).some(option => option.value === time)) {
-      timeField.setCustomValidity('Choose one of the listed 30-minute time slots, from 7:00 AM to 10:30 PM.');
-      form.reportValidity();
-      timeField.setCustomValidity('');
-      return;
-    }
-    const selectedLabel = timeField.selectedOptions && timeField.selectedOptions[0]
-      ? timeField.selectedOptions[0].textContent : time;
+    const time = String(timeField.value || '').trim().slice(0, 40);
     const message = [
       'Namaste Garh Jaisal’s Kitchen, I would like to enquire about a table.',
       'Name: ' + name,
       'Email: ' + email,
       'Mobile: ' + mobile,
       'Requested date: ' + date,
-      'Preferred time: ' + selectedLabel,
+      'Preferred time: ' + (time || 'Not specified'),
       'Please confirm current opening hours and table availability for this request.',
       'I understand this is an enquiry, not a reservation. The table is not booked until the restaurant replies and confirms it.'
     ].join('\n');

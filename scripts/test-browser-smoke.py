@@ -973,16 +973,14 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
           "Dining table date input must reject a past date")
     requested_date.fill(dates["tomorrow"])
 
-    slot_values = requested_time.locator("option").evaluate_all(
-        "(options) => options.map(option => option.value).filter(Boolean)"
-    )
-    expected_slots = []
-    for minutes in range(7 * 60, 22 * 60 + 30 + 1, 30):
-        expected_slots.append(f"{minutes // 60:02d}:{minutes % 60:02d}")
-    check(slot_values == expected_slots,
-          "Dining table time slots must be 30-minute values from 07:00 through 22:30")
-    check(len(slot_values) == 32 and len(set(slot_values)) == 32,
-          "Dining must offer exactly 32 unique table time slots")
+    check(requested_time.get_attribute("type") == "text",
+          "Dining time must be a free-text preference, not an assumed opening-hours list")
+    check(requested_time.get_attribute("maxlength") == "40",
+          "Dining preferred-time text must have a bounded length")
+    check(requested_time.get_attribute("required") is None,
+          "Dining preferred time must remain optional until service hours are owner-confirmed")
+    check("confirm current service hours and availability" in page.locator("#restaurant-table-time-help").inner_text().lower(),
+          "Dining preferred-time guidance must require restaurant confirmation")
 
     name.fill("Aarav Guest")
     email.fill("aarav@example.com")
@@ -990,9 +988,12 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     check(not mobile.evaluate("(element) => element.checkValidity()"),
           "Dining table form must reject a mobile number with too few digits")
     mobile.fill("+91 98765 43210")
-    requested_time.select_option("19:30")
+    requested_time.fill("")
     check(form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must accept valid name, email, phone, date and time fields")
+          "Dining table form must allow a valid enquiry without an unconfirmed time preference")
+    requested_time.fill("7:30 PM")
+    check(form.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must accept valid required fields and an optional preferred-time note")
     submit.click()
     page.wait_for_function(
         "() => Array.isArray(window.__tableEnquiryOpenCalls) && window.__tableEnquiryOpenCalls.length === 1",

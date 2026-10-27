@@ -31,31 +31,31 @@ const formMatch = html.match(/<form\b(?=[^>]*data-restaurant-table-form)[^>]*>([
 assert.ok(formMatch, 'Dining includes a dedicated restaurant table-enquiry form');
 const form = formMatch[1];
 const fields = [
-  ['name', 'text', 'restaurant-guest-name'],
-  ['email', 'email', 'restaurant-guest-email'],
-  ['mobile', 'tel', 'restaurant-guest-mobile'],
-  ['date', 'date', 'restaurant-table-date'],
-  ['time', 'select', 'restaurant-table-time'],
+  ['name', 'text', 'restaurant-guest-name', true],
+  ['email', 'email', 'restaurant-guest-email', true],
+  ['mobile', 'tel', 'restaurant-guest-mobile', true],
+  ['date', 'date', 'restaurant-table-date', true],
+  ['time', 'text', 'restaurant-table-time', false],
 ];
-for (const [name, type, id] of fields) {
+for (const [name, type, id, required] of fields) {
   assert.match(form, new RegExp('name="' + name + '"'), name + ' field is present');
   assert.match(form, new RegExp('id="' + id + '"'), name + ' field has a stable id');
   assert.match(form, new RegExp('<label[^>]*for="' + id + '"'), name + ' field has an explicit label');
-  assert.match(form, new RegExp('id="' + id + '"[^>]*required|<select[^>]*id="' + id + '"[^>]*required'),
-    name + ' field is required');
-  if (type !== 'select') assert.match(form, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
+  const tag = form.match(new RegExp('<input(?=[^>]*id="' + id + '")[^>]*>|<select(?=[^>]*id="' + id + '")[^>]*>'))?.[0] || '';
+  assert.ok(tag, name + ' field has an input/select element');
+  if (required) assert.match(tag, /required/, name + ' field is required');
+  else assert.doesNotMatch(tag, /required/, name + ' preference must remain optional');
+  assert.match(tag, new RegExp('type="' + type + '"'), name + ' uses the correct native input type');
 }
-const timeSelect = form.match(/<select\b(?=[^>]*id="restaurant-table-time")[^>]*>([\s\S]*?)<\/select>/)?.[1] || '';
-const slotEntries = [...timeSelect.matchAll(/<option\s+value="(\d{2}:\d{2})">([^<]+)<\/option>/g)].map(match => ({value:match[1],label:match[2]}));
-const expectedSlots = [];
-for (let minutes = 7 * 60; minutes <= 22 * 60 + 30; minutes += 30) {
-  expectedSlots.push(String(Math.floor(minutes / 60)).padStart(2,'0') + ':' + String(minutes % 60).padStart(2,'0'));
-}
-assert.deepEqual(slotEntries.map(entry => entry.value), expectedSlots,
-  'The 32 slots run every 30 minutes from 07:00 to 22:30 inclusive');
-assert.equal(new Set(slotEntries.map(entry => entry.value)).size, 32, 'Every time slot is unique');
-assert.equal(slotEntries[0].label, '7:00 AM', 'Opening slot uses a readable 12-hour label');
-assert.equal(slotEntries.at(-1).label, '10:30 PM', 'Final slot uses a readable 12-hour label');
+const preferredTimeTag = form.match(new RegExp('<input(?=[^>]*id="restaurant-table-time")[^>]*>'))?.[0] || '';
+assert.match(preferredTimeTag, /maxlength="40"/, 'Preferred time is bounded to 40 characters');
+assert.match(form, /id="restaurant-table-time-help"/, 'Preferred-time guidance has a stable help id');
+assert.match(form, /confirm current service hours and availability/i,
+  'Preferred time is a request, not a promise about service hours');
+assert.doesNotMatch(form, /<option[^>]*value="[0-9]{2}:[0-9]{2}"/,
+  'No fixed restaurant time slots are published before owner confirmation');
+assert.ok(!js.includes('allowedSlot') && !js.includes('7 * 60') && !js.includes('22 * 60 + 30') && !js.includes('10:30 PM'),
+  'Client code must not invent restaurant service hours or fixed time slots');
 
 assert.ok(html.includes('Current menu items and prices are not displayed because the source menu record is still marked as awaiting owner confirmation.'),
   'Unconfirmed menu values remain unpublished and the approval caveat remains explicit');
