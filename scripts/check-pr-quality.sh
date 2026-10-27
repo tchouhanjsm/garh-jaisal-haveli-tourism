@@ -7,6 +7,7 @@ cd "$ROOT"
 echo "== Static website integrity =="
 bash scripts/check-site.sh
 node scripts/test-content-ux.js
+node scripts/test-dining-journey.js
 node scripts/test-experience-details.js
 node scripts/test-guest-enquiry-conversion.js
 node scripts/test-experience-carousel.js
