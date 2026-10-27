@@ -946,6 +946,10 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     requested_date = form.locator('[name="date"]')
     requested_time = form.locator('[name="time"]')
     submit = form.locator("[data-restaurant-table-submit]")
+    check(requested_date.get_attribute("aria-invalid") == "false",
+          "An untouched required date field must not be announced as invalid")
+    check(mobile.get_attribute("aria-invalid") == "false",
+          "An untouched required mobile field must not be announced as invalid")
 
     dates = page.evaluate(
         """() => {
