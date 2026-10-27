@@ -169,7 +169,7 @@ try {
   writeJson(root, 'content/tours/sunset-camel-safari.json', tourWithoutOgAlt);
   assert.throws(
     () => buildContentPages(root, { write: false }),
-    /seo\\.ogImage requires meaningful seo\\.ogAlt text/,
+    /seo\.ogImage requires meaningful seo\.ogAlt text/,
     'live record with explicit OG image but no alt text must be blocked',
   );
   writeJson(root, 'content/tours/sunset-camel-safari.json', {
