@@ -13,6 +13,8 @@ Baseline main at the start of this delivery phase: 476dd625fce29cdc524da33214c4f
 - The dining page explicitly withholds current menu items/prices while the legacy menu file still says owner_confirmed=false.
 - Canonical URL/OG URL publication and sitemap URL publishing remain gated until the owner approves the actual production hostname.
 
+- The branded 404 recovery page is included in static link/anchor integrity checks, uses `noindex,follow`, and hydrates booking/contact actions from `content/site-config.json` rather than hard-coded endpoints.
+
 A passing automated suite is not proof that the hotel’s live phone is answered, the booking provider accepts guests, the current menu is correct, or staging/production renders correctly. The offline screenshot renderer also rejects contradictory report metadata, unsafe-action flags, inconsistent failure counts and any release status other than `BLOCKED_PENDING_MANUAL_UAT`.
 
 ## Automated media performance contracts
@@ -99,6 +101,7 @@ Use the intended staging host only. Replace `NOT RUN` with a result only after t
 | STG-15 Keyboard-only navigation through all six experience galleries, including visible focus and Enter/Space |  |  |  |  | NOT RUN |  |  |
 | STG-16 Reduced-motion preference, carousel no-autoplay behavior and stable layout |  |  |  |  | NOT RUN |  |  |
 | STG-17 Social preview image, title, description and image-alt consistency on staging |  |  |  |  | NOT RUN |  |  |
+| STG-18 Unknown-route response and 404 recovery links (no hard-coded contact endpoints) |  |  |  |  | NOT RUN |  |  |
 
 Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and follow-up owner for every failure or blocked row. Keep canonical-host approval, menu publication and deployment decisions in their separate owner-approval gates.
 

@@ -571,3 +571,32 @@ The rerun of the original PR #26 head `a59bc240ea82227e891e92cd764687c8e5559c84`
 The follow-up on this same PR now validates all four coverage flags (`pageNavigationComplete`, `pageHttp200Complete`, `responsiveViewportsComplete`, and `complete`). The top-line result becomes `INVALID REPORT` for report-contract violations and `FAIL — INCOMPLETE EVIDENCE` for any remaining bundle/coverage issue; it cannot be styled as a pass while issues exist. Regression cases cover false/missing coverage flags, incomplete route evidence and missing visual-evidence metadata.
 
 The follow-up code/test revision at `4ca778e6d959ff66b9aebacab41e0c43441345c6` passed exact-head quality run #40384239512: https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40384239512. After recording that result, the current revision at `07cd32e577f38ad9cabd6c2d623c907ba9b7855c` also passed exact-head quality run #40384747021: https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40384747021. This audit update creates a new head and therefore requires its own exact-head check before merge. Local full-suite, actual staging UAT, accessibility tooling and Lighthouse remain NOT RUN.
+
+## 27 October 2026 — 404 recovery and centralized contact safety
+
+### Baseline and finding
+
+- Live main at phase start: `d794175f8cfde6d2b717edb9ce0846dff1a6b90a`; no open PRs were reported.
+- The exact-main GitHub-hosted `Site quality gates / quality` run #40385429397 completed successfully on that SHA. The classic commit-status endpoint returned no status contexts; the workflow run and check-run endpoint provide the positive CI evidence.
+- Source review found that `404.html` embedded a direct WhatsApp URL instead of using `content/site-config.json` and `assets/site.js`. It was excluded from `scripts/check-site.py`, so its local paths, fragment targets, title, description and heading were not part of the static integrity scan. The page offered only a return-home link and had an inline layout style.
+
+### Implementation in `feat/404-recovery-contact-centralization-20261027`
+
+- Rebuilt `404.html` as a branded, responsive recovery page with clear homepage, rooms, experiences, dining, directions and Gallery routes. Its assets and page links are root-relative because Apache's `ErrorDocument 404 /404.html` can render while the browser address remains a nested missing path.
+- Added a concise page description and `noindex,follow`; no canonical or `og:url` was introduced.
+- Replaced the hard-coded WhatsApp URL with the existing data attributes consumed by `assets/site.js`: booking, WhatsApp, primary phone, alternate landline and email. If central configuration fails, actions remain disabled and the accessible contact-status message explains the failure.
+- Added responsive styling in `assets/site.css`, preserving visible keyboard focus and the existing reduced-motion contract.
+- Included `404.html` in `scripts/check-site.py` so local assets, links, in-page/target anchors, title, description and one-H1 structure are validated; the checker now resolves root-relative local paths against the site root and still rejects paths that escape it.
+- Extended `scripts/test-launch-readiness.js` to require noindex, route links, all central contact markers, no hard-coded contact URLs, no inline styles, shared JavaScript hydration and responsive styling.
+- Updated README page inventory and the launch checklist. Added STG-18 for the actual unknown-route response/recovery flow; it remains `NOT RUN` until an operator tests the deployed host.
+
+### Scope and release boundary
+
+This is a guest-recovery and contact-source-of-truth fix. It does not alter the configured phone numbers, email, WhatsApp base URL, booking-engine URL, canonical host, sitemap/robots policy, menu publication state, draft content or production deployment settings. It does not claim that any live contact channel is reachable or staffed.
+
+### Validation boundary
+
+- Exact-head GitHub quality evidence for this feature branch is pending at the time of this audit entry and must be refreshed after the final code/test/documentation commit.
+- Local `bash scripts/check-pr-quality.sh`: `NOT RUN`; the connector execution environment has no complete checkout and GitHub DNS resolution is unavailable.
+- Actual staging 404 HTTP status/redirect behavior, browser/device visual QA, formal accessibility tooling, Lighthouse and live booking/contact checks: `NOT RUN`.
+- The owner-approved HTTPS staging origin is still missing. STG-01 through STG-18 remain `NOT RUN`; no staging or production host was contacted and no external booking/contact action was performed.

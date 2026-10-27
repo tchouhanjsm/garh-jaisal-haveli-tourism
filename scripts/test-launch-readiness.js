@@ -46,6 +46,32 @@ for (const file of PAGE_NAMES) {
     file + ': canonical URL remains gated until owner host approval');
 }
 
+const recoveryPage = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
+assert.match(recoveryPage, /<meta name="robots" content="noindex,follow">/,
+  '404 recovery page must remain out of search results while allowing recovery links to be followed');
+assert.match(recoveryPage, /<h1\b/i, '404 recovery page must have a primary heading');
+assert.doesNotMatch(recoveryPage, /<link\b[^>]*\brel=["']canonical["']|property=["']og:url["']/i,
+  '404 recovery page must keep canonical/OG URL publication gated until owner host approval');
+assert.equal((recoveryPage.match(/id="contact-status"/g) || []).length, 1,
+  '404 recovery page must provide one accessible contact fallback');
+for (const route of ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'directions.html', 'gallery.html']) {
+  assert.ok(recoveryPage.includes('href="/' + route + '"'), '404 recovery page must link to ' + route);
+}
+for (const marker of ['data-booking-link', 'data-enquiry-link', 'data-contact-phone', 'data-contact-alt-phone', 'data-contact-email']) {
+  assert.ok(recoveryPage.includes(marker), '404 recovery page must use centralized channel marker ' + marker);
+}
+assert.doesNotMatch(recoveryPage, /href="(?:tel:\+?\d+|mailto:[^"]+)|https:\/\/wa\.me\/\d{8,15}/i,
+  '404 recovery page must not hard-code contact endpoints');
+assert.doesNotMatch(recoveryPage, /\sstyle=["']/i, '404 recovery page must use shared responsive CSS, not inline styles');
+assert.match(recoveryPage, /<script src="\/assets\/site\.js" defer><\/script>/,
+  '404 recovery page must hydrate centrally configured contact actions');
+assert.match(recoveryPage, /<link rel="stylesheet" href="\/assets\/site\.css">/,
+  '404 recovery stylesheet must resolve from the site root at arbitrary missing paths');
+assert.match(siteCss, /\.not-found-page__routes[\s\S]*?@media\(max-width:600px\)/,
+  '404 recovery routes must have a responsive mobile layout');
+assert.match(siteCss, /\.not-found-page__route:focus-visible|a:focus-visible/,
+  '404 recovery links must retain a visible keyboard focus indicator');
+
 const dining = fs.readFileSync(path.join(ROOT, 'dining.html'), 'utf8');
 assert.match(dining, /source menu record is still marked as awaiting owner confirmation/i,
   'Dining page must not imply that unconfirmed legacy menu items/prices are current');

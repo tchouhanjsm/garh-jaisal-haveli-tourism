@@ -8,8 +8,12 @@ A mobile-first, conversion-focused website for Garh Jaisal Haveli in Jaisalmer, 
 - `rooms.html` — room discovery and direct availability enquiry
 - `experiences.html` — Thar Desert safari/camping and guided city tour service pages
 - `dining.html` — rooftop restaurant and candlelit dinner enquiry pages
-- `about.html` — family/heritage story and hospitality philosophy
-- `directions.html` — arrival planning, accessibility notes, luggage coordination and FAQs
+- `about.html` — the fort setting and practical guest-planning guidance, without unverified family-history claims
+- `directions.html` — arrival planning, access expectations and route questions to confirm
+- `gallery.html` — locally hosted, source-reviewed room, fort, rooftop and desert references
+- `404.html` — branded recovery route with useful page links and centrally configured booking/contact actions
+
+The branded `404.html` recovery page is included in static link/anchor integrity checks. It is `noindex,follow`, routes guests to the main content pages, and uses `assets/site.js` plus `content/site-config.json` for all booking/contact actions; it does not embed contact endpoints directly.
 
 ## Stack
 
