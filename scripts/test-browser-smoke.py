@@ -26,17 +26,14 @@ from zoneinfo import ZoneInfo
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = [
-    "index.html",
-    "rooms.html",
-    "experiences.html",
-    "experience-details.html",
-    "dining.html",
-    "about.html",
-    "directions.html",
-    "gallery.html",
+ROUTE_CONTRACT_PATH = ROOT / "content" / "staging-route-contract.json"
+with ROUTE_CONTRACT_PATH.open("r", encoding="utf-8") as route_contract_file:
+    ROUTE_CONTRACT = json.load(route_contract_file)
+PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]
+VIEWPORTS = [
+    (viewport["width"], viewport["height"])
+    for viewport in ROUTE_CONTRACT["viewports"]
 ]
-VIEWPORTS = [(360, 800), (768, 1024), (1440, 900)]
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
 NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
@@ -283,7 +280,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         missing = [name for name in planned_pages if name not in attempted_pages]
         unexpected = [name for name in attempted_pages if name not in planned_pages]
         evidence_failures.append(
-            "Incomplete browser evidence: page navigation coverage does not match the seven planned routes "
+            f"Incomplete browser evidence: page navigation coverage does not match the {len(PAGES)} planned routes "
             f"(attempted {len(attempted_pages)}/{len(planned_pages)}; missing={missing}; unexpected={unexpected})."
         )
     if http_ok_pages != planned_pages:
@@ -326,7 +323,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
     screenshot_complete = captured_names == expected_screenshots and screenshot_metadata_complete
     if not screenshot_complete:
         evidence_failures.append(
-            "Incomplete visual evidence: expected 24 full-page PNG screenshots (eight routes at 360, 768 and 1440 CSS pixels) "
+            f"Incomplete visual evidence: expected {len(expected_screenshots)} full-page PNG screenshots "
+            f"({len(PAGES)} routes at {', '.join(str(width) for width, _ in VIEWPORTS)} CSS pixels) "
             f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
         )
 
@@ -973,11 +971,11 @@ def check_carousels(page, base_url: str, browser,
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Read-only Chromium smoke checks for the eight-page guest journey.")
+    parser = argparse.ArgumentParser(description=f"Read-only Chromium smoke checks for the {len(PAGES)}-page guest journey.")
     parser.add_argument("--base-url", help="HTTPS staging origin; omitted to run against a temporary local server")
     parser.add_argument("--operator", help="Human operator name recorded in a staging evidence report")
     parser.add_argument("--report", help="Local JSON evidence-report path (required with --base-url)")
-    parser.add_argument("--screenshots-dir", help="Empty local directory outside the checkout for 24 visual evidence PNGs (required with --base-url)")
+    parser.add_argument("--screenshots-dir", help=f"Empty local directory outside the checkout for {len(expected_screenshot_names())} visual evidence PNGs (required with --base-url)")
     args = parser.parse_args(argv)
     staging_mode = bool(args.base_url)
 
@@ -1109,7 +1107,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not local_visual_report["visualEvidence"]["complete"]:
             FAILURES.append(
-                "Local browser smoke did not produce all 21 valid full-page screenshot records; "
+                f"Local browser smoke did not produce all {len(expected_screenshot_names())} valid full-page screenshot records; "
                 "visual evidence generation must be exercised by the standard quality suite."
             )
 
@@ -1141,10 +1139,10 @@ def main(argv: list[str] | None = None) -> int:
 
     mode_label = "staging" if staging_mode else "local"
     print(
-        f"PASS: Chromium {mode_label} browser smoke suite covered eight core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
+        f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
-        "wraparound, no-autoplay and no-JavaScript fallback, plus 24 full-page PNG captures "
+        f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
         "No external links were followed and no booking, payment or guest data was submitted."
     )

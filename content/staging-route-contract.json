@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Single source of truth for core public routes and responsive viewport evidence used by the browser smoke and staging screenshot review. This is a QA inventory, not a production sitemap.",
+  "routes": [
+    {
+      "file": "index.html",
+      "title": "Home"
+    },
+    {
+      "file": "rooms.html",
+      "title": "Rooms"
+    },
+    {
+      "file": "experiences.html",
+      "title": "Experiences"
+    },
+    {
+      "file": "experience-details.html",
+      "title": "Experience details"
+    },
+    {
+      "file": "dining.html",
+      "title": "Dining"
+    },
+    {
+      "file": "about.html",
+      "title": "About"
+    },
+    {
+      "file": "directions.html",
+      "title": "Directions"
+    },
+    {
+      "file": "gallery.html",
+      "title": "Gallery"
+    }
+  ],
+  "viewports": [
+    {
+      "width": 360,
+      "height": 800,
+      "label": "Mobile"
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "label": "Tablet"
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "label": "Desktop"
+    }
+  ]
+}

@@ -7,7 +7,8 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const KIB = 1024;
 const DEFAULT_MAX_BYTES = 650 * KIB;
-const PAGES = ['index.html', 'rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
+const routeContract = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
+const PAGES = routeContract.routes.map(route => route.file);
 const HERO_BUDGETS = new Map([
   ['index.html', 150 * KIB],
   ['rooms.html', 550 * KIB],

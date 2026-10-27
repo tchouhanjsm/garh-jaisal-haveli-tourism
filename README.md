@@ -167,8 +167,9 @@ python3 scripts/render-staging-visual-review.py --report "$STAGING_REPORT" --scr
 ~~~
 
 - **STAGING_VISUAL_REVIEW** must be an **.html** path outside the repository checkout and in the same parent directory as **STAGING_SCREENSHOTS**.
-- The renderer accepts schema-version 4 staging reports only, verifies the seven route/HTTP records and three viewport widths, and checks each PNG's actual header geometry, byte count and SHA-256 against the JSON manifest before showing it as verified.
-- The HTML compares Home, Rooms, Experiences, Dining, About, Directions and Gallery at 360, 768 and 1440 CSS pixels. It uses local relative image links, inline CSS only, escaped report text and redacted failure URLs; it embeds no remote scripts, fonts or images and does not include absolute filesystem paths.
+- The renderer accepts schema-version 4 staging reports only, verifies all eight route/HTTP records and three viewport widths, and checks each PNG's actual header geometry, byte count and SHA-256 against the JSON manifest before showing it as verified.
+- The HTML compares Home, Rooms, Experiences, Experience details, Dining, About, Directions and Gallery at 360, 768 and 1440 CSS pixels. It uses local relative image links, inline CSS only, escaped report text and redacted failure URLs; it embeds no remote scripts, fonts or images and does not include absolute filesystem paths.
+- `content/staging-route-contract.json` is the single source of truth for the eight core public HTML routes and the three screenshot viewports. Chromium smoke, launch wiring, page-media performance checks and the offline screenshot review consume this QA inventory; `scripts/test-public-route-contract.py` guards against route, screenshot-count and documentation drift. This contract is not a production sitemap or indexing authorization.
 - A missing, duplicated, tampered or malformed screenshot is shown as unverified and makes the renderer exit non-zero. A browser report marked FAIL remains visibly failed even if the image bundle itself is intact.
 - The page always states that release is blocked pending manual UAT. It cannot mark STG-01–STG-18 passed, approve the canonical host, publish the menu, or authorize deployment. Keep the JSON, PNG directory and HTML review local and review them before sharing.
 
