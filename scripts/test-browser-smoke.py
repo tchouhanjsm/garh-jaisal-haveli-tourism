@@ -978,23 +978,14 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
           "Dining table date input must reject a past date")
     requested_date.fill(dates["tomorrow"])
 
-    time_options = requested_time.locator("option").evaluate_all(
-        "(options) => options.map(option => ({value: option.value, label: option.textContent})).filter(option => option.value)"
-    )
-    expected_slots = []
-    for minutes in range(7 * 60, 22 * 60 + 30 + 1, 30):
-        expected_slots.append(f"{minutes // 60:02d}:{minutes % 60:02d}")
-    check([option["value"] for option in time_options] == expected_slots,
-          "Dining time selector must offer 32 preferred slots from 07:00 through 22:30")
-    check(len(time_options) == 32 and len({option["value"] for option in time_options}) == 32,
-          "Dining must render exactly 32 unique preferred time slots")
-    check(time_options[0]["label"] == "7:00 AM" and time_options[-1]["label"] == "10:30 PM",
-          "Dining preferred time labels must show the expected start and end values")
-    check(requested_time.get_attribute("required") is not None,
-          "Dining preferred time slot must be selected before preparing the enquiry")
-    time_guidance = page.locator("#restaurant-table-time-help").inner_text().lower()
-    check("not verified restaurant opening hours" in time_guidance and "must confirm" in time_guidance,
-          "Dining must not represent preferred slots as verified restaurant opening hours")
+    check(requested_time.get_attribute("type") == "text",
+          "Dining time must be a free-text preference, not an assumed opening-hours list")
+    check(requested_time.get_attribute("maxlength") == "40",
+          "Dining preferred-time text must have a bounded length")
+    check(requested_time.get_attribute("required") is None,
+          "Dining preferred time must remain optional until service hours are owner-confirmed")
+    check("confirm current service hours and availability" in page.locator("#restaurant-table-time-help").inner_text().lower(),
+          "Dining preferred-time guidance must require restaurant confirmation")
     check(guests.get_attribute("type") == "number" and guests.get_attribute("min") == "1"
           and guests.get_attribute("max") == "20",
           "Dining party size must use the source form's 1–20 input bounds")
@@ -1019,13 +1010,13 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     check(not form.evaluate("(element) => element.checkValidity()"),
           "Dining table form must reject a party size above the source form limit")
     guests.fill("4")
-    requested_time.select_option("")
-    check(not form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must require one of the preferred-time options")
-    requested_time.select_option("19:30")
+    requested_time.fill("")
     check(form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must accept valid required fields and a preferred slot even when optional email is blank")
+          "Dining table form must allow an enquiry without optional email or time preference")
     email.fill("aarav@example.com")
+    requested_time.fill("7:30 PM")
+    check(form.evaluate("(element) => element.checkValidity()"),
+          "Dining table form must accept valid required fields, party size and optional preferences")
     submit.click()
     page.wait_for_function(
         "() => Array.isArray(window.__tableEnquiryOpenCalls) && window.__tableEnquiryOpenCalls.length === 1",
