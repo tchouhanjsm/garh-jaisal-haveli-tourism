@@ -909,3 +909,26 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Exact-head GitHub CI must prove that all eight routes' screenshot capture remains successful with strict image decoding and that the dropdown interaction/contrast assertions pass.
 - This is automated rendering-readiness evidence, not human visual approval of image subject, crop, color, or layout. No live staging UAT, Lighthouse/Core Web Vitals or formal accessibility audit is claimed.
 - Canonical host, robots/sitemap publication, guest-data handling, booking/contact endpoints and deployment remain unchanged.
+
+
+## 27 October 2026 — source-backed room comparison shortlist
+
+### Finding
+
+- The authoritative legacy room page includes a side-by-side room comparison path, while the static Rooms page provided filtering and individual enquiry links but no way to compare a small shortlist without repeatedly scrolling between cards.
+- Guests need to compare the actual room photographs and source-listed features together. A comparison must not turn catalogue data into a claim about live availability or current room condition.
+
+### Implementation
+
+- Added a progressive shortlist for up to three rooms. The comparison table reuses the card's existing image, alt text, listed floor, description and visible feature list.
+- Added a link from each comparison heading back to its room card. If a finder filter currently hides that room, the link clears the filters before returning to the card.
+- Added remove-per-room and clear-shortlist actions, live status messaging, a three-room limit, semantic table headers, keyboard focus treatment and horizontally scrollable mobile presentation.
+- Controls are created only after all seven room records pass the runtime shape checks. No-JavaScript visitors continue to see every room card without inert compare controls.
+- The shortlist is ephemeral: no browser storage, network request, contact endpoint or guest data persistence is introduced.
+
+### Validation and release boundary
+
+- `scripts/test-room-compare.js` guards the seven room records, progressive enhancement, safe DOM construction, the selection limit, responsive table contract and absence of persistence/network behavior.
+- Chromium smoke coverage exercises selecting two and three rooms, rejecting a fourth, removing a room, following a hidden shortlisted room back through the finder, clearing the shortlist and the no-JavaScript fallback.
+- Exact-head GitHub push and pull-request quality workflows must pass before merge. Local full-suite execution is not claimed.
+- Actual staging visual review, keyboard/device acceptance, current room fact confirmation, formal accessibility evaluation, Lighthouse and production release remain separate gates.

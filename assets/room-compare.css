@@ -1,0 +1,217 @@
+/* Side-by-side room comparison. Only loaded on rooms.html. */
+.room-compare[hidden],
+.room-compare__table-wrap[hidden] {
+  display: none !important;
+}
+
+.room-compare {
+  margin: 0 0 28px;
+  padding: clamp(20px, 3.2vw, 34px);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 248, .94);
+  color: var(--ink);
+}
+
+.room-compare__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+
+.room-compare__intro {
+  max-width: 650px;
+}
+
+.room-compare__title {
+  margin: -7px 0 10px;
+  font-family: var(--serif);
+  font-size: clamp(25px, 3vw, 34px);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.room-compare__description,
+.room-compare__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.room-compare__status {
+  min-height: 1.8em;
+  margin-bottom: 14px;
+  color: var(--ink-soft);
+}
+
+.room-compare__clear,
+.room-compare__toggle,
+.room-compare__remove {
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid var(--gold-dark);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.room-compare__clear {
+  flex: 0 0 auto;
+}
+
+.room-compare__clear:hover:not(:disabled),
+.room-compare__toggle:hover,
+.room-compare__remove:hover {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.room-compare__toggle[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.room-compare__clear:disabled {
+  border-color: var(--line);
+  color: #777b73;
+  cursor: not-allowed;
+}
+
+.room-compare__toggle:focus-visible,
+.room-compare__clear:focus-visible,
+.room-compare__remove:focus-visible,
+.room-compare__room-link:focus-visible,
+.room-compare__table-wrap:focus-visible {
+  outline: 2px solid var(--gold-dark);
+  outline-offset: 3px;
+}
+
+.room-compare__table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--white);
+  overscroll-behavior-inline: contain;
+}
+
+.room-compare__table {
+  width: 100%;
+  min-width: 740px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.room-compare__table th,
+.room-compare__table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.room-compare__table thead th {
+  width: 25%;
+  background: #f3eee5;
+  font-weight: 700;
+}
+
+.room-compare__table tbody th {
+  width: 170px;
+  min-width: 150px;
+  background: #faf7f0;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.room-compare__table tbody tr:last-child th,
+.room-compare__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.room-compare__room-heading {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 9px;
+  min-width: 160px;
+}
+
+.room-compare__thumbnail {
+  display: block;
+  width: min(100%, 190px);
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: #eee6d8;
+}
+
+.room-compare__room-link {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.room-compare__remove {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 10px;
+}
+
+.room-compare__features {
+  margin: 0;
+  padding-left: 17px;
+}
+
+.room-compare__features li + li {
+  margin-top: 4px;
+}
+
+.room-compare__caption {
+  padding: 10px 14px;
+  color: var(--muted);
+  text-align: left;
+  font-size: 11px;
+}
+
+@media (max-width: 620px) {
+  .room-compare {
+    padding: 20px 16px;
+  }
+
+  .room-compare__header {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .room-compare__clear {
+    width: 100%;
+  }
+
+  .room-compare__table-wrap {
+    margin-inline: -2px;
+  }
+
+  .room-compare__table {
+    min-width: 700px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-compare__clear,
+  .room-compare__toggle,
+  .room-compare__remove {
+    transition: none;
+  }
+}

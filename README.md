@@ -5,7 +5,7 @@ A mobile-first, conversion-focused website for Garh Jaisal Haveli in Jaisalmer, 
 ## Pages
 
 - `index.html` — homepage and guest decision journey, with direct Book Now, room and experience paths, FAQs and primary CTA
-- `rooms.html` — room discovery and direct availability enquiry
+- `rooms.html` — source-backed room finder and side-by-side comparison shortlist, with direct availability enquiry
 - `experiences.html` — Thar Desert safari/camping and guided city tour service pages
 - `dining.html` — restaurant overview, approval-gated menu, table-enquiry draft and arrival directions in accessible tabs
 - `about.html` — the fort setting and practical guest-planning guidance, without unverified family-history claims
@@ -216,3 +216,8 @@ The feature list is not a live inventory or an exhaustive guarantee: a feature n
 ## Guest enquiry conversion
 
 The Experiences, experience-detail and Dining pages share a date-aware enquiry form. It prepares a WhatsApp draft only when the central public contact configuration authorizes a valid WhatsApp endpoint; the visitor must review and send the message in WhatsApp. Book Now opens the source-listed external booking provider and does not itself confirm availability or a reservation. It validates the date range, provides an accessible status, and does not store enquiry details in a website backend. Source-authorized contact values are not proof of live reachability. If configuration fails, the site keeps actions disabled and tells visitors that no message was sent, to refresh, or to use contact details already supplied directly by the hotel. `scripts/test-guest-enquiry-conversion.js` covers authorized and malformed contact configuration, encoded draft content, and recovery after correcting arrival alone. The Chromium browser smoke suite also exercises date constraints and draft preparation on Experiences, Experience details and Dining while intercepting `window.open`; it never opens WhatsApp or sends guest data.
+
+
+### Room comparison shortlist
+
+The Rooms catalogue provides a progressive shortlist for comparing up to three of the seven source-listed rooms. It reuses each room card's local photograph, listed floor, description and visible feature list; it does not infer live inventory, missing amenities, occupancy or rates. Selection exists only in the current page session and is not written to browser storage or sent to a server. With JavaScript disabled, all room cards remain available and comparison controls are not shown. On narrow screens, the comparison table scrolls horizontally and remains keyboard-focusable.

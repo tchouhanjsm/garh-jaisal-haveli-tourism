@@ -1392,6 +1392,122 @@ def check_room_finder(page, base_url: str, browser) -> None:
     check(visible_room_ids() == all_ids,
           "Rooms: keyboard Space must clear the focused King bed checkbox")
 
+    # Side-by-side shortlist: compare two/three rooms, enforce the cap, remove entries,
+    # and recover a selected room that is hidden by an active filter.
+    compare_panel = page.locator("[data-room-compare-panel]")
+    check(compare_panel.count() == 1 and compare_panel.is_hidden(),
+          "Rooms: comparison panel must start hidden until a guest selects a room")
+    compare_buttons = page.locator("#room-card-grid [data-room-compare-toggle]")
+    check(compare_buttons.count() == 7,
+          "Rooms: comparison controls must be added to all seven cards only after initialization")
+    sweet_compare = page.locator("#room-sweet-purple [data-room-compare-toggle]")
+    green_compare = page.locator("#room-green [data-room-compare-toggle]")
+    opium_compare = page.locator("#room-opium [data-room-compare-toggle]")
+    rising_compare = page.locator("#room-rising-sun [data-room-compare-toggle]")
+    sweet_compare.focus()
+    page.keyboard.press("Space")
+    check(sweet_compare.get_attribute("aria-pressed") == "true",
+          "Rooms: selecting a room must expose its pressed state")
+    check(compare_panel.is_visible() and "1 room selected" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
+          "Rooms: a single selection must explain how to complete a comparison")
+    check(compare_panel.locator("[data-room-compare-table-wrap]").is_hidden(),
+          "Rooms: the comparison table must wait until at least two rooms are selected")
+
+    green_compare.click()
+    compare_table = compare_panel.locator("[data-room-compare-table]")
+    table_wrap = compare_panel.locator("[data-room-compare-table-wrap]")
+    check(table_wrap.is_visible(), "Rooms: selecting two rooms must reveal the side-by-side table")
+    check(table_wrap.get_attribute("role") == "region" and table_wrap.get_attribute("tabindex") == "0",
+          "Rooms: the horizontally scrollable comparison table must be a named keyboard-focusable region")
+    check(table_wrap.evaluate("el => el.scrollWidth > el.clientWidth"),
+          "Rooms: comparison table must scroll horizontally instead of overflowing the mobile viewport")
+    compare_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
+    check(compare_names == ["Sweet Purple Room", "Green Room"],
+          "Rooms: comparison columns must preserve the selected room names and selection order")
+    check(compare_table.locator("thead th[scope='col']").count() == 3,
+          "Rooms: every comparison column, including the detail label, must render a scoped column header")
+    row_headers = compare_table.locator("tbody th[scope='row']")
+    check(row_headers.count() == 3
+          and row_headers.all_text_contents() == [
+              "Floor listed", "Room description", "Features listed in the catalogue"
+          ],
+          "Rooms: each rendered comparison row must expose a scoped accessible row header")
+    check(compare_table.locator("tbody th:not([scope='row'])").count() == 0,
+          "Rooms: no comparison row heading may omit its row-header scope")
+
+    floors = compare_table.locator("[data-room-compare-row='floor'] td").all_text_contents()
+    check(floors == ["Ground floor", "First floor"],
+          "Rooms: comparison must use each card's source-listed floor")
+    feature_cells = compare_table.locator("[data-room-compare-row='features'] td")
+    check("Second bed" in (feature_cells.nth(0).inner_text() or "")
+          and "King bed" in (feature_cells.nth(1).inner_text() or ""),
+          "Rooms: comparison must use the visible source-listed feature lists")
+    compare_images = compare_table.locator("[data-room-compare-image]")
+    check(compare_images.count() == 2,
+          "Rooms: each comparison column must show its mapped room photograph")
+    for image in compare_images.all():
+        try:
+            image.scroll_into_view_if_needed(timeout=3000)
+            details = image.evaluate("""async img => {
+              const alt = img.getAttribute("alt") || "";
+              const src = img.getAttribute("src") || "";
+              if (src.startsWith("/")) {
+                // Convert root-relative local sources to a URL explicitly after the browser has positioned the image.
+              } else if (!/^https?:\\/\\//i.test(src)) {
+                return {alt, src, currentSrc: img.currentSrc || "", complete: img.complete,
+                  naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, decoded: false};
+              }
+              try {
+                await img.decode();
+                return {alt, src, currentSrc: img.currentSrc || "", complete: img.complete,
+                  naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, decoded: true};
+              } catch (_) {
+                return {alt, src, currentSrc: img.currentSrc || "", complete: img.complete,
+                  naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, decoded: false};
+              }
+            }""")
+            check(bool(details["alt"].strip()),
+                  "Rooms: each comparison thumbnail must retain descriptive alt text")
+            source_is_local = details["src"].startswith("/") or same_origin(details["src"], base_url)
+            check(source_is_local and same_origin(details["currentSrc"], base_url),
+                  f"Rooms: each comparison thumbnail must use a local same-origin image source (src={details['src']!r}, currentSrc={details['currentSrc']!r})")
+            check(details["decoded"] and details["complete"]
+                  and details["naturalWidth"] > 0 and details["naturalHeight"] > 0,
+                  f"Rooms: each comparison thumbnail must decode to non-zero intrinsic dimensions (src={details['src']!r}, size={details['naturalWidth']}x{details['naturalHeight']})")
+        except Exception as error:
+            check(False, f"Rooms: comparison thumbnail failed to load: {error}")
+
+    opium_compare.click()
+    check(compare_table.locator("thead [data-room-compare-card-link]").count() == 3,
+          "Rooms: a third selected room must appear in the comparison table")
+    rising_compare.click()
+    check(rising_compare.get_attribute("aria-pressed") == "false"
+          and "up to three rooms" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
+          "Rooms: the shortlist must reject a fourth room and announce the three-room limit")
+
+    compare_panel.locator("[data-room-compare-remove='room-opium']").click()
+    remaining_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
+    check(remaining_names == ["Sweet Purple Room", "Green Room"],
+          "Rooms: removing a comparison entry must update the table")
+    check(opium_compare.get_attribute("aria-pressed") == "false",
+          "Rooms: removing a room must restore its card control state")
+
+    floor.select_option("ground")
+    check(page.locator("#room-green").is_hidden(),
+          "Rooms: the active floor filter should hide the selected first-floor card")
+    compare_panel.locator("[data-room-compare-card-link='room-green']").click()
+    check(not page.locator("#room-green").is_hidden() and floor.input_value() == "all",
+          "Rooms: following a selected-room link must clear filters before returning to its card")
+
+    compare_panel.locator("[data-room-compare-clear]").click()
+    check(compare_panel.locator("[data-room-compare-table-wrap]").is_hidden()
+          and "Shortlist cleared" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
+          "Rooms: clearing the shortlist must hide the table and announce recovery")
+    check(all(button.get_attribute("aria-pressed") == "false" for button in compare_buttons.all()),
+          "Rooms: clearing the shortlist must reset all seven card controls")
+    check(compare_panel.locator("[data-room-compare-clear]").is_disabled(),
+          "Rooms: Clear shortlist must disable when no rooms are selected")
+
     # With JavaScript off, the controls stay hidden and the full catalogue is readable.
     nojs = browser.new_context(
         viewport={"width": 360, "height": 800},
@@ -1409,6 +1525,9 @@ def check_room_finder(page, base_url: str, browser) -> None:
               "Rooms: no-JavaScript fallback must not hide any room card")
         check(static_page.locator("[data-room-finder]").is_hidden(),
               "Rooms: inert filter controls must remain hidden when JavaScript is disabled")
+        check(static_page.locator("[data-room-compare-panel]").count() == 0
+              and static_page.locator("[data-room-compare-toggle]").count() == 0,
+              "Rooms: comparison controls must not appear without JavaScript")
     finally:
         nojs.close()
 
@@ -1695,7 +1814,7 @@ def main(argv: list[str] | None = None) -> int:
     mode_label = "staging" if staging_mode else "local"
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
-        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
+        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
