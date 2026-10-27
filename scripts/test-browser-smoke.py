@@ -1482,6 +1482,9 @@ def check_room_finder(page, base_url: str, browser) -> None:
               "Rooms: no-JavaScript fallback must not hide any room card")
         check(static_page.locator("[data-room-finder]").is_hidden(),
               "Rooms: inert filter controls must remain hidden when JavaScript is disabled")
+        check(static_page.locator("[data-room-compare-panel]").count() == 0
+              and static_page.locator("[data-room-compare-toggle]").count() == 0,
+              "Rooms: comparison controls must not appear without JavaScript")
     finally:
         nojs.close()
 
@@ -1768,7 +1771,7 @@ def main(argv: list[str] | None = None) -> int:
     mode_label = "staging" if staging_mode else "local"
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
-        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
+        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
