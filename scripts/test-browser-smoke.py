@@ -1459,9 +1459,21 @@ def check_room_finder(page, base_url: str, browser) -> None:
     check(all(item["alt"].strip()
               and (item["src"].startswith("/") or same_origin(item["src"], base_url))
               and same_origin(item["currentSrc"], base_url)
-              and item["complete"] and item["naturalWidth"] > 0 and item["naturalHeight"] > 0
               for item in compare_image_evidence),
-          "Rooms: comparison thumbnails must preserve alt text, use local sources and successfully load")
+          "Rooms: comparison thumbnails must preserve alt text and use local sources")
+    for image, evidence in zip(compare_images.all(), compare_image_evidence):
+        try:
+            image.scroll_into_view_if_needed(timeout=3000)
+            image.evaluate("img => img.decode()")
+            details = image.evaluate("""img => ({
+              complete: img.complete,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight
+            })""")
+            check(details["complete"] and details["naturalWidth"] > 0 and details["naturalHeight"] > 0,
+                  "Rooms: comparison thumbnail must decode to non-zero intrinsic dimensions")
+        except Exception as error:
+            check(False, f"Rooms: comparison thumbnail failed to load: {error}")
 
     opium_compare.click()
     check(compare_table.locator("thead [data-room-compare-card-link]").count() == 3,
