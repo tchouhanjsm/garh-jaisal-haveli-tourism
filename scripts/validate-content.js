@@ -148,6 +148,13 @@ function validateRecordPolicy(type, record, root, registry, siteConfig, findings
     findings.push({ path: sourcePath, message: 'record slug/category must be lowercase kebab-case before deriving paths' });
     return;
   }
+  if ((type === 'tour' || type === 'blog') && record.seo && record.seo.ogImage
+      && (typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5)) {
+    findings.push({
+      path: sourcePath + '.seo.ogAlt',
+      message: 'seo.ogImage requires meaningful seo.ogAlt text',
+    });
+  }
   if (type === 'tour' && status === 'live') {
     if (record.factsConfirmed !== true) findings.push({ path: sourcePath, message: 'live tour requires factsConfirmed: true' });
     if (!record.lastVerified || !isValidDate(record.lastVerified)) findings.push({ path: sourcePath, message: 'live tour requires a valid lastVerified date' });

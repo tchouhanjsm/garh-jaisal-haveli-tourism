@@ -49,6 +49,11 @@
         "ogImage": {
           "type": "string",
           "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-og-01\\.(webp|avif)$"
+        },
+        "ogAlt": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200
         }
       }
     },

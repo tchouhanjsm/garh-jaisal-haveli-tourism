@@ -166,6 +166,10 @@ function walkAssetPaths(value, root, location) {
 function validateLiveRecord(item, root, siteConfig) {
   const { type, record, sourcePath } = item;
   if (record.status !== 'live') return;
+  if (record.seo && record.seo.ogImage
+      && (typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5)) {
+    fail('seo.ogImage requires meaningful seo.ogAlt text: ' + sourcePath);
+  }
   if (type === 'tour') {
     if (record.factsConfirmed !== true) fail('Live tour requires factsConfirmed: true: ' + sourcePath);
     if (!isValidDate(record.lastVerified)) fail('Live tour requires a valid lastVerified date: ' + sourcePath);
@@ -251,9 +255,11 @@ function renderFooter() {
   return '<footer class="site-footer"><div class="site-footer__main wrap"><div class="footer-brand"><a class="brand brand--footer" href="' + rootLink('index.html') + '"><span class="brand__mark">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a><p>A family-run heritage stay inside the historic walls of Jaisalmer Fort. Rooted in the Golden City, open to the world.</p></div><div class="footer-column"><h2>Explore</h2><a href="' + rootLink('rooms.html') + '">Rooms</a><a href="' + rootLink('experiences.html') + '">Experiences</a><a href="' + rootLink('dining.html') + '">Rooftop dining</a><a href="' + rootLink('about.html') + '">Our story</a></div><div class="footer-column"><h2>Plan your visit</h2><a href="' + rootLink('directions.html') + '">Getting here</a><p>Ask the hotel to confirm current arrangements before you travel.</p></div><div class="footer-address"><h2>Find the haveli</h2><p>Kotari Para, inside Jaisalmer Fort<br>Jaisalmer, Rajasthan 345001, India</p><a href="' + rootLink('directions.html') + '" class="text-link text-link--light">Arrival information →</a></div></div><div class="site-footer__bottom wrap"><span>© <span data-current-year>2026</span> Garh Jaisal Haveli</span><span>Made with a sense of place in Jaisalmer, Rajasthan.</span><a href="#main">Back to top ↑</a></div></footer>';
 }
 
-function renderShell({ type, title, description, canonical, image, body, publishedByType, schema }) {
+function renderShell({ type, title, description, canonical, image, imageAlt, body, publishedByType, schema }) {
   const isBlog = type === 'blog';
-  const imageTag = image ? '<meta property="og:image" content="' + escapeHtml(image) + '"><meta property="og:image:alt" content="' + escapeHtml(isBlog ? (schema.heroAlt || title) : title) + '">' : '';
+  const resolvedImageAlt = image ? String(imageAlt || title).trim() : '';
+  const imageTag = image ? '<meta property="og:image" content="' + escapeHtml(image) + '"><meta property="og:image:alt" content="' + escapeHtml(resolvedImageAlt) + '">' : '';
+  const twitterImageTag = image ? '<meta name="twitter:image" content="' + escapeHtml(image) + '"><meta name="twitter:image:alt" content="' + escapeHtml(resolvedImageAlt) + '">' : '';
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': isBlog ? 'Article' : 'WebPage',
@@ -269,7 +275,7 @@ function renderShell({ type, title, description, canonical, image, body, publish
   const head = '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#171b19">' +
     '<title>' + escapeHtml(title) + '</title><meta name="description" content="' + escapeHtml(description) + '"><link rel="canonical" href="' + escapeHtml(canonical) + '">' +
     '<meta property="og:type" content="' + (isBlog ? 'article' : 'website') + '"><meta property="og:site_name" content="Garh Jaisal Haveli"><meta property="og:title" content="' + escapeHtml(title) + '"><meta property="og:description" content="' + escapeHtml(description) + '"><meta property="og:url" content="' + escapeHtml(canonical) + '">' + imageTag +
-    '<meta name="twitter:card" content="' + (image ? 'summary_large_image' : 'summary') + '"><meta name="twitter:title" content="' + escapeHtml(title) + '"><meta name="twitter:description" content="' + escapeHtml(description) + '">' +
+    '<meta name="twitter:card" content="' + (image ? 'summary_large_image' : 'summary') + '"><meta name="twitter:title" content="' + escapeHtml(title) + '"><meta name="twitter:description" content="' + escapeHtml(description) + '">' + twitterImageTag +
     '<link rel="icon" href="' + rootLink('favicon.svg') + '" type="image/svg+xml"><link rel="stylesheet" href="' + rootLink('assets/site.css') + '"><link rel="stylesheet" href="' + rootLink('assets/css/content-pages.css') + '"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet"><script type="application/ld+json">' + safeJsonForHtml(jsonLd) + '</script></head><body>';
   return '<!doctype html>\n' + GENERATED_MARKER + '\n' + head + renderHeader(type, publishedByType) + '<main id="main">' + body + '</main>' + renderFooter() + '<script src="' + rootLink('assets/site.js') + '" defer></script></body></html>\n';
 }
@@ -316,7 +322,7 @@ function renderTour(item, allPublished, origin, publishedByType) {
     '<section class="content-page__section" aria-labelledby="itinerary-title"><h2 id="itinerary-title">The experience, step by step</h2>' + timeline + (r.timingNote ? '<p class="content-page__muted">' + escapeHtml(r.timingNote) + '</p>' : '') + '</section>' +
     '<div class="content-page__two-col"><section class="content-page__section" aria-labelledby="included-title"><h2 id="included-title">What is included</h2>' + renderList(r.included, 'Ask the hotel to confirm what is included for your date.') + '</section><section class="content-page__section" aria-labelledby="excluded-title"><h2 id="excluded-title">Not included</h2>' + renderList(r.notIncluded, 'Confirm exclusions with the operator before booking.') + '</section></div>' +
     ((r.practicalNotes || []).length ? '<section class="content-page__section" aria-labelledby="practical-title"><h2 id="practical-title">Practical notes</h2>' + renderList(r.practicalNotes, '') + '</section>' : '') + faqs + renderRelated(r, allPublished) + renderCta(item.cta) + '</div>';
-  return { route, content: renderShell({ type: 'tour', title: r.seo.title, description: r.seo.description, canonical, image, body, publishedByType, schema: r }) };
+  return { route, content: renderShell({ type: 'tour', title: r.seo.title, description: r.seo.description, canonical, image, imageAlt: r.seo.ogAlt, body, publishedByType, schema: r }) };
 }
 
 function renderBlog(item, allPublished, origin, publishedByType) {
@@ -325,6 +331,7 @@ function renderBlog(item, allPublished, origin, publishedByType) {
   const canonical = origin + '/' + route;
   const imagePath = r.seo.ogImage || r.heroImage;
   const image = imagePath ? origin + '/' + imagePath : null;
+  const imageAlt = image ? (r.seo.ogImage ? r.seo.ogAlt : r.heroAlt) : '';
   const sectionIds = new Set(r.sections.map(section => section.id));
   if (sectionIds.size !== r.sections.length) fail('Duplicate section IDs in ' + item.sourcePath);
   const toc = (r.tableOfContents || []).filter(entry => sectionIds.has(entry.id));
@@ -334,7 +341,7 @@ function renderBlog(item, allPublished, origin, publishedByType) {
   const sources = '<section class="content-page__section" aria-labelledby="sources-title"><h2 id="sources-title">Sources and further reading</h2><ul class="content-page__sources">' + r.sources.map(source => '<li><a href="' + escapeHtml(source.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.label) + ' ↗</a></li>').join('') + '</ul></section>';
   const body = '<section class="page-hero content-page__hero"><div class="wrap"><p class="eyebrow">Jaisalmer travel guide</p><h1 class="display-title">' + escapeHtml(r.title) + '</h1><p class="lead">' + escapeHtml(r.lede) + '</p>' + (r.heroImage ? '<img class="content-page__hero-image" src="' + escapeHtml(rootLink(r.heroImage)) + '" alt="' + escapeHtml(r.heroAlt) + '" fetchpriority="high">' : '') + '</div></section>' +
     '<div class="section content-page wrap">' + tocHtml + '<article class="content-page__article">' + sections + '</article>' + sources + renderRelated(r, allPublished) + renderCta(item.cta) + '</div>';
-  return { route, content: renderShell({ type: 'blog', title: r.seo.title, description: r.seo.description, canonical, image, body, publishedByType, schema: r }) };
+  return { route, content: renderShell({ type: 'blog', title: r.seo.title, description: r.seo.description, canonical, image, imageAlt, body, publishedByType, schema: r }) };
 }
 
 function renderHub(type, items, origin, publishedByType) {
