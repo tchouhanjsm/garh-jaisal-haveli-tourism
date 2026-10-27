@@ -1213,6 +1213,27 @@ def check_keyboard_navigation(page, base_url: str) -> None:
     check(page.locator('#primary-navigation a[aria-current="page"]').get_attribute("href") == "rooms.html",
           "Selecting Rooms from the mobile navigation must reach the Rooms page")
 
+    # Desktop About dropdown must have readable light-header text and a real menu item.
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.goto(base_url + "about.html", wait_until="domcontentloaded", timeout=15000)
+    about_link = page.locator(".nav-about-group > a")
+    dropdown = page.locator(".nav-dropdown")
+    summary = dropdown.locator("summary")
+    check(about_link.is_visible(), "About navigation link must be visible on desktop")
+    about_color = about_link.evaluate("(el) => getComputedStyle(el).color")
+    check(about_color == "rgb(74, 79, 73)",
+          "About navigation link must use readable dark text on the light header")
+    summary_color = summary.evaluate("(el) => getComputedStyle(el).color")
+    check(summary_color == "rgb(74, 79, 73)",
+          "Dropdown toggle must use readable dark text on the light header")
+    summary.click()
+    menu_item = dropdown.locator(".nav-dropdown__menu a[href='gallery.html']")
+    check(menu_item.is_visible(), "Opening the About dropdown must reveal the Gallery link")
+    check(menu_item.evaluate("(el) => getComputedStyle(el).color") == "rgb(248, 245, 239)",
+          "Gallery link must retain readable light text on the dark dropdown panel")
+    summary.click()
+    check(menu_item.is_hidden(), "Closing the About dropdown must hide its menu panel")
+
 
 
 def check_experience_discovery_journey(page, base_url: str) -> None:
