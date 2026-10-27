@@ -1039,6 +1039,9 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
           "Dining party size defaults to two but remains editable")
     check(note.get_attribute("maxlength") == "240" and note.get_attribute("required") is None,
           "The optional context note must remain bounded and optional")
+    check(note.get_attribute("aria-describedby") == "restaurant-table-note-help"
+          and page.locator("#restaurant-table-note-help").is_visible(),
+          "The optional context note must expose its privacy guidance to assistive technology")
 
     guests.fill("0")
     check(not form.evaluate("(element) => element.checkValidity()"),
