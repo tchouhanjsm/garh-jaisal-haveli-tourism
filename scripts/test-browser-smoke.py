@@ -236,6 +236,8 @@ def unknown_route_evidence_is_complete(evidence: object) -> bool:
             return False
         if record.get("httpStatus") != 404:
             return False
+        if record.get("recoveryLinks") != NOT_FOUND_RECOVERY_LINKS:
+            return False
         if any(record.get(flag) is not True for flag in required_flags):
             return False
     return True
@@ -579,6 +581,7 @@ def check_404_recovery(page, base_url: str) -> dict:
                 "rootRelativeAssets": False,
                 "contactChannelsHydrated": False,
                 "responsiveLayoutValid": False,
+                "recoveryLinks": [],
             })
             continue
 
@@ -628,6 +631,10 @@ def check_404_recovery(page, base_url: str) -> dict:
                     try { return new URL(sheet.href).pathname === '/assets/site.css'; }
                     catch (_) { return false; }
                   });
+                  const loadedScript = performance.getEntriesByType('resource').some(resource => {
+                    try { return new URL(resource.name).pathname === '/assets/site.js'; }
+                    catch (_) { return false; }
+                  });
                   const booking = document.querySelector('[data-booking-link]');
                   const whatsapp = document.querySelector('[data-enquiry-link]');
                   const phone = document.querySelector('[data-contact-phone]');
@@ -664,7 +671,7 @@ def check_404_recovery(page, base_url: str) -> dict:
                     noindex: !!robots && robots.content.trim().toLowerCase() === 'noindex,follow'
                       && document.querySelectorAll('link[rel="canonical"]').length === 0
                       && document.querySelectorAll('meta[property="og:url"]').length === 0,
-                    rootRelativeAssets: !!stylesheet && !!script && loadedStylesheet
+                    rootRelativeAssets: !!stylesheet && !!script && loadedStylesheet && loadedScript
                       && !!main && getComputedStyle(main).backgroundColor !== 'rgba(0, 0, 0, 0)',
                     contactChannelsHydrated: channelsHydrated,
                     recoveryLinks,
@@ -719,6 +726,7 @@ def check_404_recovery(page, base_url: str) -> dict:
             "rootRelativeAssets": details.get("rootRelativeAssets") is True,
             "contactChannelsHydrated": details.get("contactChannelsHydrated") is True,
             "responsiveLayoutValid": details.get("responsiveLayoutValid") is True,
+            "recoveryLinks": details.get("recoveryLinks", []),
         })
 
     evidence["complete"] = unknown_route_evidence_is_complete({**evidence, "complete": True})
