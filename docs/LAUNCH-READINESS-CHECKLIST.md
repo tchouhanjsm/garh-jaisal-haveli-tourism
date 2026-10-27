@@ -209,3 +209,14 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] Real assistive-technology testing, color-contrast measurement, staging keyboard UAT, reduced-motion visual review and Lighthouse remain NOT RUN. The source-level contract is not a WCAG conformance certificate.
 
 **Phase baseline:** main `dcb6e2dd824b0b629b4983b115c311ac04ea3380`; post-merge quality run [#40442760559](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40442760559) passed before this feature branch was created. This change does not modify public page copy, property facts, assets, canonical approval, robots/sitemap, contact channels, menu publication or deployment settings.
+
+
+## 27 October 2026 — Recursive static route integrity
+
+- [x] Expanded \`scripts/check-site.py\` to discover root HTML and recursively walk all HTML beneath \`tours/\` and \`blogs/\`, without following symlinked directories or files.
+- [x] Local path checks now parse URLs before resolving paths, support query strings and URL-encoded local paths, handle same-page fragments and check cross-page anchors after root-relative or page-relative resolution.
+- [x] Added \`scripts/test-site-integrity-contract.py\` with temporary nested route fixtures and negative cases for missing files, missing anchors and repository traversal; the fixture is wired into \`scripts/check-site.sh\`.
+- [ ] Exact-head GitHub CI is required before merge. Local \`bash scripts/check-pr-quality.sh\`, staging browser/device UAT, formal accessibility testing and Lighthouse remain NOT RUN in this connector environment.
+- [ ] STG-01–STG-18 remain NOT RUN. Canonical-host approval, owner confirmation of property/menu/tour/arrival facts, booking-provider browser verification, live contact reachability and production deployment authorization remain separate release gates.
+
+**Phase baseline:** main \`2aa27db3a34c883322096c148075cc8c047129fc\`; post-merge quality run [#40448685596](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40448685596) passed. This phase does not modify public copy, assets, contact endpoints, menu approval, canonical/robots/sitemap settings or deployment configuration.
