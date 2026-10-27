@@ -44,12 +44,11 @@ Complete and record these checks against the intended staging site first. Do not
 
 ### P0 — Restaurant table-enquiry journey
 
-- [ ] On staging at desktop and mobile widths, use keyboard and pointer input to switch Overview, Menu, Book a Table and Directions; verify active state, panel labels, visible focus and ArrowLeft/ArrowRight/Home/End behavior.
+- [ ] On staging at desktop and mobile widths, use keyboard and pointer input to switch Overview, Menu, Book a Table and Directions; verify the active state, panel labels, visible focus and ArrowLeft/ArrowRight/Home/End behavior.
 - [ ] Verify the Menu tab clearly says owner confirmation is pending and contains no current dishes or prices until the owner approves the source menu.
-- [ ] Submit a dummy table enquiry using a future date and party size. Email and preferred time are optional. Confirm the WhatsApp draft reflects the guest-selected group size and only supplied optional fields, then close it without sending; never use a guest's real details or submit a real reservation.
-- [ ] Verify preferred time is free text, not a fixed list of assumed hours. The restaurant must confirm current service hours, capacity and availability for the requested date.
-- [ ] Confirm malformed mobile numbers, malformed optional email when supplied, invalid party sizes and past dates are rejected. A missing/unauthorized contact configuration must keep submission disabled and no data is sent.
-- [ ] Confirm no reservation backend or guest-data persistence has been introduced, and a successful draft handoff is not recorded as an actual booking. Automated checks do not mark this manual gate complete.
+- [ ] Submit a clearly labelled dummy table enquiry using a future date and one of the 32 preferred 30-minute slots from 7:00 AM through 10:30 PM. These are enquiry preferences only, not verified opening hours or an availability promise. Confirm the WhatsApp draft contains the entered name, email, mobile, date and preferred slot, then close it without sending. Do not use a guest's real information or submit a real reservation.
+- [ ] Confirm blank/malformed required fields, a mobile number with fewer than 8 or more than 15 digits, past dates and invalid slot values are rejected. Confirm the page never presents preferred slots as verified service hours. Status must say the table is not reserved until the restaurant replies and confirms. A missing/unauthorized contact configuration must keep submission disabled and no data is sent.
+- [ ] Confirm no reservation backend or guest-data persistence has been introduced, and that a successful draft handoff is not recorded as an actual booking. Automated checks do not mark this manual gate complete.
 
 ### P0 — Booking provider and contact channels
 
