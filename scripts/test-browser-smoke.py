@@ -1026,17 +1026,12 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     check("confirm current service hours and availability" in page.locator("#restaurant-table-time-help").inner_text().lower(),
           "Dining preferred-time guidance must require restaurant confirmation")
     check(guests.get_attribute("type") == "number" and guests.get_attribute("min") == "1"
-          and guests.get_attribute("max") == "20",
-          "Dining party size must use the source form's 1–20 input bounds")
+          and guests.get_attribute("step") == "1" and guests.get_attribute("max") is None,
+          "Dining party size must accept positive whole-number requests without an unconfirmed maximum")
     check(guests.input_value() == "2",
           "Dining party size defaults to two but remains editable")
     check(requested_time.get_attribute("required") is None,
           "Dining preferred time must remain optional until service hours are owner-confirmed")
-    check(guests.get_attribute("type") == "number" and guests.get_attribute("min") == "1"
-          and guests.get_attribute("max") == "20",
-          "Dining party size must use the source form's 1–20 input bounds")
-    check(guests.input_value() == "2",
-          "Dining party size defaults to two but remains editable")
     check(note.get_attribute("maxlength") == "240" and note.get_attribute("required") is None,
           "The optional context note must remain bounded and optional")
     check(note.get_attribute("aria-describedby") == "restaurant-table-note-help"
@@ -1046,9 +1041,12 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     guests.fill("0")
     check(not form.evaluate("(element) => element.checkValidity()"),
           "Dining table form must reject a party size below one")
-    guests.fill("21")
+    guests.fill("1.5")
     check(not form.evaluate("(element) => element.checkValidity()"),
-          "Dining table form must reject a party size above the source form limit")
+          "Dining table form must reject fractional party sizes")
+    guests.fill("21")
+    check(form.evaluate("(element) => element.checkValidity()"),
+          "Larger groups must be able to enquire; the restaurant confirms capacity and availability")
     guests.fill("4")
     requested_time.fill("")
     note.fill("")

@@ -318,3 +318,5 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Add static and Chromium regression coverage for field minimization, optional preferences, bounds, draft content and absence of personal-contact labels.
 - [ ] Human staging review remains NOT RUN: verify the shorter form, keyboard focus, mobile layout and optional note on an owner-approved HTTPS staging origin.
 - [ ] Do not send the draft or contact the restaurant as part of automated tests. Owner must still confirm current service hours, menu/prices and table availability. A table enquiry is not a reservation.
+
+- [x] Removed the inherited 20-guest form ceiling because restaurant capacity is not owner-confirmed; larger groups may enquire, with capacity and availability confirmed by the restaurant.

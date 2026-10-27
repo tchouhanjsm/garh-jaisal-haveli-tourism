@@ -58,7 +58,8 @@ assert.doesNotMatch(form, /<option[^>]*value="[0-9]{2}:[0-9]{2}"/,
   'No fixed restaurant time slots are published before owner confirmation');
 const guestTag = form.match(new RegExp('<input(?=[^>]*id="restaurant-guest-count")[^>]*>'))?.[0] || '';
 assert.match(guestTag, /min="1"/, 'Party size has a lower bound');
-assert.match(guestTag, /max="20"/, 'Party size uses the source form’s 20-guest input limit');
+assert.match(guestTag, /step="1"/, 'Party size accepts whole-number requests');
+assert.doesNotMatch(guestTag, /\bmax="/, 'No unconfirmed maximum party size is imposed');
 assert.match(guestTag, /value="2"/, 'Party size defaults to two but remains editable');
 assert.match(form, /restaurant-guest-count-help/, 'Party-size guidance requires confirmation of capacity');
 assert.match(form, /maxlength="240"/, 'Optional note has a bounded length');

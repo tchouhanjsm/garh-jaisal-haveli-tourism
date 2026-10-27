@@ -999,3 +999,9 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The browser test intercepts window.open; it does not navigate to WhatsApp, send a message, submit guest data to a server or create a reservation.
 - The menu remains owner-unconfirmed. Human service-hour, menu/price, availability and contact-channel checks remain open. Staging UAT, Lighthouse and formal accessibility evaluation are not claimed.
 - No canonical, sitemap, robots, deployment or server-side enquiry-storage settings are changed.
+
+
+### Review follow-up — do not imply an unconfirmed table capacity
+- Removed the inherited `max="20"` form ceiling because no owner-confirmed restaurant capacity was identified in the reviewed source menu record.
+- Retained a minimum of one guest and whole-number input. Larger groups can ask; the restaurant must confirm capacity and availability.
+- Updated static and Chromium regression checks to reject an arbitrary maximum while still rejecting zero and fractional party sizes.
