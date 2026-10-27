@@ -44,7 +44,7 @@ assert.match(rickshaw, /Rickshaw access rules and drop-off points can vary/i,
   'Rickshaw access must direct guests to confirm current local rules');
 assert.doesNotMatch(directions, /8:00 AM|Outside those times/i,
   'Unconfirmed time-specific rickshaw hours must not be published');
-assert.match(rickshaw, /Local access can vary/i,
+assert.match(rickshaw, /access rules and drop-off points can vary/i,
   'Local vehicle access must remain explicitly date-dependent');
 assert.match(directions, /approximate figures from the owner-maintained legacy arrival page/i,
   'The page must distinguish catalogue source guidance from live route measurements');
