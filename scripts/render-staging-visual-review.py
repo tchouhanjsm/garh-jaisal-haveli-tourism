@@ -496,7 +496,10 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
     unknown_status = ("PASS — HTTP 404, recovery links and contact wiring verified"
                       if unknown_ok else "FAIL — 404 evidence incomplete")
     unknown_rows = []
-    for record in unknown.get("viewportChecks", []) if isinstance(unknown.get("viewportChecks"), list) else []:
+    unknown_checks = unknown.get("viewportChecks", [])
+    if not isinstance(unknown_checks, list):
+        unknown_checks = []
+    for record in unknown_checks:
         if not isinstance(record, dict):
             continue
         width = html.escape(str(record.get("viewportWidthCssPixels", "Unknown")))
@@ -515,12 +518,13 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
             f'<tr><th scope="row">{width}px</th><td>HTTP {status}</td>'
             f'<td class="{row_class}">{summary}</td></tr>'
         )
+    unknown_class = "pass" if unknown_ok else "fail"
     unknown_route_html = (
         '<section class="unknown-route" aria-labelledby="unknown-route-title">'
         '<h2 id="unknown-route-title">Unknown-route / 404 recovery evidence</h2>'
         f'<p>Test path: <code>{html.escape(str(unknown.get("path", "Not recorded")))}</code>; '
         f'expected status: HTTP {html.escape(str(unknown.get("expectedHttpStatus", "Not recorded")))}.</p>'
-        f'<p class="{"pass" if unknown_ok else "fail"}">{html.escape(unknown_status)}</p>'
+        f'<p class="{unknown_class}">{html.escape(unknown_status)}</p>'
         '<table class="evidence-table"><thead><tr><th scope="col">Viewport</th>'
         '<th scope="col">Response</th><th scope="col">Recovery checks</th></tr></thead><tbody>'
         + "".join(unknown_rows)
