@@ -28,11 +28,14 @@ VIEWPORTS = [
     (viewport["width"], viewport["height"], viewport["label"])
     for viewport in ROUTE_CONTRACT["viewports"]
 ]
+RESPONSIVE_AUDIT_VIEWPORT_WIDTHS = [
+    viewport["width"] for viewport in ROUTE_CONTRACT["responsiveAuditViewports"]
+]
 EXPECTED_SCREENSHOT_COUNT = len(PAGES) * len(VIEWPORTS)
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 UNKNOWN_ROUTE_PATH = "/__garh-jaisal-404-smoke-not-found-20261027__"
 UNKNOWN_ROUTE_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
-UNKNOWN_ROUTE_VIEWPORT_WIDTHS = [360, 768, 1440]
+UNKNOWN_ROUTE_VIEWPORT_WIDTHS = RESPONSIVE_AUDIT_VIEWPORT_WIDTHS
 URL_PATTERN = re.compile(r"""https?://[^\s<>'"]+""", re.IGNORECASE)
 
 
@@ -175,7 +178,7 @@ def unknown_route_evidence_issues(evidence: object) -> list[str]:
         issues.append("unknownRouteEvidence must record all six root-relative recovery routes.")
     checks = evidence.get("viewportChecks")
     if not isinstance(checks, list) or len(checks) != len(UNKNOWN_ROUTE_VIEWPORT_WIDTHS):
-        issues.append("unknownRouteEvidence must contain checks for 360, 768 and 1440 CSS pixels.")
+        issues.append("unknownRouteEvidence must contain checks for 320, 360, 390, 768, 1280 and 1440 CSS pixels.")
     else:
         required_flags = (
             "targetOrigin", "brandedRecoveryPage", "noindex",
@@ -186,7 +189,7 @@ def unknown_route_evidence_issues(evidence: object) -> list[str]:
                 issues.append(f"unknownRouteEvidence at {width}px must be an object.")
                 continue
             if record.get("viewportWidthCssPixels") != width:
-                issues.append("unknownRouteEvidence viewport checks must be ordered 360, 768, 1440.")
+                issues.append("unknownRouteEvidence viewport checks must be ordered 320, 360, 390, 768, 1280, 1440.")
             if record.get("httpStatus") != 404:
                 issues.append(f"unknownRouteEvidence at {width}px must report HTTP 404.")
             if record.get("recoveryLinks") != UNKNOWN_ROUTE_RECOVERY_LINKS:
@@ -300,7 +303,7 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     elif origin in production_origins():
         issues.append("Report names a configured production origin, not an accepted staging origin.")
     expected_pages = [page for page, _title in PAGES]
-    expected_widths = [width for width, _height, _label in VIEWPORTS]
+    expected_widths = RESPONSIVE_AUDIT_VIEWPORT_WIDTHS
     if report.get("pagesPlanned") != expected_pages:
         issues.append(f"Planned routes do not match the {len(PAGES)} expected site pages.")
     if report.get("pagesAttempted") != expected_pages:
@@ -308,9 +311,9 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     if report.get("pagesWithHttp200OnTargetOrigin") != expected_pages:
         issues.append(f"The report does not record target-origin HTTP 200 responses for all {len(PAGES)} routes.")
     if report.get("plannedViewportWidthsCssPixels") != expected_widths:
-        issues.append("Planned viewport widths do not match 360, 768 and 1440 CSS pixels.")
+        issues.append("Planned responsive-audit widths do not match 320, 360, 390, 768, 1280 and 1440 CSS pixels.")
     if report.get("completedResponsiveViewportWidthsCssPixels") != expected_widths:
-        issues.append("The report does not record completion of all planned responsive viewport widths.")
+        issues.append("The report does not record completion of all six planned responsive-audit widths.")
     coverage = report.get("evidenceCoverage")
     if not isinstance(coverage, dict) or coverage.get("complete") is not True:
         issues.append("Report does not declare complete route, HTTP and viewport coverage.")
