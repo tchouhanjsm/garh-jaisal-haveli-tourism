@@ -42,7 +42,7 @@ assert.match(entrance, /fort entrance[\s\S]*?200 metres[\s\S]*?3–4 minutes/i,
   'Fort entrance estimate must match the source-listed approximate 200 m / 3–4 minute walk');
 assert.match(rickshaw, /Rickshaw access rules and drop-off points can vary/i,
   'Rickshaw access must direct guests to confirm current local rules');
-assert.doesNotMatch(directions, /8:00\\s*AM|8:00 AM–8:00 PM|Outside those times/i,
+assert.doesNotMatch(directions, /8:00 AM|Outside those times/i,
   'Unconfirmed time-specific rickshaw hours must not be published');
 assert.match(rickshaw, /Local access can vary/i,
   'Local vehicle access must remain explicitly date-dependent');
