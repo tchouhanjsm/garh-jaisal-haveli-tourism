@@ -217,7 +217,7 @@ def valid_unknown_route_evidence() -> dict:
                 "responsiveLayoutValid": True,
                 "recoveryLinks": list(browser_smoke.NOT_FOUND_RECOVERY_LINKS),
             }
-            for width, _height in browser_smoke.VIEWPORTS
+            for width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS
         ],
         "complete": True,
     }
@@ -258,7 +258,7 @@ assert incomplete_report["completedResponsiveViewportWidthsCssPixels"] == []
 complete_evidence = (
     list(browser_smoke.PAGES),
     list(browser_smoke.PAGES),
-    [360, 768, 1440],
+    [width for width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS],
 )
 report = browser_smoke.build_report(
     "staging-read-only",
@@ -289,8 +289,8 @@ assert report["targetUrl"] == valid
 assert report["pagesPlanned"] == browser_smoke.PAGES
 assert report["pagesAttempted"] == browser_smoke.PAGES
 assert report["pagesWithHttp200OnTargetOrigin"] == browser_smoke.PAGES
-assert report["plannedViewportWidthsCssPixels"] == [360, 768, 1440]
-assert report["completedResponsiveViewportWidthsCssPixels"] == [360, 768, 1440]
+assert report["plannedViewportWidthsCssPixels"] == [width for width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS]
+assert report["completedResponsiveViewportWidthsCssPixels"] == [width for width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS]
 assert "viewportWidthsCssPixels" not in report
 
 partial_report = browser_smoke.build_report(
