@@ -226,7 +226,7 @@ This does **not** detect visually similar photographs encoded or cropped differe
 
 - [x] Extended `scripts/test-seo-publication-safeguards.js` to recursively inspect root HTML and nested `tours/` and `blogs/` HTML without following symlinks.
 - [x] Added nested route fixtures proving canonical links and `og:url` remain blocked at arbitrary generated-route depth while `canonicalHostApproved` is false.
-- [x] Generated tour/blog pages now emit Twitter image and image-alt metadata matching their Open Graph image and alt text. Explicit `seo.ogImage` values require meaningful `seo.ogAlt` text in the schemas, repository policy validator and live renderer.
+- [x] Generated tour/blog pages now emit Twitter image and image-alt metadata matching their Open Graph image and alt text. The schemas define `seo.ogAlt`; the repository policy validator and live renderer require meaningful alt text whenever `seo.ogImage` is supplied.
 - [x] Added contract tests for schema/policy rejection and generated markup parity; the existing full quality runner already executes the publication, content contract and renderer suites.
 - [ ] Manual social-preview inspection on an owner-approved HTTPS staging origin remains NOT RUN. No canonical-host, sitemap, robots or deployment setting was changed.
 
