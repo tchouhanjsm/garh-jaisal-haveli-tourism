@@ -77,8 +77,10 @@
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
         return local.toISOString().slice(0, 10);
       };
-      const today = localDateString(new Date());
       const updateDateConstraints = () => {
+        // Recompute today on every edit and submit so a tab left open across
+        // local midnight cannot keep accepting yesterday as an arrival date.
+        const today = localDateString(new Date());
         const arrival = String(arrivalField.value || '');
         const departure = String(departureField.value || '');
         arrivalField.min = today;
