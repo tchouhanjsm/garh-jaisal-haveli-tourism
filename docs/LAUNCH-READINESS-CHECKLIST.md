@@ -199,3 +199,13 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] Manual SEO review on an owner-approved staging hostname remains NOT RUN. CI cannot approve the public hostname, validate DNS/SSL, prove search crawler behavior or authorize production publication.
 
 **Baseline:** main `22f40dd1f070077057856cab7db9e8b54c28314a`; post-merge quality run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed. This phase does not change `robots.txt`, `sitemap.xml`, canonical approval, production deployment or guest-data handling.
+
+
+## Static accessibility source contract — 27 October 2026
+
+- [x] Added `scripts/test-static-accessibility.py` to inspect every root public HTML page and all HTML under `tours/` and `blogs/` for accessible names, label and ARIA ID references, duplicate IDs, `main#main` plus skip-link landmarks, explicit button types, valid boolean ARIA values, non-positive tab order, focusable content inside `aria-hidden`, image alt attributes and `rel=noopener` on `_blank` links.
+- [x] Added `scripts/test-static-accessibility-contract.py` with temporary fixtures that prove the valid patterns pass and intentionally unlabeled controls, missing references, positive tabindex, duplicate IDs, hidden focusable actions, missing alt text and unsafe new-tab links fail.
+- [x] Integrated both checks into `scripts/check-pr-quality.sh` before the Chromium guest-journey smoke suite.
+- [ ] Real assistive-technology testing, color-contrast measurement, staging keyboard UAT, reduced-motion visual review and Lighthouse remain NOT RUN. The source-level contract is not a WCAG conformance certificate.
+
+**Phase baseline:** main `dcb6e2dd824b0b629b4983b115c311ac04ea3380`; post-merge quality run [#40442760559](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40442760559) passed before this feature branch was created. This change does not modify public page copy, property facts, assets, canonical approval, robots/sitemap, contact channels, menu publication or deployment settings.

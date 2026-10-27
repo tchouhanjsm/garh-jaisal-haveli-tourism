@@ -701,3 +701,34 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The exact-head GitHub quality suite is the required validation for this feature branch; local `bash scripts/check-pr-quality.sh` was not run because a complete local checkout was unavailable.
 - The change does not edit `robots.txt`, `sitemap.xml`, `content/site-config.json`, canonical metadata, menu content, contact endpoints or production deployment settings.
 - A green guard proves the repository remains in the intended pre-launch publication state. It does not verify staging DNS/SSL, actual crawler behavior, live contact channels, booking completion or owner approval.
+
+
+## 27 October 2026 — Static accessibility regression contract
+
+### Live baseline and scope
+
+- Live main at phase start: `dcb6e2dd824b0b629b4983b115c311ac04ea3380`; PR #30 was merged and there were no open PRs. Its post-merge Site quality gates run [#40442760559](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40442760559) completed successfully on that exact SHA.
+- Existing checks already covered local links/anchors, image alt presence, core-page metadata, the 404 recovery path, mobile navigation keyboard behavior and the six carousel controls. However, the static integrity check did not enforce accessible names on every interactive element, label/ARIA reference integrity across the full HTML surface, positive tabindex avoidance, or `rel=noopener` for all new-tab links.
+
+### Implementation on `feat/static-accessibility-contract-20261027`
+
+- Added `scripts/test-static-accessibility.py` to audit root HTML plus nested HTML under `tours/` and `blogs/`.
+- The audit checks unique IDs; exactly one `main#main` and a named skip link; accessible names for links, buttons, summaries and visible form controls; explicit button types; valid `aria-controls`, `aria-labelledby`, `aria-describedby`, `aria-owns` and label-for references; boolean `aria-expanded`/`aria-hidden`; no positive tabindex; no focusable content under `aria-hidden=true` without hidden/inert protection; image alt attributes and common generic-alt regressions; and `rel=noopener` on `_blank` links.
+- Added `scripts/test-static-accessibility-contract.py` fixture tests for valid names and labels plus deliberately invalid names, references, tabindex, duplicate IDs, hidden focusable actions, missing image alt and unsafe new-tab links.
+- Integrated both scripts into `scripts/check-pr-quality.sh` before the real Chromium smoke suite, and documented the source-level contract in the README, launch checklist and `docs/STATIC-ACCESSIBILITY-CONTRACT.md`.
+
+### Changed paths
+
+- `scripts/test-static-accessibility.py`
+- `scripts/test-static-accessibility-contract.py`
+- `scripts/check-pr-quality.sh`
+- `README.md`
+- `docs/LAUNCH-READINESS-CHECKLIST.md`
+- `docs/STATIC-ACCESSIBILITY-CONTRACT.md`
+- `docs/CONTENT-UX-FAILURE-AUDIT.md`
+
+### Validation and release boundary
+
+- The exact-head GitHub-hosted full quality suite is required; local `bash scripts/check-pr-quality.sh` was not run because a complete local checkout was unavailable.
+- The new check does not alter public HTML, assets, site configuration, canonical/robots/sitemap policy, contact endpoints, menu content or deployment configuration.
+- Source checks cannot certify WCAG conformance, test real assistive technology, measure contrast, prove live booking/contact reachability or substitute for STG-01–STG-18. The operator UAT and production approval gates remain unchanged.

@@ -174,3 +174,8 @@ python3 scripts/render-staging-visual-review.py --report "$STAGING_REPORT" --scr
 
 
 The offline visual-review renderer also validates report consistency before presenting evidence: the failure count must match the diagnostic list; PASS/FAIL must agree with that count; the Asia/Kolkata timestamp, operator and browser metadata must be present; all four read-only safety assertions and all five evidence-coverage flags, including unknown-route recovery must be explicitly false/true as appropriate; the screenshot contract must remain 21 full-page PNGs; and `releaseStatus` must remain `BLOCKED_PENDING_MANUAL_UAT`. Contradictions are shown as an invalid report, and incomplete bundle evidence cannot retain a top-line PASS. The renderer exits non-zero. This validates internal consistency, not cryptographic authenticity or live staging behavior.
+
+
+### Static accessibility regression gate
+
+The full quality runner executes `scripts/test-static-accessibility-contract.py` and `scripts/test-static-accessibility.py` across root public HTML and generated `tours/`/`blogs/` pages. The source-level contract checks accessible names, label/ARIA references, focus safety, unique IDs, skip-link/main landmarks, explicit button types, image alt attributes and safe new-tab links. See [`docs/STATIC-ACCESSIBILITY-CONTRACT.md`](docs/STATIC-ACCESSIBILITY-CONTRACT.md). It supplements Chromium and human UAT; it is not a WCAG certification or a replacement for staging verification.

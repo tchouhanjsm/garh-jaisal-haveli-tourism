@@ -19,6 +19,10 @@ echo "== Staging preflight safety/report contract tests =="
 python3 scripts/test-staging-preflight-contract.py
 python3 scripts/test-staging-visual-review.py
 
+echo "== Static accessibility contract across public HTML routes =="
+python3 scripts/test-static-accessibility-contract.py
+python3 scripts/test-static-accessibility.py
+
 echo "== Real Chromium browser guest-journey smoke tests =="
 python3 scripts/test-browser-smoke.py
 
