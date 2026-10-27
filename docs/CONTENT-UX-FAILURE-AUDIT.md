@@ -873,7 +873,7 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Added a scoped, progressively enhanced room finder above the existing seven-card catalogue. Floor options reflect the owner-maintained registry (three ground-floor entries and four first-floor entries).
 - Added source-listed feature filters for king bed, second bed, city view, window seat and carved bed. Multiple selected features are combined with AND semantics and only match features explicitly recorded in the visible catalogue.
 - Added a live count/status, a clear-filters action, and an explicit no-match state. Filter controls remain hidden until the seven-card catalogue and all control hooks pass basic initialization checks. With JavaScript disabled, all room cards stay visible and controls do not appear as inert UI.
-- Added deterministic coverage that verifies every room's floor and filter metadata match the visible source-list feature chips, then exercises floor filters, combined features, reset/focus recovery and malformed-catalogue fail-closed behavior. Extended the Chromium smoke suite to check the interaction at mobile width and the JavaScript-disabled fallback.
+- Added deterministic coverage that verifies every room's floor and filter metadata match the visible source-list feature chips, then exercises floor filters, combined features, reset/focus recovery and malformed-catalogue fail-closed behavior. Extended the Chromium smoke suite to check the interaction at mobile width, keyboard Tab/Space activation and the JavaScript-disabled fallback.
 
 ### Changed paths
 
