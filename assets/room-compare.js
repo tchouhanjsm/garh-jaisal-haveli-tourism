@@ -149,13 +149,13 @@
       heading.setAttribute('scope', 'col');
       const roomHeading = element('div', 'room-compare__room-heading');
       const image = element('img', 'room-compare__thumbnail');
-      image.src = record.imageSrc;
       image.alt = record.imageAlt;
       image.width = 240;
       image.height = 160;
-      image.loading = 'lazy';
+      image.loading = 'eager';
       image.decoding = 'async';
       image.dataset.roomCompareImage = '';
+      image.src = new URL(record.imageSrc, document.baseURI).href;
 
       const nameLink = element('a', 'room-compare__room-link', record.name);
       nameLink.href = '#' + record.id;
