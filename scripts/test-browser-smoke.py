@@ -1171,6 +1171,79 @@ def check_keyboard_navigation(page, base_url: str) -> None:
           "Selecting Rooms from the mobile navigation must reach the Rooms page")
 
 
+
+def check_experience_discovery_journey(page, base_url: str) -> None:
+    """Verify that guests can browse packages, Fort/road paths and route ideas before an enquiry."""
+    response = page.goto(base_url + "experiences.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200,
+          "Experience discovery: expected HTTP 200")
+    check(response is not None and same_origin(response.url, base_url),
+          "Experience discovery: page must stay on the requested origin")
+
+    nav = page.get_by_role("navigation", name="Browse by experience type")
+    check(nav.count() == 1, "Experience discovery must expose one named category navigation")
+    expected = [
+        ("Desert evenings", "#desert"),
+        ("Sleep in the desert", "#open-sky"),
+        ("Fort and city tours", "#city-tours"),
+        ("Road and route ideas", "#experience-more-title"),
+    ]
+    for label, href in expected:
+        link = nav.locator("a[href='" + href + "']")
+        check(link.count() == 1, "Experience discovery must expose " + label)
+        if link.count():
+            check(label.lower() in link.inner_text().lower(),
+                  "Experience category link must have a readable label: " + label)
+
+    packages = page.locator("article.experience-option")
+    check(packages.count() == 6, "All six source-listed package cards must remain present")
+    route_cards = page.locator(".experience-more-paths__grid .content-depth__card")
+    check(route_cards.count() == 3, "Fort walk, car/road and other route paths must appear separately")
+    for index in range(packages.count()):
+        card = packages.nth(index)
+        detail_link = card.locator('a[href^="experience-details.html#"]')
+        check(detail_link.count() == 1, "Each package must open its own itinerary/detail anchor")
+        check("view itinerary and details" in detail_link.inner_text().lower(),
+              "Package information must be available before a contextual enquiry")
+        check(card.locator("a[data-enquiry-link]").count() == 1,
+              "Each package keeps a separate date-specific enquiry action")
+
+    nav.locator('a[href="#experience-more-title"]').click()
+    check(page.evaluate("window.location.hash") == "#experience-more-title",
+          "Road/route shortcut must target the additional travel-path section")
+    routeDetailLink = page.locator(".experience-more-paths").get_by_role(
+        "link", name=re.compile("See what to ask before planning", re.I)
+    )
+    routeDetailLink.click()
+    page.wait_for_function(
+        "() => window.location.pathname.endsWith('experience-details.html') && window.location.hash === '#other-routes'",
+        timeout=5000,
+    )
+    check(page.locator("#other-routes").is_visible(),
+          "Other route shortcut must land on the relevant detail section")
+    check(page.get_by_role("heading", name="Other routes and interests", exact=True).count() == 1,
+          "Other route section must have a clear heading")
+
+    page.goto(base_url + "experience-details.html", wait_until="domcontentloaded", timeout=15000)
+    primary = page.locator(".experience-detail-hero__actions a.button--gold")
+    check(primary.count() == 1, "Detail page needs one prominent return-to-catalogue link")
+    if primary.count():
+        check("route ideas" in primary.inner_text().lower(),
+              "Detail hero action must refer to the wider catalogue, not only six options")
+        check(primary.get_attribute("href") == "experiences.html#experience-options",
+              "Detail primary action must navigate back to Experiences, not WhatsApp")
+    check(page.locator(".experience-detail-hero__actions a[data-enquiry-link]").count() == 1,
+          "A separate contextual enquiry remains available alongside the details navigation")
+    if primary.count():
+        primary.click()
+        page.wait_for_function(
+            "() => window.location.pathname.endsWith('experiences.html') && window.location.hash === '#experience-options'",
+            timeout=5000,
+        )
+        check(page.locator("#experience-options-title").is_visible(),
+              "Return-to-catalogue action must land on the experience options")
+
+
 def check_carousels(page, base_url: str, browser,
                     http_credentials: dict[str, str] | None = None) -> None:
     page.set_viewport_size({"width": 360, "height": 800})
@@ -1360,6 +1433,7 @@ def main(argv: list[str] | None = None) -> int:
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
             check_guest_enquiry_forms(page, base_url)
+            check_experience_discovery_journey(page, base_url)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
