@@ -320,3 +320,14 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] Do not send the draft or contact the restaurant as part of automated tests. Owner must still confirm current service hours, menu/prices and table availability. A table enquiry is not a reservation.
 
 - [x] Removed the inherited 20-guest form ceiling because restaurant capacity is not owner-confirmed; larger groups may enquire, with capacity and availability confirmed by the restaurant.
+
+
+## 28 October 2026 — Experience enquiry dates by intent
+
+- [x] Require a requested date for every guest enquiry, but require departure only for overnight options and room-availability requests.
+- [x] Keep departure optional for same-day camel, cultural-evening, guided-city, Fort-walk, dining and travel-arrangement enquiries; if a departure is supplied, it must follow the requested date.
+- [x] Include the departure line in the WhatsApp draft only when the guest provided it. The guest still reviews and sends the draft; no message or reservation is created automatically.
+- [x] Add static form-contract checks, deterministic JavaScript tests and Chromium coverage for overnight-required and day-only single-date flows.
+- [ ] On an owner-approved HTTPS staging origin, manually verify the labels, required-state announcement, date validation and WhatsApp draft preview on mobile and desktop. Automated CI is not human UAT.
+- [ ] Confirm actual tour operating status, routes, inclusions, prices, guide availability and current room inventory with the owner. The form does not imply any option is available or bookable.
+- [ ] STG-01–STG-18 remain NOT RUN until an operator records real browser/device evidence. No staging hostname may be guessed.
