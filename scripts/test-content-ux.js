@@ -437,6 +437,7 @@ for (const rule of PAGE_RULES) {
         || !/data-room-feature-filter/.test(finder[0])
         || !/data-room-finder-status/.test(finder[0])
         || !/data-room-finder-empty hidden/.test(finder[0])
+        || !/href="#room-planning">Ask about room fit/.test(finder[0])
         || !/data-room-reset/.test(finder[0])) {
       fail('rooms.html: room finder must include progressive enhancement, floor/feature controls, live results and a reset/no-results path');
     }
