@@ -1275,6 +1275,73 @@ def check_experience_discovery_journey(page, base_url: str) -> None:
               "Return-to-catalogue action must land on the experience options")
 
 
+def check_room_finder(page, base_url: str, browser) -> None:
+    """Exercise progressive room filters and verify the all-rooms no-JavaScript fallback."""
+    page.set_viewport_size({"width": 360, "height": 800})
+    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
+    finder = page.locator("[data-room-finder]")
+    cards = page.locator("#room-card-grid .room-card--named")
+    check(finder.count() == 1 and finder.is_visible(),
+          "Rooms: source-backed filter controls must appear after successful initialization")
+    check(cards.count() == 7, "Rooms: all seven source-listed room cards must be present")
+
+    def visible_room_ids() -> list[str]:
+        return cards.evaluate_all("items => items.filter(card => !card.hidden).map(card => card.id)")
+
+    all_ids = [
+        "room-sweet-purple", "room-rising-sun", "room-scarlet",
+        "room-opium", "room-red-maharani", "room-green", "room-bluesky",
+    ]
+    check(visible_room_ids() == all_ids, "Rooms: default finder state must show all seven rooms")
+    floor = finder.locator("[data-room-floor-filter]")
+    status = finder.locator("[data-room-finder-status]")
+    reset = finder.locator("[data-room-reset]")
+    floor.select_option("ground")
+    check(visible_room_ids() == ["room-sweet-purple", "room-rising-sun", "room-scarlet"],
+          "Rooms: Ground floor filter must show only the three source-listed ground-floor rooms")
+    check("3 of seven" in (status.text_content() or ""),
+          "Rooms: live result status must announce the ground-floor count")
+
+    floor.select_option("first")
+    finder.locator('[data-room-feature-filter][value="king-bed"]').check()
+    check(visible_room_ids() == ["room-red-maharani", "room-green"],
+          "Rooms: King bed filter must match only rooms whose source feature list records a king bed")
+    finder.locator('[data-room-feature-filter][value="second-bed"]').check()
+    check(visible_room_ids() == [],
+          "Rooms: multiple feature selections must require all selected source-listed features")
+    check(finder.locator("[data-room-finder-empty]").is_visible(),
+          "Rooms: no-match state must be explained to the visitor")
+    check(not reset.is_disabled(), "Rooms: Clear filters must be available when filters are active")
+
+    reset.click()
+    check(visible_room_ids() == all_ids, "Rooms: Clear filters must restore all seven cards")
+    check(floor.input_value() == "all", "Rooms: Clear filters must restore the all-floors option")
+    check(finder.locator("[data-room-feature-filter]:checked").count() == 0,
+          "Rooms: Clear filters must unset every feature checkbox")
+    check(finder.locator("[data-room-finder-empty]").is_hidden(),
+          "Rooms: clearing filters must hide the no-match state")
+
+    # With JavaScript off, the controls stay hidden and the full catalogue is readable.
+    nojs = browser.new_context(
+        viewport={"width": 360, "height": 800},
+        java_script_enabled=False,
+    )
+    try:
+        static_page = nojs.new_page()
+        response = static_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              "Rooms: no-JavaScript fallback must serve the room page")
+        static_cards = static_page.locator("#room-card-grid .room-card--named")
+        check(static_cards.count() == 7,
+              "Rooms: no-JavaScript fallback must retain all seven source-listed cards")
+        check(static_cards.evaluate_all("items => items.every(card => !card.hidden)"),
+              "Rooms: no-JavaScript fallback must not hide any room card")
+        check(static_page.locator("[data-room-finder]").is_hidden(),
+              "Rooms: inert filter controls must remain hidden when JavaScript is disabled")
+    finally:
+        nojs.close()
+
+
 def check_carousels(page, base_url: str, browser,
                     http_credentials: dict[str, str] | None = None) -> None:
     page.set_viewport_size({"width": 360, "height": 800})
@@ -1465,6 +1532,7 @@ def main(argv: list[str] | None = None) -> int:
             check_contact_hydration(page, base_url)
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
+            check_room_finder(page, base_url, browser)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
@@ -1556,7 +1624,7 @@ def main(argv: list[str] | None = None) -> int:
     mode_label = "staging" if staging_mode else "local"
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
-        "same-origin assets/publication guards, contact-link hydration, 320/360/390/768/1280/1440px responsive layout, "
+        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
