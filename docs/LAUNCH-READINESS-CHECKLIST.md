@@ -46,9 +46,9 @@ Complete and record these checks against the intended staging site first. Do not
 
 - [ ] On staging at desktop and mobile widths, use keyboard and pointer input to switch Overview, Menu, Book a Table and Directions; verify active state, panel labels, visible focus and ArrowLeft/ArrowRight/Home/End behavior.
 - [ ] Verify the Menu tab clearly says owner confirmation is pending and contains no current dishes or prices until the owner approves the source menu.
-- [ ] Submit a dummy table enquiry using a future date, one of the 32 preferred half-hour slots from 7:00 AM through 10:30 PM, and a party size. Email remains optional, but a malformed email must be rejected when supplied. Confirm the WhatsApp draft reflects the selected party size, date and preferred slot, then close it without sending; never use a guest's real details or submit a real reservation.
-- [ ] Treat all 32 time values as preferred enquiry slots only, not verified restaurant opening hours or an availability promise. The restaurant must confirm current service hours, capacity and availability for the requested date.
-- [ ] Confirm malformed mobile numbers, malformed optional email when supplied, invalid party sizes, past dates and invalid/missing preferred slots are rejected. A missing/unauthorized contact configuration must keep submission disabled and no data is sent.
+- [ ] Submit a dummy table enquiry using a future date and party size. Email and preferred time are optional. Confirm the WhatsApp draft reflects the guest-selected group size and only supplied optional fields, then close it without sending; never use a guest's real details or submit a real reservation.
+- [ ] Verify preferred time is free text, not a fixed list of assumed hours. The restaurant must confirm current service hours, capacity and availability for the requested date.
+- [ ] Confirm malformed mobile numbers, malformed optional email when supplied, invalid party sizes and past dates are rejected. A missing/unauthorized contact configuration must keep submission disabled and no data is sent.
 - [ ] Confirm the separate stay/experience enquiry remains available and does not claim a reservation. No reservation backend or guest-data persistence is introduced. Automated checks do not mark manual gates complete.
 
 ### P0 — Booking provider and contact channels
