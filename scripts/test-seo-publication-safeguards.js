@@ -25,7 +25,7 @@ function publicHtmlFiles(rootDirectory) {
   const files = [];
 
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (entry.isFile() && /\\.html$/i.test(entry.name)) {
+    if (entry.isFile() && /\.html$/i.test(entry.name)) {
       files.push(path.join(root, entry.name));
     }
   }
