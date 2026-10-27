@@ -90,7 +90,7 @@ Complete and record these checks against the intended staging site first. Do not
 
 ## Staging verification record — fill in during operator UAT
 
-Use the intended staging host only. Replace `NOT RUN` with a result only after the named operator performs the check in a normal browser/device and records evidence. A CI pass is not evidence for these rows. Do not enter guest personal data, booking tokens or payment details in this table.
+Use the intended staging host only. Replace `NOT RUN` with a result only after the named operator performs the check in a normal browser/device and records evidence. A CI pass is not evidence for these rows. Do not enter guest personal data, booking tokens or payment details in this table. For a per-run record with the exact staging origin, commit SHA, Asia/Kolkata date/time, operator, browser/device, evidence and follow-up owner, copy [`docs/STAGING-ACCEPTANCE-RECORD.md`](STAGING-ACCEPTANCE-RECORD.md); keep this checklist table as the project-level status summary.
 
 | Check | Exact staging URL | Date/time (Asia/Kolkata) | Operator | Browser / device / viewport | Result | Evidence / notes | Follow-up owner |
 |---|---|---|---|---|---|---|---|

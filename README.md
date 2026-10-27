@@ -142,6 +142,8 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 
 
 ### Operator-run staging preflight
+
+For each actual staging run, start from [`docs/STAGING-ACCEPTANCE-RECORD.md`](docs/STAGING-ACCEPTANCE-RECORD.md). It captures the intended owner-approved staging origin, exact commit, Asia/Kolkata timestamp, operator, browser/device, evidence, result and follow-up owner. All STG-01–STG-18 and owner-approval gates start as `NOT RUN`; automated CI never marks them complete.
 - The command `python3 scripts/test-browser-smoke.py` runs the real Chromium smoke suite against a temporary local server. For an operator-run staging check, set STAGING_URL to the exact owner-approved **HTTPS staging origin** (not a production hostname), STAGING_OPERATOR to the operator's name, STAGING_REPORT to a local .json output path, and STAGING_SCREENSHOTS to an empty output directory. Both output paths must be outside the repository checkout; the runner refuses a non-empty screenshot directory so evidence from separate runs cannot be mixed. Then run:
 
   ~~~bash
