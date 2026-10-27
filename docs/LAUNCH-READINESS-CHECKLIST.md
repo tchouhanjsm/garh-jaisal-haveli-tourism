@@ -220,3 +220,14 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] STG-01–STG-18 remain NOT RUN. Canonical-host approval, owner confirmation of property/menu/tour/arrival facts, booking-provider browser verification, live contact reachability and production deployment authorization remain separate release gates.
 
 **Phase baseline:** main \`2aa27db3a34c883322096c148075cc8c047129fc\`; post-merge quality run [#40448685596](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40448685596) passed. This phase does not modify public copy, assets, contact endpoints, menu approval, canonical/robots/sitemap settings or deployment configuration.
+
+
+## Recursive SEO publication and social-preview parity — 27 October 2026
+
+- [x] Extended `scripts/test-seo-publication-safeguards.js` to recursively inspect root HTML and nested `tours/` and `blogs/` HTML without following symlinks.
+- [x] Added nested route fixtures proving canonical links and `og:url` remain blocked at arbitrary generated-route depth while `canonicalHostApproved` is false.
+- [x] Generated tour/blog pages now emit Twitter image and image-alt metadata matching their Open Graph image and alt text. Explicit `seo.ogImage` values require meaningful `seo.ogAlt` text in the schemas, repository policy validator and live renderer.
+- [x] Added contract tests for schema/policy rejection and generated markup parity; the existing full quality runner already executes the publication, content contract and renderer suites.
+- [ ] Manual social-preview inspection on an owner-approved HTTPS staging origin remains NOT RUN. No canonical-host, sitemap, robots or deployment setting was changed.
+
+**Baseline:** main `4fbd67d78aa99c4b601da84e59ac08bdc11809d0`; post-merge Site quality gates run [#40457135825](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40457135825) passed before this feature branch. STG-01–STG-18 and owner-dependent release gates remain unchanged.
