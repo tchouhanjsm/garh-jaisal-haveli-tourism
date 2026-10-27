@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from html.parser import HTMLParser
 from pathlib import Path
+import os
 import re
 import sys
 
@@ -77,7 +78,7 @@ def public_html_files(root: Path) -> list[Path]:
         directory = root / directory_name
         if not directory.is_dir():
             continue
-        for current, subdirs, filenames in __import__("os").walk(directory, followlinks=False):
+        for current, subdirs, filenames in os.walk(directory, followlinks=False):
             subdirs[:] = [
                 name for name in subdirs
                 if not (Path(current) / name).is_symlink()
@@ -105,7 +106,7 @@ def is_focusable(node: Node) -> bool:
         return True
     if node.tag == "input":
         return attrs.get("type", "").lower() != "hidden"
-    return attrs.get("contenteditable", "").lower() in {"", "true"} and "contenteditable" in attrs
+    return attrs.get("contenteditable", "").lower() in {"", "true", "plaintext-only"} and "contenteditable" in attrs
 
 
 def has_hidden_ancestor(node: Node) -> bool:
@@ -117,7 +118,7 @@ def has_hidden_ancestor(node: Node) -> bool:
     return False
 
 
-def accessible_name(node: Node, ids: dict[str, list[Node]]) -> str:
+def accessible_name(node: Node, ids: dict[str, list[Node]], labels_for: dict[str, list[Node]]) -> str:
     attrs = node.attrs
     aria_label = attrs.get("aria-label", "").strip()
     if aria_label:
@@ -131,7 +132,7 @@ def accessible_name(node: Node, ids: dict[str, list[Node]]) -> str:
     if node.tag in {"input", "select", "textarea"}:
         labels = []
         if attrs.get("id"):
-            for label in ids.get("__label_for__" + attrs["id"], []):
+            for label in labels_for.get(attrs["id"], []):
                 labels.append(label.text_alternative())
         current = node.parent
         while current is not None:
@@ -173,13 +174,12 @@ def audit_accessibility(root_directory: str | Path) -> dict:
             continue
 
         ids: dict[str, list[Node]] = defaultdict(list)
+        labels_for: dict[str, list[Node]] = defaultdict(list)
         for node in parser.nodes:
             identifier = node.attrs.get("id", "").strip()
             if identifier:
                 ids[identifier].append(node)
         for identifier, nodes in ids.items():
-            if identifier.startswith("__label_for__"):
-                continue
             if len(nodes) > 1:
                 fail(label, f"duplicate id {identifier!r}")
 
@@ -190,7 +190,7 @@ def audit_accessibility(root_directory: str | Path) -> dict:
                 if target_id not in ids:
                     fail(label, f"label for={target_id!r} has no matching control id")
                 else:
-                    ids["__label_for__" + target_id].append(node)
+                    labels_for[target_id].append(node)
 
         for node in parser.nodes:
             attrs = node.attrs
@@ -217,7 +217,7 @@ def audit_accessibility(root_directory: str | Path) -> dict:
 
             if node.tag == "a" and "href" in attrs:
                 controls_checked += 1
-                name = accessible_name(node, ids)
+                name = accessible_name(node, ids, labels_for)
                 if not name:
                     fail(label, f"link has no accessible name: {attrs.get('href', '')}")
                 if attrs.get("target", "").lower() == "_blank":
@@ -226,7 +226,7 @@ def audit_accessibility(root_directory: str | Path) -> dict:
                         fail(label, f"target=_blank link must include rel=noopener: {attrs.get('href', '')}")
             elif node.tag == "button":
                 controls_checked += 1
-                name = accessible_name(node, ids)
+                name = accessible_name(node, ids, labels_for)
                 if not name:
                     fail(label, "button has no accessible name")
                 if attrs.get("type", "").lower() not in {"button", "submit", "reset"}:
@@ -235,12 +235,12 @@ def audit_accessibility(root_directory: str | Path) -> dict:
                 if node.tag == "input" and attrs.get("type", "").lower() == "hidden":
                     continue
                 controls_checked += 1
-                name = accessible_name(node, ids)
+                name = accessible_name(node, ids, labels_for)
                 if not name:
                     fail(label, f"{node.tag} control has no accessible name")
             elif node.tag == "summary":
                 controls_checked += 1
-                if not accessible_name(node, ids):
+                if not accessible_name(node, ids, labels_for):
                     fail(label, "summary control has no accessible name")
 
             if is_focusable(node):
@@ -263,7 +263,7 @@ def audit_accessibility(root_directory: str | Path) -> dict:
         ]
         if not skip_links:
             fail(label, "missing a skip-link anchor to #main")
-        elif not any(accessible_name(node, ids) for node in skip_links):
+        elif not any(accessible_name(node, ids, labels_for) for node in skip_links):
             fail(label, "skip-link anchor has no accessible name")
 
     return {"errors": errors, "pagesChecked": len(pages), "controlsChecked": controls_checked}
