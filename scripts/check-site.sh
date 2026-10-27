@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+python3 scripts/test-site-integrity-contract.py
 python3 scripts/check-site.py
 python3 scripts/test_localize_images.py
 if command -v node >/dev/null 2>&1; then
