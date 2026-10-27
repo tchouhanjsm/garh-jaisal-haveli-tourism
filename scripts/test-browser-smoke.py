@@ -1392,6 +1392,79 @@ def check_room_finder(page, base_url: str, browser) -> None:
     check(visible_room_ids() == all_ids,
           "Rooms: keyboard Space must clear the focused King bed checkbox")
 
+    # Side-by-side shortlist: compare two/three rooms, enforce the cap, remove entries,
+    # and recover a selected room that is hidden by an active filter.
+    compare_panel = page.locator("[data-room-compare-panel]")
+    check(compare_panel.count() == 1 and compare_panel.is_hidden(),
+          "Rooms: comparison panel must start hidden until a guest selects a room")
+    compare_buttons = page.locator("#room-card-grid [data-room-compare-toggle]")
+    check(compare_buttons.count() == 7,
+          "Rooms: comparison controls must be added to all seven cards only after initialization")
+    sweet_compare = page.locator("#room-sweet-purple [data-room-compare-toggle]")
+    green_compare = page.locator("#room-green [data-room-compare-toggle]")
+    opium_compare = page.locator("#room-opium [data-room-compare-toggle]")
+    rising_compare = page.locator("#room-rising-sun [data-room-compare-toggle]")
+    sweet_compare.click()
+    check(sweet_compare.get_attribute("aria-pressed") == "true",
+          "Rooms: selecting a room must expose its pressed state")
+    check(compare_panel.is_visible() and "1 room selected" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
+          "Rooms: a single selection must explain how to complete a comparison")
+    check(compare_panel.locator("[data-room-compare-table-wrap]").is_hidden(),
+          "Rooms: the comparison table must wait until at least two rooms are selected")
+
+    green_compare.click()
+    compare_table = compare_panel.locator("[data-room-compare-table]")
+    table_wrap = compare_panel.locator("[data-room-compare-table-wrap]")
+    check(table_wrap.is_visible(), "Rooms: selecting two rooms must reveal the side-by-side table")
+    compare_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
+    check(compare_names == ["Sweet Purple Room", "Green Room"],
+          "Rooms: comparison columns must preserve the selected room names and selection order")
+    floors = compare_table.locator("[data-room-compare-row='floor'] td").all_text_contents()
+    check(floors == ["Ground floor", "First floor"],
+          "Rooms: comparison must use each card's source-listed floor")
+    feature_cells = compare_table.locator("[data-room-compare-row='features'] td")
+    check("Second bed" in (feature_cells.nth(0).inner_text() or "")
+          and "King bed" in (feature_cells.nth(1).inner_text() or ""),
+          "Rooms: comparison must use the visible source-listed feature lists")
+    compare_images = compare_table.locator("[data-room-compare-image]")
+    check(compare_images.count() == 2,
+          "Rooms: each comparison column must show its mapped room photograph")
+    check(all((image.get_attribute("alt") or "").strip()
+              and same_origin(image.get_attribute("src") or "", base_url)
+              for image in compare_images.all()),
+          "Rooms: comparison thumbnails must retain descriptive alt text and local image sources")
+
+    opium_compare.click()
+    check(compare_table.locator("thead [data-room-compare-card-link]").count() == 3,
+          "Rooms: a third selected room must appear in the comparison table")
+    rising_compare.click()
+    check(rising_compare.get_attribute("aria-pressed") == "false"
+          and "up to three rooms" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
+          "Rooms: the shortlist must reject a fourth room and announce the three-room limit")
+
+    compare_panel.locator("[data-room-compare-remove='room-opium']").click()
+    remaining_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
+    check(remaining_names == ["Sweet Purple Room", "Green Room"],
+          "Rooms: removing a comparison entry must update the table")
+    check(opium_compare.get_attribute("aria-pressed") == "false",
+          "Rooms: removing a room must restore its card control state")
+
+    floor.select_option("ground")
+    check(page.locator("#room-green").is_hidden(),
+          "Rooms: the active floor filter should hide the selected first-floor card")
+    compare_panel.locator("[data-room-compare-card-link='room-green']").click()
+    check(not page.locator("#room-green").is_hidden() and floor.input_value() == "all",
+          "Rooms: following a selected-room link must clear filters before returning to its card")
+
+    compare_panel.locator("[data-room-compare-clear]").click()
+    check(compare_panel.locator("[data-room-compare-table-wrap]").is_hidden()
+          and "Shortlist cleared" in (compare_panel.locator("[data-room-compare-status]").text_content() or ""),
+          "Rooms: clearing the shortlist must hide the table and announce recovery")
+    check(all(button.get_attribute("aria-pressed") == "false" for button in compare_buttons.all()),
+          "Rooms: clearing the shortlist must reset all seven card controls")
+    check(compare_panel.locator("[data-room-compare-clear]").is_disabled(),
+          "Rooms: Clear shortlist must disable when no rooms are selected")
+
     # With JavaScript off, the controls stay hidden and the full catalogue is readable.
     nojs = browser.new_context(
         viewport={"width": 360, "height": 800},
