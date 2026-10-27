@@ -62,13 +62,13 @@ rejects(root => {
 rejects(root => {
   fs.writeFileSync(path.join(root, 'tours', 'nested', 'deeper', 'route.html'),
     '<html><head><link rel="canonical" href="https://example.test/tours/nested/deeper/route.html"></head></html>');
-}, /tours\\/nested\\/deeper\\/route\\.html: canonical link/,
+}, /tours\/nested\/deeper\/route\.html: canonical link/,
 'canonical publication must be rejected at arbitrary nested tour depth');
 
 rejects(root => {
   fs.writeFileSync(path.join(root, 'blogs', 'nested', 'deeper', 'guide.html'),
     '<html><head><meta property="og:url" content="https://example.test/blogs/nested/deeper/guide.html"></head></html>');
-}, /blogs\\/nested\\/deeper\\/guide\\.html: og:url/,
+}, /blogs\/nested\/deeper\/guide\.html: og:url/,
 'og:url publication must be rejected at arbitrary nested blog depth');
 
 rejects(root => {
