@@ -115,8 +115,8 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
         "visualEvidence": {
             "required": True,
             "captureMode": "full-page PNG",
-            "expectedScreenshotCount": 24,
-            "capturedScreenshotCount": 24,
+            "expectedScreenshotCount": review.EXPECTED_SCREENSHOT_COUNT,
+            "capturedScreenshotCount": review.EXPECTED_SCREENSHOT_COUNT,
             "complete": True,
             "capturedFiles": records,
         },
@@ -152,10 +152,10 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
         incomplete_coverage, screenshots, _coverage_images, coverage_issues
     )
     assert 'Automated browser result<strong class="fail">FAIL — INCOMPLETE EVIDENCE</strong>' in coverage_html
-    assert len(checked) == 24 and all(item["valid"] for item in checked)
+    assert len(checked) == review.EXPECTED_SCREENSHOT_COUNT and all(item["valid"] for item in checked)
     page = review.build_html(report, screenshots, checked, issues)
-    assert page.count('class="card"') == 24
-    assert page.count('<section id="page-') == 8
+    assert page.count('class="card"') == review.EXPECTED_SCREENSHOT_COUNT
+    assert page.count('<section id="page-') == len(review.PAGES)
     assert 'src="screenshots/index-360px.png"' in page
     assert "staging.example.test" in page
     assert "BLOCKED — manual UAT required" in page
@@ -196,8 +196,8 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     expect_contract_issue(missing_browser, "browser name and version metadata")
 
     wrong_visual_count = json.loads(json.dumps(report))
-    wrong_visual_count["visualEvidence"]["expectedScreenshotCount"] = 23
-    expect_contract_issue(wrong_visual_count, "expectedScreenshotCount must equal 24")
+    wrong_visual_count["visualEvidence"]["expectedScreenshotCount"] = review.EXPECTED_SCREENSHOT_COUNT - 1
+    expect_contract_issue(wrong_visual_count, f"expectedScreenshotCount must equal {review.EXPECTED_SCREENSHOT_COUNT}")
 
     for coverage_flag in (
         "pageNavigationComplete",
@@ -234,7 +234,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     assert 'src="https://' not in page
 
     # CLI writes the review beside the screenshot folder and returns PASS only
-    # when the report result and all 24 file hashes/byte counts/geometry agree.
+    # when the report result and all planned file hashes/byte counts/geometry agree.
     exit_code = review.main([
         "--report", str(report_path),
         "--screenshots-dir", str(screenshots),
@@ -243,7 +243,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     assert exit_code == 0
     assert output_path.is_file()
     rendered_html = output_path.read_text(encoding="utf-8")
-    assert "24 files verified" in rendered_html
+    assert f"{review.EXPECTED_SCREENSHOT_COUNT} files verified" in rendered_html
     assert "Unknown-route / 404 recovery evidence" in rendered_html
     assert "HTTP 404" in rendered_html
     assert "STG-18" in rendered_html
@@ -351,4 +351,4 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     else:
         raise AssertionError("HTML output must be beside the screenshot directory")
 
-print("PASS: offline staging visual review validates 24 screenshot hashes/bytes/geometry, explicit HTTP 404 recovery evidence, escapes report text, redacts URLs, and preserves 18 manual release gates.")
+print(f"PASS: offline staging visual review validates {review.EXPECTED_SCREENSHOT_COUNT} screenshot hashes/bytes/geometry, explicit HTTP 404 recovery evidence, escapes report text, redacts URLs, and preserves 18 manual release gates.")
