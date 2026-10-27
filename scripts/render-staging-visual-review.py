@@ -31,6 +31,9 @@ PAGES = [
 ]
 VIEWPORTS = [(360, 800, "Mobile"), (768, 1024, "Tablet"), (1440, 900, "Desktop")]
 SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
+UNKNOWN_ROUTE_PATH = "/__garh-jaisal-404-smoke-not-found-20261027__"
+UNKNOWN_ROUTE_RECOVERY_LINKS = ["/directions.html", "/dining.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
+UNKNOWN_ROUTE_VIEWPORT_WIDTHS = [360, 768, 1440]
 URL_PATTERN = re.compile(r"""https?://[^\s<>'"]+""", re.IGNORECASE)
 
 
@@ -152,19 +155,54 @@ def load_report(path: Path) -> dict:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError(f"cannot read valid JSON report ({type(error).__name__})") from error
-    if not isinstance(report, dict) or report.get("schemaVersion") != 3:
-        raise ValueError("expected a schema-version 3 report")
+    if not isinstance(report, dict) or report.get("schemaVersion") != 4:
+        raise ValueError("expected a schema-version 4 report")
     if report.get("mode") != "staging-read-only":
         raise ValueError("report must come from staging-read-only mode")
     return report
 
 
 
+def unknown_route_evidence_issues(evidence: object) -> list[str]:
+    """Validate the explicit HTTP 404 recovery evidence recorded by Chromium."""
+    issues: list[str] = []
+    if not isinstance(evidence, dict):
+        return ["unknownRouteEvidence must be an object."]
+    if evidence.get("path") != UNKNOWN_ROUTE_PATH:
+        issues.append("unknownRouteEvidence.path must identify the deterministic unknown route.")
+    if evidence.get("expectedHttpStatus") != 404:
+        issues.append("unknownRouteEvidence.expectedHttpStatus must be 404.")
+    if evidence.get("recoveryLinks") != UNKNOWN_ROUTE_RECOVERY_LINKS:
+        issues.append("unknownRouteEvidence must record all six root-relative recovery routes.")
+    checks = evidence.get("viewportChecks")
+    if not isinstance(checks, list) or len(checks) != len(UNKNOWN_ROUTE_VIEWPORT_WIDTHS):
+        issues.append("unknownRouteEvidence must contain checks for 360, 768 and 1440 CSS pixels.")
+    else:
+        required_flags = (
+            "targetOrigin", "brandedRecoveryPage", "noindex",
+            "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
+        )
+        for record, width in zip(checks, UNKNOWN_ROUTE_VIEWPORT_WIDTHS):
+            if not isinstance(record, dict):
+                issues.append(f"unknownRouteEvidence at {width}px must be an object.")
+                continue
+            if record.get("viewportWidthCssPixels") != width:
+                issues.append("unknownRouteEvidence viewport checks must be ordered 360, 768, 1440.")
+            if record.get("httpStatus") != 404:
+                issues.append(f"unknownRouteEvidence at {width}px must report HTTP 404.")
+            for flag in required_flags:
+                if record.get(flag) is not True:
+                    issues.append(f"unknownRouteEvidence at {width}px must pass {flag}.")
+    if evidence.get("complete") is not True:
+        issues.append("unknownRouteEvidence.complete must be true.")
+    return issues
+
+
 def report_contract_issues(report: dict) -> list[str]:
     """Reject contradictory or unsafe claims in a saved staging evidence report."""
     issues: list[str] = []
-    if report.get("schemaVersion") != 3:
-        issues.append("Report schemaVersion must be 3.")
+    if report.get("schemaVersion") != 4:
+        issues.append("Report schemaVersion must be 4.")
     if report.get("mode") != "staging-read-only":
         issues.append("Report mode must be staging-read-only.")
 
@@ -219,6 +257,8 @@ def report_contract_issues(report: dict) -> list[str]:
         if not isinstance(safety, dict) or safety.get(flag) is not False:
             issues.append(f"Safety assertion {flag} must be present and false.")
 
+    issues.extend(unknown_route_evidence_issues(report.get("unknownRouteEvidence")))
+
     evidence = report.get("visualEvidence")
     if not isinstance(evidence, dict):
         issues.append("visualEvidence must be an object.")
@@ -238,6 +278,7 @@ def report_contract_issues(report: dict) -> list[str]:
         "pageNavigationComplete",
         "pageHttp200Complete",
         "responsiveViewportsComplete",
+        "unknownRouteRecoveryComplete",
         "complete",
     )
     if not isinstance(coverage, dict):
@@ -287,8 +328,8 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     if evidence.get("complete") is not True or evidence.get("capturedScreenshotCount") != 21:
         issues.append("Report does not declare complete 21-image visual evidence.")
     manual = report.get("manualReleaseChecks")
-    expected_ids = [f"STG-{number:02d}" for number in range(1, 18)]
-    if (not isinstance(manual, list) or len(manual) != 17
+    expected_ids = [f"STG-{number:02d}" for number in range(1, 19)]
+    if (not isinstance(manual, list) or len(manual) != 18
             or [item.get("id") for item in manual if isinstance(item, dict)] != expected_ids
             or any(not isinstance(item, dict) or item.get("result") != "NOT RUN" for item in manual)):
         issues.append("Manual release checks are missing or changed; release remains blocked.")
