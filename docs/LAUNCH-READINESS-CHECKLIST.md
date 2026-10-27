@@ -61,6 +61,7 @@ Complete and record these checks against the intended staging site first. Do not
 - [ ] **Alternate landline:** call the configured landline and verify that it reaches the intended property/operator.
 - [ ] **Email:** send a harmless test email to the configured hotel address from an external mailbox, check delivery/no bounce, and confirm the team can reply.
 - [ ] Record the date, device/browser, result and operator who verified each channel. Do not label source-authorized values live-verified until these tests pass.
+- [ ] **Exact hotel map pin:** from Directions and the shared footer, open the configured pin in a normal browser and verify it resolves to Garh Jaisal Haveli, not merely a broad place search. The authoritative legacy `direction.php` records a Google Maps short link; automated tests verify central configuration and URL hydration only, not geographic accuracy or live availability.
 
 ### P0 — Experience discovery and route-detail journey
 

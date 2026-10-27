@@ -9,6 +9,7 @@
   const alternatePhoneLinks = Array.from(document.querySelectorAll('[data-contact-alt-phone]'));
   const emailLinks = Array.from(document.querySelectorAll('[data-contact-email]'));
   const bookingLinks = Array.from(document.querySelectorAll('[data-booking-link]'));
+  const propertyMapLinks = Array.from(document.querySelectorAll('[data-property-map-link]'));
   const bookingForms = Array.from(document.querySelectorAll('[data-booking-form]'));
   const guestEnquiryForms = Array.from(document.querySelectorAll('[data-guest-enquiry-form]'));
   let activeWhatsAppBaseUrl = '';
@@ -130,7 +131,8 @@
 
   async function configureContactChannels() {
     if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
-        && !emailLinks.length && !bookingLinks.length && !bookingForms.length && !guestEnquiryForms.length) return;
+        && !emailLinks.length && !bookingLinks.length && !propertyMapLinks.length
+        && !bookingForms.length && !guestEnquiryForms.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
       const scriptUrl = document.currentScript && document.currentScript.src;
@@ -140,9 +142,11 @@
       const config = await response.json();
       const contact = config && config.contact ? config.contact : {};
       const booking = config && config.booking ? config.booking : {};
+      const propertyNavigation = config && config.propertyNavigation ? config.propertyNavigation : {};
       configureGuestEnquiryForms(config);
       const contactAuthorized = channelIsAuthorized(config, contact);
       const bookingAuthorized = channelIsAuthorized(config, booking);
+      const propertyNavigationAuthorized = channelIsAuthorized(config, propertyNavigation);
 
       let whatsappBaseUrl = '';
       if (contactAuthorized) {
@@ -183,6 +187,20 @@
           }
         } catch (_) {
           // A malformed or unexpected booking host stays disabled.
+        }
+      }
+
+      let hotelMapUrl = '';
+      if (propertyNavigationAuthorized && typeof propertyNavigation.hotelMapUrl === 'string') {
+        try {
+          const url = new URL(propertyNavigation.hotelMapUrl);
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'maps.app.goo.gl'
+              && url.port === '' && /^\/[A-Za-z0-9_-]{6,}$/.test(url.pathname)
+              && !url.username && !url.password && !url.search && !url.hash) {
+            hotelMapUrl = url.origin + url.pathname;
+          }
+        } catch (_) {
+          // An invalid or unexpected map destination remains disabled.
         }
       }
 
@@ -230,6 +248,13 @@
         }
         enableLink(link, bookingUrl, { targetBlank: true });
       });
+      propertyMapLinks.forEach(link => {
+        if (!hotelMapUrl) {
+          disableContactLink(link, 'Map link unavailable');
+          return;
+        }
+        enableLink(link, hotelMapUrl, { targetBlank: true });
+      });
 
       bookingForms.forEach(form => {
         const submit = form.querySelector('[data-booking-submit]');
@@ -245,6 +270,7 @@
         || (alternatePhoneLinks.length > 0 && (!alternatePhoneE164 || !alternatePhoneDisplay))
         || (emailLinks.length > 0 && !email)
         || (bookingLinks.length > 0 && !bookingUrl)
+        || (propertyMapLinks.length > 0 && !hotelMapUrl)
         || (bookingForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
@@ -254,6 +280,7 @@
       alternatePhoneLinks.forEach(link => disableContactLink(link, 'Landline unavailable'));
       emailLinks.forEach(link => disableContactLink(link, 'Email unavailable'));
       bookingLinks.forEach(link => disableContactLink(link, 'Booking link unavailable'));
+      propertyMapLinks.forEach(link => disableContactLink(link, 'Map link unavailable'));
       bookingForms.forEach(form => {
         const submit = form.querySelector('[data-booking-submit]');
         const note = form.querySelector('[data-booking-note]');

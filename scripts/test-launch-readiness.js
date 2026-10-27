@@ -33,6 +33,16 @@ assert.match(config.contact.whatsappBaseUrl || '', /^https:\/\/wa\.me\/\d{8,15}$
 assert.match(config.contact.primaryPhoneE164 || '', /^\+[1-9]\d{7,14}$/);
 assert.match(config.contact.alternatePhoneE164 || '', /^\+[1-9]\d{7,14}$/);
 assert.match(config.contact.email || '', /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+assert.equal(config.propertyNavigation.status, 'source-authorized',
+  'The hotel map pin must be source-authorized, not live-tested');
+const hotelMap = new URL(config.propertyNavigation.hotelMapUrl);
+assert.equal(hotelMap.protocol, 'https:');
+assert.equal(hotelMap.hostname, 'maps.app.goo.gl');
+assert.match(hotelMap.pathname, /^\/[A-Za-z0-9_-]{6,}$/);
+assert.equal(hotelMap.port, '');
+assert.equal(hotelMap.search, '');
+assert.equal(hotelMap.hash, '');
+
 
 const booking = new URL(config.booking.legacyBookingEngineUrl);
 assert.equal(booking.protocol, 'https:');
@@ -43,6 +53,10 @@ assert.ok(booking.searchParams.has('token'), 'Legacy booking endpoint must retai
 for (const file of PAGE_NAMES) {
   const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
   assert.equal((html.match(/id="contact-status"/g) || []).length, 1, file + ': expected one accessible contact fallback');
+  assert.ok(html.includes('data-property-map-link'), file + ': map links must hydrate from the central source config');
+  assert.doesNotMatch(html, /https:\/\/maps\.google\.com\/\?q=Garh\+Jaisal\+Haveli\+Jaisalmer|https:\/\/maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/i,
+    file + ': map destinations must not be duplicated in public HTML');
+
   for (const marker of ['data-booking-link', 'data-enquiry-link', 'data-contact-phone', 'data-contact-alt-phone', 'data-contact-email']) {
     assert.ok(html.includes(marker), file + ': missing centralized channel marker ' + marker);
   }

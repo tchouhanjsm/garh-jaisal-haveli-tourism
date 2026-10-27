@@ -763,6 +763,31 @@ def check_contact_hydration(page, base_url: str) -> None:
           "Alternate landline must hydrate from the central config")
     check(page.locator("[data-contact-email]").first.get_attribute("href") == "mailto:info@hotelgarhjaisal.com",
           "Email must hydrate from the central config")
+    # Inspect the exact source-authorized hotel pin without opening the external map.
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    page.wait_for_function(
+        """() => {
+          const map = document.querySelector('[data-property-map-link]');
+          if (!map) return false;
+          try {
+            const url = new URL(map.href);
+            return url.protocol === 'https:'
+              && url.hostname === 'maps.app.goo.gl'
+              && url.pathname === '/nAbRiZhv78FSbju48'
+              && !url.search && !url.hash;
+          } catch (_) { return false; }
+        }""",
+        timeout=7000,
+    )
+    map_links = page.locator("[data-property-map-link]")
+    check(map_links.count() >= 2, "Directions and footer must expose the central hotel map pin")
+    for index in range(map_links.count()):
+        link = map_links.nth(index)
+        check(link.get_attribute("target") == "_blank", "Hotel map pin must open in a separate tab")
+        check(set((link.get_attribute("rel") or "").split()) >= {"noopener", "noreferrer"},
+              "Hotel map pin must protect the new tab with noopener/noreferrer")
+    # This smoke test inspects the destination but never opens the external map.
+
     # This test only inspects links; it never navigates to the provider or submits guest data.
 
 

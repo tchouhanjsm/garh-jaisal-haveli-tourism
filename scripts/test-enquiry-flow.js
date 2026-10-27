@@ -62,7 +62,8 @@ function element(name, initialAttributes = {}, text = '') {
 
 function makeConfig({
   verified = false, whatsapp = '', phone = '', display = '',
-  alternatePhone = '', alternateDisplay = '', email = '', bookingUrl = ''
+  alternatePhone = '', alternateDisplay = '', email = '', bookingUrl = '',
+  mapUrl = 'https://maps.app.goo.gl/nAbRiZhv78FSbju48'
 } = {}) {
   return {
     verificationStatus: verified ? 'owner-verified' : 'legacy-source-unverified',
@@ -78,6 +79,10 @@ function makeConfig({
       alternatePhoneE164: alternatePhone,
       alternatePhoneDisplay: alternateDisplay,
       email
+    },
+    propertyNavigation: {
+      status: verified ? 'verified' : 'owner-verification-required',
+      hotelMapUrl: mapUrl
     }
   };
 }
@@ -121,6 +126,12 @@ async function boot(config, fetchFails = false) {
     'aria-disabled': 'true',
     'aria-describedby': 'contact-status'
   }, 'Book Now');
+  const mapLink = element('a', {
+    href: '#contact-status',
+    'data-property-map-link': '',
+    'aria-disabled': 'true',
+    'aria-describedby': 'contact-status'
+  }, 'Open exact hotel pin');
   const arrival = element('input');
   arrival.value = '2026-11-01';
   const departure = element('input');
@@ -161,7 +172,8 @@ async function boot(config, fetchFails = false) {
         '[data-contact-phone]': [phoneLink],
         '[data-contact-alt-phone]': [alternatePhoneLink],
         '[data-contact-email]': [emailLink],
-        '[data-booking-link]': [bookingLink]
+        '[data-booking-link]': [bookingLink],
+        '[data-property-map-link]': [mapLink]
       })[selector] || [];
     },
     createElement(name) { return element(name); },
@@ -190,7 +202,7 @@ async function boot(config, fetchFails = false) {
     filename: 'assets/site.js'
   });
   await new Promise(resolve => setImmediate(resolve));
-  return { window, status, enquiryLink, phoneLink, alternatePhoneLink, emailLink, bookingLink, form, arrival, departure, guests, note, submit };
+  return { window, status, enquiryLink, phoneLink, alternatePhoneLink, emailLink, bookingLink, mapLink, form, arrival, departure, guests, note, submit };
 }
 
 async function main() {
@@ -201,6 +213,9 @@ async function main() {
     const html = fs.readFileSync(path.join(root, page), 'utf8');
     assert.equal((html.match(/id="contact-status"/g) || []).length, 1, page + ' must have one accessible contact-status fallback');
     assert.match(html, /data-enquiry-link/, page + ' must mark enquiry links for runtime verification');
+    assert.match(html, /data-property-map-link/, page + ' must use the central map configuration');
+    assert.doesNotMatch(html, /https:\/\/maps\.google\.com\/\?q=Garh\+Jaisal\+Haveli\+Jaisalmer|https:\/\/maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/i,
+      page + ' must not hard-code the map destination');
     assert.doesNotMatch(html, /https:\/\/wa\.me\/\d+|href="tel:\+?\d+|info@hotelgarhjaisal\.com|7727047567|2992253836/i, page + ' must not publish unverified contact endpoints');
     for (const match of html.matchAll(/data-enquiry-message="([^"]*)"/g)) authoredMessages.add(match[1]);
   }
@@ -217,6 +232,9 @@ async function main() {
   assert.match(publicConfig.contact.alternatePhoneE164, /^\+[1-9]\d{7,14}$/);
   assert.match(publicConfig.contact.email, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   assert.equal(publicConfig.booking.status, 'source-authorized');
+  assert.equal(publicConfig.propertyNavigation.status, 'source-authorized');
+  assert.equal(publicConfig.propertyNavigation.hotelMapUrl, 'https://maps.app.goo.gl/nAbRiZhv78FSbju48');
+
   const bookingUrl = new URL(publicConfig.booking.legacyBookingEngineUrl);
   assert.equal(bookingUrl.protocol, 'https:');
   assert.equal(bookingUrl.hostname, 'asiatech.in');
@@ -229,6 +247,9 @@ async function main() {
   assert.equal(unverified.alternatePhoneLink.getAttribute('href'), '#contact-status');
   assert.equal(unverified.emailLink.getAttribute('href'), '#contact-status');
   assert.equal(unverified.bookingLink.getAttribute('href'), '#contact-status');
+  assert.equal(unverified.mapLink.getAttribute('href'), '#contact-status');
+  assert.equal(unverified.mapLink.getAttribute('aria-disabled'), 'true');
+
   assert.equal(unverified.submit.disabled, true);
   assert.equal(unverified.status.hidden, false);
   const blockedSubmit = unverified.form.dispatch('submit');
@@ -260,6 +281,11 @@ async function main() {
   assert.equal(verified.bookingLink.getAttribute('href'), 'https://asiatech.in/booking_engine/index3?token=test-token');
   assert.equal(verified.bookingLink.getAttribute('target'), '_blank');
   assert.equal(verified.bookingLink.getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(verified.mapLink.getAttribute('href'), 'https://maps.app.goo.gl/nAbRiZhv78FSbju48');
+  assert.equal(verified.mapLink.getAttribute('target'), '_blank');
+  assert.equal(verified.mapLink.getAttribute('rel'), 'noopener noreferrer');
+  assert.equal(verified.mapLink.getAttribute('aria-disabled'), null);
+
   assert.equal(verified.submit.disabled, false);
   assert.equal(verified.status.hidden, true);
   verified.form.dispatch('submit');
@@ -269,6 +295,21 @@ async function main() {
   assert.match(sentMessage, /Departure: 2026-11-03/);
   assert.match(sentMessage, /Guests: 2 guests/);
 
+  const invalidMap = await boot(makeConfig({
+    verified: true,
+    whatsapp: 'https://wa.me/15551234567',
+    phone: '+15551234567',
+    display: '+1 555 123 4567',
+    alternatePhone: '+15551234568',
+    alternateDisplay: '+1 555 123 4568',
+    email: 'hotel@example.com',
+    bookingUrl: 'https://asiatech.in/booking_engine/index3?token=test-token',
+    mapUrl: 'https://maps.app.goo.gl.evil.example/fakePin123'
+  }));
+  assert.equal(invalidMap.mapLink.getAttribute('href'), '#contact-status');
+  assert.equal(invalidMap.mapLink.getAttribute('aria-disabled'), 'true');
+  assert.equal(invalidMap.mapLink.textContent, 'Map link unavailable');
+  assert.equal(invalidMap.status.hidden, false);
   const invalid = await boot(makeConfig({
     verified: true,
     whatsapp: 'https://evil.example/15551234567',
@@ -298,7 +339,7 @@ async function main() {
   assert.equal(fetchFailure.submit.disabled, true);
   assert.equal(fetchFailure.status.hidden, false);
 
-  console.log('PASS: source-authorized booking, WhatsApp, telephone, landline and email links hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
+  console.log('PASS: source-authorized booking, WhatsApp, telephone, landline, email and exact hotel map pin hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
 }
 
 main().catch(error => {
