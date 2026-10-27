@@ -529,11 +529,15 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
           f"{page_name}: main must be programmatically focusable as the skip-link destination")
     check(page.locator("main h1").count() == 1, f"{page_name}: expected exactly one main h1")
 
-    active = page.locator('#primary-navigation a[aria-current="page"]')
-    check(active.count() == 1, f"{page_name}: primary navigation must identify one current page")
+    active = page.locator('#primary-navigation a[aria-current="page"], #primary-navigation a[aria-current="location"]')
+    check(active.count() == 1, f"{page_name}: primary navigation must identify one current page or parent location")
     if active.count() == 1:
-        check(active.get_attribute("href") == page_name,
-              f"{page_name}: aria-current navigation link must point to the current page")
+        expected_href = "experiences.html" if page_name == "experience-details.html" else page_name
+        expected_state = "location" if page_name == "experience-details.html" else "page"
+        check(active.get_attribute("href") == expected_href,
+              f"{page_name}: current navigation link must point to its page or parent location")
+        check(active.get_attribute("aria-current") == expected_state,
+              f"{page_name}: aria-current must distinguish the page from a parent location")
 
     og_image = page.locator('meta[property="og:image"]').get_attribute("content")
     twitter_image = page.locator('meta[name="twitter:image"]').get_attribute("content")
