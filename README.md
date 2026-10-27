@@ -221,3 +221,7 @@ The Experiences, experience-detail and Dining pages share a date-aware enquiry f
 ### Room comparison shortlist
 
 The Rooms catalogue provides a progressive shortlist for comparing up to three of the seven source-listed rooms. It reuses each room card's local photograph, listed floor, description and visible feature list; it does not infer live inventory, missing amenities, occupancy or rates. Selection exists only in the current page session and is not written to browser storage or sent to a server. With JavaScript disabled, all room cards remain available and comparison controls are not shown. On narrow screens, the comparison table scrolls horizontally and remains keyboard-focusable.
+
+### Arrival wayfinding and cross-page planning
+
+The Directions page now shows the owner-maintained legacy source estimates for the last walk: about 300 metres / 5–6 minutes from Fort Parking and about 200 metres / 3–4 minutes from the fort entrance. The values are approximate, not live route measurements. The same contextual deep link is available from Home, Rooms, Experiences, Experience details, Dining, About and Gallery so guests can check the final approach while choosing what to do. The legacy rickshaw-hours note is presented as guidance that must be confirmed for the guest's date, not a guarantee of vehicle access. CI covers the distance copy, page links and responsive layout; it does not replace owner confirmation, contact reachability checks or manual staging UAT.
