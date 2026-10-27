@@ -238,6 +238,15 @@
         if (submit) submit.disabled = true;
         if (note) note.textContent = 'Contact details could not be loaded. No travel details have been sent.';
       });
+      guestEnquiryForms.forEach(form => {
+        const submit = form.querySelector('[data-guest-enquiry-submit]');
+        const status = form.querySelector('[data-guest-enquiry-status]');
+        if (submit) submit.disabled = true;
+        if (status) {
+          status.dataset.state = 'error';
+          status.textContent = 'Enquiries are temporarily unavailable because the contact configuration could not be loaded. No details have been sent.';
+        }
+      });
     }
   }
 
