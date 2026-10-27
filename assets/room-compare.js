@@ -46,7 +46,9 @@
   const header = element('div', 'room-compare__header');
   const intro = element('div', 'room-compare__intro');
   intro.appendChild(element('p', 'eyebrow', 'Make a shortlist'));
-  intro.appendChild(element('h3', 'room-compare__title', 'Compare your rooms'));
+  const compareHeading = element('h3', 'room-compare__title', 'Compare your rooms');
+  compareHeading.id = 'room-compare-heading';
+  intro.appendChild(compareHeading);
   intro.appendChild(element('p', 'room-compare__description',
     'Choose two or three rooms to compare their photographs, listed floor and catalogue features side by side.'));
 
