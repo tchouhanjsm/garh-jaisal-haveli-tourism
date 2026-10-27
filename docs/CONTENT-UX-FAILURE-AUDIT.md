@@ -670,3 +670,34 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Local `bash scripts/check-pr-quality.sh` was not run from this chat because a complete local checkout is unavailable.
 - No owner-approved staging origin was available. STG-01 through STG-18 remain `NOT RUN`; no staging host, booking provider or contact endpoint was contacted.
 - Canonical-host approval remains false. The sitemap and robots policy are unchanged; no production deployment, unapproved menu publication, draft-content publication or server-side enquiry collection occurred.
+
+## 27 October 2026 — Technical SEO publication safeguards
+
+### Live baseline and risk
+
+- Live main at phase start: `22f40dd1f070077057856cab7db9e8b54c28314a`; PR #29 was merged and the open-PR count was zero. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) completed successfully on that exact SHA.
+- Existing checks protected the seven core pages, but canonical and `og:url` absence was asserted only on those core pages. Generated tour/blog HTML and future public routes could therefore accidentally publish a canonical URL outside the core-page test.
+- Sitemap and robots safeguards existed in the launch-readiness test, but the coverage was not a dedicated reusable audit of every public HTML page and its fixture-level failure modes.
+
+### Implementation on `feat/seo-publication-guard-20261027`
+
+- Added `scripts/test-seo-publication-safeguards.js` to scan root, `tours/` and `blogs/` HTML for canonical link tags and Open Graph `og:url` metadata while canonical approval is false.
+- The same audit rejects sitemap URL entries, a `Sitemap:` robots directive, and loss of wildcard `Disallow: /` before the production hostname is approved.
+- Added `scripts/test-seo-publication-safeguards-contract.js` fixture coverage for the valid pre-launch state, generated-page regressions, accidental publication, sitemap/robots changes and missing or malformed config. The test intentionally refuses an approved-host state so publication activation cannot happen silently in this pre-launch gate.
+- Integrated the contract and live-repository checks into `scripts/check-pr-quality.sh`.
+- Updated README guidance and refreshed the launch checklist's baseline to main `22f40dd1f070077057856cab7db9e8b54c28314a` with its verified post-merge CI run.
+
+### Changed paths
+
+- `scripts/test-seo-publication-safeguards.js`
+- `scripts/test-seo-publication-safeguards-contract.js`
+- `scripts/check-pr-quality.sh`
+- `README.md`
+- `docs/LAUNCH-READINESS-CHECKLIST.md`
+- `docs/CONTENT-UX-FAILURE-AUDIT.md`
+
+### Validation and release boundary
+
+- The exact-head GitHub quality suite is the required validation for this feature branch; local `bash scripts/check-pr-quality.sh` was not run because a complete local checkout was unavailable.
+- The change does not edit `robots.txt`, `sitemap.xml`, `content/site-config.json`, canonical metadata, menu content, contact endpoints or production deployment settings.
+- A green guard proves the repository remains in the intended pre-launch publication state. It does not verify staging DNS/SSL, actual crawler behavior, live contact channels, booking completion or owner approval.

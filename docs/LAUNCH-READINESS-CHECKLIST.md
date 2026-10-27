@@ -2,7 +2,7 @@
 
 **Status as of 27 October 2026: automated implementation checks pass on main; production release remains blocked pending manual owner/UAT gates.**
 
-Baseline main at the start of the current staging-preflight phase: 3c8bcb314ca41910e7d32d016fc769cd14b4e796. Post-merge Site quality gates run #40424755768 passed after PR #27 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
+Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
 ## What automated checks can currently prove
 
@@ -189,3 +189,13 @@ A successful visual review is evidence integrity only. It never changes the resu
 The quality runner now executes `scripts/test-public-image-uniqueness-contract.js` and `scripts/test-public-image-uniqueness.js`. The contract tests prove that identical bytes under different referenced paths are detected, reuse of the same path across pages is allowed, and missing or repository-escaping local image paths fail closed. The repository audit hashes locally referenced `img` and responsive `source` assets across root HTML plus generated `tours/` and `blogs/` HTML. Exact-byte duplicates at different paths fail CI.
 
 This does **not** detect visually similar photographs encoded or cropped differently. Human visual review remains required for subject accuracy, repeated-looking scenes, room-to-image mapping and tour-photo context. The test does not contact staging or external hosts and does not change the canonical-host, sitemap, robots, menu or deployment gates. Staging acceptance remains blocked until an owner-approved HTTPS staging origin and operator evidence are available.
+
+## Technical SEO publication safeguard — 27 October 2026
+
+- [x] Automated pre-launch publication guard added in `scripts/test-seo-publication-safeguards.js` and wired into `scripts/check-pr-quality.sh`.
+- [x] The guard scans root HTML plus generated `tours/` and `blogs/` HTML. While `content/site-config.json` keeps `site.canonicalHostApproved: false`, it rejects canonical link tags and Open Graph `og:url` metadata anywhere in that public HTML surface.
+- [x] The guard rejects sitemap `<loc>` entries and a `Sitemap:` directive in `robots.txt`, and requires the pre-launch wildcard `Disallow: /` policy to remain present.
+- [x] Fixture contract coverage includes accidental canonical/OG URL publication, sitemap URL entries, robots sitemap directives, removed crawl blocking, missing/malformed config and the explicitly approved state. The approved state intentionally fails this pre-launch gate; activating publication requires a separately authorized implementation and review.
+- [ ] Manual SEO review on an owner-approved staging hostname remains NOT RUN. CI cannot approve the public hostname, validate DNS/SSL, prove search crawler behavior or authorize production publication.
+
+**Baseline:** main `22f40dd1f070077057856cab7db9e8b54c28314a`; post-merge quality run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed. This phase does not change `robots.txt`, `sitemap.xml`, canonical approval, production deployment or guest-data handling.
