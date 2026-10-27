@@ -823,3 +823,11 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - This is an offline implementation. The current operating status of each experience, current prices, guide/vehicle availability and route access still require owner confirmation.
 - No production deployment, canonical-host activation, sitemap/robots change or external booking/contact action is part of this fix. HTTPS staging UAT remains a separate release gate.
 
+
+
+## 27 October 2026 — centralize the source-authorized exact hotel map pin
+
+- **Finding:** all eight public routes linked to a generic Google Maps text search for “Garh Jaisal Haveli, Jaisalmer”; the Directions hero repeated the same broad search. The authoritative legacy `direction.php` specifies the exact property pin `https://maps.app.goo.gl/nAbRiZhv78FSbju48`.
+- **Implementation:** moved the source-provided pin into `content/site-config.json` under `propertyNavigation.hotelMapUrl`, marked `source-authorized`. The eight public page footers and both Directions links now hydrate from that single value via `assets/site.js`; invalid or missing map configuration fails closed. External links open with `noopener noreferrer`.
+- **Regression protection:** launch-readiness and enquiry-flow contract tests reject duplicated map URLs in public HTML; the VM test covers valid hydration and an invalid host; Chromium smoke inspects the hydrated Directions/footer links without opening the external destination.
+- **Boundary:** the link is source-authorized, not live-tested. Human UAT must confirm that the pin is geographically correct. No booking/contact endpoint, canonical-host approval, sitemap/robots policy or deployment setting changed.
