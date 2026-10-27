@@ -41,6 +41,11 @@ async function boot({config,fetchFails=false,departure='2026-11-03'}={}) {
   const email=element({'data-contact-email':'','href':'#contact-status','aria-disabled':'true'});
   const booking=element({'data-booking-link':'','href':'#contact-status','aria-disabled':'true'});
   const baseForm=element({'data-booking-form':''});
+  const bookingArrival=element({name:'arrival'}); bookingArrival.value='2026-11-01'; bookingArrival.min='';
+  const bookingDeparture=element({name:'departure'}); bookingDeparture.value='2026-11-03'; bookingDeparture.min='';
+  const bookingGuests=element({name:'guests'}); bookingGuests.value='2'; bookingGuests.selectedOptions=[{textContent:'2 guests'}];
+  baseForm.elements={namedItem(name){return ({arrival:bookingArrival,departure:bookingDeparture,guests:bookingGuests})[name]||null;}};
+  baseForm.reportValidity=()=>true;
   const bookingSubmit=element({'data-booking-submit':''});
   const bookingNote=element({'data-booking-note':''});
   baseForm.querySelector=s=>s==='[data-booking-submit]'?bookingSubmit:s==='[data-booking-note]'?bookingNote:null;
