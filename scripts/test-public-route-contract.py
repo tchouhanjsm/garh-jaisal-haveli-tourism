@@ -66,7 +66,7 @@ for label, source in (("Chromium smoke", browser), ("offline visual review", rev
 assert 'PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]' in browser
 assert 'VIEWPORTS = [\n    (viewport["width"], viewport["height"])\n    for viewport in ROUTE_CONTRACT["viewports"]\n]' in browser
 assert 'PAGES = [(route["file"], route["title"]) for route in ROUTE_CONTRACT["routes"]]' in review
-assert 'VIEWPORTS = [(viewport["width"], viewport["height"], viewport["label"]) for viewport in ROUTE_CONTRACT["viewports"]]' in review
+assert 'VIEWPORTS = [\n    (viewport["width"], viewport["height"], viewport["label"])\n    for viewport in ROUTE_CONTRACT["viewports"]\n]' in review
 assert "staging-route-contract.json" in launch_test
 assert "routeContract.routes.map(route => route.file)" in launch_test
 assert "routeContract.viewports.map(viewport => viewport.width)" in launch_test
