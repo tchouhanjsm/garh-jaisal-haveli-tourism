@@ -62,6 +62,14 @@ Complete and record these checks against the intended staging site first. Do not
 - [ ] **Email:** send a harmless test email to the configured hotel address from an external mailbox, check delivery/no bounce, and confirm the team can reply.
 - [ ] Record the date, device/browser, result and operator who verified each channel. Do not label source-authorized values live-verified until these tests pass.
 
+### P0 — Experience discovery and route-detail journey
+
+- [ ] At desktop and mobile widths, use the Experiences page's four category shortcuts (desert evenings, overnight stays, Fort/city tours, road/route ideas). Confirm each link lands at its intended section and the heading typography remains readable without clipping.
+- [ ] Open each package's “View itinerary and details” link and confirm it loads the relevant section on the separate detail page before any WhatsApp enquiry. The contextual enquiry is a separate action; do not make a package's primary information link open WhatsApp.
+- [ ] Confirm the page presents source-listed desert/city experiences together with the Fort heritage walk, car/road arrangements and other route ideas, without describing the entire catalogue as only six options.
+- [ ] Confirm “other routes” and research-led ideas are labelled as enquiry topics, not bookable packages. Do not publish unapproved rates, timings, routes, access guarantees or availability. Verify the owner-approval gates remain open where facts are missing.
+- [ ] Verify the route-detail page can return to the broader Experiences catalogue with its prominent CTA and preserves the separate contextual enquiry action. Automated checks do not mark human UAT complete.
+
 ### P0 — Actual hotel/room facts
 
 - [ ] Confirm the seven named rooms shown on the site are still offered and each image depicts the named room.

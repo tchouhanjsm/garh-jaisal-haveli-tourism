@@ -198,7 +198,7 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 
 ### Experience detail route
 
-`experience-details.html` is the detail companion to `experiences.html`. Each of the six source-listed desert/city options, the Fort heritage walk, car/road arrangements and unconfirmed route ideas has a stable in-page anchor. The page presents source-backed itinerary outlines and questions to settle before travel; it does not publish prices, fixed departure times or current availability. Enquiry and booking links continue to hydrate from `content/site-config.json`, and canonical-host approval remains false until the owner explicitly approves it.
+`experiences.html` now starts with a category-led discovery path for desert evenings, overnight stays, Fort/city tours and road/route ideas. Its six source-listed package cards keep a dedicated itinerary/details link before a separate enquiry action; Fort walking, car/road arrangements and other route ideas remain distinct and clearly unconfirmed. `experience-details.html` contains the detailed source-backed outlines, all nine stable route anchors and the questions guests should settle before travel. Neither page publishes unapproved prices, fixed operating hours or live availability. Booking and enquiry links continue to hydrate from `content/site-config.json`, and canonical-host approval remains false until the owner explicitly approves it.
 
 
 
