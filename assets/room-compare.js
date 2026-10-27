@@ -91,7 +91,7 @@
       description,
       features: Array.from(card.querySelectorAll('.room-feature-list li'))
         .map(item => item.textContent.trim()).filter(Boolean),
-      imageSrc: image.currentSrc || image.getAttribute('src'),
+      imageSrc: image.getAttribute('src') || image.currentSrc || '',
       imageAlt: image.getAttribute('alt') || '',
       card,
     };
