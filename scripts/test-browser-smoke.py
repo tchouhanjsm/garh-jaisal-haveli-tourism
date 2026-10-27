@@ -1417,6 +1417,10 @@ def check_room_finder(page, base_url: str, browser) -> None:
     compare_table = compare_panel.locator("[data-room-compare-table]")
     table_wrap = compare_panel.locator("[data-room-compare-table-wrap]")
     check(table_wrap.is_visible(), "Rooms: selecting two rooms must reveal the side-by-side table")
+    check(table_wrap.get_attribute("role") == "region" and table_wrap.get_attribute("tabindex") == "0",
+          "Rooms: the horizontally scrollable comparison table must be a named keyboard-focusable region")
+    check(table_wrap.evaluate("el => el.scrollWidth > el.clientWidth"),
+          "Rooms: comparison table must scroll horizontally instead of overflowing the mobile viewport")
     compare_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
     check(compare_names == ["Sweet Purple Room", "Green Room"],
           "Rooms: comparison columns must preserve the selected room names and selection order")
