@@ -80,7 +80,7 @@
     const image = card.querySelector('.room-card__image img');
     const descriptionNode = card.querySelector('p:not(.room-feature-label)');
     const description = descriptionNode.textContent.trim()
-      .replace(/\\s*These details are taken from the owner-maintained source catalogue and do not indicate live room assignment\\.?$/i, '')
+      .replace(/\s*These details are taken from the owner-maintained source catalogue and do not indicate live room assignment\.?$/i, '')
       .trim();
     return {
       id: card.id,
