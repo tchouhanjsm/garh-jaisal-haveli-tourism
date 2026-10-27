@@ -73,7 +73,7 @@ assert "routeContract.routes.map(route => route.file)" in launch_test
 assert "routeContract.viewports.map(viewport => viewport.width)" in launch_test
 assert "staging-route-contract.json" in media_performance
 assert "routeContract.routes.map(route => route.file)" in media_performance
-assert "node scripts/test-public-route-contract.py" in quality_runner
+assert "python3 scripts/test-public-route-contract.py" in quality_runner
 
 for stale in (
     "seven core HTML pages",
