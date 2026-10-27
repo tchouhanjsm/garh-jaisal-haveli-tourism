@@ -262,7 +262,7 @@
         if (submit) submit.disabled = !whatsappBaseUrl;
         if (note) note.textContent = whatsappBaseUrl
           ? 'Opens WhatsApp to ask about availability. This is an enquiry, not a reservation; no payment is taken here.'
-          : 'WhatsApp enquiry is unavailable. Your travel details will not be sent.';
+          : 'The enquiry form cannot open an authorized WhatsApp destination right now. Your travel details have not been sent. Refresh the page and try again, or use contact details supplied directly by the hotel.';
       });
 
       const hasUnavailableChannel = (enquiryLinks.length > 0 && !whatsappBaseUrl)
@@ -285,7 +285,7 @@
         const submit = form.querySelector('[data-booking-submit]');
         const note = form.querySelector('[data-booking-note]');
         if (submit) submit.disabled = true;
-        if (note) note.textContent = 'Contact details could not be loaded. No travel details have been sent.';
+        if (note) note.textContent = 'The enquiry form could not load the contact configuration. Your travel details have not been sent. Refresh the page and try again, or use contact details supplied directly by the hotel.';
       });
       guestEnquiryForms.forEach(form => {
         const submit = form.querySelector('[data-guest-enquiry-submit]');
