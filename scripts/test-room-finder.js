@@ -86,7 +86,7 @@ function visibleIds(cards) {
 }
 
 function slugifyFeature(label) {
-  return label.trim().toLowerCase().replace(/\\s+/g, '-');
+  return label.trim().toLowerCase().replace(/\s+/g, '-');
 }
 
 function testStaticCatalogueContract() {
@@ -97,7 +97,7 @@ function testStaticCatalogueContract() {
   assert.match(html, /<link rel="stylesheet" href="assets\/room-finder\.css">/,
     'room finder styling must be scoped to the room page');
 
-  const cardMatches = [...html.matchAll(/<article class="room-card room-card--named"[^>]*>[\\s\\S]*?<\\/article>/g)];
+  const cardMatches = [...html.matchAll(/<article class="room-card room-card--named"[^>]*>[\s\S]*?<\/article>/g)];
   assert.equal(cardMatches.length, EXPECTED_ROOMS.length, 'all seven source-listed room cards must stay in the catalogue');
 
   for (const room of EXPECTED_ROOMS) {
@@ -106,14 +106,14 @@ function testStaticCatalogueContract() {
     const card = cardMatch[0];
     assert.match(card, new RegExp('data-room-floor="' + room.floor + '"'),
       room.id + ' must use the floor in the owner-maintained catalogue');
-    assert.doesNotMatch(card, /\\shidden(?:\\s|>)/i, room.id + ' must remain visible without JavaScript');
+    assert.doesNotMatch(card, /\shidden(?:\s|>)/i, room.id + ' must remain visible without JavaScript');
 
     const declared = card.match(/data-room-features="([^"]+)"/);
-    const listed = card.match(/<ul class="room-feature-list">([\\s\\S]*?)<\\/ul>/);
+    const listed = card.match(/<ul class="room-feature-list">([\s\S]*?)<\/ul>/);
     assert.ok(declared, room.id + ' needs filter metadata');
     assert.ok(listed, room.id + ' needs the visible source feature list');
-    const declaredFeatures = declared[1].split(/\\s+/).sort();
-    const visibleFeatures = [...listed[1].matchAll(/<li>([^<]+)<\\/li>/g)]
+    const declaredFeatures = declared[1].split(/\s+/).sort();
+    const visibleFeatures = [...listed[1].matchAll(/<li>([^<]+)<\/li>/g)]
       .map(match => slugifyFeature(match[1]))
       .sort();
     assert.deepEqual(declaredFeatures, visibleFeatures,
