@@ -195,7 +195,7 @@ async function boot(config, fetchFails = false) {
 
 async function main() {
   const root = path.resolve(__dirname, '..');
-  const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
+  const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
   const authoredMessages = new Set();
   for (const page of publicPages) {
     const html = fs.readFileSync(path.join(root, page), 'utf8');
