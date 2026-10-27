@@ -47,6 +47,8 @@
     guestEnquiryForms.forEach(form => {
       const submit = form.querySelector('[data-guest-enquiry-submit]');
       const status = form.querySelector('[data-guest-enquiry-status]');
+      const arrivalField = form.querySelector('[name="arrival"]');
+      const departureField = form.querySelector('[name="departure"]');
       const contact = config && config.contact ? config.contact : {};
       const authorized = channelIsAuthorized(config, contact);
       let whatsappBase = '';
@@ -62,7 +64,7 @@
           whatsappBase = '';
         }
       }
-      if (!submit || !status || !whatsappBase) {
+      if (!submit || !status || !arrivalField || !departureField || !whatsappBase) {
         if (submit) submit.disabled = true;
         if (status) {
           status.dataset.state = 'error';
@@ -70,24 +72,44 @@
         }
         return;
       }
+
+      const localDateString = date => {
+        const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+      };
+      const updateDateConstraints = () => {
+        // Recompute today on every edit and submit so a tab left open across
+        // local midnight cannot keep accepting yesterday as an arrival date.
+        const today = localDateString(new Date());
+        const arrival = String(arrivalField.value || '');
+        const departure = String(departureField.value || '');
+        arrivalField.min = today;
+        // Never allow a departure date before today, even while an invalid
+        // past arrival is being corrected.
+        departureField.min = arrival > today ? arrival : today;
+        departureField.setCustomValidity(
+          arrival && departure && departure <= arrival
+            ? 'Departure must be after arrival.'
+            : ''
+        );
+      };
+      ['input', 'change'].forEach(type => {
+        arrivalField.addEventListener(type, updateDateConstraints);
+        departureField.addEventListener(type, updateDateConstraints);
+      });
+      updateDateConstraints();
+
       submit.disabled = false;
       status.dataset.state = 'ready';
       status.textContent = 'Ready. Review the details, then prepare a WhatsApp draft. Nothing is sent automatically.';
       form.addEventListener('submit', event => {
         event.preventDefault();
+        updateDateConstraints();
         if (!form.reportValidity()) return;
         const data = new FormData(form);
         const arrival = String(data.get('arrival') || '');
         const departure = String(data.get('departure') || '');
-        const departureField = form.querySelector('[name="departure"]');
-        if (!arrival || !departure || departure <= arrival) {
-          if (departureField) {
-            departureField.setCustomValidity('Departure must be after arrival.');
-            departureField.reportValidity();
-            departureField.addEventListener('input', () => departureField.setCustomValidity(''), { once: true });
-          }
-          return;
-        }
+        if (!arrival || !departure || departure <= arrival) return;
         const lines = [
           'Namaste Garh Jaisal Haveli, I would like to enquire about a stay/experience.',
           'Interest: ' + String(data.get('experience') || 'Not specified'),
@@ -101,7 +123,7 @@
         const target = whatsappBase + '?text=' + encodeURIComponent(lines.join('\n'));
         window.open(target, '_blank', 'noopener,noreferrer');
         status.dataset.state = 'ready';
-        status.textContent = 'WhatsApp opened with your draft message. Review the recipient and details before sending; no reservation is confirmed by this website.';
+        status.textContent = 'Your WhatsApp draft is ready to review in the new tab. If it did not open, check your browser’s pop-up settings. No reservation is confirmed by this website.';
       });
     });
   }
