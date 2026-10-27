@@ -69,7 +69,8 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
                 "sha256": hashlib.sha256(payload).hexdigest(),
             })
     pages = [page for page, _title in review.PAGES]
-    widths = [width for width, _height, _label in review.VIEWPORTS]
+    screenshot_widths = [width for width, _height, _label in review.VIEWPORTS]
+    audit_widths = list(review.RESPONSIVE_AUDIT_VIEWPORT_WIDTHS)
     report = {
         "schemaVersion": 4,
         "mode": "staging-read-only",
@@ -80,8 +81,8 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
         "pagesPlanned": pages,
         "pagesAttempted": pages,
         "pagesWithHttp200OnTargetOrigin": pages,
-        "plannedViewportWidthsCssPixels": widths,
-        "completedResponsiveViewportWidthsCssPixels": widths,
+        "plannedViewportWidthsCssPixels": audit_widths,
+        "completedResponsiveViewportWidthsCssPixels": audit_widths,
         "evidenceCoverage": {
             "pageNavigationComplete": True,
             "pageHttp200Complete": True,
