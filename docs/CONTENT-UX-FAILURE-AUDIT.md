@@ -815,6 +815,7 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Added the detail page with nine stable anchors, source-backed sequence outlines, source-listed inclusions/exclusions and questions to confirm before travel.
 - Kept all enquiries and booking links dependent on the existing `content/site-config.json` runtime hydration; no contact URL or phone number is duplicated in the new HTML.
 - Added a regression test that checks every source-page link resolves to exactly one destination anchor, verifies social-preview metadata and local image provenance, and prevents unapproved rates, fixed times or canonical publication.
+- The first exact-head PR run also found that the new detail destination had replaced the card's separate enquiry action. All nine cards now retain a distinct, config-driven “Ask about dates” action that starts disabled; the detail route marks Experiences as the current navigation location, and the Chromium contract distinguishes that parent location from a page-level current link.
 - Expanded content, media, Chromium smoke and staging visual-review coverage to include the new route. The staging evidence contract now expects eight pages across three viewport widths (24 full-page screenshots).
 
 ### Release boundary
