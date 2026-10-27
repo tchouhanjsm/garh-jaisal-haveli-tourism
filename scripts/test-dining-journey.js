@@ -78,7 +78,7 @@ assert.ok(html.includes('Current menu items and prices are not displayed because
 assert.match(html, /does not publish dishes or prices as current/i, 'No current dishes/prices are presented as confirmed');
 assert.match(html, /not a reservation|not reserved until the restaurant replies and confirms/i,
   'The enquiry form states that it does not create a reservation');
-assert.match(html, /No guest data is stored on this website/i, 'No backend persistence is promised');
+assert.match(html, /Nothing is stored on this website/i, 'No backend persistence is promised');
 assert.ok(html.includes('href="https://maps.app.goo.gl/28gGJ6tX8xoanQ9D8"'), 'Restaurant map destination is retained');
 assert.ok(html.includes('https://www.instagram.com/garhjaisal/'), 'Owner-provided restaurant Instagram link is retained');
 assert.ok(html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"'), 'The rooftop table image remains locally hosted');
