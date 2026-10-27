@@ -190,6 +190,8 @@ def unknown_route_evidence_issues(evidence: object) -> list[str]:
                 issues.append("unknownRouteEvidence viewport checks must be ordered 360, 768, 1440.")
             if record.get("httpStatus") != 404:
                 issues.append(f"unknownRouteEvidence at {width}px must report HTTP 404.")
+            if record.get("recoveryLinks") != UNKNOWN_ROUTE_RECOVERY_LINKS:
+                issues.append(f"unknownRouteEvidence at {width}px must include all six recovery routes.")
             for flag in required_flags:
                 if record.get(flag) is not True:
                     issues.append(f"unknownRouteEvidence at {width}px must pass {flag}.")
@@ -497,12 +499,14 @@ def build_html(report: dict, screenshots: Path, results: list[dict], issues: lis
             continue
         width = html.escape(str(record.get("viewportWidthCssPixels", "Unknown")))
         status = html.escape(str(record.get("httpStatus", "Not recorded")))
-        passed = (record.get("httpStatus") == 404 and all(
-            record.get(flag) is True for flag in (
-                "targetOrigin", "brandedRecoveryPage", "noindex",
-                "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
-            )
-        ))
+        passed = (record.get("httpStatus") == 404
+                  and record.get("recoveryLinks") == UNKNOWN_ROUTE_RECOVERY_LINKS
+                  and all(
+                      record.get(flag) is True for flag in (
+                          "targetOrigin", "brandedRecoveryPage", "noindex",
+                          "rootRelativeAssets", "contactChannelsHydrated", "responsiveLayoutValid",
+                      )
+                  ))
         row_class = "pass" if passed else "fail"
         summary = "Pass" if passed else "Fail / incomplete"
         unknown_rows.append(
