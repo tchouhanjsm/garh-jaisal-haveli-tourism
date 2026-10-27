@@ -732,3 +732,37 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The exact-head GitHub-hosted full quality suite is required; local `bash scripts/check-pr-quality.sh` was not run because a complete local checkout was unavailable.
 - The new check does not alter public HTML, assets, site configuration, canonical/robots/sitemap policy, contact endpoints, menu content or deployment configuration.
 - Source checks cannot certify WCAG conformance, test real assistive technology, measure contrast, prove live booking/contact reachability or substitute for STG-01–STG-18. The operator UAT and production approval gates remain unchanged.
+
+
+## 27 October 2026 — Recursive route and fragment validation
+
+### Baseline and finding
+
+- Live main at phase start: \`2aa27db3a34c883322096c148075cc8c047129fc\`; there were no open PRs. Post-merge quality run [#40448685596](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40448685596) completed successfully on that exact SHA.
+- The static checker used \`glob("*.html")\` for each of the root, \`tours/\` and \`blogs/\` directories. It therefore missed deeper nested content routes. Its fragment-only links also skipped local target resolution, so a missing same-page anchor such as \`href="#missing"\` could escape the link-integrity check.
+
+### Implementation on \`feat/deep-static-route-integrity-20261027\`
+
+- Refactored \`scripts/check-site.py\` into testable route-discovery, local-reference and repository-audit functions.
+- Recursive discovery now covers every root HTML page and nested HTML under \`tours/\` and \`blogs/\`, while not following symlinked directories/files.
+- Local URL resolution now separates path/query/fragment, decodes URL-encoded paths, supports root-relative and page-relative paths, maps directory paths to an existing \`index.html\`, rejects repository escapes and checks fragments on the resolved HTML page, including fragment-only links.
+- Added \`scripts/test-site-integrity-contract.py\` fixtures for nested tours/blogs, query-bearing links, root-relative paths, valid same/cross-page anchors, missing files, missing fragments and traversal attempts.
+- Wired the contract into \`scripts/check-site.sh\`; the full quality suite already invokes that script through the site-integrity gate.
+- Added \`docs/STATIC-ROUTE-INTEGRITY.md\` and updated README/launch documentation.
+
+### Changed paths
+
+- \`scripts/check-site.py\`
+- \`scripts/test-site-integrity-contract.py\`
+- \`scripts/check-site.sh\`
+- \`docs/STATIC-ROUTE-INTEGRITY.md\`
+- \`README.md\`
+- \`docs/LAUNCH-READINESS-CHECKLIST.md\`
+- \`docs/CONTENT-UX-FAILURE-AUDIT.md\`
+
+### Validation and release boundary
+
+- Exact-head PR and push quality runs are required after the final commit; no pass is claimed for this branch before those runs complete.
+- Local \`bash scripts/check-pr-quality.sh\` was not run because a complete local checkout is unavailable.
+- The change is offline-only and does not modify public content/assets, contact endpoints, menu approval, canonical/robots/sitemap publication settings or deployment configuration.
+- STG-01–STG-18, real assistive-technology testing, Lighthouse, normal-browser booking checks and human contact reachability remain unverified.
