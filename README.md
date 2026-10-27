@@ -8,7 +8,7 @@ A mobile-first, conversion-focused website for Garh Jaisal Haveli in Jaisalmer, 
 - `rooms.html` — source-backed room finder and side-by-side comparison shortlist, with direct availability enquiry
 - `experiences.html` — Thar Desert safari/camping and guided city tour service pages
 - `dining.html` — restaurant overview, approval-gated menu, table-enquiry draft and arrival directions in accessible tabs
-- `about.html` — the fort setting and practical guest-planning guidance, without unverified family-history claims
+- `about.html` — an editorial introduction to the lived-in fort setting, with four practical decisions for arrival, room choice, experiences and dining
 - `directions.html` — arrival planning, access expectations and route questions to confirm
 - `gallery.html` — locally hosted, source-reviewed room, fort, rooftop and desert references
 - `404.html` — branded recovery route with useful page links and centrally configured booking/contact actions
@@ -221,3 +221,7 @@ The Experiences, experience-detail and Dining pages share a date-aware enquiry f
 ### Room comparison shortlist
 
 The Rooms catalogue provides a progressive shortlist for comparing up to three of the seven source-listed rooms. It reuses each room card's local photograph, listed floor, description and visible feature list; it does not infer live inventory, missing amenities, occupancy or rates. Selection exists only in the current page session and is not written to browser storage or sent to a server. With JavaScript disabled, all room cards remain available and comparison controls are not shown. On narrow screens, the comparison table scrolls horizontally and remains keyboard-focusable.
+
+### Arrival wayfinding and cross-page planning
+
+The Directions page shows the owner-maintained legacy source distances for the last walk: about 300 metres from Fort Parking and about 200 metres from the fort entrance. The current source page also gives a 5–6 minute estimate from Fort Parking; the 3–4 minute figure from the entrance is a provisional owner-provided planning estimate, not stated in the current source page. All walking-time guidance is approximate and must be reconfirmed by the owner before guests rely on it. The same contextual deep link is available from Home, Rooms, Experiences, Experience details, Dining, About and Gallery so guests can check the final approach while choosing what to do. Time-specific rickshaw hours are deliberately omitted until the owner confirms current local rules; guests are directed to confirm access and the meeting point for their date. CI covers the distance copy, page links and responsive layout; it does not replace owner confirmation, contact reachability checks or manual staging UAT.

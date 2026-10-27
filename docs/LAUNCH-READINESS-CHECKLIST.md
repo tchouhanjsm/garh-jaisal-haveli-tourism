@@ -289,3 +289,22 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Add deterministic contract coverage and Chromium interaction checks for selection, the limit, removal, filter recovery and no-JavaScript fallback.
 - [ ] On an owner-approved HTTPS staging origin, manually verify the comparison layout and keyboard operation at mobile and desktop sizes. This remains NOT RUN; automated browser CI is not human UAT.
 - [ ] Owner must confirm current room assignment, bed arrangements, occupancy, amenities and total rates for the guest's dates. The comparison uses the source catalogue only and is not live inventory.
+
+### P1 — About / story route
+
+- [ ] Read the About page at mobile and desktop widths. Confirm the story describes a lived-in fort setting rather than generic hotel copy or invented family history.
+- [ ] Confirm the four planning steps link to the correct arrival, rooms, experiences and dining pages; keyboard focus remains visible and no content overflows at narrow widths.
+- [ ] Verify the arrival constraint is clear, room photographs are not presented as live inventory, and current rates, menu, service hours, tours and assistance are explicitly left for confirmation.
+- [ ] Verify Book Now opens the external booking flow and the WhatsApp action creates a guest-reviewed draft only. Do not send a message or create a reservation as part of this check.
+- [ ] Record operator, exact staging URL, Asia/Kolkata date/time, browser/device/viewport, result, evidence and follow-up. Automated tests do not complete this gate.
+
+## 27 October 2026 — Cross-page arrival wayfinding
+
+- [x] Added source-listed distances to Directions: about 300 metres from Fort Parking and about 200 metres from the fort entrance. The source lists 5–6 minutes from parking; the 3–4 minute entrance figure is a provisional owner-provided estimate, not present in the current source page. All walking-time guidance still requires owner confirmation before release.
+- [x] Added a general rickshaw-access enquiry prompt. Time-specific hours are omitted until the owner confirms current local rules; the page directs guests to confirm the drop-off/meeting point.
+- [x] Linked the same arrival facts from Home, Rooms, Experiences, Experience details, Dining, About and Gallery to reduce inconsistencies between planning contexts.
+- [x] Added a scoped responsive stylesheet, a static source-fact/link contract and Chromium checks for the seven cross-page links, distance cards and responsive widths.
+- [ ] Owner must confirm the approximate walking estimates and current local vehicle-access rules before guests rely on them. Do not publish the legacy 8:00 AM–8:00 PM rickshaw window unless the owner reconfirms it.
+- [ ] On an owner-approved HTTPS staging origin, manually verify the Directions card layout and the linked anchor at mobile and desktop widths; inspect image crop and keyboard operation. No staging URL is approved or assumed by this change.
+- [ ] Verify the exact map pin and contact-channel reachability through an operator-controlled check. Source authorization is not proof of live reachability, and no external link/message is opened or sent by the browser test.
+- [ ] STG-01–STG-18 remain NOT RUN until an operator records actual evidence. Canonical activation, public sitemap, robots-policy changes, production deployment and guest-data collection remain separately gated.

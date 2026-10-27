@@ -1,0 +1,78 @@
+/* Source-backed arrival distances, scoped to the Directions page. */
+.arrival-distance-guide {
+  padding-top: 0;
+}
+
+.arrival-distance-guide__intro {
+  max-width: 780px;
+  margin-bottom: 26px;
+}
+
+.arrival-distance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.arrival-distance-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: clamp(18px, 2.1vw, 28px);
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink);
+}
+
+.arrival-distance-card > * {
+  margin: 0;
+}
+
+.arrival-distance-card .eyebrow {
+  line-height: 1.5;
+}
+
+.arrival-distance-card__measure {
+  font-family: var(--serif);
+  font-size: clamp(23px, 2.4vw, 31px);
+  line-height: 1.2;
+}
+
+.arrival-distance-card__time {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.arrival-distance-card > p:last-child {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.arrival-distance-card--access {
+  background: var(--paper);
+}
+
+.arrival-distance-guide__caveat {
+  max-width: 900px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+@media (max-width: 900px) {
+  .arrival-distance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .arrival-distance-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
