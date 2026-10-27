@@ -1448,22 +1448,32 @@ def check_room_finder(page, base_url: str, browser) -> None:
     for image in compare_images.all():
         try:
             image.scroll_into_view_if_needed(timeout=3000)
-            image.evaluate("img => img.decode()")
-            details = image.evaluate("""img => ({
-              alt: img.getAttribute("alt") || "",
-              src: img.getAttribute("src") || "",
-              currentSrc: img.currentSrc || "",
-              complete: img.complete,
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight
-            })""")
+            details = image.evaluate("""async img => {
+              const alt = img.getAttribute("alt") || "";
+              const src = img.getAttribute("src") || "";
+              if (src.startsWith("/")) {
+                // Convert root-relative local sources to a URL explicitly after the browser has positioned the image.
+              } else if (!/^https?:\\/\\//i.test(src)) {
+                return {alt, src, currentSrc: img.currentSrc || "", complete: img.complete,
+                  naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, decoded: false};
+              }
+              try {
+                await img.decode();
+                return {alt, src, currentSrc: img.currentSrc || "", complete: img.complete,
+                  naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, decoded: true};
+              } catch (_) {
+                return {alt, src, currentSrc: img.currentSrc || "", complete: img.complete,
+                  naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, decoded: false};
+              }
+            }""")
             check(bool(details["alt"].strip()),
                   "Rooms: each comparison thumbnail must retain descriptive alt text")
-            check((details["src"].startswith("/") or same_origin(details["src"], base_url))
-                  and same_origin(details["currentSrc"], base_url),
-                  "Rooms: each comparison thumbnail must use a local same-origin image source")
-            check(details["complete"] and details["naturalWidth"] > 0 and details["naturalHeight"] > 0,
-                  "Rooms: each comparison thumbnail must decode to non-zero intrinsic dimensions")
+            source_is_local = details["src"].startswith("/") or same_origin(details["src"], base_url)
+            check(source_is_local and same_origin(details["currentSrc"], base_url),
+                  f"Rooms: each comparison thumbnail must use a local same-origin image source (src={details['src']!r}, currentSrc={details['currentSrc']!r})")
+            check(details["decoded"] and details["complete"]
+                  and details["naturalWidth"] > 0 and details["naturalHeight"] > 0,
+                  f"Rooms: each comparison thumbnail must decode to non-zero intrinsic dimensions (src={details['src']!r}, size={details['naturalWidth']}x{details['naturalHeight']})")
         except Exception as error:
             check(False, f"Rooms: comparison thumbnail failed to load: {error}")
 
