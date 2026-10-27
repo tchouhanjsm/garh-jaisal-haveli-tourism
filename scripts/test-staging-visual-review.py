@@ -93,7 +93,7 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
         "automatedFailureCount": 0,
         "automatedFailures": [],
         "unknownRouteEvidence": {
-            "path": browser_smoke.NOT_FOUND_RECOVERY_LINKS[0].replace("/directions.html", "/" + browser_smoke.NOT_FOUND_SMOKE_PATH),
+            "path": "/" + browser_smoke.NOT_FOUND_SMOKE_PATH,
             "expectedHttpStatus": 404,
             "recoveryLinks": list(browser_smoke.NOT_FOUND_RECOVERY_LINKS),
             "viewportChecks": [
