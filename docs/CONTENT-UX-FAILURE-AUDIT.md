@@ -766,3 +766,39 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Local \`bash scripts/check-pr-quality.sh\` was not run because a complete local checkout is unavailable.
 - The change is offline-only and does not modify public content/assets, contact endpoints, menu approval, canonical/robots/sitemap publication settings or deployment configuration.
 - STG-01–STG-18, real assistive-technology testing, Lighthouse, normal-browser booking checks and human contact reachability remain unverified.
+
+
+## 27 October 2026 — Recursive SEO publication and social-preview parity
+
+### Finding
+
+- The route-integrity gate now covers nested generated pages, but the pre-launch SEO publication guard still inspected only root files and one directory level. A future deeper tour/blog page could therefore introduce a canonical link or `og:url` without triggering that guard.
+- The deterministic content renderer emitted Open Graph image metadata but omitted the corresponding Twitter image and alt tags. Explicit tour `seo.ogImage` metadata also had no dedicated, enforced image-alt field.
+
+### Implementation
+
+- Made the SEO publication guard recursively inspect root HTML plus nested `tours/` and `blogs/` pages, excluding symlinked routes.
+- Added nested tour/blog fixture tests for canonical and `og:url` regressions, plus a symlink non-following test.
+- Added optional `seo.ogAlt` fields to tour/blog schemas and made them mandatory by policy whenever `seo.ogImage` is supplied. The renderer independently blocks live records missing that alt text.
+- Updated generated tour/blog markup so Twitter image URL and alt text exactly match Open Graph metadata, using the explicit OG alt for `seo.ogImage` or the verified hero alt for a blog hero fallback.
+- Extended content contract and renderer tests, and documented the new release safeguard.
+
+### Changed paths
+
+- `scripts/test-seo-publication-safeguards.js`
+- `scripts/test-seo-publication-safeguards-contract.js`
+- `scripts/build-content-pages.js`
+- `scripts/validate-content.js`
+- `content/schemas/tour.schema.json`
+- `content/schemas/blog.schema.json`
+- `scripts/test-content-renderer.js`
+- `scripts/test-content-contract.js`
+- `README.md`
+- `docs/LAUNCH-READINESS-CHECKLIST.md`
+- `docs/CONTENT-UX-FAILURE-AUDIT.md`
+
+### Validation and release boundary
+
+- The full GitHub-hosted quality suite on the exact PR head is required before merge; local `bash scripts/check-pr-quality.sh` was not run because a complete checkout is unavailable in this environment.
+- No public page copy, property facts, source images, menu, contact endpoints, canonical approval, robots policy, sitemap entries or deployment settings were changed.
+- The pre-launch guard intentionally still rejects canonical/OG URL activation. Manual staging social-preview review, STG-01–STG-18, booking-provider browser verification and human contact-channel checks remain NOT RUN.

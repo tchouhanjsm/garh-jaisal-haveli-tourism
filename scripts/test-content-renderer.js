@@ -17,6 +17,7 @@ const REQUIRED_FILES = [
   'content/tours/sunset-camel-safari.json',
   'content/blogs/jaisalmer-fort-guide.json',
   'sitemap.xml',
+  'assets/images/gallery/hotel/fort-from-roof.webp',
   'assets/site.css',
   'assets/site.js',
   'assets/css/content-pages.css',
@@ -47,6 +48,13 @@ function writeJson(root, relative, value) {
   fs.writeFileSync(path.join(root, relative), JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
 
+function copyFixtureImage(root, targetRelative) {
+  const source = path.join(root, 'assets/images/gallery/hotel/fort-from-roof.webp');
+  const target = path.join(root, targetRelative);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(source, target);
+}
+
 function approveCanonicalAndContact(root) {
   const config = readJson(root, 'content/site-config.json');
   config.verificationStatus = 'owner-verified';
@@ -65,6 +73,9 @@ function makeTourLive(root) {
   tour.factsConfirmed = true;
   tour.lastVerified = '2026-10-25';
   tour.publishedAt = '2026-10-25';
+  tour.seo.ogImage = 'assets/images/tours/sunset-camel-safari/sunset-camel-safari-og-01.webp';
+  tour.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  copyFixtureImage(root, tour.seo.ogImage);
   writeJson(root, 'content/tours/sunset-camel-safari.json', tour);
 }
 
@@ -73,6 +84,9 @@ function makeBlogLive(root) {
   blog.status = 'live';
   blog.lastReviewed = '2026-10-25';
   blog.publishedAt = '2026-10-25';
+  blog.heroImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
+  blog.heroAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  copyFixtureImage(root, blog.heroImage);
   blog.enquiryCta = { label: 'Email the hotel with a question', mode: 'contact' };
   writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', blog);
 }
@@ -129,6 +143,17 @@ try {
   assert.ok(whatsappHref, 'approved WhatsApp CTA should be rendered');
   assert.ok(new URL(whatsappHref[1].replace(/&amp;/g, '&')).searchParams.get('text').includes('I understand this is an enquiry, not a confirmed booking.'));
   assert.ok(tourHtml.includes('rel="noopener noreferrer"'));
+  const tourOgImage = 'https://hotelgarhjaisal.com/assets/images/tours/sunset-camel-safari/sunset-camel-safari-og-01.webp';
+  const tourOgAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  assert.ok(tourHtml.includes('<meta property="og:image" content="' + tourOgImage + '">'));
+  assert.ok(tourHtml.includes('<meta property="og:image:alt" content="' + tourOgAlt + '">'));
+  assert.ok(tourHtml.includes('<meta name="twitter:image" content="' + tourOgImage + '">'));
+  assert.ok(tourHtml.includes('<meta name="twitter:image:alt" content="' + tourOgAlt + '">'));
+  const blogOgImage = 'https://hotelgarhjaisal.com/assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
+  assert.ok(blogHtml.includes('<meta property="og:image" content="' + blogOgImage + '">'));
+  assert.ok(blogHtml.includes('<meta property="og:image:alt" content="' + tourOgAlt + '">'));
+  assert.ok(blogHtml.includes('<meta name="twitter:image" content="' + blogOgImage + '">'));
+  assert.ok(blogHtml.includes('<meta name="twitter:image:alt" content="' + tourOgAlt + '">'));
   assert.ok(blogHtml.includes('aria-label="On this page"'));
   assert.ok(blogHtml.includes('id="living-fort"'));
   assert.ok(blogHtml.includes('Rajasthan Tourism — Jaisalmer destination guide'));
@@ -138,6 +163,19 @@ try {
   assert.ok(sitemap.includes('https://hotelgarhjaisal.com/tours/sunset-camel-safari.html'));
   assert.ok(sitemap.includes('https://hotelgarhjaisal.com/blogs/jaisalmer-fort-guide.html'));
   assert.equal(buildContentPages(root, { write: false }).sitemapChanged, false, 'second check should be deterministic');
+
+  const tourWithoutOgAlt = readJson(root, 'content/tours/sunset-camel-safari.json');
+  delete tourWithoutOgAlt.seo.ogAlt;
+  writeJson(root, 'content/tours/sunset-camel-safari.json', tourWithoutOgAlt);
+  assert.throws(
+    () => buildContentPages(root, { write: false }),
+    /seo\.ogImage requires meaningful seo\.ogAlt text/,
+    'live record with explicit OG image but no alt text must be blocked',
+  );
+  writeJson(root, 'content/tours/sunset-camel-safari.json', {
+    ...tourWithoutOgAlt,
+    seo: { ...tourWithoutOgAlt.seo, ogAlt: 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk' },
+  });
 
   const unsafeConfig = readJson(root, 'content/site-config.json');
   unsafeConfig.site.canonicalHostApproved = false;

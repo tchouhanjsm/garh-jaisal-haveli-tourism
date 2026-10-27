@@ -186,3 +186,11 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 - \`scripts/check-site.py\` audits every root HTML page and recursively discovers generated pages under \`tours/\` and \`blogs/\`. It validates local \`href\`/\`src\` files, same-page and cross-page anchors, query-bearing URLs, URL-encoded paths, root-relative references and repository-boundary safety.
 - \`scripts/test-site-integrity-contract.py\` exercises nested tour/blog routes and verifies that missing files, missing anchors and path traversal fail. See [Static Route Integrity](docs/STATIC-ROUTE-INTEGRITY.md).
 - These checks are offline repository tests; they do not contact staging or third-party endpoints and do not replace STG-01–STG-18 or owner approval.
+
+
+### Generated-page social preview safety
+
+- Generated tour/blog pages emit matching Open Graph and Twitter card image URLs and image alt text whenever a preview image is present.
+- A content record that sets `seo.ogImage` must also provide meaningful `seo.ogAlt`; the schemas define the field, while the repository validator and live renderer enforce the requirement so an explicit social image cannot ship with a missing description.
+- The pre-launch canonical/OG URL safeguard recursively checks root HTML and every nested HTML page under `tours/` and `blogs/`, while ignoring symlinked routes. This closes the gap where a deeply nested generated page could bypass publication protection.
+- These are offline source and renderer checks. They do not activate canonical URLs, change robots/sitemap publication, or replace staging social-preview review.

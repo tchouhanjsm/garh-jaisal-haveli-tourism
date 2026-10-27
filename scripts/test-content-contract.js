@@ -64,6 +64,17 @@ const validGallery = {
 assert.deepEqual(validateAgainstSchema(schemas.tour, validTour), [], 'valid tour fixture should satisfy the actual schema');
 assert.deepEqual(validateAgainstSchema(schemas.blog, validBlog), [], 'valid blog fixture should satisfy the actual schema');
 assert.deepEqual(validateAgainstSchema(schemas.gallery, validGallery), [], 'valid gallery fixture should satisfy the actual schema');
+const tourWithOgImage = {
+  ...validTour,
+  seo: {
+    ...validTour.seo,
+    ogImage: 'assets/images/tours/sunset-camel-safari/sunset-camel-safari-og-01.webp',
+    ogAlt: 'Carved sandstone rooftop terrace overlooking Jaisalmer Fort at dusk',
+  },
+};
+assert.deepEqual(validateAgainstSchema(schemas.tour, tourWithOgImage), [], 'explicit OG image and alt text should satisfy the schema');
+assert.ok(validateAgainstSchema(schemas.tour, { ...tourWithOgImage, seo: { ...tourWithOgImage.seo, ogAlt: '' } }).length > 0,
+  'empty OG image alt text must fail schema validation');
 assert.ok(validateAgainstSchema(schemas.tour, { ...validTour, slug: '../escape' }).length > 0, 'unsafe tour slug must fail');
 assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, sources: [] }).length > 0, 'blog without source references must fail');
 assert.ok(validateAgainstSchema(schemas.gallery, {
@@ -83,6 +94,21 @@ assert.ok(findings.some(f => f.message.includes('factsConfirmed')), 'live tour w
 assert.ok(findings.some(f => f.message.includes('lastVerified')), 'live tour without verification date must be rejected');
 assert.ok(findings.some(f => f.message.includes('canonical host')), 'live content without approved canonical host must be rejected');
 
+const missingOgAltFindings = [];
+validateRecordPolicy('tour', {
+  ...validTour,
+  seo: {
+    ...validTour.seo,
+    ogImage: 'assets/images/tours/sunset-camel-safari/sunset-camel-safari-og-01.webp',
+  },
+}, root, {
+  contentTypes: { tour: { outputDirectory: 'tours', outputExtension: '.html' } },
+}, {
+  site: { canonicalHostApproved: false, newStaticSiteCanonicalHost: 'https://example.test' },
+}, missingOgAltFindings, 'content/tours/sunset-camel-safari.json');
+assert.ok(missingOgAltFindings.some(f => f.path.endsWith('.seo.ogAlt')
+  && f.message.includes('meaningful seo.ogAlt')),
+'content policy must reject an explicit OG image without meaningful alt text');
 
 const fortGuide = JSON.parse(fs.readFileSync(path.join(root, 'content/blogs/jaisalmer-fort-guide.json'), 'utf8'));
 assert.deepEqual(validateAgainstSchema(schemas.blog, fortGuide), [], 'Fort guide draft must satisfy the production blog schema');

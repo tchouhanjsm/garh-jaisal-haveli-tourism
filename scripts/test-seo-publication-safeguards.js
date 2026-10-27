@@ -20,23 +20,34 @@ function parseAttributes(tag) {
   return attrs;
 }
 
-function publicHtmlFiles(root) {
+function publicHtmlFiles(rootDirectory) {
+  const root = path.resolve(rootDirectory);
   const files = [];
-  for (const directory of ['', 'tours', 'blogs']) {
-    const absoluteDirectory = path.resolve(root, directory);
-    if (!absoluteDirectory.startsWith(path.resolve(root) + path.sep)
-        && absoluteDirectory !== path.resolve(root)) {
-      continue;
-    }
-    if (!fs.existsSync(absoluteDirectory) || !fs.statSync(absoluteDirectory).isDirectory()) continue;
-    for (const entry of fs.readdirSync(absoluteDirectory, { withFileTypes: true })) {
-      if (!entry.name.toLowerCase().endsWith('.html')) continue;
-      const candidate = path.join(absoluteDirectory, entry.name);
-      if (!entry.isFile()) continue;
-      files.push(candidate);
+
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.isFile() && /\.html$/i.test(entry.name)) {
+      files.push(path.join(root, entry.name));
     }
   }
-  return files.sort();
+
+  for (const directory of ['tours', 'blogs']) {
+    const base = path.join(root, directory);
+    let stat;
+    try { stat = fs.lstatSync(base); } catch (_) { continue; }
+    if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
+
+    const walk = current => {
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        if (entry.isSymbolicLink()) continue;
+        const candidate = path.join(current, entry.name);
+        if (entry.isDirectory()) walk(candidate);
+        else if (entry.isFile() && /\.html$/i.test(entry.name)) files.push(candidate);
+      }
+    };
+    walk(base);
+  }
+
+  return [...new Set(files)].sort();
 }
 
 function auditPublicationSafeguards(rootDirectory) {

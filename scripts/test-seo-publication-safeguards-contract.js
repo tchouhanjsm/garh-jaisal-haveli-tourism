@@ -13,6 +13,8 @@ function withFixture(mutator = () => {}) {
     fs.mkdirSync(path.join(root, 'content'), { recursive: true });
     fs.mkdirSync(path.join(root, 'tours'), { recursive: true });
     fs.mkdirSync(path.join(root, 'blogs'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'tours', 'nested', 'deeper'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'blogs', 'nested', 'deeper'), { recursive: true });
     fs.writeFileSync(path.join(root, 'content', 'site-config.json'), JSON.stringify({
       site: { canonicalHostApproved: false, newStaticSiteCanonicalHost: 'https://example.test' },
     }));
@@ -22,6 +24,10 @@ function withFixture(mutator = () => {}) {
     fs.writeFileSync(path.join(root, '404.html'), '<html><head><meta name="robots" content="noindex,follow"></head><body><h1>Not found</h1></body></html>');
     fs.writeFileSync(path.join(root, 'tours', 'desert.html'), '<html><head><meta property="og:title" content="Desert"></head><body><h1>Desert</h1></body></html>');
     fs.writeFileSync(path.join(root, 'blogs', 'fort.html'), '<html><head><meta property="og:description" content="Fort"></head><body><h1>Fort</h1></body></html>');
+    fs.writeFileSync(path.join(root, 'tours', 'nested', 'deeper', 'route.html'),
+      '<html><head><meta property="og:title" content="Nested tour"></head><body><h1>Nested tour</h1></body></html>');
+    fs.writeFileSync(path.join(root, 'blogs', 'nested', 'deeper', 'guide.html'),
+      '<html><head><meta property="og:title" content="Nested guide"></head><body><h1>Nested guide</h1></body></html>');
     mutator(root);
     return auditPublicationSafeguards(root);
   } finally {
@@ -31,7 +37,17 @@ function withFixture(mutator = () => {}) {
 
 const baseline = withFixture();
 assert.deepEqual(baseline.errors, [], 'valid pre-launch state must pass');
-assert.equal(baseline.pagesChecked, 4, 'root, tours and blogs HTML must all be scanned');
+assert.equal(baseline.pagesChecked, 6, 'root and recursively nested tours/blogs HTML must all be scanned');
+
+const symlinkBaseline = withFixture(root => {
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(outside, { recursive: true });
+  fs.writeFileSync(path.join(outside, 'hidden.html'),
+    '<html><head><link rel="canonical" href="https://example.test/hidden"></head></html>');
+  fs.symlinkSync(outside, path.join(root, 'tours', 'nested', 'linked'), 'dir');
+});
+assert.deepEqual(symlinkBaseline.errors, [], 'the SEO guard must not follow symlinked generated directories');
+assert.equal(symlinkBaseline.pagesChecked, 6, 'symlinked HTML must not be counted as public generated output');
 
 function rejects(mutator, pattern, message) {
   const result = withFixture(mutator);
@@ -42,6 +58,18 @@ rejects(root => {
   fs.writeFileSync(path.join(root, 'tours', 'desert.html'),
     '<html><head><link href="https://example.test/tours/desert.html" rel="alternate canonical"></head></html>');
 }, /tours\/desert\.html: canonical link/, 'canonical links in generated tour pages must be rejected');
+
+rejects(root => {
+  fs.writeFileSync(path.join(root, 'tours', 'nested', 'deeper', 'route.html'),
+    '<html><head><link rel="canonical" href="https://example.test/tours/nested/deeper/route.html"></head></html>');
+}, /tours\/nested\/deeper\/route\.html: canonical link/,
+'canonical publication must be rejected at arbitrary nested tour depth');
+
+rejects(root => {
+  fs.writeFileSync(path.join(root, 'blogs', 'nested', 'deeper', 'guide.html'),
+    '<html><head><meta property="og:url" content="https://example.test/blogs/nested/deeper/guide.html"></head></html>');
+}, /blogs\/nested\/deeper\/guide\.html: og:url/,
+'og:url publication must be rejected at arbitrary nested blog depth');
 
 rejects(root => {
   fs.writeFileSync(path.join(root, '404.html'),
