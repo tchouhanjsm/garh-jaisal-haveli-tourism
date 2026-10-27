@@ -932,3 +932,25 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Chromium smoke coverage exercises selecting two and three rooms, rejecting a fourth, removing a room, following a hidden shortlisted room back through the finder, clearing the shortlist and the no-JavaScript fallback.
 - Exact-head GitHub push and pull-request quality workflows must pass before merge. Local full-suite execution is not claimed.
 - Actual staging visual review, keyboard/device acceptance, current room fact confirmation, formal accessibility evaluation, Lighthouse and production release remain separate gates.
+
+## 27 October 2026 — About page story and guest-planning refactor
+
+### Finding
+
+- The About page repeated broad statements about the fort setting and planning in several sections, without giving guests a concise, differentiated sequence of decisions.
+- Guests need an accurate introduction to a lived-in fort address, plus a clear way to move from the story into arrival, room, experience and dining details.
+- The authoritative source describes a heritage stay inside Jaisalmer Fort, but current room inventory, rates, menu, operating hours, tour operation and assistance remain owner-confirmation gates.
+
+### Implementation
+
+- Rewrote the About hero and story copy around the fort as a lived-in settlement, using only source-backed setting and arrival facts.
+- Added a responsive four-part planning sequence for arrival, room choice, experiences and dining. Each step directs guests to the relevant page and explicitly asks them to confirm date-dependent details.
+- Reworked the photo/story section to explain respectful movement through shared lanes and clarify that photographs do not establish current service availability.
+- Tightened the next-step links and final CTA. Book Now remains the external booking flow; WhatsApp remains a guest-reviewed draft and is not a reservation.
+- Added a scoped responsive stylesheet and a deterministic About-page content/metadata/CTA regression test to the full quality suite.
+
+### Validation and release boundary
+
+- Exact-head GitHub push and pull-request quality workflows must pass before merge, followed by the post-merge main quality run.
+- No new images or unverified facilities were introduced. Existing photo identity, source mappings, centralized contact config, canonical approval and robots/sitemap policy are unchanged.
+- Local full-suite execution, staging UAT, Lighthouse and formal accessibility testing are not claimed. The staging origin remains unapproved; manual release gates remain NOT RUN.

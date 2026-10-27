@@ -289,3 +289,11 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Add deterministic contract coverage and Chromium interaction checks for selection, the limit, removal, filter recovery and no-JavaScript fallback.
 - [ ] On an owner-approved HTTPS staging origin, manually verify the comparison layout and keyboard operation at mobile and desktop sizes. This remains NOT RUN; automated browser CI is not human UAT.
 - [ ] Owner must confirm current room assignment, bed arrangements, occupancy, amenities and total rates for the guest's dates. The comparison uses the source catalogue only and is not live inventory.
+
+### P1 — About / story route
+
+- [ ] Read the About page at mobile and desktop widths. Confirm the story describes a lived-in fort setting rather than generic hotel copy or invented family history.
+- [ ] Confirm the four planning steps link to the correct arrival, rooms, experiences and dining pages; keyboard focus remains visible and no content overflows at narrow widths.
+- [ ] Verify the arrival constraint is clear, room photographs are not presented as live inventory, and current rates, menu, service hours, tours and assistance are explicitly left for confirmation.
+- [ ] Verify Book Now opens the external booking flow and the WhatsApp action creates a guest-reviewed draft only. Do not send a message or create a reservation as part of this check.
+- [ ] Record operator, exact staging URL, Asia/Kolkata date/time, browser/device/viewport, result, evidence and follow-up. Automated tests do not complete this gate.
