@@ -9,6 +9,7 @@ Baseline main at the start of the current staging-preflight phase: 22f40dd1f0700
 - The eight core HTML pages expose the shared Book Now, WhatsApp, primary phone, alternate landline and email markers.
 - Contact and booking destinations are centrally configured in content/site-config.json, marked owner-authorized-source / source-authorized, and pass format/host validation in the client runtime.
 - If the central config cannot load, or a channel is malformed, the JavaScript keeps that action disabled instead of guessing a destination.
+- The shared guest-enquiry form on Experiences, Experience details and Dining enforces a non-past arrival date and a departure after arrival. Chromium smoke tests cover date-error recovery, encoded draft content, and the authorized WhatsApp host while intercepting `window.open`; no external message is sent and no booking is created.
 - The named-room gallery uses locally hosted assets mapped to the legacy room catalogue, and the media manifest checks source/target blob SHA, bytes, dimensions, page-specific alt text and content role.
 - The dining page explicitly withholds current menu items/prices while the legacy menu file still says owner_confirmed=false.
 - Canonical URL/OG URL publication and sitemap URL publishing remain gated until the owner approves the actual production hostname.
