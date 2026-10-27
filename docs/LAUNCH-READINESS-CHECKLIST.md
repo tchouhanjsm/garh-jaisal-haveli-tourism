@@ -42,6 +42,14 @@ The test also requires a single high-priority non-lazy image in pages with a vis
 
 Complete and record these checks against the intended staging site first. Do not complete a real reservation or payment simply to test the link.
 
+### P0 — Restaurant table-enquiry journey
+
+- [ ] On staging at desktop and mobile widths, use keyboard and pointer input to switch Overview, Menu, Book a Table and Directions; verify the active state, panel labels, visible focus and ArrowLeft/ArrowRight/Home/End behavior.
+- [ ] Verify the Menu tab clearly says owner confirmation is pending and contains no current dishes or prices until the owner approves the source menu.
+- [ ] Submit a clearly labelled dummy table enquiry using a future date and an available 30-minute slot from 7:00 AM through 10:30 PM. Confirm a WhatsApp draft opens with the entered name, email, mobile, date and time, then close it without sending. Do not use a guest's real information or submit a real reservation.
+- [ ] Confirm blank/malformed fields and past dates are rejected, there are exactly 32 unique time slots, and status text says the table is not reserved until the restaurant replies and confirms. Verify a missing/unauthorized contact configuration keeps the submit action disabled and no data is sent.
+- [ ] Confirm no reservation backend or guest-data persistence has been introduced, and that a successful draft handoff is not recorded as an actual booking. Automated checks do not mark this manual gate complete.
+
 ### P0 — Booking provider and contact channels
 
 - [ ] **AsiaTech Book Now, desktop:** open the link in a normal browser (not a crawler); confirm the correct property/booking portal loads, HTTPS is valid, and arrival/departure/guest controls work.
