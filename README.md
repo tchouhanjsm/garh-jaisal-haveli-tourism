@@ -200,3 +200,8 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 
 `experience-details.html` is the detail companion to `experiences.html`. Each of the six source-listed desert/city options, the Fort heritage walk, car/road arrangements and unconfirmed route ideas has a stable in-page anchor. The page presents source-backed itinerary outlines and questions to settle before travel; it does not publish prices, fixed departure times or current availability. Enquiry and booking links continue to hydrate from `content/site-config.json`, and canonical-host approval remains false until the owner explicitly approves it.
 
+
+
+## Guest enquiry conversion
+
+The Experiences, experience-detail and Dining pages share a date-aware enquiry form. It prepares a WhatsApp draft only when the central public contact configuration authorizes a valid WhatsApp endpoint. It validates the date range, provides an accessible status, and states that an enquiry does not confirm a reservation. The browser does not send the message automatically.
