@@ -649,7 +649,7 @@ def check_404_recovery(page, base_url: str) -> dict:
                         .every(link => link.getAttribute('aria-disabled') !== 'true')
                       && booking.target === '_blank'
                       && new Set((booking.rel || '').split(/\s+/)).has('noopener')
-                      && new Set((booking.rel || '').split(/\\s+/)).has('noreferrer');
+                      && new Set((booking.rel || '').split(' ')).has('noreferrer');
                   } catch (_) {}
                   const recoveryLinks = Array.from(new Set(
                     Array.from(document.querySelectorAll('.not-found-page a[href^="/"]'))
