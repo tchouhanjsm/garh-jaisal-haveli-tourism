@@ -34,6 +34,10 @@ VIEWPORTS = [
     (viewport["width"], viewport["height"])
     for viewport in ROUTE_CONTRACT["viewports"]
 ]
+RESPONSIVE_AUDIT_VIEWPORTS = [
+    (viewport["width"], viewport["height"])
+    for viewport in ROUTE_CONTRACT["responsiveAuditViewports"]
+]
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
 NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
@@ -222,7 +226,7 @@ def unknown_route_evidence_is_complete(evidence: object) -> bool:
             or evidence.get("complete") is not True):
         return False
     checks = evidence.get("viewportChecks")
-    expected_widths = [width for width, _height in VIEWPORTS]
+    expected_widths = [width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS]
     if not isinstance(checks, list) or len(checks) != len(expected_widths):
         return False
     required_flags = (
@@ -272,7 +276,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
     planned_pages = list(PAGES)
     attempted_pages = list(pages_attempted or [])
     http_ok_pages = list(pages_http_ok or [])
-    planned_viewports = [width for width, _ in VIEWPORTS]
+    planned_viewports = [width for width, _ in RESPONSIVE_AUDIT_VIEWPORTS]
     completed_viewport_list = list(completed_viewports or [])
 
     evidence_failures: list[str] = []
@@ -333,7 +337,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         evidence_failures.append(
             "Incomplete unknown-route evidence: the branded recovery page must return HTTP 404, "
             "load root-relative assets and configured contact actions, expose all six recovery routes, "
-            "and fit at 360, 768 and 1440 CSS pixels."
+            "and fit at all six responsive-audit widths (320, 360, 390, 768, 1280 and 1440 CSS pixels)."
         )
 
     reported_failures = [
@@ -560,7 +564,7 @@ def check_404_recovery(page, base_url: str) -> dict:
         "viewportChecks": [],
         "complete": False,
     }
-    for width, height in VIEWPORTS:
+    for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})
         response = None
         try:
@@ -1092,7 +1096,9 @@ def check_staging_publication_guards(page, base_url: str) -> None:
 
 
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
-    for width, height in VIEWPORTS:
+    """Audit six requested breakpoints while capturing full-page evidence at three representative widths."""
+    screenshot_widths = {width for width, _height in VIEWPORTS}
+    for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})
         for page_name in PAGES:
             response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
@@ -1112,21 +1118,21 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             )
             check(dimensions["document"] <= width + 2 and dimensions["body"] <= width + 2,
                   f"{page_name} at {width}px: horizontal overflow ({dimensions})")
-            if width == 360:
+            if width <= 390:
                 bar = page.locator(".mobile-booking-bar")
-                check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at 360px")
+                check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
                 box = bar.bounding_box()
                 if box:
                     check(box["x"] >= -1 and box["x"] + box["width"] <= width + 1,
-                          f"{page_name}: mobile booking bar exceeds viewport width")
+                          f"{page_name}: mobile booking bar exceeds {width}px viewport")
                     check(box["y"] >= -1 and box["y"] + box["height"] <= height + 1,
-                          f"{page_name}: mobile booking bar is outside the viewport")
-            if width == 1440:
+                          f"{page_name}: mobile booking bar is outside the {width}px viewport")
+            if width >= 1280:
                 check(page.locator("#primary-navigation").is_visible(),
-                      f"{page_name}: desktop primary navigation must be visible")
+                      f"{page_name}: desktop primary navigation must be visible at {width}px")
                 check(not page.locator(".menu-toggle").is_visible(),
-                      f"{page_name}: mobile menu toggle must be hidden at desktop width")
-            if screenshots_dir is not None:
+                      f"{page_name}: mobile menu toggle must be hidden at {width}px")
+            if screenshots_dir is not None and width in screenshot_widths:
                 capture_visual_evidence(page, page_name, width, height, screenshots_dir)
         VIEWPORTS_COMPLETED.append(width)
 
@@ -1525,7 +1531,7 @@ def main(argv: list[str] | None = None) -> int:
     mode_label = "staging" if staging_mode else "local"
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
-        "same-origin assets/publication guards, contact-link hydration, 360/768/1440px layout, "
+        "same-origin assets/publication guards, contact-link hydration, 320/360/390/768/1280/1440px responsive layout, "
         "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "

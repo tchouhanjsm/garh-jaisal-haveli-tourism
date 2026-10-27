@@ -91,7 +91,7 @@ Complete and record these checks against the intended staging site first. Do not
 ### P1 — Final release/SEO smoke test
 
 - [ ] Run the GitHub-hosted quality suite on the exact PR head and again on the resulting main SHA; confirm current-head conclusions, not stale runs.
-- [ ] Check desktop, tablet and mobile breakpoints; keyboard navigation, focus visibility, Escape/expanded state, reduced-motion behavior, image cropping and CTA tap targets.
+- [ ] Check 320, 360, 390, 768, 1280 and 1440 CSS-pixel breakpoints; keyboard navigation, focus visibility, Escape/expanded state, reduced-motion behavior, image cropping and CTA tap targets.
 - [ ] Run Lighthouse/performance inspection and accessibility checks on staging. The Green Room image is now a source-verified 114,126-byte alternate (the prior asset was 799,571 bytes); inspect its crop/layout on desktop and mobile and review the remaining 537,837-byte Sweet Purple JPEG fallback and 519,598-byte sitting-room JPEG fallback.
 - [ ] Confirm page titles/meta descriptions, social preview images/alt text, internal links, image status codes, privacy/terms links and owner-approved analytics/measurement configuration.
 - [ ] After deployment, test Book Now and contact links once more on the production hostname; monitor for failed redirects, broken assets, enquiries not received and email bounces.
@@ -115,13 +115,20 @@ Use the intended staging host only. Replace `NOT RUN` with a result only after t
 | STG-11 Email delivery, no bounce and reply capability |  |  |  |  | NOT RUN |  |  |
 | STG-12 Owner review of current room, tour, dining and arrival facts |  |  |  |  | NOT RUN |  |  |
 | STG-13 Backup and rollback procedure reviewed |  |  |  |  | NOT RUN |  |  |
-| STG-14 Responsive image rendering/crop at 360, 768 and 1440 CSS-pixel viewports |  |  |  |  | NOT RUN |  |  |
+| STG-14 Responsive image rendering/crop at 320, 360, 390, 768, 1280 and 1440 CSS-pixel viewports |  |  |  |  | NOT RUN |  |  |
 | STG-15 Keyboard-only navigation through all six experience galleries, including visible focus and Enter/Space |  |  |  |  | NOT RUN |  |  |
 | STG-16 Reduced-motion preference, carousel no-autoplay behavior and stable layout |  |  |  |  | NOT RUN |  |  |
 | STG-17 Social preview image, title, description and image-alt consistency on staging |  |  |  |  | NOT RUN |  |  |
 | STG-18 Unknown-route response and 404 recovery links (no hard-coded contact endpoints) |  |  |  |  | NOT RUN |  |  |
 
 Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and follow-up owner for every failure or blocked row. Keep canonical-host approval, menu publication and deployment decisions in their separate owner-approval gates.
+
+
+### Responsive and technical-SEO acceptance evidence
+
+The automated responsive audit checks each of the eight core routes at **320, 360, 390, 768, 1280 and 1440 CSS pixels** for same-origin HTTP 200 responses and horizontal overflow. The branded unknown-route recovery page must return a genuine HTTP 404 and pass its recovery/contact-hydration checks at all six widths. The retained visual bundle intentionally stays at 24 full-page screenshots (eight routes at 360, 768 and 1440 CSS pixels) so screenshot evidence stays useful and bounded; successful layout automation does not replace human crop/typography review.
+
+Before canonical-host approval, staging must remain non-indexable: robots.txt must include User-agent: * and Disallow: /, must not advertise a sitemap, sitemap.xml must not publish absolute public URL locations, and content/site-config.json must keep site.canonicalHostApproved set to false. Page-level title/description and Open Graph/Twitter preview consistency are covered by the browser quality suite. Do not activate canonical URLs, og:url, public sitemap locations or a less restrictive robots policy until the owner records the canonical-host decision. All these checks are automated safety evidence; STG-01–STG-18 remain human-operated and must not be auto-marked complete.
 
 ## Owner decisions required before production launch
 

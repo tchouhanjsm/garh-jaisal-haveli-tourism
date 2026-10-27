@@ -24,6 +24,14 @@ EXPECTED_VIEWPORTS = [
     {"width": 768, "height": 1024, "label": "Tablet"},
     {"width": 1440, "height": 900, "label": "Desktop"},
 ]
+EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS = [
+    {"width": 320, "height": 800, "label": "Narrow mobile"},
+    {"width": 360, "height": 800, "label": "Mobile"},
+    {"width": 390, "height": 844, "label": "Wide mobile"},
+    {"width": 768, "height": 1024, "label": "Tablet"},
+    {"width": 1280, "height": 900, "label": "Laptop"},
+    {"width": 1440, "height": 900, "label": "Desktop"},
+]
 
 assert contract.get("schemaVersion") == 1, "Unsupported staging route contract version"
 assert "not a production sitemap" in contract.get("purpose", ""), (
@@ -46,7 +54,11 @@ for item in routes:
 
 viewports = contract.get("viewports")
 assert viewports == EXPECTED_VIEWPORTS, (
-    "Staging evidence must cover Mobile 360x800, Tablet 768x1024 and Desktop 1440x900"
+    "Full-page screenshot evidence must cover Mobile 360x800, Tablet 768x1024 and Desktop 1440x900"
+)
+responsive_audit_viewports = contract.get("responsiveAuditViewports")
+assert responsive_audit_viewports == EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS, (
+    "Responsive layout audits must cover 320, 360, 390, 768, 1280 and 1440 CSS pixels"
 )
 expected_screenshot_count = len(routes) * len(viewports)
 assert expected_screenshot_count == 24, (
@@ -66,8 +78,10 @@ for label, source in (("Chromium smoke", browser), ("offline visual review", rev
     assert manifest_reference in source, f"{label} must read the shared route contract"
 assert 'PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]' in browser
 assert 'VIEWPORTS = [\n    (viewport["width"], viewport["height"])\n    for viewport in ROUTE_CONTRACT["viewports"]\n]' in browser
+assert 'RESPONSIVE_AUDIT_VIEWPORTS = [\n    (viewport["width"], viewport["height"])\n    for viewport in ROUTE_CONTRACT["responsiveAuditViewports"]\n]' in browser
 assert 'PAGES = [(route["file"], route["title"]) for route in ROUTE_CONTRACT["routes"]]' in review
 assert 'VIEWPORTS = [\n    (viewport["width"], viewport["height"], viewport["label"])\n    for viewport in ROUTE_CONTRACT["viewports"]\n]' in review
+assert 'RESPONSIVE_AUDIT_VIEWPORT_WIDTHS = [\n    viewport["width"] for viewport in ROUTE_CONTRACT["responsiveAuditViewports"]\n]' in review
 assert "staging-route-contract.json" in launch_test
 assert "routeContract.routes.map(route => route.file)" in launch_test
 assert "routeContract.viewports.map(viewport => viewport.width)" in launch_test
@@ -95,6 +109,6 @@ assert "24 full-page PNG" in readme and "24 full-page PNG" in launch_doc
 assert "experience-details.html" in readme and "experience-details.html" in launch_doc
 
 print(
-    "PASS: one shared eight-route/three-viewport contract drives Chromium, "
-    "launch wiring, media checks and screenshot review; the 24-image evidence contract and release docs agree."
+    "PASS: one shared eight-route contract drives six responsive-audit breakpoints, "
+    "three screenshot viewports and a 24-image evidence bundle; media checks and release docs agree."
 )
