@@ -1,8 +1,8 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 26 October 2026: implementation checks pass; production release is blocked pending manual owner/UAT gates.**
+**Status as of 27 October 2026: automated implementation checks pass on main; production release remains blocked pending manual owner/UAT gates.**
 
-Baseline main at the start of this delivery phase: 476dd625fce29cdc524da33214c4f260885d4e18. The exact-main Site quality gates run #40325052513 passed after PR #19 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
+Baseline main at the start of the current staging-preflight phase: 3c8bcb314ca41910e7d32d016fc769cd14b4e796. Post-merge Site quality gates run #40424755768 passed after PR #27 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
 ## What automated checks can currently prove
 
@@ -137,7 +137,7 @@ python3 -m playwright install chromium
 bash scripts/check-pr-quality.sh
 ```
 
-The 17 `STG-01`–`STG-17` rows below remain human-operated checks and must stay `NOT RUN` until an operator records evidence for the exact staging URL, date/time, browser/device/viewport and result. Browser CI does not mark those rows complete.
+The 18 `STG-01`–`STG-18` rows below remain human-operated checks and must stay `NOT RUN` until an operator records evidence for the exact staging URL, date/time, browser/device/viewport and result. Browser CI does not mark those rows complete.
 
 
 ## Read-only staging browser preflight
@@ -156,20 +156,22 @@ python3 scripts/test-browser-smoke.py \
 
 STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credentials, IP address or local hostname. Cross-origin top-level/frame navigation is blocked, and the robots/sitemap/config requests do not follow redirects. The runner checks all seven page routes, unique titles, description ranges, one main/H1, social image/alt parity, canonical-host withholding, local image decoding, same-origin HTTP/request failures, mixed-content requests, responsive overflow at 360/768/1440 CSS pixels, mobile navigation/skip-link focus, reduced motion, keyboard Enter/Space activation and wraparound for all six photo galleries, no autoplay, and the no-JavaScript gallery fallback. It also fetches the deployed robots.txt, sitemap.xml and content/site-config.json to verify that staging remains blocked from indexing and the canonical host is still unapproved.
 
-The schema-version 3 JSON evidence report records the exact origin, Asia/Kolkata timestamp, operator, Chromium version, route/viewport coverage, sanitized failures and 21 full-page PNG records with filename, viewport, actual pixel geometry, byte size and SHA-256. It captures every public route at 360, 768 and 1440 CSS pixels after requesting font readiness and image decoding. Only screenshot filenames—not local filesystem paths—are stored in the report. Query and fragment values are stripped from request URLs before they are written to the report. It always leaves STG-01 through STG-17 as NOT RUN, because those rows require human browser/device, contact-channel, owner-fact, backup/rollback and social-preview evidence. The standard local/CI Chromium smoke run exercises the same capture path in a temporary directory, validates the screenshot records, and removes those images after the run; explicit staging mode retains the operator's bundle. The script never navigates to the AsiaTech provider, opens WhatsApp, dials a number, sends email, submits guest data, creates a reservation or makes a payment. The provider's previously observed automated HTTP 403 still requires normal-browser verification by the owner/operator.
+The schema-version 4 JSON evidence report records the exact origin, Asia/Kolkata timestamp, operator, Chromium version, route/viewport coverage, sanitized failures and 21 full-page PNG records with filename, viewport, actual pixel geometry, byte size and SHA-256. It captures every public route at 360, 768 and 1440 CSS pixels after requesting font readiness and image decoding. Only screenshot filenames—not local filesystem paths—are stored in the report. Query and fragment values are stripped from request URLs before they are written to the report. It always leaves STG-01 through STG-18 as NOT RUN, because those rows require human browser/device, contact-channel, owner-fact, backup/rollback and social-preview evidence. The standard local/CI Chromium smoke run exercises the same capture path in a temporary directory, validates the screenshot records, and removes those images after the run; explicit staging mode retains the operator's bundle. The script never navigates to the AsiaTech provider, opens WhatsApp, dials a number, sends email, submits guest data, creates a reservation or makes a payment. The provider's previously observed automated HTTP 403 still requires normal-browser verification by the owner/operator.
 
 This tool is not a production deploy, canonical approval, sitemap/robots activation or a substitute for formal accessibility/Lighthouse testing.
 
-## Staging evidence integrity — 26 October 2026
+## Staging evidence integrity — 27 October 2026
 
-The operator preflight report uses schema version 3. A report may show automated `PASS` only when it records the complete planned route sequence, HTTP 200 on the requested staging origin for every planned route, all responsive viewport checks at 360, 768 and 1440 CSS pixels, and all 21 full-page PNG screenshots with validated geometry, non-zero byte sizes and SHA-256 hashes. Empty or partial evidence is an automated failure even if no individual assertion failed. Check `evidenceCoverage`, `visualEvidence` and the recorded page/viewport arrays, not only the failure count.
+The operator preflight report uses schema version 4 and includes an explicit unknown-route recovery evidence object. A report may show automated `PASS` only when it records the complete planned route sequence, HTTP 200 on the requested staging origin for every planned route, all responsive viewport checks at 360, 768 and 1440 CSS pixels, and all 21 full-page PNG screenshots with validated geometry, non-zero byte sizes and SHA-256 hashes. Empty or partial evidence is an automated failure even if no individual assertion failed. Check `evidenceCoverage`, `visualEvidence` and the recorded page/viewport arrays, not only the failure count.
 
-The automated result is not a release approval. `releaseStatus` remains `BLOCKED_PENDING_MANUAL_UAT`, and STG-01 through STG-17 remain `NOT RUN` until an operator records real staging evidence. The report and screenshot directory must be outside the repository checkout; the screenshot directory must be empty at the start of a run.
+The same report now records the deterministic unknown-route probe at all three viewport widths. It requires an HTTP 404 response on the requested origin, the branded recovery page with one H1, `noindex,follow` and no canonical/`og:url`, root-relative stylesheet and script loading, all six root-relative recovery links, configured booking/contact link hydration and no horizontal overflow. Local CI uses a small test server that simulates Apache's `ErrorDocument 404`; staging mode tests the actual intended host. The offline renderer rejects missing or contradictory `unknownRouteEvidence` and displays its per-viewport results. This automated evidence does not mark the human STG-18 row complete.
+
+The automated result is not a release approval. `releaseStatus` remains `BLOCKED_PENDING_MANUAL_UAT`, and STG-01 through STG-18 remain `NOT RUN` until an operator records real staging evidence. The report and screenshot directory must be outside the repository checkout; the screenshot directory must be empty at the start of a run.
 
 
 ## Offline staging screenshot review index — 26 October 2026
 
-After the browser preflight creates its schema-version 3 JSON report and 21 PNG files, render a local review page beside the screenshot directory:
+After the browser preflight creates its schema-version 4 JSON report and 21 PNG files, render a local review page beside the screenshot directory:
 
 ~~~bash
 python3 scripts/render-staging-visual-review.py --report "$STAGING_REPORT" --screenshots-dir "$STAGING_SCREENSHOTS" --output "$STAGING_VISUAL_REVIEW"
@@ -179,4 +181,4 @@ The HTML output must be outside the repository checkout and in the same parent d
 
 The output includes no absolute filesystem paths, escapes operator/report text, redacts URLs in failure diagnostics, and loads no external scripts, fonts or images. Keep the JSON, PNGs and HTML review local until they have been reviewed for environment details. If a new browser capture is needed, create a new empty screenshot directory as required by the preflight runner.
 
-A successful visual review is evidence integrity only. It never changes the result of STG-01 through STG-17 and cannot clear manual UAT, booking/contact reachability, owner fact approval, canonical/DNS/SSL approval, backup/rollback or deployment gates.
+A successful visual review is evidence integrity only. It never changes the result of STG-01 through STG-18 and cannot clear manual UAT, booking/contact reachability, owner fact approval, canonical/DNS/SSL approval, backup/rollback or deployment gates.
