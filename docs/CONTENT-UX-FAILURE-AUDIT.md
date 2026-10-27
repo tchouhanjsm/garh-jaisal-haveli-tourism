@@ -831,3 +831,32 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - **Implementation:** moved the source-provided pin into `content/site-config.json` under `propertyNavigation.hotelMapUrl`, marked `source-authorized`. The eight public page footers and both Directions links now hydrate from that single value via `assets/site.js`; invalid or missing map configuration fails closed. External links open with `noopener noreferrer`.
 - **Regression protection:** launch-readiness and enquiry-flow contract tests reject duplicated map URLs in public HTML; the VM test covers valid hydration and an invalid host; Chromium smoke inspects the hydrated Directions/footer links without opening the external destination.
 - **Boundary:** the link is source-authorized, not live-tested. Human UAT must confirm that the pin is geographically correct. No booking/contact endpoint, canonical-host approval, sitemap/robots policy or deployment setting changed.
+
+
+## 27 October 2026 — booking and enquiry handoff copy consistency
+
+### Finding
+
+- The runtime accepts the owner-authorized-source configuration and enables valid source-authorized booking, WhatsApp, phone, landline, email and map links after validation, but several public copy blocks still said that direct enquiries were disabled and instructed new visitors to use a booking confirmation they may not have.
+- Error-state copy also referred to contact details as “being verified” and offered another visible contact option even though all links can be disabled when configuration loading fails. This was inconsistent with the actual fail-closed behavior.
+
+### Implementation
+
+- Corrected the booking-status note and room-reservation FAQ on the homepage to distinguish the external booking-provider route from a WhatsApp draft the visitor must review and send.
+- Replaced stale “verified contact route” wording with the available on-page WhatsApp/phone path for date-specific questions about arrival, assistance and current operating details. No service or assistance is promised; guests must wait for direct confirmation.
+- Updated the shared contact-configuration failure banner across all eight public routes. It now says no enquiry was sent, asks guests to refresh and try again, and points to contact details already supplied directly by the hotel instead of requiring an existing booking confirmation.
+- Aligned JavaScript fallback messages and regression tests with the same fail-closed recovery wording. Added content guards to reject the stale disabled-enquiry, existing-booking-confirmation and “verified contact route” claims.
+
+### Changed paths
+
+- `index.html`, `rooms.html`, `experiences.html`, `experience-details.html`
+- `dining.html`, `about.html`, `directions.html`, `gallery.html`
+- `assets/site.js`
+- `scripts/test-content-ux.js`, `scripts/test-enquiry-flow.js`
+- `README.md`
+
+### Validation and release boundary
+
+- Run the full GitHub-hosted quality suite on the exact final PR head and again on post-merge `main`; local `bash scripts/check-pr-quality.sh` is not claimed from this environment.
+- The work does not change the source-authorized endpoints, the canonical-host approval flag, sitemap/robots publication, menu approval, content facts, deployment configuration or guest-data storage.
+- Source authorization is not proof of live channel reachability. The AsiaTech route still requires human desktop/mobile browser verification; contact channels, the exact hotel map pin, current service facts and STG-01–STG-18 remain human UAT gates.
