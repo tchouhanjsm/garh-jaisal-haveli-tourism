@@ -178,6 +178,16 @@ for (const rule of PAGE_RULES) {
     continue;
   }
   const html = fs.readFileSync(pagePath, 'utf8');
+  const staleHandoffCopy = [
+    /Direct enquiry through this website is disabled while the contact configuration is being verified/i,
+    /does not currently transmit booking enquiries or make reservations/i,
+    /use your existing booking confirmation/i,
+    /verified contact route from your booking confirmation/i,
+    /verified booking contact/i,
+  ];
+  if (staleHandoffCopy.some(pattern => pattern.test(html))) {
+    fail(rule.file + ': booking/enquiry copy must describe the source-authorized CTA handoff without claiming live contact verification or directing new guests to an existing booking confirmation');
+  }
   const titleTag = html.match(/<title\b[^>]*>[\s\S]*?<\/title>/i);
   const title = titleTag ? stripMarkup(titleTag[0].replace(/^<title\b[^>]*>/i, '').replace(/<\/title>$/i, '')) : '';
   if (title.length < 30 || title.length > 65) fail(`${rule.file}: title length must be 30–65 characters (found ${title.length})`);
@@ -316,9 +326,10 @@ for (const rule of PAGE_RULES) {
       if (/data-booking-form|name="arrival"|name="departure"/i.test(planning)) {
         fail('index.html: unverified booking form must not occupy the primary planning panel');
       }
-      if (!/Direct enquiry through this website is disabled/i.test(planning)
-          || !/does not collect or transmit your travel dates/i.test(planning)) {
-        fail('index.html: disabled enquiry and data-collection boundary must be explicit');
+      if (!/Book Now opens the external booking provider/i.test(planning)
+          || !/WhatsApp drafts for you to review and send yourself/i.test(planning)
+          || !/does not store your travel details/i.test(planning)) {
+        fail('index.html: booking provider, manual WhatsApp draft and no-storage boundaries must be explicit');
       }
       if (!/vehicles cannot reach the hotel door/i.test(planning)) {
         fail('index.html: planning panel must set expectations about fort vehicle access');
@@ -597,8 +608,8 @@ for (const rule of PAGE_RULES) {
     if (html.includes('We’ll help you plan the final stretch.')) {
       fail('directions.html: do not promise help through unverified contact endpoints');
     }
-    if (!/verified contact route from your booking confirmation to confirm the current meeting point/i.test(html)) {
-      fail('directions.html: final arrival assistance must be framed as date-specific confirmation');
+    if (!/WhatsApp or phone link shown on this page to confirm the current meeting point/i.test(html)) {
+      fail('directions.html: final arrival assistance must point to an available enquiry path and require date-specific confirmation');
     }
     if (!/Ask about arrival on WhatsApp/i.test(html) || !/data-contact-phone/.test(html) || !/data-contact-email/.test(html)) {
       fail('directions.html: arrival guidance must expose WhatsApp, telephone and email through centralized contact configuration');
