@@ -46,8 +46,14 @@ assert.ok(script.includes("compareHeading.id = 'room-compare-heading'"),
   'the dynamic comparison section must have a valid accessible name');
 assert.match(script, /aria-pressed/);
 assert.ok(script.includes('row.dataset.roomCompareRow = key'));
-assert.match(script, /scope', 'col'/);
-assert.match(script, /scope', 'row'/);
+assert.match(script, /function makeCell\(row, tag, text, scope\)/,
+  'comparison cell semantics must be centralized in the DOM helper');
+assert.match(script, /if \(scope\) cell\.setAttribute\('scope', scope\)/,
+  'the DOM helper must apply the caller-provided table-header scope');
+assert.match(script, /makeCell\(headingRow, 'th', 'Compare details', 'col'\)/,
+  'the first comparison header must be a column header');
+assert.match(script, /makeCell\(row, 'th', label, 'row'\)/,
+  'each comparison data row must create a row header');
 assert.match(script, /data-room-compare-remove/);
 assert.match(script, /data-room-compare-card-link/);
 assert.match(script, /record\.imageSrc/);
