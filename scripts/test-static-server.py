@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+
+def validate_loopback_bind(value: str) -> str:
+    """Refuse to expose the temporary test server beyond a loopback interface."""
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("bind address must be a literal loopback IP") from error
+    if not address.is_loopback or address.version != 4:
+        raise argparse.ArgumentTypeError("temporary browser smoke server must bind to IPv4 loopback only")
+    return str(address)
 
 
 class RecoveryErrorDocumentHandler(SimpleHTTPRequestHandler):
@@ -32,7 +44,7 @@ class RecoveryErrorDocumentHandler(SimpleHTTPRequestHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument("--bind", type=validate_loopback_bind, default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--directory", required=True)
     args = parser.parse_args()
