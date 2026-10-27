@@ -71,7 +71,7 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
     pages = [page for page, _title in review.PAGES]
     widths = [width for width, _height, _label in review.VIEWPORTS]
     report = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "mode": "staging-read-only",
         "targetUrl": "https://staging.example.test/",
         "recordedAtAsiaKolkata": "2026-10-26T23:00:00+05:30",
@@ -86,11 +86,31 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
             "pageNavigationComplete": True,
             "pageHttp200Complete": True,
             "responsiveViewportsComplete": True,
+            "unknownRouteRecoveryComplete": True,
             "complete": True,
         },
         "automatedResult": "PASS",
         "automatedFailureCount": 0,
         "automatedFailures": [],
+        "unknownRouteEvidence": {
+            "path": browser_smoke.NOT_FOUND_RECOVERY_LINKS[0].replace("/directions.html", "/" + browser_smoke.NOT_FOUND_SMOKE_PATH),
+            "expectedHttpStatus": 404,
+            "recoveryLinks": list(browser_smoke.NOT_FOUND_RECOVERY_LINKS),
+            "viewportChecks": [
+                {
+                    "viewportWidthCssPixels": width,
+                    "httpStatus": 404,
+                    "targetOrigin": True,
+                    "brandedRecoveryPage": True,
+                    "noindex": True,
+                    "rootRelativeAssets": True,
+                    "contactChannelsHydrated": True,
+                    "responsiveLayoutValid": True,
+                }
+                for width in [360, 768, 1440]
+            ],
+            "complete": True,
+        },
         "visualEvidence": {
             "required": True,
             "captureMode": "full-page PNG",
@@ -101,7 +121,7 @@ def build_fixture(directory: Path) -> tuple[Path, Path, Path, dict]:
         },
         "manualReleaseChecks": [
             {"id": f"STG-{number:02d}", "check": f"Manual check {number}", "result": "NOT RUN"}
-            for number in range(1, 18)
+            for number in range(1, 19)
         ],
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
         "safety": {
@@ -221,7 +241,11 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     ])
     assert exit_code == 0
     assert output_path.is_file()
-    assert "21 files verified" in output_path.read_text(encoding="utf-8")
+    rendered_html = output_path.read_text(encoding="utf-8")
+    assert "21 files verified" in rendered_html
+    assert "Unknown-route / 404 recovery evidence" in rendered_html
+    assert "HTTP 404" in rendered_html
+    assert "STG-18" in rendered_html
 
     # Tampering with a real PNG while leaving the JSON unchanged must fail closed.
     target = screenshots / "rooms-360px.png"
@@ -273,13 +297,23 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
 
     # Invalid schema and mode are rejected before an HTML review is written.
     invalid_schema_path = folder / "invalid-schema.json"
-    invalid_schema_path.write_text(json.dumps({"schemaVersion": 2, "mode": "staging-read-only"}), encoding="utf-8")
+    invalid_schema_path.write_text(json.dumps({"schemaVersion": 3, "mode": "staging-read-only"}), encoding="utf-8")
     try:
         review.load_report(invalid_schema_path)
     except ValueError as error:
-        assert "schema-version 3" in str(error)
+        assert "schema-version 4" in str(error)
     else:
-        raise AssertionError("An incompatible schema-v2 report must be rejected")
+        raise AssertionError("An incompatible schema-v3 report must be rejected")
+
+    # A contradictory HTTP status for the unknown route must invalidate the report.
+    invalid_404_report = dict(report)
+    invalid_404_evidence = dict(report["unknownRouteEvidence"])
+    invalid_404_checks = [dict(item) for item in invalid_404_evidence["viewportChecks"]]
+    invalid_404_checks[0]["httpStatus"] = 200
+    invalid_404_evidence["viewportChecks"] = invalid_404_checks
+    invalid_404_report["unknownRouteEvidence"] = invalid_404_evidence
+    assert any("unknownRouteEvidence" in issue
+               for issue in review.report_contract_issues(invalid_404_report))
 
     # Invalid origin tokens are never echoed into HTML.
     bad_origin_report = dict(failed_report)
@@ -316,4 +350,4 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     else:
         raise AssertionError("HTML output must be beside the screenshot directory")
 
-print("PASS: offline staging visual review validates 21 screenshot hashes/bytes/geometry, escapes report text, redacts URLs, and preserves manual release gates.")
+print("PASS: offline staging visual review validates 21 screenshot hashes/bytes/geometry, explicit HTTP 404 recovery evidence, escapes report text, redacts URLs, and preserves 18 manual release gates.")
