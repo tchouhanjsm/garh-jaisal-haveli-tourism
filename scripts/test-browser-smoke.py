@@ -1379,8 +1379,9 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               "Directions: Fort Parking estimate must be about 300 metres / 5–6 minutes")
         check("200 metres" in entrance and "3–4 minutes" in entrance,
               "Directions: fort entrance estimate must be about 200 metres / 3–4 minutes")
-        check("8:00 AM–8:00 PM" in rickshaw and "Local access can vary" in rickshaw,
-              "Directions: rickshaw window must remain caveated as source guidance, not a guarantee")
+        check("Rickshaw access rules and drop-off points can vary" in rickshaw
+              and "8:00 AM" not in section.inner_text(),
+              "Directions: unconfirmed rickshaw hours must be omitted and current access confirmed")
 
     for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
         page.set_viewport_size({"width": width, "height": height})
