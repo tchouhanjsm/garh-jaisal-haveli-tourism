@@ -2,6 +2,7 @@
 """Contract tests for the guarded, read-only staging preflight CLI."""
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import tempfile
@@ -14,6 +15,22 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load the browser smoke module")
 browser_smoke = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(browser_smoke)
+
+SERVER_SPEC = importlib.util.spec_from_file_location(
+    "static_404_test_server", ROOT / "scripts" / "test-static-server.py"
+)
+if SERVER_SPEC is None or SERVER_SPEC.loader is None:
+    raise RuntimeError("Could not load the local 404 test server")
+static_server = importlib.util.module_from_spec(SERVER_SPEC)
+SERVER_SPEC.loader.exec_module(static_server)
+assert static_server.validate_loopback_bind("127.0.0.1") == "127.0.0.1"
+for unsafe_bind in ("0.0.0.0", "192.168.1.5", "localhost", "::1"):
+    try:
+        static_server.validate_loopback_bind(unsafe_bind)
+    except argparse.ArgumentTypeError:
+        pass
+    else:
+        raise AssertionError("The temporary 404 test server must refuse non-IPv4-loopback binds")
 
 
 REPORT_OUTSIDE_CHECKOUT = str(Path(tempfile.gettempdir()) / "garh-jaisal-preflight-contract.json")
