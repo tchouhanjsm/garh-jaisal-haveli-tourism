@@ -894,20 +894,22 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
 
 def check_dining_table_enquiry(page, base_url: str) -> None:
     """Exercise the restaurant tabs and table-enquiry draft without leaving the site."""
-    page.add_init_script(
-        """window.__tableEnquiryOpenCalls = [];
-        window.open = function(url, target, features) {
-          window.__tableEnquiryOpenCalls.push({
-            url: String(url), target: String(target || ''), features: String(features || '')
-          });
-          return null;
-        };"""
-    )
     response = page.goto(base_url + "dining.html", wait_until="domcontentloaded", timeout=15000)
     check(response is not None and response.status == 200,
           "Dining table enquiry: expected HTTP 200")
     check(response is not None and same_origin(response.url, base_url),
           "Dining table enquiry: page must remain on the requested origin")
+    page.evaluate(
+        """() => {
+          window.__tableEnquiryOpenCalls = [];
+          window.open = function(url, target, features) {
+            window.__tableEnquiryOpenCalls.push({
+              url: String(url), target: String(target || ''), features: String(features || '')
+            });
+            return null;
+          };
+        }"""
+    )
     page.wait_for_function(
         """() => document.body.classList.contains('dining-tabs-ready')
           && Boolean(document.querySelector('[data-restaurant-table-submit]')
@@ -1360,9 +1362,21 @@ def main(argv: list[str] | None = None) -> int:
         FAILURES.append(f"Browser smoke suite could not complete: {type(error).__name__}: {error}")
     finally:
         if context is not None:
-            context.close()
+            try:
+                context.close()
+            except Exception as cleanup_error:
+                if not FAILURES:
+                    FAILURES.append(
+                        f"Browser context cleanup failed: {type(cleanup_error).__name__}: {cleanup_error}"
+                    )
         if browser is not None:
-            browser.close()
+            try:
+                browser.close()
+            except Exception as cleanup_error:
+                if not FAILURES:
+                    FAILURES.append(
+                        f"Browser cleanup failed: {type(cleanup_error).__name__}: {cleanup_error}"
+                    )
         if server is not None:
             server.terminate()
             try:
