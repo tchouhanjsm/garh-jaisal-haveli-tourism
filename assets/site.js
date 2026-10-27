@@ -48,6 +48,7 @@
     guestEnquiryForms.forEach(form => {
       const submit = form.querySelector('[data-guest-enquiry-submit]');
       const status = form.querySelector('[data-guest-enquiry-status]');
+      const experienceField = form.querySelector('[name="experience"]');
       const arrivalField = form.querySelector('[name="arrival"]');
       const departureField = form.querySelector('[name="departure"]');
       const contact = config && config.contact ? config.contact : {};
@@ -65,7 +66,7 @@
           whatsappBase = '';
         }
       }
-      if (!submit || !status || !arrivalField || !departureField || !whatsappBase) {
+      if (!submit || !status || !experienceField || !arrivalField || !departureField || !whatsappBase) {
         if (submit) submit.disabled = true;
         if (status) {
           status.dataset.state = 'error';
@@ -73,6 +74,11 @@
         }
         return;
       }
+
+      const selectedExperienceRequiresDeparture = () => {
+        const selected = experienceField.selectedOptions && experienceField.selectedOptions[0];
+        return Boolean(selected && selected.getAttribute('data-requires-departure') === 'true');
+      };
 
       const localDateString = date => {
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -85,8 +91,10 @@
         const arrival = String(arrivalField.value || '');
         const departure = String(departureField.value || '');
         arrivalField.min = today;
+        departureField.required = selectedExperienceRequiresDeparture();
         // Never allow a departure date before today, even while an invalid
-        // past arrival is being corrected.
+        // past arrival is being corrected. When supplied, departure must be
+        // later than the requested date even for an otherwise day-only enquiry.
         departureField.min = arrival > today ? arrival : today;
         departureField.setCustomValidity(
           arrival && departure && departure <= arrival
@@ -98,6 +106,7 @@
         arrivalField.addEventListener(type, updateDateConstraints);
         departureField.addEventListener(type, updateDateConstraints);
       });
+      experienceField.addEventListener('change', updateDateConstraints);
       updateDateConstraints();
 
       submit.disabled = false;
@@ -108,14 +117,16 @@
         updateDateConstraints();
         if (!form.reportValidity()) return;
         const data = new FormData(form);
+        const experience = String(data.get('experience') || '').trim();
         const arrival = String(data.get('arrival') || '');
         const departure = String(data.get('departure') || '');
-        if (!arrival || !departure || departure <= arrival) return;
+        const departureRequired = selectedExperienceRequiresDeparture();
+        if (!experience || !arrival || (departureRequired && !departure) || (departure && departure <= arrival)) return;
         const lines = [
-          'Namaste Garh Jaisal Haveli, I would like to enquire about a stay/experience.',
-          'Interest: ' + String(data.get('experience') || 'Not specified'),
-          'Arrival: ' + arrival,
-          'Departure: ' + departure,
+          'Namaste Garh Jaisal Haveli, I would like to enquire about a stay or experience.',
+          'Interest: ' + experience,
+          'Requested date / arrival: ' + arrival,
+          ...(departure ? ['Departure: ' + departure] : []),
           'Guests: ' + String(data.get('guests') || 'Not specified')
         ];
         const notes = String(data.get('notes') || '').trim();
