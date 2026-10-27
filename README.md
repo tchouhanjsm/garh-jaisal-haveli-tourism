@@ -179,3 +179,10 @@ The offline visual-review renderer also validates report consistency before pres
 ### Static accessibility regression gate
 
 The full quality runner executes `scripts/test-static-accessibility-contract.py` and `scripts/test-static-accessibility.py` across root public HTML and generated `tours/`/`blogs/` pages. The source-level contract checks accessible names, label/ARIA references, focus safety, unique IDs, skip-link/main landmarks, explicit button types, image alt attributes and safe new-tab links. See [`docs/STATIC-ACCESSIBILITY-CONTRACT.md`](docs/STATIC-ACCESSIBILITY-CONTRACT.md). It supplements Chromium and human UAT; it is not a WCAG certification or a replacement for staging verification.
+
+
+### Recursive static route integrity
+
+- \`scripts/check-site.py\` audits every root HTML page and recursively discovers generated pages under \`tours/\` and \`blogs/\`. It validates local \`href\`/\`src\` files, same-page and cross-page anchors, query-bearing URLs, URL-encoded paths, root-relative references and repository-boundary safety.
+- \`scripts/test-site-integrity-contract.py\` exercises nested tour/blog routes and verifies that missing files, missing anchors and path traversal fail. See [Static Route Integrity](docs/STATIC-ROUTE-INTEGRITY.md).
+- These checks are offline repository tests; they do not contact staging or third-party endpoints and do not replace STG-01–STG-18 or owner approval.
