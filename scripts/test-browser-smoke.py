@@ -1194,87 +1194,36 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     check(page.evaluate("window.__tableEnquiryOpenCalls.length") == 1,
           "One table enquiry submission must prepare exactly one draft")
 
-def check_staging_publication_guards(page, base_url: str, staging_mode: bool) -> None:
-    """Verify production SEO locally and host-isolation safeguards on a real staging host."""
-    def fetch_response(path: str):
+def check_staging_publication_guards(page, base_url: str) -> None:
+    def fetch_text(path: str) -> str:
         try:
             response = page.request.get(base_url + path, timeout=10000, max_redirects=0)
         except Exception as error:
-            check(False, f"{path}: same-origin request failed: {error}")
-            return None, ""
+            check(False, f"{path}: same-origin staging request failed: {error}")
+            return ""
         check(response.status == 200, f"{path}: expected HTTP 200 on the target site (found {response.status})")
-        return response, response.text() if response.status == 200 else ""
+        return response.text() if response.status == 200 else ""
 
-    robots_response, robots = fetch_response("robots.txt")
-    sitemap_response, sitemap = fetch_response("sitemap.xml")
-    _, config_text = fetch_response("content/site-config.json")
+    robots = fetch_text("robots.txt")
+    sitemap = fetch_text("sitemap.xml")
+    config_text = fetch_text("content/site-config.json")
+
+    check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
+          "robots.txt must explicitly identify all crawlers while staging")
+    check(bool(re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots)),
+          "robots.txt must continue blocking indexing on the pre-launch staging site")
+    check(not re.search(r"(?im)^\s*Sitemap\s*:", robots),
+          "robots.txt must not advertise a sitemap before canonical-host approval")
+    check(bool(re.search(r"<urlset\b", sitemap, re.I)), "sitemap.xml must return a valid URL-set document")
+    check(not re.search(r"<loc>\s*https?://", sitemap, re.I),
+          "sitemap.xml must not publish public URLs before canonical-host approval")
     try:
         config = json.loads(config_text)
     except json.JSONDecodeError as error:
         check(False, f"content/site-config.json is not valid JSON on the target site: {error}")
-        config = {}
-    site = config.get("site", {})
-    check(site.get("canonicalHostApproved") is True,
-          "canonicalHostApproved must reflect the explicit production SEO publication decision")
-    check(site.get("newStaticSiteCanonicalHost") == "https://hotelgarhjaisal.com",
-          "site config must declare the exact approved canonical production origin")
-
-    if staging_mode:
-        check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
-              "staging robots.txt must explicitly identify all crawlers")
-        check(bool(re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots)),
-              "staging robots.txt must continue blocking indexing")
-        check(not re.search(r"(?im)^\s*Allow:\s*/\s*$", robots),
-              "staging robots.txt must not allow crawl discovery")
-        check(not re.search(r"(?im)^\s*Sitemap\s*:", robots),
-              "staging robots.txt must not advertise a sitemap")
-        check(bool(re.search(r"<urlset\b", sitemap, re.I)),
-              "staging sitemap.xml must return a valid URL-set document")
-        check(not re.search(r"<loc\b", sitemap, re.I),
-              "staging sitemap.xml must not publish canonical public URLs")
-        if robots_response is not None:
-            check("robots-staging.txt" in robots_response.url or "disallow: /" in robots.lower(),
-                  "staging host must serve the staging crawl policy")
-        if sitemap_response is not None:
-            check("sitemap-staging.xml" in sitemap_response.url or not re.search(r"<loc\b", sitemap, re.I),
-                  "staging host must serve an empty staging sitemap")
-        try:
-            html_response = page.request.get(base_url + "/", timeout=10000, max_redirects=0)
-            x_robots = (html_response.headers.get("x-robots-tag") or "").lower()
-            check("noindex" in x_robots and "nofollow" in x_robots,
-                  "non-canonical staging responses must include X-Robots-Tag noindex, nofollow")
-        except Exception as error:
-            check(False, f"staging X-Robots-Tag verification failed: {error}")
     else:
-        check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
-              "production robots.txt must explicitly identify all crawlers")
-        check(bool(re.search(r"(?im)^\s*Allow:\s*/\s*$", robots)),
-              "production robots.txt must allow crawl discovery")
-        check(not re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots),
-              "production robots.txt must not block the whole site")
-        check(robots.splitlines().count("Sitemap: https://hotelgarhjaisal.com/sitemap.xml") == 1,
-              "production robots.txt must advertise the canonical sitemap exactly once")
-        expected = {
-            "https://hotelgarhjaisal.com/",
-            "https://hotelgarhjaisal.com/rooms.html",
-            "https://hotelgarhjaisal.com/experiences.html",
-            "https://hotelgarhjaisal.com/experience-details.html",
-            "https://hotelgarhjaisal.com/dining.html",
-            "https://hotelgarhjaisal.com/about.html",
-            "https://hotelgarhjaisal.com/directions.html",
-            "https://hotelgarhjaisal.com/gallery.html",
-        }
-        locs = set(re.findall(r"<loc>\s*([^<]+?)\s*</loc>", sitemap, re.I))
-        check(bool(re.search(r"<urlset\b", sitemap, re.I)),
-              "production sitemap.xml must return a valid URL-set document")
-        check(expected.issubset(locs),
-              "production sitemap.xml must include all eight core canonical routes")
-        all_locs = re.findall(r"<loc>\s*([^<]+?)\s*</loc>", sitemap, re.I)
-        check(len(locs) == len(all_locs),
-              "production sitemap.xml must not contain duplicate URL entries")
-        check(all(url.startswith("https://hotelgarhjaisal.com/") or url == "https://hotelgarhjaisal.com"
-                  for url in locs),
-              "production sitemap.xml must contain only URLs from the approved canonical origin")
+        check(config.get("site", {}).get("canonicalHostApproved") is False,
+              "canonicalHostApproved must remain false until explicit owner approval")
 
 
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
@@ -2001,7 +1950,7 @@ def main(argv: list[str] | None = None) -> int:
             check_room_finder(page, base_url, browser)
             check_arrival_wayfinding_journey(page, base_url)
             check_dining_table_enquiry(page, base_url)
-            check_staging_publication_guards(page, base_url, staging_mode)
+            check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
             check_keyboard_navigation(page, base_url)
             check_carousels(page, base_url, browser, http_credentials)
