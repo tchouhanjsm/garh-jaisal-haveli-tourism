@@ -63,6 +63,7 @@ for (const route of ROUTES) {
   assert.match(dock, /aria-label="Ask the hotel directly"/, route.file + ': dock needs a named landmark');
   assert.match(dock, /\bhidden(?:\s|>)/, route.file + ': dock must start hidden before safe reveal conditions');
   assert.match(dock, /data-enquiry-link/, route.file + ': dock action must use existing contact validation');
+  assert.match(dock, /aria-disabled="true" aria-describedby="contact-status"/, route.file + ': dock action must start disabled until contact validation completes');
   assert.match(dock, /data-enquiry-message="[^"]{40,}"/, route.file + ': dock must carry a contextual draft');
   assert.match(dock, /data-direct-enquiry-dismiss aria-label="Dismiss direct enquiry"/,
     route.file + ': visitors must be able to dismiss the dock accessibly');
