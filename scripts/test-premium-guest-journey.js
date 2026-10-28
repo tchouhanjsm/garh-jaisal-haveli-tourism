@@ -40,10 +40,9 @@ for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
   assert.equal((html.match(/assets\/css\/premium-guest-journey\.css/g) || []).length, 1,
     route.file + ': the shared visual system must be loaded exactly once');
-  const linkIndex = html.indexOf('assets/css/premium-guest-journey.css');
-  const allStyles = [...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*>/gi)];
+  const allStyles = [...html.matchAll(/<link\\b[^>]*rel=["']stylesheet["'][^>]*>/gi)];
   assert.ok(allStyles.length, route.file + ': expected linked stylesheets');
-  assert.equal(linkIndex, allStyles[allStyles.length - 1].index,
+  assert.match(allStyles[allStyles.length - 1][0], /assets\\/css\\/premium-guest-journey\\.css/,
     route.file + ': premium visual layer must load after route-specific styles');
 
   if (!route.journey) continue;
