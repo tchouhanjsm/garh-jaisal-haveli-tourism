@@ -82,6 +82,12 @@ function auditPublicationSafeguards(rootDirectory) {
       continue;
     }
 
+    if (config && config.site && config.site.canonicalHostApproved === false
+        && typeof config.site.newStaticSiteCanonicalHost === 'string'
+        && html.includes(config.site.newStaticSiteCanonicalHost)) {
+      fail(label + ': unapproved canonical origin must not appear in public HTML, including JSON-LD and social metadata');
+    }
+
     for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
       const attrs = parseAttributes(match[0]);
       const rel = (attrs.rel || '').toLowerCase().split(/\s+/).filter(Boolean);
