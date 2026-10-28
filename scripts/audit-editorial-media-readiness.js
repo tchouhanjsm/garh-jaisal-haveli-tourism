@@ -239,9 +239,13 @@ function auditMedia(root=ROOT) {
     const findings=validateAgainstSchema(schema,item.record,item.relative);
     if(item.name!==item.record.slug+'.json') errors.push(item.relative+': filename must match slug');
     for(const f of findings) errors.push(item.relative+': schema '+f.path+' '+f.message);
-    const candidates=(item.record.media&&item.record.media.candidates)||[];
-    const approved=(item.record.media&&item.record.media.approvedAssets)||[];
-    if (!Array.isArray(candidates) || !Array.isArray(approved)) errors.push(item.relative+': media candidates and approvedAssets must be arrays');
+    const rawCandidates=item.record.media&&item.record.media.candidates;
+    const rawApproved=item.record.media&&item.record.media.approvedAssets;
+    const candidates=Array.isArray(rawCandidates)?rawCandidates.filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate)):[];
+    const approved=Array.isArray(rawApproved)?rawApproved.filter(asset=>asset&&typeof asset==='object'&&!Array.isArray(asset)):[];
+    if (!Array.isArray(rawCandidates) || !Array.isArray(rawApproved)) errors.push(item.relative+': media candidates and approvedAssets must be arrays');
+    if (Array.isArray(rawCandidates)&&candidates.length!==rawCandidates.length) errors.push(item.relative+': malformed media candidate record');
+    if (Array.isArray(rawApproved)&&approved.length!==rawApproved.length) errors.push(item.relative+': malformed approved asset record');
     const candidatePaths=new Set();
     for(const candidate of candidates) {
       if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) { errors.push(item.relative+': malformed media candidate record'); continue; }
@@ -292,7 +296,7 @@ function auditMedia(root=ROOT) {
     }
   }
   const candidateOwners=new Map();
-  for(const item of catalogue) for(const candidate of (item.record.media&&item.record.media.candidates)||[]) {
+  for(const item of catalogue) for(const candidate of (item.record.media&&Array.isArray(item.record.media.candidates)?item.record.media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate))) {
     const owners=candidateOwners.get(candidate.path)||[]; owners.push(item.record.slug+':'+candidate.role); candidateOwners.set(candidate.path,owners);
   }
   const duplicateCandidates=[...candidateOwners.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
@@ -313,18 +317,22 @@ function flattenRefs(record) {
 function articleReport(root,item,assets,seenRefs,policy) {
   const r=item.record, media=r.media||{}, review=r.editorialReview||{};
   const roles=['hero','socialPreview'];
+  const candidateWarnings=(Array.isArray(media.candidates)?media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate)).flatMap(candidate=>[
+    ...(candidate.reviewStatus==='unreviewed'?['candidate-unreviewed:'+candidate.path]:[]),
+    ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
+    ...(!(assets.find(a=>a.path===candidate.path)||{}).valid?['candidate-needs-technical-review:'+candidate.path]:[]),
+  ]);
   return {slug:r.slug,title:r.title,primaryQuery:r.seo&&r.seo.primaryQuery,status:r.status,
     mediaStatus:review.mediaStatus||'missing',
     requirements:media.requirements||null,
     heroImage:r.heroImage||null,socialPreviewImage:r.seo&&r.seo.ogImage||null,
-    candidates:(media.candidates||[]).map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,policy);return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:media.approvedAssets||[],
-    missingRoles:roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)),
+    candidateWarnings,
+    candidates:(Array.isArray(media.candidates)?media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate)).map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,policy);return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:(Array.isArray(media.approvedAssets)?media.approvedAssets:[]).filter(asset=>asset&&typeof asset==='object'&&!Array.isArray(asset)),
+    missingRoles:roles.filter(role=>!((Array.isArray(media.approvedAssets)?media.approvedAssets:[]).filter(a=>a&&typeof a==='object'&&!Array.isArray(a))).some(a=>a.role===role)),
     duplicateAssetUsage:[...seenRefs.entries()].filter(([,owners])=>owners.some(owner=>owner.startsWith(r.slug+':'))&&owners.length>1).map(([asset,owners])=>({asset,owners})),
     blockers:[...(review.mediaStatus==='approved'?[]:['media-review-'+review.mediaStatus]),
       ...roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)).map(role=>role+'-approval-missing'),
-      ...(media.candidates||[]).filter(candidate=>candidate.reviewStatus==='unreviewed').map(candidate=>'candidate-unreviewed:'+candidate.path),
-      ...(media.candidates||[]).filter(candidate=>candidate.rightsStatus==='unverified').map(candidate=>'candidate-rights-unverified:'+candidate.path),
-      ...(media.candidates||[]).filter(candidate=>!(assets.find(a=>a.path===candidate.path)||{}).valid).map(candidate=>'candidate-technical-review-required:'+candidate.path)]
+      ]
   };
 }
 function reportText(report) {
