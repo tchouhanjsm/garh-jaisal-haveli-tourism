@@ -278,3 +278,10 @@ All new records intentionally remain `status: "draft"`, with no review or public
 ## Editorial primary queries and search intent
 
 Every blog record now declares a single `seo.primaryQuery` and controlled `seo.searchIntent` (`informational`, `commercial`, `transactional` or `local`). This makes the intended query explicit for editorial review and helps prevent closely related pages from competing for the same search need. The contract checks uniqueness across the complete editorial set; it does not claim search rankings or validate live search demand. Query mapping is editorial metadata only and does not publish any article.
+
+
+## Date-specific arrival planning enquiry
+
+The Directions page includes an optional arrival enquiry builder for guests who want to confirm the current meeting point, final walking route and route conditions for a chosen date. It asks only for the travel date, a bounded optional arrival window, the expected approach and optional questions about luggage or route/step information. It does not collect a name, phone, email, open-ended note or medical details.
+
+The form stays hidden until the existing centralized contact configuration validates the owner-authorized WhatsApp destination. A valid explicit submit prepares a draft and opens the external chat for guest review; the same text remains in a read-only on-page fallback if the tab is blocked. Changing any field invalidates the old draft. No details are stored in browser storage or sent to a site backend. The message asks whether assistance can be arranged and never guarantees it; it is an enquiry, not a transfer booking or reservation. Chromium smoke intercepts the external tab and tests date validation, draft content, copy recovery, responsive fit and the no-JavaScript fallback without contacting the hotel.
