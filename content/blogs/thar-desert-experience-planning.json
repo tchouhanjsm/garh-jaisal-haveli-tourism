@@ -91,5 +91,33 @@
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A real Thar desert landscape or camel experience, with no unverified package implication"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "Desert landscape connected to Jaisalmer with current offerings not implied"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/legacy/camel-sunset.jpg",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Filename suggests a sunset camel scene; verify the image subject, context, origin and usage rights before use.",
+        "provenance": "Target repository legacy asset path; source/creator record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }
