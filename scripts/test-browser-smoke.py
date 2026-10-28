@@ -1667,6 +1667,152 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance heading must remain available at {width}px")
 
 
+def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
+    """Exercise the date-specific arrival draft without opening WhatsApp or sending data."""
+    page.add_init_script(
+        """window.__arrivalEnquiryOpenCalls = [];
+        window.__arrivalEnquiryClipboardWrites = [];
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: async function(text) {
+            window.__arrivalEnquiryClipboardWrites.push(String(text));
+          } }
+        });
+        window.open = function(url, target, features) {
+          window.__arrivalEnquiryOpenCalls.push({
+            url: String(url), target: String(target || ''), features: String(features || '')
+          });
+          return null;
+        };"""
+    )
+    response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200,
+          "Arrival enquiry: Directions must load successfully")
+    form = page.locator("[data-arrival-planning-form]")
+    fallback = page.locator("[data-arrival-enquiry-fallback]")
+    page.wait_for_function(
+        """() => {
+          const form = document.querySelector('[data-arrival-planning-form]');
+          const submit = form && form.querySelector('[data-arrival-enquiry-submit]');
+          return Boolean(form && !form.hidden && submit && !submit.disabled);
+        }""",
+        timeout=7000,
+    )
+    check(form.count() == 1 and form.is_visible(),
+          "Arrival enquiry: exactly one form must appear after authorized contact configuration loads")
+    check(fallback.is_hidden(),
+          "Arrival enquiry: static fallback should yield when the authorized form is ready")
+    check(form.locator('[name="name"], [name="email"], [name="phone"], [name="mobile"], [name="notes"], [name="address"]').count() == 0,
+          "Arrival enquiry: do not collect personal contact details or open-ended notes")
+    check(form.locator('[data-arrival-enquiry-status][role="status"][aria-live="polite"]').count() == 1,
+          "Arrival enquiry: status must be announced politely to assistive technology")
+    check(form.locator('[data-arrival-enquiry-recovery][hidden]').count() == 1,
+          "Arrival enquiry: draft fallback must stay hidden until explicit submission")
+
+    dates = page.evaluate(
+        """() => {
+          const iso = value => {
+            const local = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+            return local.toISOString().slice(0, 10);
+          };
+          const shift = amount => {
+            const value = new Date();
+            value.setHours(12, 0, 0, 0);
+            value.setDate(value.getDate() + amount);
+            return iso(value);
+          };
+          return { yesterday: shift(-1), today: shift(0), tomorrow: shift(1) };
+        }"""
+    )
+    travel_date = form.locator('[name="arrival-date"]')
+    arrival_window = form.locator('[name="arrival-window"]')
+    arrival_mode = form.locator('[name="arrival-mode"]')
+    submit = form.locator('[data-arrival-enquiry-submit]')
+    check(travel_date.get_attribute("min") == dates["today"],
+          "Arrival enquiry: travel date must not permit a date before today")
+    travel_date.fill(dates["yesterday"])
+    check(travel_date.evaluate("(element) => element.validity.rangeUnderflow"),
+          "Arrival enquiry: browser validation must reject a past travel date")
+    submit.click()
+    check(page.evaluate("() => window.__arrivalEnquiryOpenCalls.length") == 0,
+          "Arrival enquiry: invalid date must not open a WhatsApp draft")
+
+    travel_date.fill(dates["tomorrow"])
+    arrival_window.fill("early afternoon")
+    arrival_mode.select_option("taxi-rickshaw")
+    form.locator('[name="arrival-luggage"]').check()
+    form.locator('[name="arrival-access"]').check()
+    submit.click()
+    page.wait_for_function("() => window.__arrivalEnquiryOpenCalls.length === 1", timeout=3000)
+    call = page.evaluate(
+        """() => {
+          const call = window.__arrivalEnquiryOpenCalls[0];
+          const url = new URL(call.url);
+          return {
+            url: call.url, target: call.target, features: call.features,
+            text: url.searchParams.get('text') || ''
+          };
+        }"""
+    )
+    check(call["url"].startswith("https://wa.me/"),
+          "Arrival enquiry: draft must use the centrally authorized WhatsApp host")
+    check(call["target"] == "_blank" and "noopener" in call["features"] and "noreferrer" in call["features"],
+          "Arrival enquiry: external draft must use a protected new tab")
+    check("Travel date: " + dates["tomorrow"] in call["text"],
+          "Arrival enquiry: prepared message must include the selected travel date")
+    check("Approximate arrival window: early afternoon" in call["text"],
+          "Arrival enquiry: prepared message must include the optional arrival window when supplied")
+    check("Expected approach: Taxi or rickshaw" in call["text"],
+          "Arrival enquiry: prepared message must include the selected approach")
+    check("luggage assistance can be arranged" in call["text"] and "not guaranteed" in call["text"],
+          "Arrival enquiry: luggage request must remain a question, never a guarantee")
+    check("steps and uneven surfaces" in call["text"],
+          "Arrival enquiry: optional route/access request must not claim assistance is available")
+    check("does not confirm a reservation" in call["text"],
+          "Arrival enquiry: draft must explicitly avoid implying a booking")
+    check(form.locator('[data-arrival-enquiry-recovery]').is_visible(),
+          "Arrival enquiry: copyable draft must remain visible after submit")
+    draft = form.locator('[data-arrival-enquiry-draft]')
+    check(draft.get_attribute("readonly") is not None and draft.input_value() == call["text"],
+          "Arrival enquiry: fallback must be read-only and contain the exact prepared message")
+    check(page.evaluate("() => window.__arrivalEnquiryOpenCalls.length") == 1
+          and same_origin(page.url, base_url) and page.url.endswith("/directions.html"),
+          "Arrival enquiry: tests must intercept the external tab and keep the page on the site")
+    form.locator('[data-arrival-enquiry-copy]').click()
+    page.wait_for_function("() => window.__arrivalEnquiryClipboardWrites.length === 1", timeout=3000)
+    check(page.evaluate("() => window.__arrivalEnquiryClipboardWrites[0]") == call["text"],
+          "Arrival enquiry: explicit copy must copy the exact draft text")
+    check("copied" in (form.locator('[data-arrival-enquiry-status]').inner_text() or "").lower(),
+          "Arrival enquiry: copy result must be announced")
+
+    for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
+        page.set_viewport_size({"width": width, "height": height})
+        dimensions = page.evaluate(
+            "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"
+        )
+        bounds = form.bounding_box()
+        action_bounds = submit.bounding_box()
+        check(dimensions["document"] <= dimensions["viewport"] + 1,
+              f"Arrival enquiry: no horizontal overflow at {width}px")
+        check(bounds is not None and bounds["width"] <= width + 1,
+              f"Arrival enquiry: form must fit the viewport at {width}px")
+        check(action_bounds is not None and action_bounds["height"] >= 44,
+              f"Arrival enquiry: submit target must be at least 44px tall at {width}px")
+
+    nojs_context = browser.new_context(java_script_enabled=False, viewport={"width": 320, "height": 740})
+    try:
+        nojs_page = nojs_context.new_page()
+        nojs_response = nojs_page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+        check(nojs_response is not None and nojs_response.status == 200,
+              "Arrival enquiry: no-JavaScript Directions page must still load")
+        check(nojs_page.locator("[data-arrival-planning-form]").is_hidden(),
+              "Arrival enquiry: interactive form must stay hidden without JavaScript")
+        check(nojs_page.locator("[data-arrival-enquiry-fallback]").is_visible(),
+              "Arrival enquiry: no-JavaScript visitors must retain a clear static fallback")
+    finally:
+        nojs_context.close()
+
+
 def check_room_finder(page, base_url: str, browser) -> None:
     """Exercise progressive room filters and verify the all-rooms no-JavaScript fallback."""
     page.set_viewport_size({"width": 360, "height": 800})
@@ -2129,6 +2275,7 @@ def main(argv: list[str] | None = None) -> int:
             check_experience_discovery_journey(page, base_url)
             check_room_finder(page, base_url, browser)
             check_arrival_wayfinding_journey(page, base_url)
+            check_arrival_planning_enquiry(page, base_url, browser)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
@@ -2221,7 +2368,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
-        "keyboard/skip-link behavior, reduced motion, six galleries with keyboard activation, "
+        "keyboard/skip-link behavior, reduced motion, date-specific arrival enquiry validation/recovery/no-JavaScript fallback, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
         "No external links were followed and no booking, payment or guest data was submitted."
