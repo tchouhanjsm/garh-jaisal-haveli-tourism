@@ -38,6 +38,15 @@ function copyFixtureImage(root, relative) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(path.join(root, 'assets/images/legacy/rooftop-candlelight.webp'), target);
 }
+function setFixtureMediaPolicy(root) {
+  // The existing source is 900px wide and ~90 KB. These limits apply only in
+  // the temp fixture so positive publication-path tests can use that source;
+  // production policy remains governed by the unmodified registry.
+  const config = readJson(root, 'content/paths.json');
+  config.imageLimits.hero.minWidth = 800;
+  config.imageLimits.supporting.maxBytes = 100000;
+  writeJson(root, 'content/paths.json', config);
+}
 function approveCanonicalAndContact(root) {
   const config = readJson(root, 'content/site-config.json');
   config.verificationStatus = 'owner-verified';
@@ -61,11 +70,7 @@ function makeTourLive(root) {
   writeJson(root, 'content/tours/sunset-camel-safari.json', tour);
 }
 function makeBlogLive(root) {
-  // This isolated renderer fixture permits the existing 90 KB WebP fixture under
-  // a test-only supporting budget; production content/paths.json remains at 81,920 bytes.
-  const pathsConfig = readJson(root, 'content/paths.json');
-  pathsConfig.imageLimits.supporting.maxBytes = 100000;
-  writeJson(root, 'content/paths.json', pathsConfig);
+  setFixtureMediaPolicy(root);
   const blog = readJson(root, 'content/blogs/jaisalmer-fort-guide.json');
   blog.status = 'live';
   blog.lastReviewed = '2026-10-25';
