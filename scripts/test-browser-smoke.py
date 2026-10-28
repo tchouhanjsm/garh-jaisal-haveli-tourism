@@ -521,12 +521,26 @@ def run_responsive_image_preview_smoke() -> int:
                     install_navigation_guard(context, base_url)
                     page = context.new_page()
                     request_counts: dict[str, int] = {}
+                    image_responses: dict[str, int] = {}
+                    image_request_failures: dict[str, str] = {}
 
                     def record_request(request) -> None:
                         if same_origin(request.url, base_url):
                             request_counts[request.url] = request_counts.get(request.url, 0) + 1
 
+                    def record_image_response(response) -> None:
+                        image_path = urlsplit(response.url).path.lower()
+                        if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
+                            image_responses[response.url] = response.status
+
+                    def record_image_request_failed(request) -> None:
+                        image_path = urlsplit(request.url).path.lower()
+                        if same_origin(request.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
+                            image_request_failures[request.url] = request.failure or "request failed"
+
                     page.on("request", record_request)
+                    page.on("response", record_image_response)
+                    page.on("requestfailed", record_image_request_failed)
                     try:
                         response = page.goto(
                             base_url + page_name,
@@ -538,6 +552,21 @@ def run_responsive_image_preview_smoke() -> int:
                                 f"{page_name} at {width}px: expected HTTP 200 for packaged preview"
                             )
                             continue
+
+                        # The preview is an automated rendering check, not an animation test.
+                        # Disable transitions and smooth scrolling so layout motion cannot make
+                        # Playwright's stability heuristic time out while inspecting lazy images.
+                        page.emulate_media(reduced_motion="reduce")
+                        page.add_style_tag(content="""
+                            *, *::before, *::after {
+                                animation-delay: 0s !important;
+                                animation-duration: 0s !important;
+                                animation-iteration-count: 1 !important;
+                                scroll-behavior: auto !important;
+                                transition-delay: 0s !important;
+                                transition-duration: 0s !important;
+                            }
+                        """)
 
                         pictures = page.locator(
                             'picture:has(source[data-responsive-image="true"])'
@@ -557,10 +586,51 @@ def run_responsive_image_preview_smoke() -> int:
                             routes_with_responsive_images.add(page_name)
                             checked_pictures += 1
                             try:
-                                image.scroll_into_view_if_needed(timeout=3000)
+                                image.evaluate(
+                                    "(img) => img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+                                )
                                 details = image.evaluate(
                                     """async (img) => {
-                                      await img.decode();
+                                      const waitForImageLoad = () => new Promise((resolve, reject) => {
+                                        const cleanup = () => {
+                                          clearTimeout(timer);
+                                          img.removeEventListener('load', onLoad);
+                                          img.removeEventListener('error', onError);
+                                        };
+                                        const onLoad = () => { cleanup(); resolve(); };
+                                        const onError = () => {
+                                          cleanup();
+                                          reject(new Error('image request failed for ' + (img.currentSrc || img.src)));
+                                        };
+                                        const timer = setTimeout(() => {
+                                          cleanup();
+                                          reject(new Error('timed out waiting for image load: ' + (img.currentSrc || img.src)));
+                                        }, 8000);
+                                        img.addEventListener('load', onLoad, {once: true});
+                                        img.addEventListener('error', onError, {once: true});
+                                      });
+                                      if (!img.complete) await waitForImageLoad();
+                                      if (!img.naturalWidth || !img.naturalHeight) {
+                                        throw new Error('image completed without decodable pixels: currentSrc='
+                                          + (img.currentSrc || '<empty>') + '; fallback='
+                                          + (img.getAttribute('src') || '<empty>'));
+                                      }
+                                      const selectedBeforeDecode = img.currentSrc;
+                                      try {
+                                        await img.decode();
+                                      } catch (error) {
+                                        const selectedAfterDecode = img.currentSrc;
+                                        if (selectedAfterDecode && selectedAfterDecode !== selectedBeforeDecode
+                                            && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                          await img.decode();
+                                        } else {
+                                          throw new Error('decode failed for '
+                                            + (selectedAfterDecode || selectedBeforeDecode || '<empty>')
+                                            + '; fallback=' + (img.getAttribute('src') || '<empty>')
+                                            + '; natural=' + img.naturalWidth + 'x' + img.naturalHeight
+                                            + '; cause=' + error.message);
+                                        }
+                                      }
                                       const classes = Array.from(img.classList);
                                       return {
                                         currentSrc: img.currentSrc,
@@ -585,9 +655,20 @@ def run_responsive_image_preview_smoke() -> int:
                                     })"""
                                 )
                             except Exception as error:
+                                try:
+                                    selected_url = image.evaluate("(img) => img.currentSrc")
+                                    fallback_url = image.get_attribute("src") or "<empty>"
+                                    source_srcset = source.get_attribute("srcset") or "<empty>"
+                                except Exception:
+                                    selected_url, fallback_url, source_srcset = "", "<unavailable>", "<unavailable>"
+                                selected_status = image_responses.get(selected_url, "not observed")
+                                selected_failure = image_request_failures.get(selected_url, "none recorded")
                                 failures.append(
                                     f"{label}: responsive image failed to decode or inspect: "
-                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}; "
+                                    f"selected={safe_url_label(selected_url) if selected_url else '<empty>'}; "
+                                    f"http={selected_status}; requestFailure={sanitize_diagnostic_text(selected_failure)}; "
+                                    f"fallback={fallback_url}; srcset={source_srcset}"
                                 )
                                 continue
 
