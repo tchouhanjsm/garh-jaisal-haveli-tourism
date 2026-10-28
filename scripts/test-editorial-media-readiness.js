@@ -14,9 +14,12 @@ assert.equal(imagePolicy(ROOT).supporting.maxBytes, 81920, 'production social/su
 assert.equal(report.summary.articleCount, 12, 'media audit must cover all 12 articles');
 assert.equal(report.state, 'BLOCKED', 'draft media cannot be release-ready');
 assert.equal(report.summary.approvedArticleCount, 0, 'asset inventory must not infer approval');
+assert.equal(report.summary.declaredApprovedArticleCount, 0, 'no draft record may claim media approval');
+assert.ok(report.articles.every(article => article.requirements.hero.subject && article.requirements.socialPreview.subject), 'human report must expose role-specific requirements');
 assert.equal(report.summary.blockedArticleCount, 12);
 assert.ok(report.summary.assetCount > 0, 'inventory should include existing non-blog media');
 assert.ok(report.inventory.some(asset => asset.path.endsWith('.jpg') && asset.warnings?.some(warning => /convert to WebP or AVIF/.test(warning))), 'JPEG source candidates should be distinguished from permitted publication formats');
+assert.ok(report.articles.some(article => article.candidateWarnings.length > 0), 'candidate technical/rights warnings must be visible separately from blockers');
 assert.equal(report.articles.filter(article => article.slug === 'gadisar-lake-jaisalmer-guide')[0].candidates.length, 0,
   'do not fabricate candidates when the inventory contains no suitable lake asset');
 assert.equal(report.articles.filter(article => article.slug === 'bada-bagh-vyas-chhatri-guide')[0].candidates.length, 0,
@@ -32,9 +35,13 @@ for (const article of report.articles) {
   before.set(rel, fs.readFileSync(path.join(ROOT, rel)));
 }
 for (const rel of ['sitemap.xml', 'content/site-config.json', 'robots.txt']) before.set(rel, fs.readFileSync(path.join(ROOT, rel)));
+const publicBlogDir = path.join(ROOT, 'blogs');
+const publicBlogFilesBefore = fs.readdirSync(publicBlogDir).sort();
+assert.ok(!publicBlogFilesBefore.some(name => name.endsWith('.html')), 'there must be no generated public blog pages for drafts');
 const second = auditMedia(ROOT);
 assert.deepEqual(second, report, 'repeated audit calls must return deterministic data');
 for (const [rel, bytes] of before) assert.deepEqual(fs.readFileSync(path.join(ROOT, rel)), bytes, 'read-only audit mutated ' + rel);
+assert.deepEqual(fs.readdirSync(publicBlogDir).sort(), publicBlogFilesBefore, 'media audit must not create or change generated public blog pages');
 
 assert.equal(safeImagePath(ROOT, '../outside.webp'), null, 'path traversal must be rejected');
 assert.equal(safeImagePath(ROOT, 'https://example.test/image.webp'), null, 'remote paths must be rejected');
