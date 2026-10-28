@@ -394,3 +394,15 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Resolve query collisions before promoting any draft to owner-approved release.
 - [ ] Treat `searchIntent` as editorial planning metadata, not ranking evidence or publication approval.
 - [ ] Keep all article records unpublished until content, images, facts, source links and canonical-host approval are separately cleared.
+
+
+## 28 October 2026 — Date-specific arrival enquiry
+
+- [x] Add a Directions-only arrival enquiry builder using the centralized authorized WhatsApp destination; keep the form hidden until contact configuration validates.
+- [x] Collect only a required travel date, bounded optional arrival window, expected approach and optional questions about luggage/route conditions. Do not request names, contact details, open-ended notes or medical information.
+- [x] Validate that the date is not in the past, show a read-only draft after explicit submission, support copy recovery, and invalidate the draft whenever an input changes.
+- [x] Keep the no-JavaScript and unavailable-configuration fallback visible; do not store form details or send messages automatically.
+- [x] Add deterministic markup/policy checks and Chromium coverage for date validation, exact draft content, clipboard recovery, responsive fit and no-JavaScript fallback.
+- [ ] Human UAT remains NOT RUN: on an owner-approved HTTPS staging origin, verify the arrival form and draft/copy recovery on desktop, iOS and Android, including pop-up blocking and denied clipboard permission.
+- [ ] Owner must still confirm the current meeting point, route, transport arrangements and whether any assistance can be arranged. The form is an enquiry only and does not confirm a transfer or reservation.
+- [ ] STG-01–STG-18 remain NOT RUN until real operator evidence is recorded. Do not guess a staging hostname or treat Chromium screenshots as human UAT.
