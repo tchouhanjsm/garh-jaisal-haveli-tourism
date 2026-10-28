@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "slug": "jaisalmer-photography-guide",
+  "title": "Jaisalmer Photography Guide: Fort, Lake and Heritage",
+  "seo": {
+    "title": "Jaisalmer Photography Guide: Heritage and Respect",
+    "description": "Photograph Jaisalmer's sandstone architecture, lake and memorial landscapes respectfully, while checking access rules and protecting residents' privacy."
+  },
+  "status": "draft",
+  "lede": "Jaisalmer's visual appeal extends beyond a single viewpoint: its fort is inhabited, its temples are places of worship, and its lakeside and memorial settings have their own local context. This guide offers practical ways to plan photographs without assuming access to every viewpoint or permission to photograph every person or place.",
+  "tableOfContents": [
+    {
+      "id": "fort-architecture",
+      "label": "Look beyond a single fort viewpoint"
+    },
+    {
+      "id": "people-and-sacred-places",
+      "label": "Respect residents and sacred places"
+    },
+    {
+      "id": "lake-memorials-and-conservation",
+      "label": "Plan for lake and memorial settings"
+    }
+  ],
+  "sections": [
+    {
+      "id": "fort-architecture",
+      "heading": "Look beyond a single fort viewpoint",
+      "body": [
+        "UNESCO describes Jaisalmer as a hill fort adapted to desert terrain, with an inhabited township and Jain temples within its walls. For photography, pay attention to how sandstone buildings, lanes and the wider settlement fit together instead of framing the fort only as an isolated monument.",
+        "Choose a viewpoint that is clearly open to the public, keep passages clear and do not climb on walls or fragile structures for a higher angle. Follow local directions even when an online photograph appears to show a different position."
+      ]
+    },
+    {
+      "id": "people-and-sacred-places",
+      "heading": "Respect residents and sacred places",
+      "body": [
+        "The fort is a neighbourhood where people live and work. Ask permission before making a resident, shopkeeper, worker or child the subject of a close photograph, and do not photograph into a private home just because a doorway looks interesting.",
+        "Rajasthan Tourism identifies the Jain temples within the fort complex as important architectural sites. Follow current temple instructions, avoid interrupting worship and do not assume photography is permitted in every area."
+      ]
+    },
+    {
+      "id": "lake-memorials-and-conservation",
+      "heading": "Plan for lake and memorial settings",
+      "body": [
+        "Rajasthan Tourism describes Gadisar Lake as a historic water feature and identifies Vyas Chhatri within Bada Bagh. Verify current access, any photography restrictions and travel arrangements before leaving for these sites; do not assume a gate is open at sunrise or sunset.",
+        "Use permitted areas, avoid touching carvings or climbing on memorial structures, and leave no litter. A strong photograph should not come at the expense of privacy, worship or fragile heritage."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Jain Temples of Jaisalmer",
+      "url": "https://www.tourism.rajasthan.gov.in/jain-temples-of-jaisalmer.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Lakes and Rivers to Visit",
+      "url": "https://www.tourism.rajasthan.gov.in/lakes-rivers-to-visit.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Other destinations including Vyas Chhatri",
+      "url": "https://www.tourism.rajasthan.gov.in/others.html"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-fort-guide",
+    "jain-temples-jaisalmer-guide",
+    "gadisar-lake-jaisalmer-guide",
+    "bada-bagh-vyas-chhatri-guide"
+  ]
+}

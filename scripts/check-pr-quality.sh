@@ -55,6 +55,7 @@ node scripts/test-launch-readiness.js
 echo "== Content contract =="
 node scripts/validate-content.js
 node scripts/test-content-contract.js
+node scripts/test-editorial-content-cluster.js
 
 if [[ -f scripts/test-site-js.js ]] && ! grep -Fq "test-site-js.js" scripts/check-site.sh; then
   echo "== Navigation behavior tests =="

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "slug": "jain-temples-jaisalmer-guide",
+  "title": "Jain Temples in Jaisalmer Fort: A Visitor Guide",
+  "seo": {
+    "title": "Jain Temples in Jaisalmer Fort: Visitor Guide",
+    "description": "Learn the heritage context of Jaisalmer's Jain temples and plan a respectful visit by checking current entry, photography and local access arrangements."
+  },
+  "status": "draft",
+  "lede": "The Jain temples within Jaisalmer Fort are part of the area's living sacred landscape as well as its architecture. Rajasthan Tourism describes seven temples within the fort complex and highlights their detailed design. This guide focuses on context and respectful planning without assuming current hours, entry rules or photography permissions.",
+  "tableOfContents": [
+    {
+      "id": "temples-within-the-fort",
+      "label": "Temples within the living fort"
+    },
+    {
+      "id": "check-local-rules",
+      "label": "Check the current visiting arrangements"
+    },
+    {
+      "id": "observe-with-care",
+      "label": "Observe the architecture without disrupting worship"
+    }
+  ],
+  "sections": [
+    {
+      "id": "temples-within-the-fort",
+      "heading": "Temples within the living fort",
+      "body": [
+        "Rajasthan Tourism places the Jain temples inside the Jaisalmer Fort complex and describes their decorative detail. UNESCO's account of the Hill Forts of Rajasthan also recognises the temples as part of what makes Jaisalmer an important example of a sacred and secular urban fort.",
+        "Consider the temples as places of worship first. The surrounding lanes also serve residents, merchants and visitors, so move thoughtfully and follow any directions given by temple staff."
+      ]
+    },
+    {
+      "id": "check-local-rules",
+      "heading": "Check the current visiting arrangements",
+      "body": [
+        "Confirm locally whether the temples are open to visitors on your planned date and whether any access conditions apply. This guide intentionally does not publish opening hours, entry charges, photography allowances or dress rules that have not been checked for the visit date.",
+        "If travel or mobility needs affect your plan, ask about the route from your drop-off point, whether it includes steps and whether the relevant areas suit your group. Do not assume step-free access."
+      ]
+    },
+    {
+      "id": "observe-with-care",
+      "heading": "Observe the architecture without disrupting worship",
+      "body": [
+        "Take time to notice the stone carving and the relationship between temple buildings and the wider fort setting while remaining in areas open to visitors. Keep voices low where appropriate and avoid blocking people entering or leaving.",
+        "Ask permission before photographing people, follow posted instructions, and do not touch or move religious objects or enter restricted spaces. If you want a guided explanation, confirm the guide's availability, language, route and price."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Rajasthan Tourism — Jain Temples of Jaisalmer",
+      "url": "https://www.tourism.rajasthan.gov.in/jain-temples-of-jaisalmer.html"
+    },
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-fort-guide",
+    "jaisalmer-two-day-itinerary",
+    "jaisalmer-photography-guide"
+  ]
+}

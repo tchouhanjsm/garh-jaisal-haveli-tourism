@@ -115,7 +115,16 @@ assert.deepEqual(validateAgainstSchema(schemas.blog, fortGuide), [], 'Fort guide
 assert.equal(fortGuide.status, 'draft', 'Fort guide must remain unpublished');
 assert.equal(fortGuide.lastReviewed, null, 'formal review date must remain unset');
 assert.equal(fortGuide.publishedAt, null, 'article must not claim a publication date');
-assert.equal(fortGuide.relatedBlogs.length, 0, 'draft must not point at non-existent article slugs');
+const blogDirectory = path.join(root, 'content', 'blogs');
+const blogRecords = fs.readdirSync(blogDirectory)
+  .filter(name => name.endsWith('.json'))
+  .map(name => JSON.parse(fs.readFileSync(path.join(blogDirectory, name), 'utf8')));
+const blogBySlug = new Map(blogRecords.map(record => [record.slug, record]));
+assert.equal(blogBySlug.size, blogRecords.length, 'blog slugs must be unique');
+for (const relatedSlug of fortGuide.relatedBlogs) {
+  assert.ok(blogBySlug.has(relatedSlug),
+    'draft must not point at a non-existent article slug: ' + relatedSlug);
+}
 assert.ok(fortGuide.sections.length >= 8, 'Fort guide must have substantive section coverage');
 const fortGuideText = [fortGuide.title, fortGuide.lede, ...fortGuide.sections.flatMap(section => [section.heading, ...section.body])].join(' ');
 const fortGuideWords = fortGuideText.split(/\s+/).filter(Boolean).length;

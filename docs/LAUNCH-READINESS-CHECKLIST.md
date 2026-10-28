@@ -1,6 +1,6 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 28 October 2026: PR #56 is merged. The shared premium journey and responsive/keyboard contracts are in main; the contextual direct-enquiry dock is covered by route and browser contracts in the current phase. Owner-approved staging UAT and live SEO release gates remain outstanding.**
+**Status as of 28 October 2026: PR #57 is merged. The premium journey and direct-enquiry dock are in main; this phase prepares eleven source-backed Jaisalmer guide drafts for review. Owner-approved staging UAT and live SEO release gates remain outstanding.**
 
 Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
@@ -376,3 +376,13 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] On the owner-approved HTTPS staging origin, test the copy action on iOS/Android and desktop browsers, including denied clipboard permission and pop-up blocking; manually verify focus visibility, status announcement and the textarea at narrow widths.
 - [ ] Manual staging UAT and STG-01–STG-18 remain NOT RUN. Do not infer live contact reachability from the static configuration or the browser mock.
 
+
+
+## SEO editorial cluster — publication safety
+
+Eleven related Jaisalmer articles are being prepared as source-backed drafts that complement the existing Fort guide. They are not public content. The editorial-cluster test verifies their schemas, source hosts, metadata, related-blog graph and unpublished state; the deterministic renderer must output no generated blog pages while all records remain drafts.
+
+- [ ] Review each draft's factual statements, sources, wording and internal links.
+- [ ] Obtain editorial/owner approval before changing any record from draft to a publishable state.
+- [ ] Keep `content/site-config.json` canonical approval false, `robots.txt` blocking and `sitemap.xml` URL-empty until the separate canonical-host release decision is explicitly approved.
+- [ ] Do not describe the drafts as indexed, published or live. Automated content validation is not Search Console, live-host or human staging evidence.

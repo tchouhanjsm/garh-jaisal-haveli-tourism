@@ -1085,3 +1085,17 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Both exact-head push and pull-request quality workflows must pass on the final PR head.
 - Live WhatsApp reachability, actual device/browser rendering and owner-approved staging UAT remain outstanding; STG-01–STG-18 remain separate manual gates.
 - This change does not alter contact authorization, booking-provider configuration, guest-data retention, canonical-host approval, robots policy, sitemap publication or deployment state.
+
+
+## 28 October 2026 — Source-backed Jaisalmer editorial cluster
+
+### Implementation
+- Added eleven interlinked blog records around high-intent planning questions: inside-fort stays, a flexible two-day itinerary, date/season planning, Jain temples, Gadisar Lake, Bada Bagh/Vyas Chhatri, Kuldhara, desert experience planning, respectful photography, arrival logistics and heritage-hotel booking questions.
+- Each article has SEO title/description metadata, an accessible table of contents, structured editorial sections, official HTTPS source links and related-blog references.
+- Extended the existing Jaisalmer Fort pillar guide to link into the supporting topic cluster.
+- Added a deterministic editorial-cluster check to the main quality runner for schema limits, unique slugs, approved source domains, link graph integrity and unpublished status.
+
+### Safety and release boundary
+- Every new record stays `status: "draft"`, with `lastReviewed` and `publishedAt` unset. They are content preparation, not published pages.
+- The renderer test must confirm no output files and no generated sitemap URLs while the records remain drafts.
+- Owner fact review, editorial approval, canonical-host approval, Search Console work, staging UAT and deployment remain separate release gates.
