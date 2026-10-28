@@ -164,10 +164,10 @@ function walkAssetPaths(value, root, location) {
 }
 
 
-function validateApprovedBlogMedia(record, sourcePath) {
+function validateApprovedBlogMedia(record, sourcePath, root) {
   const media = record.media || {};
-  const candidates = Array.isArray(media.candidates) ? media.candidates : [];
-  const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets : [];
+  const candidates = Array.isArray(media.candidates) ? media.candidates.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
+  const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
   for (const [role, imagePath, alt] of [
     ['hero', record.heroImage, record.heroAlt],
     ['socialPreview', record.seo && record.seo.ogImage, record.seo && record.seo.ogAlt],
@@ -178,6 +178,11 @@ function validateApprovedBlogMedia(record, sourcePath) {
     if (!String(asset.approvedBy || '').trim() || !isValidDate(asset.approvedAt) || !String(asset.rightsEvidence || '').trim()) {
       fail('Live article ' + role + ' requires reviewer, approval date and rights evidence: ' + sourcePath);
     }
+    const mediaAudit = require('./audit-editorial-media-readiness');
+    const policy = mediaAudit.imagePolicy(root);
+    const info = mediaAudit.imageInfo(root, asset.path, policy);
+    const technical = mediaAudit.validateForRole(info, role, policy);
+    if (!technical.valid) fail('Live article ' + role + ' failed technical media checks: ' + sourcePath + ' (' + technical.errors.join('; ') + ')');
     const candidate = candidates.find(item => item.path === asset.path && item.role === role
       && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
     if (!candidate) fail('Live article ' + role + ' must reference a candidate explicitly reviewed with resolved rights: ' + sourcePath);
@@ -204,7 +209,7 @@ function validateLiveRecord(item, root, siteConfig) {
   }
   if (type === 'blog' && !isValidDate(record.lastReviewed)) fail('Live article requires a valid lastReviewed date: ' + sourcePath);
   if (type === 'blog') {
-    validateApprovedBlogMedia(record, sourcePath);
+    validateApprovedBlogMedia(record, sourcePath, root);
     const review = record.editorialReview || {};
     const requiredApprovals = ['editorialStatus', 'sourceStatus', 'factStatus', 'mediaStatus'];
     const missingApprovals = requiredApprovals.filter(field => review[field] !== 'approved');
