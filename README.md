@@ -198,7 +198,7 @@ The full quality runner executes `scripts/test-static-accessibility-contract.py`
 
 ### Experience detail route
 
-`experiences.html` now starts with a category-led discovery path for desert evenings, overnight stays, Fort/city tours and road/route ideas. Its six source-listed package cards keep a dedicated itinerary/details link before a separate enquiry action; Fort walking, car/road arrangements and other route ideas remain distinct and clearly unconfirmed. `experience-details.html` contains the detailed source-backed outlines, all nine stable route anchors and the questions guests should settle before travel. Neither page publishes unapproved prices, fixed operating hours or live availability. Booking and enquiry links continue to hydrate from `content/site-config.json`, and canonical-host approval remains false until the owner explicitly approves it.
+`experiences.html` now starts with a category-led discovery path for desert evenings, overnight stays, Fort/city tours and road/route ideas. Its six source-listed package cards keep a dedicated itinerary/details link before a separate enquiry action; Fort walking, car/road arrangements and other route ideas remain distinct and clearly unconfirmed. `experience-details.html` contains the detailed source-backed outlines, all nine stable route anchors and the questions guests should settle before travel. Neither page publishes unapproved prices, fixed operating hours or live availability. Booking and enquiry links continue to hydrate from `content/site-config.json`; canonical metadata points to the configured production origin, while DNS/TLS/redirect behavior and live publication remain deployment checks.
 
 
 ### Visual capture and header navigation QA
