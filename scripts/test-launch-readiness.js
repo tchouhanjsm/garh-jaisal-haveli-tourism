@@ -82,7 +82,7 @@ assert.match(recoveryPage, /<meta name="robots" content="noindex,follow">/,
   '404 recovery page must remain out of search results while allowing recovery links to be followed');
 assert.match(recoveryPage, /<h1\b/i, '404 recovery page must have a primary heading');
 assert.doesNotMatch(recoveryPage, /<link\b[^>]*\brel=["']canonical["']|property=["']og:url["']/i,
-  '404 recovery page stays canonical-free so it is not promoted as a public landing route');
+  '404 recovery page must remain without canonical/OG URL so it is not promoted as a public landing route');
 assert.equal((recoveryPage.match(/id="contact-status"/g) || []).length, 1,
   '404 recovery page must provide one accessible contact fallback');
 for (const route of ['index.html', 'rooms.html', 'experiences.html', 'dining.html', 'directions.html', 'gallery.html']) {

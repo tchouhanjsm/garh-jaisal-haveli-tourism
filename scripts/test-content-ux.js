@@ -231,12 +231,7 @@ for (const rule of PAGE_RULES) {
 
   const canonicalLink = readMeta(html, /<link\b[^>]*\brel=["']canonical["'][^>]*>/i);
   const ogUrl = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
-  const canonicalRoutes = {
-    'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
-    'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
-    'about.html': '/about.html', 'directions.html': '/directions.html', 'gallery.html': '/gallery.html'
-  };
-  const expectedCanonical = 'https://hotelgarhjaisal.com' + canonicalRoutes[rule.file];
+  const expectedCanonical = 'https://hotelgarhjaisal.com' + routesByFile[rule.file];
   if (!canonicalLink || canonicalLink.href !== expectedCanonical) fail(rule.file + ': canonical URL must match the candidate production route');
   if (!ogUrl || ogUrl.content !== expectedCanonical) fail(rule.file + ': og:url must match canonical');
   if (/https:\/\/hotelgarhjaisal\.com/i.test(html) && !/owner-release-required/.test(fs.readFileSync(path.join(ROOT, 'content/site-config.json'), 'utf8'))) {
@@ -707,12 +702,7 @@ for (const rule of PAGE_RULES) {
     if (inbound.has(target) && target !== rule.file) inbound.set(target, inbound.get(target) + 1);
   }
 
-  const canonicalRoutes = {
-    'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
-    'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
-    'about.html': '/about.html', 'directions.html': '/directions.html', 'gallery.html': '/gallery.html'
-  };
-  const canonicalExpected = 'https://hotelgarhjaisal.com' + canonicalRoutes[rule.file];
+  const canonicalExpected = 'https://hotelgarhjaisal.com' + routesByFile[rule.file];
   const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i);
   const canonicalAttrs = canonicalTag ? attributes(canonicalTag[0]) : {};
   const ogUrlTag = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
