@@ -168,28 +168,34 @@ function validateApprovedBlogMedia(record, sourcePath, root) {
   const media = record.media || {};
   const candidates = Array.isArray(media.candidates) ? media.candidates.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
   const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
-  for (const [role, imagePath, alt] of [
+  if (approved.length !== 2) fail('Live article must have exactly two approved media-role records: ' + sourcePath);
+
+  const mediaAudit = require('./audit-editorial-media-readiness');
+  const policy = mediaAudit.imagePolicy(root);
+  const roles = [
     ['hero', record.heroImage, record.heroAlt],
     ['socialPreview', record.seo && record.seo.ogImage, record.seo && record.seo.ogAlt],
-  ]) {
+  ];
+  const selected = roles.map(([role, imagePath, alt]) => {
     const asset = approved.find(item => item.role === role);
     if (!asset) fail('Live article requires approved ' + role + ' media evidence: ' + sourcePath);
     if (asset.path !== imagePath || asset.alt !== alt) fail('Live article ' + role + ' metadata must match approved path and alt text: ' + sourcePath);
     if (!String(asset.approvedBy || '').trim() || !isValidDate(asset.approvedAt) || !String(asset.rightsEvidence || '').trim()) {
       fail('Live article ' + role + ' requires reviewer, approval date and rights evidence: ' + sourcePath);
     }
-    const mediaAudit = require('./audit-editorial-media-readiness');
-    const policy = mediaAudit.imagePolicy(root);
-    const info = mediaAudit.imageInfo(root, asset.path, policy);
-    const technical = mediaAudit.validateForRole(info, role, policy);
-    if (!technical.valid) fail('Live article ' + role + ' failed technical media checks: ' + sourcePath + ' (' + technical.errors.join('; ') + ')');
     const candidate = candidates.find(item => item.path === asset.path && item.role === role
       && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
     if (!candidate) fail('Live article ' + role + ' must reference a candidate explicitly reviewed with resolved rights: ' + sourcePath);
+    const info = mediaAudit.imageInfo(root, asset.path, policy);
+    return { role, asset, info };
+  });
+  const decoded = mediaAudit.verifyImageDecode(root, selected.map(item => item.info));
+  for (const item of selected) {
+    const result = decoded.get(item.asset.path);
+    const technical = mediaAudit.validateForRole({ ...item.info, decodeStatus: result && result.status }, item.role, policy);
+    if (!technical.valid) fail('Live article ' + item.role + ' failed technical media checks: ' + sourcePath + ' (' + technical.errors.join('; ') + ')');
   }
-  if (approved.length !== 2) fail('Live article must have exactly two approved media-role records: ' + sourcePath);
 }
-
 function validateLiveRecord(item, root, siteConfig) {
   const { type, record, sourcePath } = item;
   if (record.status !== 'live') return;
