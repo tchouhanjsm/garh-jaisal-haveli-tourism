@@ -154,6 +154,22 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         raise ValueError("extension must be 'jpg', 'webp', or 'responsive'")
     root = Path(root or Path.cwd()).resolve()
 
+    protected_sources: list[tuple[str, str]] = []
+    if extension == "responsive":
+        source_pattern = re.compile(
+            r"<source\b[^>]*\bdata-responsive-image\s*=\s*(['\"])true\1[^>]*>",
+            re.IGNORECASE,
+        )
+
+        def protect_source(match: re.Match[str]) -> str:
+            token = f"__GARH_RESPONSIVE_SOURCE_{len(protected_sources)}__"
+            while token in text:
+                token += "_"
+            protected_sources.append((token, match.group(0)))
+            return token
+
+        text = source_pattern.sub(protect_source, text)
+
     for name in IMAGE_NAMES:
         stem = Path(name).stem
         destination = f"assets/images/{stem}.{'jpg' if extension in {'jpg', 'responsive'} else 'webp'}"
@@ -219,7 +235,10 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             "image/webp",
         )
 
-    return LINK_PATTERN.sub(rewrite_preload, text)
+    text = LINK_PATTERN.sub(rewrite_preload, text)
+    for token, source in protected_sources:
+        text = text.replace(token, source)
+    return text
 
 
 def rewrite_site(root: Path, extension: str) -> list[Path]:

@@ -103,6 +103,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn('href="assets/images/rest3.webp"', result)
             self.assertIn('type="image/webp"', result)
             self.assertIn('imagesrcset="assets/images/responsive/rest3-480.webp 480w', result)
+            self.assertIn("assets/images/rest3.webp 1200w", result)
             self.assertIn('imagesizes="100vw"', result)
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
 
