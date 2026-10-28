@@ -340,3 +340,14 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Exercise copy/recovery in deterministic tests and Chromium while intercepting the external-tab request; automated tests send no message and create no reservation.
 - [ ] On the owner-approved HTTPS staging origin, test the copy action on iOS/Android and desktop browsers, including denied clipboard permission and pop-up blocking; manually verify focus visibility, status announcement and the textarea at narrow widths.
 - [ ] Manual staging UAT and STG-01–STG-18 remain NOT RUN. Do not infer live contact reachability from the static configuration or the browser mock.
+
+
+## Research-led route ideas — release and UAT gate
+
+- [ ] At desktop, tablet and mobile widths, verify all six research-led idea cards are legible, keyboard reachable and clearly labelled enquiry-only.
+- [ ] Verify each card's detail link reaches the matching route note and each contextual action prepares a guest-reviewed draft for the selected idea.
+- [ ] Confirm the draft includes the requested date and explicitly says an enquiry does not confirm a booking; no departure date is invented for a route idea.
+- [ ] Confirm external Rajasthan Tourism references open in a separate tab with noopener/noreferrer and are presented as destination context, not proof that the hotel operates the route.
+- [ ] Obtain owner confirmation of feasible routes, access, transport, guide availability, timing, fees, inclusions and prices before presenting any research idea as an actual offering.
+- [ ] Keep all six ideas enquiry-only until that approval exists. Do not imply wildlife sightings or access to restricted border areas.
+- [ ] Automated route-card and Chromium tests are not human visual UAT; STG-01–STG-18 remain NOT RUN until a human operator records evidence from an owner-approved HTTPS origin.
