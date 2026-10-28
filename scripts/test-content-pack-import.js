@@ -31,7 +31,9 @@ function blogRecord(slug) {
     schemaVersion: 1, slug, title: 'Pack Safety Guide for Jaisalmer',
     seo: {
       title: 'Pack Safety Guide for Jaisalmer',
-      description: 'A practical, source-backed draft guide to help travellers plan a Jaisalmer visit and identify details that should be confirmed before travel.'
+      description: 'A practical, source-backed draft guide to help travellers plan a Jaisalmer visit and identify details that should be confirmed before travel.',
+      primaryQuery: 'Jaisalmer travel pack import safety fixture',
+      searchIntent: 'informational'
     },
     status: 'draft',
     lede: 'This draft explains what to verify when planning a Jaisalmer visit and how to check information before making travel arrangements.',
