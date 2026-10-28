@@ -1066,3 +1066,19 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - These enquiries remain client-side and non-persistent; neither action creates a reservation or sends a message automatically.
 - Canonical/OG URL publication, absolute production-host social image URLs, sitemap URL entries and a permissive robots policy remain withheld until the owner explicitly approves the canonical host.
 - [ ] Keep `canonicalHostApproved=false`, `robots.txt` at `Disallow: /`, and `sitemap.xml` without public URL entries until that decision is recorded.
+
+
+## 28 October 2026 — Combined conversion + technical SEO publication phase
+
+### Delivered on the PR branch
+- Room shortlist enquiry for up to three catalogue-backed rooms, including a guest-reviewed draft and copy fallback; changing the shortlist clears a stale draft.
+- Dining table enquiry fallback provides a read-only copyable draft when WhatsApp does not open. Neither journey auto-sends, stores guest information or confirms a booking.
+- Canonical metadata now targets https://hotelgarhjaisal.com for all eight main routes. Open Graph/Twitter image URLs are absolute canonical-origin URLs and retain image-alt parity.
+- Home contains Hotel/WebSite JSON-LD; Dining contains Restaurant JSON-LD; supporting routes expose breadcrumbs. The SEO guard validates canonical paths, sitemap completeness, JSON-LD syntax and crawl isolation for non-canonical hosts.
+- Production robots policy allows crawling and points to the eight-route sitemap. .htaccess specifies canonical host redirects and staging/non-canonical robots, sitemap and noindex behavior.
+
+### Remaining risk / evidence boundary
+- The branch config now enables the chosen canonical origin for publication; this must not be confused with verified DNS/TLS, correct hosting rules, live contact channels or completed bookings.
+- The sitemap and crawler files are branch artifacts and are not live until deployed. Search Console ownership/submission and subsequent coverage review remain unperformed.
+- Existing sample tour/blog records remain drafts while current offering facts and verified enquiry-channel requirements are unmet. No unsupported prices, live inventory, menu claims, testimonials or operational promises were published.
+- Production deployment, operator staging UAT, DNS/TLS/redirect/header checks, Lighthouse/formal accessibility testing and STG-01–STG-18 remain NOT RUN.
