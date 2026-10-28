@@ -1,6 +1,6 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 27 October 2026: automated implementation checks pass on main; production release remains blocked pending manual owner/UAT gates.**
+**Status as of 28 October 2026: production SEO metadata and crawler files are implemented in the open PR; production release remains blocked pending exact-head CI, live DNS/TLS/redirect/header verification, owner/UAT gates and deployment approval.**
 
 Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
@@ -12,7 +12,7 @@ Baseline main at the start of the current staging-preflight phase: 22f40dd1f0700
 - The shared guest-enquiry form on Experiences, Experience details and Dining enforces a non-past arrival date and a departure after arrival. Chromium smoke tests cover date-error recovery, encoded draft content, and the authorized WhatsApp host while intercepting `window.open`; no external message is sent and no booking is created.
 - The named-room gallery uses locally hosted assets mapped to the legacy room catalogue, and the media manifest checks source/target blob SHA, bytes, dimensions, page-specific alt text and content role.
 - The dining page explicitly withholds current menu items/prices while the legacy menu file still says owner_confirmed=false.
-- Canonical URL/OG URL publication and sitemap URL publishing remain gated until the owner approves the actual production hostname.
+- Core-page canonical/`og:url` metadata, absolute social-preview image URLs and the public sitemap are configured for `https://hotelgarhjaisal.com`. Non-canonical hosts must receive a blocking staging robots/sitemap response plus `X-Robots-Tag: noindex, nofollow`.
 
 - The branded 404 recovery page is included in static link/anchor integrity checks, uses `noindex,follow`, and hydrates booking/contact actions from `content/site-config.json` rather than hard-coded endpoints.
 
@@ -84,10 +84,10 @@ Complete and record these checks against the intended staging site first. Do not
 
 ### P0 — Domain, hosting and production routing
 
-- [ ] Confirm whether the approved public hostname is https://www.hotelgarhjaisal.com, the apex hostname or another intended host. The repository’s candidate canonical host is still explicitly unapproved.
+- [x] Production SEO canonical origin is configured as `https://hotelgarhjaisal.com` per the explicit publication instruction; do not silently change it to the `www` hostname. The server configuration redirects `www` to the apex.
 - [ ] Verify DNS resolution, SSL certificate/chain, HTTP-to-HTTPS redirect, www/apex preference, no redirect loops, and GoDaddy/cPanel document root for the intended site.
 - [ ] Confirm all referenced image assets and the central JSON config return successfully on the staging hostname; use a browser network panel to verify no 404s or mixed-content errors.
-- [ ] Only after owner approval, implement the canonical host consistently in canonical/OG metadata, sitemap and robots directives; then rerun crawler/link integrity checks.
+- [ ] On the actual deployment, verify the canonical host resolves to the intended website and confirm HTTPS, `www`→apex and HTTP→HTTPS redirects, `/index.html` normalization, canonical/`og:url`, sitemap availability, production `robots.txt` and staging `X-Robots-Tag` behavior. This repository change does not deploy the site.
 - [ ] Take a known-good website backup and document rollback steps before production deployment.
 
 ### P1 — Final release/SEO smoke test
@@ -130,11 +130,11 @@ Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and 
 
 The automated responsive audit checks each of the eight core routes at **320, 360, 390, 768, 1280 and 1440 CSS pixels** for same-origin HTTP 200 responses and horizontal overflow. The branded unknown-route recovery page must return a genuine HTTP 404 and pass its recovery/contact-hydration checks at all six widths. The retained visual bundle intentionally stays at 24 full-page screenshots (eight routes at 360, 768 and 1440 CSS pixels) so screenshot evidence stays useful and bounded; successful layout automation does not replace human crop/typography review.
 
-Before canonical-host approval, staging must remain non-indexable: robots.txt must include User-agent: * and Disallow: /, must not advertise a sitemap, sitemap.xml must not publish absolute public URL locations, and content/site-config.json must keep site.canonicalHostApproved set to false. Page-level title/description and Open Graph/Twitter preview consistency are covered by the browser quality suite. Do not activate canonical URLs, og:url, public sitemap locations or a less restrictive robots policy until the owner records the canonical-host decision. All these checks are automated safety evidence; STG-01–STG-18 remain human-operated and must not be auto-marked complete.
+Production SEO is configured for `https://hotelgarhjaisal.com`: `robots.txt` must allow crawling and advertise `https://hotelgarhjaisal.com/sitemap.xml`; `sitemap.xml` must list every approved core route and must exclude `404.html` and draft tours/blogs. Each public core route carries an exact canonical and matching `og:url`, absolute canonical-origin Open Graph/Twitter images and explicit index/follow metadata. The `404.html` recovery route stays `noindex,follow` without canonical/`og:url`. Staging and every non-canonical host must serve `robots-staging.txt` (Disallow: /), `sitemap-staging.xml` (empty), and an `X-Robots-Tag: noindex, nofollow` response header. Automated tests cover repository configuration, not actual DNS, Apache behavior or search-engine indexing; STG-01–STG-18 remain human-operated and must not be auto-marked complete.
 
 ## Owner decisions required before production launch
 
-1. Confirm the production domain/canonical hostname.
+1. Verify that `https://hotelgarhjaisal.com` resolves to the approved production document root and that DNS/TLS/redirect/header behavior matches the published canonical policy.
 2. Confirm the current room/rate/facility data and operating tour options.
 3. Approve the current restaurant menu/prices and service hours.
 4. Perform and record the browser/contact-channel checks above.
@@ -169,7 +169,7 @@ The 18 `STG-01`–`STG-18` rows below remain human-operated checks and must stay
 
 ## Read-only staging browser preflight
 
-The same Chromium smoke suite can be pointed at an owner-approved staging origin to validate the deployed static files without following third-party links or submitting guest data. It refuses the configured production hosts (legacyProductionUrl and newStaticSiteCanonicalHost) even if someone accidentally supplies them.
+The same Chromium smoke suite can be pointed at an owner-approved staging origin to validate the deployed static files without following third-party links or submitting guest data. It refuses the configured production hosts (legacyProductionUrl and newStaticSiteCanonicalHost) even if someone accidentally supplies them; staging therefore remains a separately tested, non-canonical host.
 
 Set these variables locally to the real staging origin, operator name, JSON report path and an **empty screenshot directory**. Both output paths must be outside the repository checkout so evidence cannot be committed accidentally. The runner refuses a non-empty screenshot directory to prevent mixing runs. If the staging subdomain uses HTTP Basic Auth, set STAGING_BASIC_AUTH_USERNAME and STAGING_BASIC_AUTH_PASSWORD in the local shell. The runner scopes these credentials to the staging origin and never writes them to the JSON report; do not put credentials in the URL.
 
@@ -181,11 +181,11 @@ python3 scripts/test-browser-smoke.py \
   --screenshots-dir "$STAGING_SCREENSHOTS"
 ~~~
 
-STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credentials, IP address or local hostname. Cross-origin top-level/frame navigation is blocked, and the robots/sitemap/config requests do not follow redirects. The runner checks all eight page routes, unique titles, description ranges, one main/H1, social image/alt parity, canonical-host withholding, local image decoding, same-origin HTTP/request failures, mixed-content requests, responsive overflow at 360/768/1440 CSS pixels, mobile navigation/skip-link focus, reduced motion, keyboard Enter/Space activation and wraparound for all six photo galleries, no autoplay, and the no-JavaScript gallery fallback. It also fetches the deployed robots.txt, sitemap.xml and content/site-config.json to verify that staging remains blocked from indexing and the canonical host is still unapproved.
+STAGING_URL must be an HTTPS origin only: no path, query, fragment, URL credentials, IP address or local hostname. Cross-origin top-level/frame navigation is blocked, and the robots/sitemap/config requests do not follow redirects. The runner checks all eight page routes, unique titles, description ranges, one main/H1, social image/alt parity, canonical/`og:url` consistency, local image decoding, same-origin HTTP/request failures, mixed-content requests, responsive overflow at 360/768/1440 CSS pixels, mobile navigation/skip-link focus, reduced motion, keyboard Enter/Space activation and wraparound for all six photo galleries, no autoplay, and the no-JavaScript gallery fallback. It fetches deployed robots.txt, sitemap.xml and site config: staging must block crawlers and have no sitemap URLs while the config points to the explicitly approved production canonical origin; the staging response must include `X-Robots-Tag: noindex, nofollow`.
 
 The schema-version 4 JSON evidence report records the exact origin, Asia/Kolkata timestamp, operator, Chromium version, route/viewport coverage, sanitized failures and 24 full-page PNG records with filename, viewport, actual pixel geometry, byte size and SHA-256. It captures every public route at 360, 768 and 1440 CSS pixels after requesting font readiness and image decoding. Only screenshot filenames—not local filesystem paths—are stored in the report. Query and fragment values are stripped from request URLs before they are written to the report. It always leaves STG-01 through STG-18 as NOT RUN, because those rows require human browser/device, contact-channel, owner-fact, backup/rollback and social-preview evidence. The standard local/CI Chromium smoke run exercises the same capture path in a temporary directory, validates the screenshot records, and removes those images after the run; explicit staging mode retains the operator's bundle. The script never navigates to the AsiaTech provider, opens WhatsApp, dials a number, sends email, submits guest data, creates a reservation or makes a payment. The provider's previously observed automated HTTP 403 still requires normal-browser verification by the owner/operator.
 
-This tool is not a production deploy, canonical approval, sitemap/robots activation or a substitute for formal accessibility/Lighthouse testing.
+This tool does not deploy the site or submit the sitemap to search engines. It does not prove production DNS/TLS, live Apache rewrites/headers or crawler acceptance and is not a substitute for formal accessibility/Lighthouse testing.
 
 ## Staging evidence integrity — 27 October 2026
 
@@ -350,3 +350,11 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Extend static regression checks and Chromium coverage for selected-room names, exact message content, clipboard copy and same-origin/no-send behavior.
 - [ ] Manually test the room shortlist and Dining fallback at 320–390px and desktop widths; verify clipboard permission denied, blocked pop-ups, keyboard focus and announcements on an owner-approved HTTPS staging origin.
 - [ ] STG-01–STG-18 and live contact/booking reachability remain NOT RUN until operator evidence is recorded. Do not activate canonical/sitemap/robots changes or deploy to production as part of this phase.
+
+
+## Production SEO publication and non-canonical host isolation — 28 October 2026
+
+- [x] Publish exact canonical and Open Graph URL metadata on all eight core public routes, with absolute HTTPS social image URLs and per-page structured data where appropriate. The branded 404 remains `noindex,follow` and is excluded from the sitemap.
+- [x] Populate `sitemap.xml` with the eight current public routes and keep the generated-content marker block for future owner-approved live tour/blog pages only. Existing sample tour/blog records remain drafts and are not emitted.
+- [x] Set production `robots.txt` to allow crawlers and advertise the sitemap. Added separate blocking `robots-staging.txt` and empty `sitemap-staging.xml`; non-canonical hosts are configured to rewrite to these responses and receive `X-Robots-Tag: noindex, nofollow`.
+- [x] Normalize `www.hotelgarhjaisal.com` to `https://hotelgarhjaisal.com`, force HTTPS on the canonical host and redirect `/index.html`NaN`NOT RUN`; no production deployment was made by this PR.
