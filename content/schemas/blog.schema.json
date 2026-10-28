@@ -76,7 +76,7 @@
                 "status": {"enum": ["not_assessed", "matched", "mismatch"]},
                 "evidence": {"type": "string", "minLength": 10, "maxLength": 400},
                 "reviewer": {"type": ["string", "null"], "minLength": 2, "maxLength": 80},
-                "reviewedAt": {"type": ["string", "null"], "pattern": "^\\d{4}-\\\\d{2}-\\\\d{2}$"}
+                "reviewedAt": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
               }
             }
           }}},
