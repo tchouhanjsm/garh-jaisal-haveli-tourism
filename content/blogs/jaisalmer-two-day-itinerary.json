@@ -86,7 +86,7 @@
     "editorialStatus": "pending",
     "sourceStatus": "pending",
     "factStatus": "pending",
-    "mediaStatus": "missing",
+    "mediaStatus": "pending",
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
