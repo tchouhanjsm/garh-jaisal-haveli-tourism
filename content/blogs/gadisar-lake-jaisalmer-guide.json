@@ -79,5 +79,23 @@
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "Gadisar Lake water, ghats or surrounding heritage structures"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A contextual view of Gadisar Lake in Jaisalmer"
+      }
+    },
+    "candidates": [],
+    "approvedAssets": []
   }
 }
