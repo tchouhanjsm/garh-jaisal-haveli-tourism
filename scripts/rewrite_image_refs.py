@@ -209,12 +209,18 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             return tag
         fallback = f"assets/images/{stem}.jpg"
         natural_width, natural_height = _natural_dimensions(root, stem)
+        classes = (get_attribute(tag, "class") or "").split()
+        is_hero = (
+            "hero__image" in classes
+            or (get_attribute(tag, "fetchpriority") or "").lower() == "high"
+        )
         tag = set_attribute(tag, "src", fallback)
         # Reserve the image's real, EXIF-corrected aspect ratio before it downloads.
         # Keep dimensions sourced from decoded bytes, not guesses from filenames or CSS.
         tag = set_attribute(tag, "width", str(natural_width))
         tag = set_attribute(tag, "height", str(natural_height))
         tag = set_attribute(tag, "decoding", "async")
+        tag = set_attribute(tag, "loading", "eager" if is_hero else "lazy")
         if get_attribute(tag, "data-responsive-image-fallback") == "true":
             return tag
         srcset = _srcset(root, stem)
