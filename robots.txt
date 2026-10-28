@@ -1,5 +1,4 @@
-# Production crawl policy for the approved canonical host.
+# Pre-launch default: prevents the staging copy from being indexed.
+# Keep staging blocked. Do not advertise a sitemap until the canonical host is owner-approved.
 User-agent: *
-Allow: /
-
-Sitemap: https://hotelgarhjaisal.com/sitemap.xml
+Disallow: /
