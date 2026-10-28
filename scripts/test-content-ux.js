@@ -337,7 +337,7 @@ for (const rule of PAGE_RULES) {
     }
 
     const hero = html.match(/<section class="hero"[\s\S]*?<\/section>/i);
-    if (!hero || !/src="assets\/images\/rest3\.jpg"/i.test(hero[0])
+    if (!hero || !/src="https:\/\/hotelgarhjaisal\.com\/assets\/images\/rest3\.jpg"/i.test(hero[0])
         || !/alt="Golden sandstone rooftop terrace overlooking Jaisalmer at dusk"/i.test(hero[0])) {
       fail('index.html: homepage hero must keep its locally hosted, accurately described rooftop image');
     }
@@ -530,7 +530,7 @@ for (const rule of PAGE_RULES) {
     if (!html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"')) {
       fail('dining.html: candlelight section and Open Graph metadata must use the reviewed night-time table image');
     }
-    if (!html.includes('<meta property="og:image" content="assets/images/dining/rooftop-candlelit-table.jpg"><meta property="og:image:alt" content="Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond">')) {
+    if (!html.includes('<meta property="og:image" content="https://hotelgarhjaisal.com/assets/images/dining/rooftop-candlelit-table.jpg"><meta property="og:image:alt" content="Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond">')) {
       fail('dining.html: Open Graph image and alt text must match the reviewed night-time table image');
     }
     if (!/not confirmation that a candlelit setup is available for your date/i.test(html)) {
@@ -602,7 +602,7 @@ for (const rule of PAGE_RULES) {
 
   if (rule.file === 'about.html') {
     if (!html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"')
-        || !html.includes('<meta property="og:image" content="assets/images/gallery/hotel/fort-from-roof.webp">')
+        || !html.includes('<meta property="og:image" content="https://hotelgarhjaisal.com/assets/images/gallery/hotel/fort-from-roof.webp">')
         || !html.includes('<meta property="og:image:alt" content="Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk">')) {
       fail('about.html: hero and social preview must use the same authentic fort photograph and descriptive alt text');
     }
