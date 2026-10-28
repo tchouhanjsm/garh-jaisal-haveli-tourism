@@ -109,8 +109,8 @@
         "path": "assets/images/gallery/hotel/fort-from-roof.webp",
         "role": "hero",
         "fit": "possible-contextual-match",
-        "rationale": "Potential architecture/landscape example; the audit does not infer photographic permissions for people or sacred sites.",
-        "provenance": "Target repository asset path; source/creator record not yet verified.",
+        "rationale": "Potential architecture example; no photographic permission for people or sacred sites is inferred.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
         "reviewStatus": "unreviewed"
       }
