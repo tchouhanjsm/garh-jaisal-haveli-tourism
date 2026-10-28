@@ -91,12 +91,12 @@ function makeBlogLive(root) {
       socialPreview: { required: true, minWidth: 600, maxBytes: 81920, subject: 'A representative Jaisalmer heritage image for sharing' },
     },
     candidates: [
-      { path: blog.heroImage, role: 'hero', fit: 'possible-contextual-match', rationale: 'Fixture-only image approval path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', rightsStatus: 'owner-confirmed', reviewStatus: 'approved', visualReview: { status: 'matched', evidence: 'Synthetic fixture records the test-only visual subject match.', reviewer: 'fixture-editor', reviewedAt: '2026-10-25' } },
-      { path: blog.seo.ogImage, role: 'socialPreview', fit: 'possible-contextual-match', rationale: 'Fixture-only social preview path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', rightsStatus: 'owner-confirmed', reviewStatus: 'approved', visualReview: { status: 'matched', evidence: 'Synthetic fixture records the test-only visual subject match.', reviewer: 'fixture-editor', reviewedAt: '2026-10-25' } },
+      { path: blog.heroImage, role: 'hero', fit: 'possible-contextual-match', rationale: 'Fixture-only image approval path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', sourceEvidence: { status: 'owner-created', creator: 'Fixture photographer', sourceUrl: null, licenseName: null, evidenceReference: 'fixture-evidence:hero-source', verifiedBy: 'fixture-editor', verifiedAt: '2026-10-25' }, rightsStatus: 'owner-confirmed', reviewStatus: 'approved', visualReview: { status: 'matched', evidence: 'Synthetic fixture records the test-only visual subject match.', reviewer: 'fixture-editor', reviewedAt: '2026-10-25' } },
+      { path: blog.seo.ogImage, role: 'socialPreview', fit: 'possible-contextual-match', rationale: 'Fixture-only social preview path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', sourceEvidence: { status: 'owner-created', creator: 'Fixture photographer', sourceUrl: null, licenseName: null, evidenceReference: 'fixture-evidence:social-source', verifiedBy: 'fixture-editor', verifiedAt: '2026-10-25' }, rightsStatus: 'owner-confirmed', reviewStatus: 'approved', visualReview: { status: 'matched', evidence: 'Synthetic fixture records the test-only visual subject match.', reviewer: 'fixture-editor', reviewedAt: '2026-10-25' } },
     ],
     approvedAssets: [
-      { path: blog.heroImage, role: 'hero', alt: blog.heroAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'Synthetic test fixture only; not a real publication approval.' },
-      { path: blog.seo.ogImage, role: 'socialPreview', alt: blog.seo.ogAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'Synthetic test fixture only; not a real publication approval.' },
+      { path: blog.heroImage, role: 'hero', alt: blog.heroAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'fixture-evidence:hero-source' },
+      { path: blog.seo.ogImage, role: 'socialPreview', alt: blog.seo.ogAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'fixture-evidence:social-source' },
     ],
   };
   blog.editorialReview = {
