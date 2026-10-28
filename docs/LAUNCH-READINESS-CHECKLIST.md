@@ -352,3 +352,28 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] Verify on GoDaddy/cPanel with real HTTP requests: DNS/TLS, redirect destinations, robots/sitemap responses and response headers on production plus the actual staging host.
 - [ ] Verify domain ownership in Google Search Console and submit `https://hotelgarhjaisal.com/sitemap.xml` only after the approved site is deployed.
 - [ ] STG-01–STG-18, live booking/contact checks, menu/fact approvals, backup/rollback and production deployment approval remain outstanding. No upload or Search Console submission occurred in this phase.
+
+
+## 28 October 2026 — Production SEO publication bundle (source implementation)
+
+This section supersedes the earlier pre-launch SEO publication status recorded in historical phase notes above. The implementation is in PR #53; the change is not yet deployed.
+
+- [x] Enabled canonical publication for the configured HTTPS origin https://hotelgarhjaisal.com in content/site-config.json following the explicit request to include SEO publication in this PR.
+- [x] Added an exact canonical URL, og:url and explicit index/follow directive to the eight primary public routes. 404.html remains noindex,follow with no canonical or og:url.
+- [x] Standardized Open Graph and Twitter preview image URLs to absolute HTTPS assets on the canonical origin, retaining aligned descriptive image-alt metadata.
+- [x] Added/retained parseable JSON-LD: Hotel and WebSite identity on Home, Restaurant information on Dining, and BreadcrumbList on supporting routes. No review ratings, current menu prices, operating hours or availability are asserted by this schema.
+- [x] Populated sitemap.xml with the eight known primary canonical routes. robots.txt permits crawling and advertises https://hotelgarhjaisal.com/sitemap.xml.
+- [x] Added .htaccess host policy for www-to-apex and HTTP-to-HTTPS canonical redirects, duplicate homepage normalization, deny-all robots/empty sitemap responses for non-canonical hosts, and an X-Robots-Tag: noindex, nofollow response for non-canonical hosts.
+- [x] Kept tour and article records as drafts. Existing content-publishing validation still requires owner-reviewed facts and verified contact/booking channels; canonical approval alone does not publish them.
+- [x] Added quality contracts for exact canonical routes, sitemap completeness, social-image URL parity, JSON-LD parsing and non-canonical-host crawl isolation.
+
+### Still required before production launch
+
+- [ ] Verify the configured domain DNS records and valid TLS certificate, including the www and apex hostnames, using a normal browser and operator-controlled DNS checks.
+- [ ] Verify HTTP-to-HTTPS and www-to-apex redirects, the /index.html redirect, and the deployed X-Robots-Tag header on every non-canonical/staging host. Apache/cPanel rule behavior is not proven by source-only CI.
+- [ ] Fetch the deployed robots.txt and sitemap.xml; validate sitemap XML and every listed canonical page/image URL returns the expected status without redirect loops.
+- [ ] Review canonical and social-preview URLs in a real browser; run structured-data validation for Hotel/Restaurant/BreadcrumbList and check no 404 route appears in the sitemap.
+- [ ] Verify Search Console ownership for the canonical property, submit the sitemap, and review coverage after Google processes the deployed version.
+- [ ] Complete the existing booking-provider 403 browser check, live WhatsApp/phone/landline/email checks, owner fact/menu checks, rollback preparation and STG-01–STG-18 manual UAT.
+
+Release boundary: the SEO files are prepared on the PR branch only. No DNS changes, Search Console operation, hosting upload, production deployment or manual staging UAT was performed. Do not treat source implementation or a green CI run as proof of live crawlability.
