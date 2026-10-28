@@ -87,4 +87,34 @@ assert.match(css, /@media \(max-width: 760px\)/, 'Small screens have a dedicated
 assert.match(css, /:focus-visible/, 'Discovery navigation retains visible keyboard focus');
 assert.match(css, /prefers-reduced-motion: reduce/, 'Navigation respects reduced-motion settings');
 
+
+const expectedResearchIdeas = [
+  ['havelis-architecture', 'Havelis &amp; sandstone architecture — enquiry only', 'route-idea-havelis'],
+  ['jain-temples-fort', 'Jain temples &amp; Fort architecture — enquiry only', 'route-idea-jain-temples'],
+  ['gadisar-bada-bagh-photography', 'Gadisar Lake / Bada Bagh / Vyas Chhatri photography — enquiry only', 'route-idea-photography'],
+  ['kuldhara-heritage', 'Kuldhara heritage &amp; desert landscape — enquiry only', 'route-idea-kuldhara'],
+  ['akal-fossil-desert-national-park', 'Akal Wood Fossil Park or Desert National Park — enquiry only', 'route-idea-natural-history'],
+  ['longewala-memorial', 'Longewala War Memorial history excursion — enquiry only', 'route-idea-longewala'],
+];
+const researchSection = experiences.match(/<section class="section wrap experience-research-ideas"[\s\S]*?<\/section>/);
+assert.ok(researchSection, 'Research-led route ideas have a dedicated section on the Experiences hub');
+assert.match(plain(researchSection[0]), /not ready-made tours/i, 'The hub explicitly distinguishes ideas from bookable packages');
+const routeCards = [...researchSection[0].matchAll(/<article class="content-depth__card experience-research-idea" data-route-idea="([^"]+)"[\s\S]*?<\/article>/g)];
+assert.deepEqual(routeCards.map(match => match[1]), expectedResearchIdeas.map(idea => idea[0]), 'The six research-led themes remain in the approved research order');
+const formMatch = experiences.match(/<form class="guest-enquiry-form" data-guest-enquiry-form>[\s\S]*?<\/form>/);
+assert.ok(formMatch, 'Experiences route enquiry form exists');
+const detailsFormMatch = details.match(/<form class="guest-enquiry-form" data-guest-enquiry-form>[\s\S]*?<\/form>/);
+assert.ok(detailsFormMatch, 'Experience details route enquiry form exists');
+for (const [key, optionLabel, detailId] of expectedResearchIdeas) {
+  const card = routeCards.find(match => match[1] === key)?.[0] || '';
+  assert.ok(card.includes('href="experience-details.html#' + detailId + '"'), key + ' links to its planning notes');
+  assert.match(card, /data-enquiry-link/, key + ' has a contextual enquiry action');
+  assert.match(card, /enquiry only, not a reservation/i, key + ' must not imply a confirmed offering');
+  assert.ok(formMatch[0].includes('<option>' + optionLabel + '</option>'), key + ' is available in the Experiences enquiry form');
+  assert.ok(detailsFormMatch[0].includes('<option>' + optionLabel + '</option>'), key + ' is available in the details enquiry form');
+}
+assert.match(researchSection[0], /aria-labelledby="experience-research-ideas-title"/, 'The route idea section has an accessible heading association');
+assert.match(css, /\.experience-research-ideas__grid/, 'Research idea cards have scoped layout styling');
+assert.match(css, /\.experience-research-idea__actions a:focus-visible/, 'Research idea actions retain visible keyboard focus');
+
 console.log('PASS: experience discovery navigation, package/detail separation, extra route paths, editorial headline and enquiry-only route guardrails.');
