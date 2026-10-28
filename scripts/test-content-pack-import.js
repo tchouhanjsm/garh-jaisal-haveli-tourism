@@ -28,6 +28,14 @@ function copyFixture() {
 }
 function blogRecord(slug) {
   return {
+    media: {
+      requirements: {
+        hero: { required: true, minWidth: 1200, maxBytes: 204800, subject: 'A representative wide Jaisalmer Fort view' },
+        socialPreview: { required: true, minWidth: 600, maxBytes: 81920, subject: 'A representative Jaisalmer heritage image for sharing' },
+      },
+      candidates: [],
+      approvedAssets: [],
+    },
     schemaVersion: 1, slug, title: 'Pack Safety Guide for Jaisalmer',
     seo: {
       title: 'Pack Safety Guide for Jaisalmer',
