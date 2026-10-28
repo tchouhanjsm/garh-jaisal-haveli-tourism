@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, verifyImageDecode } = require('./audit-editorial-media-readiness');
-const { validateRecordPolicy } = require('./validate-content');
+const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
@@ -68,6 +68,7 @@ try {
     path: 'assets/images/corrupt.png', role: 'hero', fit: 'not-assessed',
     rationale: 'Synthetic corrupt asset used only by this negative regression fixture.',
     provenance: 'Synthetic test fixture; not image provenance.',
+    sourceEvidence: { status: 'unverified', creator: null, sourceUrl: null, licenseName: null, evidenceReference: null, verifiedBy: null, verifiedAt: null },
     rightsStatus: 'unverified', reviewStatus: 'unreviewed',
     visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in negative fixture.', reviewer: null, reviewedAt: null },
   });
@@ -82,6 +83,7 @@ try {
     path: 'assets/images/no-such-file.webp', role: 'socialPreview', fit: 'not-assessed',
     rationale: 'Synthetic missing asset used only by this negative regression fixture.',
     provenance: 'Synthetic test fixture; not image provenance.',
+    sourceEvidence: { status: 'unverified', creator: null, sourceUrl: null, licenseName: null, evidenceReference: null, verifiedBy: null, verifiedAt: null },
     rightsStatus: 'unverified', reviewStatus: 'unreviewed',
     visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in negative fixture.', reviewer: null, reviewedAt: null },
   });
@@ -114,6 +116,7 @@ try {
     role: 'hero', fit: 'not-assessed',
     rationale: 'Candidate fixture demonstrates that path presence is not approval.',
     provenance: 'Fixture only; not an evidence claim.',
+    sourceEvidence: { status: 'unverified', creator: null, sourceUrl: null, licenseName: null, evidenceReference: null, verifiedBy: null, verifiedAt: null },
     rightsStatus: 'unverified', reviewStatus: 'approved',
     visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in negative fixture.', reviewer: null, reviewedAt: null },
   }];
@@ -133,6 +136,7 @@ try {
     role: 'hero', fit: 'possible-contextual-match',
     rationale: 'A visually inspected fixture candidate for review-date validation.',
     provenance: 'Fixture only; no rights claim.',
+    sourceEvidence: { status: 'owner-created', creator: 'Fixture image creator', sourceUrl: null, licenseName: null, evidenceReference: 'fixture-evidence:reviewed-source', verifiedBy: 'fixture-reviewer', verifiedAt: '2026-10-28' },
     rightsStatus: 'owner-confirmed', reviewStatus: 'approved',
     visualReview: {
       status: 'matched',
@@ -154,6 +158,19 @@ try {
     { site: { canonicalHostApproved: false } }, invalidDateFindings, 'content/blogs/jaisalmer-fort-guide.json');
   assert.ok(invalidDateFindings.some(finding => /visual match requires evidence, reviewer and valid review date/.test(finding.message)),
     'impossible calendar dates must not pass the visual-review evidence gate');
+
+const incompleteLicensedSource = {
+  rightsStatus: 'licensed', reviewStatus: 'approved',
+  sourceEvidence: { status: 'licensed', creator: 'Fixture photographer', sourceUrl: null, licenseName: null, evidenceReference: null, verifiedBy: 'fixture-reviewer', verifiedAt: '2026-10-28' },
+};
+assert.ok(mediaSourceEvidenceIssues(incompleteLicensedSource).some(issue => /licensed source evidence requires an HTTPS source URL and named license/.test(issue)),
+  'licensed media must not pass without the source URL and licence identifier');
+const completeLicensedSource = {
+  rightsStatus: 'licensed', reviewStatus: 'approved',
+  sourceEvidence: { status: 'licensed', creator: 'Fixture photographer', sourceUrl: 'https://example.com/license-record', licenseName: 'CC BY 4.0', evidenceReference: 'fixture-evidence:license-record', verifiedBy: 'fixture-reviewer', verifiedAt: '2026-10-28' },
+};
+assert.deepEqual(mediaSourceEvidenceIssues(completeLicensedSource), [],
+  'structured licensed-source evidence must pass when each required field is present');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
