@@ -79,5 +79,42 @@
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A real exterior or street scene showing accommodation within Jaisalmer Fort"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A contextual view of the fort neighbourhood and heritage accommodation"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/directions/haveli-facade.webp",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Existing haveli facade is relevant to heritage accommodation, but does not prove inside-fort access or depict the wider neighbourhood.",
+        "provenance": "Target repository asset path; source/creator record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      },
+      {
+        "path": "assets/images/gallery/hotel/fort-from-roof.webp",
+        "role": "socialPreview",
+        "fit": "possible-contextual-match",
+        "rationale": "Potential supporting view of the surrounding fort settlement; confirm actual content and contextual fit.",
+        "provenance": "Target repository asset path; source/creator record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }
