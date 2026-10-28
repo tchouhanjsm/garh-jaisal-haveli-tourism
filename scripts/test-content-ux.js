@@ -9,6 +9,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
+const routesByFile = {
+  'index.html': '/',
+  'rooms.html': '/rooms.html',
+  'experiences.html': '/experiences.html',
+  'experience-details.html': '/experience-details.html',
+  'dining.html': '/dining.html',
+  'about.html': '/about.html',
+  'directions.html': '/directions.html',
+  'gallery.html': '/gallery.html',
+};
 const PAGE_RULES = [
   { file: 'index.html', minWords: 650 },
   { file: 'rooms.html', minWords: 400 },
