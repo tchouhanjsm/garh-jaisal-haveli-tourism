@@ -90,6 +90,17 @@ try {
   assert.ok(missingReport.errors.some(message => message.includes('candidate path missing or unsafe')),
     'missing candidate reference must be detected');
 
+  badCandidateRecord.media.candidates[0].visualReview = {
+    status: 'mismatch',
+    evidence: 'Synthetic negative fixture confirms a mismatch state must be rejected.',
+    reviewer: 'fixture-reviewer',
+    reviewedAt: '2026-10-28',
+  };
+  fs.writeFileSync(badCandidatePath, JSON.stringify(badCandidateRecord, null, 2) + '\\n');
+  const mismatchReport = auditMedia(temp);
+  assert.ok(mismatchReport.errors.some(message => message.includes('visual mismatch must be marked not-a-match and rejected')),
+    'mismatched visual evidence must not remain a potential or approved candidate');
+
   const validatorFindings = [];
   const invalidApproval = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/blogs/jaisalmer-fort-guide.json'), 'utf8'));
   invalidApproval.editorialReview.mediaStatus = 'approved';
@@ -113,6 +124,36 @@ try {
     'unverified rights must invalidate candidate approval');
   assert.ok(validatorFindings.some(finding => /documented visual subject match/.test(finding.message)),
     'candidate approval must require recorded visual subject review');
+
+  const reviewed = JSON.parse(fs.readFileSync(path.join(ROOT, 'content/blogs/jaisalmer-fort-guide.json'), 'utf8'));
+  reviewed.editorialReview.mediaStatus = 'pending';
+  reviewed.media.approvedAssets = [];
+  reviewed.media.candidates = [{
+    path: 'assets/images/gallery/hotel/fort-from-roof.webp',
+    role: 'hero', fit: 'possible-contextual-match',
+    rationale: 'A visually inspected fixture candidate for review-date validation.',
+    provenance: 'Fixture only; no rights claim.',
+    rightsStatus: 'owner-confirmed', reviewStatus: 'approved',
+    visualReview: {
+      status: 'matched',
+      evidence: 'The reviewer confirmed the visible fort and rooftop subject is relevant for this fixture.',
+      reviewer: 'fixture-reviewer',
+      reviewedAt: '2026-10-28',
+    },
+  }];
+  const matchedFindings = [];
+  validateRecordPolicy('blog', reviewed, ROOT,
+    { contentTypes: { blog: { outputDirectory: 'blogs', outputExtension: '.html' } } },
+    { site: { canonicalHostApproved: false } }, matchedFindings, 'content/blogs/jaisalmer-fort-guide.json');
+  assert.ok(!matchedFindings.some(finding => /visual match requires evidence, reviewer and valid review date/.test(finding.message)),
+    'a documented visual match with a valid date must pass the candidate cross-field gate');
+  reviewed.media.candidates[0].visualReview.reviewedAt = '2026-02-31';
+  const invalidDateFindings = [];
+  validateRecordPolicy('blog', reviewed, ROOT,
+    { contentTypes: { blog: { outputDirectory: 'blogs', outputExtension: '.html' } } },
+    { site: { canonicalHostApproved: false } }, invalidDateFindings, 'content/blogs/jaisalmer-fort-guide.json');
+  assert.ok(invalidDateFindings.some(finding => /visual match requires evidence, reviewer and valid review date/.test(finding.message)),
+    'impossible calendar dates must not pass the visual-review evidence gate');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
