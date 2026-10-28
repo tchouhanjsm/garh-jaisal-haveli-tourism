@@ -142,6 +142,50 @@ function validMediaReviewDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+
+function isValidHttpsUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
+function mediaSourceEvidenceIssues(candidate) {
+  const issues = [];
+  const evidence = candidate && candidate.sourceEvidence;
+  const add = message => issues.push(message);
+  const nonEmpty = (value, minimum = 2) => typeof value === 'string' && value.trim().length >= minimum;
+  if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return ['candidate requires a structured sourceEvidence record'];
+  if (!['unverified', 'owner-created', 'licensed', 'commissioned'].includes(evidence.status)) {
+    return ['sourceEvidence.status must explicitly identify unverified, owner-created, licensed, or commissioned'];
+  }
+  if (evidence.sourceUrl !== null && evidence.sourceUrl !== undefined && !isValidHttpsUrl(evidence.sourceUrl)) {
+    add('sourceEvidence.sourceUrl must be a valid HTTPS URL');
+  }
+  if (evidence.status === 'unverified') {
+    if (evidence.verifiedBy !== null || evidence.verifiedAt !== null) add('unverified source evidence cannot claim a verifier or verification date');
+    if (!['unverified', 'rejected'].includes(candidate.rightsStatus)) add('resolved rights status requires verified source evidence');
+  } else {
+    if (!nonEmpty(evidence.creator)) add('verified source evidence requires a named creator');
+    if (!nonEmpty(evidence.evidenceReference, 8)) add('verified source evidence requires a stable evidence reference');
+    if (!nonEmpty(evidence.verifiedBy)) add('verified source evidence requires a named verifier');
+    if (!validMediaReviewDate(evidence.verifiedAt)) add('verified source evidence requires a valid verification date');
+    if (evidence.status === 'licensed') {
+      if (!isValidHttpsUrl(evidence.sourceUrl) || !nonEmpty(evidence.licenseName)) add('licensed source evidence requires an HTTPS source URL and named license');
+      if (!['licensed', 'rejected'].includes(candidate.rightsStatus)) add('licensed source evidence must align with rightsStatus=licensed');
+    } else if (!['owner-confirmed', 'rejected'].includes(candidate.rightsStatus)) {
+      add('owner-created or commissioned source evidence must align with rightsStatus=owner-confirmed');
+    }
+  }
+  if (candidate.rightsStatus === 'owner-confirmed' && !['owner-created', 'commissioned'].includes(evidence.status)) add('owner-confirmed rights requires owner-created or commissioned source evidence');
+  if (candidate.rightsStatus === 'licensed' && evidence.status !== 'licensed') add('licensed rights requires licensed source evidence');
+  if (candidate.rightsStatus === 'unverified' && evidence.status !== 'unverified') add('unverified rights cannot claim a verified source evidence status');
+  if (candidate.rightsStatus === 'rejected' && candidate.reviewStatus !== 'rejected') add('rejected rights must also set reviewStatus=rejected');
+  return [...new Set(issues)];
+}
+
 function blogMediaPolicyFindings(record, root, sourcePath) {
   const findings = [];
   const media = record.media || {};
@@ -178,6 +222,8 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
     if (candidateKeys.has(key)) findings.push({path: sourcePath + '.media.candidates', message: 'duplicate candidate path/role: ' + key});
     candidateKeys.add(key);
     if (!inside(candidate.path)) findings.push({path: sourcePath + '.media.candidates', message: 'candidate must resolve to a permitted regular local asset: ' + candidate.path});
+    const sourceIssues = mediaSourceEvidenceIssues(candidate);
+    for (const issue of sourceIssues) findings.push({path: sourcePath + '.media.candidates', message: issue + ': ' + candidate.path});
     const visual = candidate.visualReview || {};
     if (visual.status === 'not_assessed') {
       if (candidate.fit !== 'not-assessed') findings.push({path: sourcePath + '.media.candidates', message: 'unassessed visual subject must use fit=not-assessed: ' + candidate.path});
@@ -201,6 +247,9 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
     if (candidate.reviewStatus === 'approved' && !['owner-confirmed', 'licensed'].includes(candidate.rightsStatus)) {
       findings.push({path: sourcePath + '.media.candidates', message: 'candidate approval requires owner-confirmed or licensed rights evidence: ' + candidate.path});
     }
+    if (candidate.reviewStatus === 'approved' && sourceIssues.length) {
+      findings.push({path: sourcePath + '.media.candidates', message: 'candidate approval requires complete structured source evidence: ' + candidate.path});
+    }
     if (candidate.reviewStatus === 'approved' && !inside(candidate.path)) {
       findings.push({path: sourcePath + '.media.candidates', message: 'approved candidate path must resolve locally: ' + candidate.path});
     }
@@ -211,8 +260,12 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
     approvedRoles.add(asset.role);
     const candidate = candidates.find(item => item.path === asset.path && item.role === asset.role
       && item.reviewStatus === 'approved' && item.visualReview && item.visualReview.status === 'matched'
-      && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
+      && ['owner-confirmed', 'licensed'].includes(item.rightsStatus)
+      && mediaSourceEvidenceIssues(item).length === 0);
     if (!candidate) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must reference a reviewed candidate with resolved rights: ' + asset.path});
+    else if (asset.rightsEvidence !== candidate.sourceEvidence.evidenceReference) {
+      findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset rightsEvidence must exactly reference the candidate source-evidence record: ' + asset.path});
+    }
     if (!inside(asset.path)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must resolve to a permitted local file: ' + asset.path});
     else {
       try {
@@ -422,7 +475,7 @@ function validateRepository(root = ROOT) {
   return { ok: findings.length === 0, findings, records: recordCount, schemas: schemaCount };
 }
 
-module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy, blogMediaPolicyFindings };
+module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy, blogMediaPolicyFindings, mediaSourceEvidenceIssues };
 
 if (require.main === module) {
   const result = validateRepository();
