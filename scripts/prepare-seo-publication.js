@@ -95,14 +95,19 @@ function insertIntoHead(html, markup) {
 }
 
 function upsertCanonical(html, canonicalUrl) {
-  const withoutCanonical = html.replace(/<link\b[^>]*>/gi, tag => {
+  let seen = false;
+  const replacement = html.replace(/<link\b[^>]*>/gi, tag => {
     const attrs = parseAttributes(tag);
     const rel = (attrs.rel || '').toLowerCase().split(/\s+/).filter(Boolean);
-    return rel.includes('canonical') ? '' : tag;
+    if (!rel.includes('canonical')) return tag;
+    if (seen) return '';
+    seen = true;
+    return '<link rel="canonical" href="' + escapeAttribute(canonicalUrl) + '">';
   });
-  return insertIntoHead(withoutCanonical, '<link rel="canonical" href="' + escapeAttribute(canonicalUrl) + '">');
+  return seen
+    ? replacement
+    : insertIntoHead(replacement, '<link rel="canonical" href="' + escapeAttribute(canonicalUrl) + '">');
 }
-
 function pageTitle(html, file) {
   const match = html.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i);
   const title = match && match[1].replace(/<[^>]+>/g, '').trim();
