@@ -1,6 +1,6 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 28 October 2026: room-shortlist enquiry and Dining draft recovery are in PR source; canonical-host approval remains false, SEO publication remains blocked, and production deployment/manual owner-UAT gates remain outstanding.**
+**Status as of 28 October 2026: PR #53 is merged. The owner-gated SEO publication bundle is now being prepared separately; canonical-host approval remains false, robots.txt blocks crawling, the sitemap is URL-empty and deployment/manual owner-UAT gates remain outstanding.**
 
 Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
@@ -38,6 +38,14 @@ The quality suite checks actual bytes for every local image and responsive `srcs
 The test also requires a single high-priority non-lazy image in pages with a visual hero and lazy/async loading for below-hero images. These are byte/markup checks, not a substitute for measuring Core Web Vitals or visually checking crop/layout on a real browser/device. The courtyard WebP in the legacy source was visually reviewed and is a different photograph from the current courtyard JPEG, so it is not used as a replacement.
 
 
+
+## Owner-gated SEO publication
+
+- Candidate origin: `https://hotelgarhjaisal.com`; `site.canonicalHostApproved` remains `false` until the owner separately authorizes canonical release. Do not infer approval from the PR merge.
+- `node scripts/prepare-seo-publication.js --check` is read-only. With current settings it must report `BLOCKED (expected)` and make no file changes.
+- Only after a separate owner-authorized release change sets `canonicalHostApproved=true`, run `node scripts/prepare-seo-publication.js --apply`. Review all changed page heads, absolute social image paths, eight core sitemap routes and the sitemap renderer markers.
+- `robots-staging.txt`, `sitemap-empty.xml` and the non-canonical-host `X-Robots-Tag` rule protect staging/preview hosts. `.htaccess` does not add an unverified hostname, redirect, or claim to have verified DNS/TLS.
+- Follow `docs/SEO-PUBLICATION-RUNBOOK.md`; a passing static suite is not production publication approval or live-host evidence.
 
 ## MANUAL RELEASE GATES
 

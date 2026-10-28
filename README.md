@@ -23,6 +23,15 @@ The branded `404.html` recovery page is included in static link/anchor integrity
 - Google Fonts (Playfair Display + DM Sans) with system fallbacks
 - Local images can be hydrated from the existing public repository `tchouhanjsm/garh-jaisal-website` by running the asset script below
 
+## SEO publication safety
+
+The candidate canonical host is configured as `https://hotelgarhjaisal.com`, but `content/site-config.json` intentionally keeps `site.canonicalHostApproved=false`. The production `robots.txt` therefore blocks crawling and `sitemap.xml` remains URL-empty until a separate owner-authorized release decision.
+
+- Run `node scripts/prepare-seo-publication.js --check` for a read-only release-gate check. Before approval, `BLOCKED (expected)` is the correct outcome.
+- After explicit owner approval is recorded in an authorized change, set `site.canonicalHostApproved=true` and run `node scripts/prepare-seo-publication.js --apply`. Review the resulting diff; it prepares canonical/OG URLs and absolute social images on the eight core pages, plus the public robots policy and eight-route sitemap.
+- `.htaccess` serves `robots-staging.txt` and `sitemap-empty.xml` with an `X-Robots-Tag: noindex, nofollow` response header on non-canonical hosts. It does not guess a staging hostname or enable redirects.
+- Run the full quality suite and content renderer checks after any approved publication change. The publisher does not deploy the site and does not prove DNS, TLS, HTTP headers, Search Console, or live booking/contact behavior.
+
 ## Run locally
 
 From this directory:

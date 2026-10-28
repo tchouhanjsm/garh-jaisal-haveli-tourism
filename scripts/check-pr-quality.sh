@@ -23,6 +23,7 @@ node scripts/test-public-image-uniqueness.js
 node scripts/test-seo-publication-safeguards-contract.js
 node scripts/test-seo-publication-safeguards.js
 node scripts/test-seo-publication-preparation.js
+node scripts/prepare-seo-publication.js --check
 
 echo "== Shared public-route and staging evidence contract =="
 python3 scripts/test-public-route-contract.py
