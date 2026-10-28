@@ -66,6 +66,12 @@ jobs:
           MEDIA_PERFORMANCE_CONTRACT_ROOT="${GITHUB_WORKSPACE}" \
             node scripts/test-page-media-performance.js
 
+      - name: Verify responsive images in packaged Chromium preview
+        run: |
+          BROWSER_SMOKE_ROOT="${RUNNER_TEMP}/garh-jaisal-preview" \
+          BROWSER_SMOKE_CONTRACT_ROOT="${GITHUB_WORKSPACE}" \
+            python3 scripts/test-browser-smoke.py --responsive-image-preview
+
       - name: Upload guarded staging preview artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
