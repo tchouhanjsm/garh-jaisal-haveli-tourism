@@ -166,7 +166,7 @@ const valid={verificationStatus:'owner-authorized-source',contact:{status:'sourc
   assert.equal(failed.guest.submit.disabled,true);
   assert.equal(failed.guest.status.dataset.state,'error');
   assert.match(failed.guest.status.textContent,/configuration could not be loaded/i);
-  for (const pageName of ['experiences.html','experience-details.html']) {
+  for (const pageName of ['experiences.html','experience-details.html','dining.html']) {
     const html=fs.readFileSync(path.join(__dirname,'..',pageName),'utf8');
     const start=html.indexOf('<form class="guest-enquiry-form" data-guest-enquiry-form>');
     const end=start < 0 ? -1 : html.indexOf('</form>',start);
