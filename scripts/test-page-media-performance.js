@@ -167,7 +167,18 @@ for (const page of PAGES) {
       for (const candidate of srcsetCandidates(attributes(sourceTag).srcset)) heroImageCandidates.add(candidate);
     }
   }
-  for (const match of html.matchAll(/<link\\b[^>]*>/gi)) {
+
+  const imagePreloadTags = [...html.matchAll(/<link\b[^>]*>/gi)]
+    .map(match => ({ tag: match[0], attr: attributes(match[0]) }))
+    .filter(({ attr }) => (attr.rel || '').toLowerCase() === 'preload'
+      && (attr.as || '').toLowerCase() === 'image');
+  if (heroImageTag && !imagePreloadTags.some(({ attr }) => {
+    const href = (attr.href || '').split(/[?#]/, 1)[0];
+    return heroImageCandidates.has(href);
+  })) {
+    fail(page + ': image hero must have a preload matching the hero image or a picture candidate');
+  }
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
     const attr = attributes(match[0]);
     if ((attr.rel || '').toLowerCase() !== 'preload'
       || (attr.as || '').toLowerCase() !== 'image'
@@ -177,9 +188,13 @@ for (const page of PAGES) {
       fail(page + ': image preload must target the primary hero image or its picture candidate: ' + href);
     }
     const type = (attr.type || '').toLowerCase();
-    const expectedType = /\\.webp$/i.test(href) ? 'image/webp'
-      : /\\.jpe?g$/i.test(href) ? 'image/jpeg'
-      : /\\.png$/i.test(href) ? 'image/png' : '';
+    const extension = path.extname(href).toLowerCase();
+    const expectedType = ({
+      '.webp': 'image/webp',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+    })[extension] || '';
     if (type && expectedType && type !== expectedType) {
       fail(page + ': image preload type does not match its file extension: ' + href);
     }
