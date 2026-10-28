@@ -946,6 +946,11 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         if bounds:
             check(bounds["x"] >= -1 and bounds["x"] + bounds["width"] <= width + 1,
                   f"direct enquiry dock at {width}px: dock must remain inside the viewport ({bounds})")
+            if width <= 520:
+                mobile_bar = page.locator(".mobile-booking-bar")
+                bar_bounds = mobile_bar.bounding_box()
+                check(bar_bounds is not None and bounds["y"] + bounds["height"] <= bar_bounds["y"] - 1,
+                      f"direct enquiry dock at {width}px: dock must sit above the fixed booking bar ({bounds}, {bar_bounds})")
         for selector in ("a[data-enquiry-link]", "[data-direct-enquiry-dismiss]"):
             box = dock.locator(selector).bounding_box()
             check(box is not None and box["width"] >= 44 and box["height"] >= 44,
