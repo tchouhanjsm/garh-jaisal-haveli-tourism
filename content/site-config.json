@@ -4,7 +4,9 @@
   "site": {
     "legacyProductionUrl": "https://www.hotelgarhjaisal.com",
     "newStaticSiteCanonicalHost": "https://hotelgarhjaisal.com",
-    "canonicalHostApproved": false
+    "canonicalHostApproved": false,
+    "canonicalPublicationMode": "candidate-configured-owner-release-required",
+    "publicationNote": "Canonical metadata, indexable robots.txt and the populated core sitemap are emitted only by scripts/prepare-seo-publication.js --apply after a separately authorized release change explicitly sets canonicalHostApproved to true."
   },
   "booking": {
     "legacyBookingEngineUrl": "https://asiatech.in/booking_engine/index3?token=NjA2Ng==",
