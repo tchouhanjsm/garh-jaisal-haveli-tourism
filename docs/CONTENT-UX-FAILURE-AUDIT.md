@@ -1039,3 +1039,20 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Both exact-head push and pull-request workflows must pass on the same final commit before merge.
 - Desktop/mobile clipboard behavior, pop-up recovery, live channel reachability and all manual staging UAT remain owner verification tasks; STG-01–STG-18 stay NOT RUN.
 - No production deployment, SEO publication change or server-side enquiry storage is included.
+
+
+## 28 October 2026 — Research-led itinerary themes made discoverable
+
+### Finding
+- The Experiences hub exposed a generic “other routes” enquiry, while the authoritative owner research documented six differentiated itinerary themes. Guests could not easily understand which destination interests they might ask about, and the form did not offer these themes as explicit enquiry choices.
+
+### Implementation
+- Added six route-idea cards to the Experiences hub and matching planning sections on Experience details: havelis/architecture, Jain temples/Fort architecture, photography viewpoints, Kuldhara, Akal Wood Fossil Park or Desert National Park, and Longewala War Memorial.
+- Added the six themes to the Experiences and Experience details enquiry selectors with explicit “enquiry only” labels. The draft includes the chosen idea and requested date but does not invent a departure date or imply an accepted itinerary.
+- Linked to the official Rajasthan Tourism destination pages for research context, with safe new-tab attributes. Each detail section lists the route/access/transport/guide/fees/price questions that must be confirmed.
+- Added static contract tests and Chromium coverage for the Kuldhara route idea, including the enquiry-only draft wording and single-date behavior.
+
+### Guardrails and release boundary
+- These themes follow docs/JAISALMER-TOUR-RESEARCH.md and docs/OWNER-FACTS.md; they are candidates, not approved packages. No operating status, route, timing, vehicle, guide, fees, price, wildlife sighting or restricted-area access is promised.
+- Exact-head push and pull-request quality workflows must pass before merge, followed by post-merge main quality.
+- Manual route feasibility/owner confirmation, live contact verification, staging UAT, Lighthouse and formal accessibility testing remain outstanding. No production deployment, canonical/sitemap activation, robots-policy change or server-side enquiry storage is included.
