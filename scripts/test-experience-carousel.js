@@ -58,10 +58,15 @@ const socialImageMatch = html.match(/<meta property="og:image" content="([^"]+)"
 const socialAltMatch = html.match(/<meta property="og:image:alt" content="([^"]+)"/i);
 assert.ok(socialImageMatch, 'Experiences page has an Open Graph image');
 assert.ok(socialAltMatch && socialAltMatch[1].trim(), 'Experiences social image has descriptive alt text');
-assert.ok(html.includes('src="' + socialImageMatch[1] + '"'), 'social image is one of the page\'s locally hosted option images');
+
 
 const pageImageTags = [...html.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
 const pageImageSources = pageImageTags.map(tag => (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || '');
+const socialImageUrl = new URL(socialImageMatch[1]);
+assert.equal(socialImageUrl.origin, 'https://hotelgarhjaisal.com', 'Experiences social image uses the canonical HTTPS origin');
+const socialImagePath = decodeURIComponent(socialImageUrl.pathname.replace(/^\/+/, ''));
+assert.ok(pageImageSources.includes(socialImagePath), 'social image is one of the page\'s locally hosted option images');
+assert.ok(fs.existsSync(path.resolve(ROOT, socialImagePath)), 'Experiences social image asset exists in the repository');
 assert.ok(pageImageSources.every(Boolean), 'every Experiences image has a source');
 assert.equal(new Set(pageImageSources).size, pageImageSources.length, 'Experiences page must not reuse an image source');
 
