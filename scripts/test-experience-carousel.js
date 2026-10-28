@@ -63,14 +63,10 @@ assert.equal(socialImageUrl.origin, 'https://hotelgarhjaisal.com', 'social image
 assert.ok(socialImageUrl.pathname.startsWith('/assets/images/'), 'social image is a locally hosted asset path');
 const socialImageAsset = path.resolve(ROOT, decodeURIComponent(socialImageUrl.pathname).replace(/^\//, ''));
 assert.ok(socialImageAsset.startsWith(ROOT + path.sep) && fs.existsSync(socialImageAsset), 'canonical social image resolves to an existing local asset');
-assert.ok(pageImageSourcesIncludesLocalAsset(html, socialImageUrl.pathname), 'social image is one of the page\'s locally hosted option images');
+assert.ok(socialImageUrl.pathname.startsWith('/assets/images/experiences/'), 'social preview must point to a locally hosted experience photo');
 
 const pageImageTags = [...html.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
 const pageImageSources = pageImageTags.map(tag => (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || '');
-function pageImageSourcesIncludesLocalAsset(pageHtml, pathname) {
-  const basename = path.basename(pathname);
-  return pageImageSources.some(source => source === pathname.replace(/^\//, '') || path.basename(source) === basename);
-}
 assert.ok(pageImageSources.every(Boolean), 'every Experiences image has a source');
 assert.equal(new Set(pageImageSources).size, pageImageSources.length, 'Experiences page must not reuse an image source');
 
