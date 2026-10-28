@@ -561,7 +561,6 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
           f"{page_name}: Twitter and Open Graph image paths must match")
     check(bool(og_alt and og_alt.strip()) and og_alt == twitter_alt,
           f"{page_name}: Twitter and Open Graph image alt text must match")
-    check(page.locator('link[rel="canonical"]').count() == 0,
     expected_canonical = (
         "https://hotelgarhjaisal.com/"
         if page_name == "index.html"
