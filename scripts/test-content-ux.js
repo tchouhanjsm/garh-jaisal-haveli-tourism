@@ -727,9 +727,10 @@ if (config.site && config.site.canonicalHostApproved !== true) {
   const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
   const coreRoutes = ['/', '/rooms.html', '/experiences.html', '/experience-details.html', '/dining.html', '/about.html', '/directions.html', '/gallery.html'];
   for (const route of coreRoutes) if (!sitemap.includes('<loc>https://hotelgarhjaisal.com' + route + '</loc>')) fail('sitemap missing core URL ' + route);
-  if (!/^\\s*Allow:\\s*\\/$/im.test(robots)) fail('production candidate robots must allow crawling');
-  if (!/^\\s*Sitemap:\\s*https:\\/\\/hotelgarhjaisal\\.com\\/sitemap\\.xml$/im.test(robots)) fail('production candidate robots must advertise canonical sitemap');
-  if (/<loc>[^<]*404\\.html/i.test(sitemap)) fail('sitemap must exclude 404');
+  if (!robots.split(/\r?\n/).some(line => line.trim() === 'Allow: /')) fail('production candidate robots must allow crawling');
+  if (!robots.split(/\r?\n/).some(line => line.trim() === 'Sitemap: https://hotelgarhjaisal.com/sitemap.xml')) fail('production candidate robots must advertise canonical sitemap');
+  if (/<loc>[^<]*404\.html/i.test(sitemap)) fail('sitemap must exclude 404');
+}
 }
 }
 
