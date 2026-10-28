@@ -204,15 +204,6 @@ function inspectAvif(data) {
   if(declared>data.length) return {width,height,errors:['truncated AVIF ftyp box']};
   return {width,height,errors:[],warnings:['AVIF container header and ispe dimensions verified; pixel decode unavailable in dependency-free runtime']};
 }
-function flattenAssetReferences(value, location, output) {
-  if (Array.isArray(value)) { value.forEach((entry,index)=>flattenAssetReferences(entry,location+'['+index+']',output)); return; }
-  if (!value || typeof value!=='object') return;
-  for (const [key,child] of Object.entries(value)) {
-    const at=location+'.'+key;
-    if (['image','src','heroImage','ogImage'].includes(key) && typeof child==='string' && child.startsWith('assets/')) output.push({path:child,location:at});
-    else flattenAssetReferences(child,at,output);
-  }
-}
 function auditMedia(root=ROOT) {
   const schema=readJson(root,'content/schemas/blog.schema.json');
   const policy=imagePolicy(root);
@@ -307,13 +298,14 @@ function auditMedia(root=ROOT) {
     files.push(asset.path); duplicateFilesMap.set(asset.sha256,files);
   }
   const duplicateFiles=[...duplicateFilesMap.entries()].filter(([,files])=>files.length>1).map(([sha256,files])=>({sha256,files:files.sort()}));
+  const articleReports=catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy));
   const duplicateCandidates=[...candidateOwners.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   const duplicates=[...seenRefs.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
-  return {schemaVersion:1,state:errors.length?'ERROR':catalogue.length>0&&catalogue.every(i=>i.record.editorialReview.mediaStatus==='approved'&&(i.record.media.approvedAssets||[]).length===2)?'READY':'BLOCKED',
-    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus!=='approved').length},
+  return {schemaVersion:1,state:errors.length?'ERROR':articleReports.length>0&&articleReports.every(article=>article.mediaStatus==='approved'&&article.blockers.length===0)?'READY':'BLOCKED',
+    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,publicationEligibleAssetCount:assets.filter(asset=>validateForRole(asset, /-hero-\\d+\\./.test(asset.path)?'hero':'supporting',policy).valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:articleReports.filter(article=>article.mediaStatus==='approved'&&article.blockers.length===0).length,declaredApprovedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:articleReports.filter(article=>article.blockers.length>0).length},
     policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
     inventory:assets.sort((a,b)=>a.path.localeCompare(b.path)),
-    duplicates,duplicateCandidates,duplicateFiles,errors,articles:catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy))
+    duplicates,duplicateCandidates,duplicateFiles,errors,articles:articleReports
   };
 }
 function flattenRefs(record) {
@@ -369,9 +361,23 @@ function articleReport(root,item,assets,seenRefs,policy) {
 }
 function reportText(report) {
   const lines=['EDITORIAL MEDIA READINESS: '+report.state,
-    'Articles: '+report.summary.articleCount+' | inventoried assets: '+report.summary.assetCount+' | technical pass: '+report.summary.technicallyValidAssetCount+' | approved articles: '+report.summary.approvedArticleCount+' | blocked: '+report.summary.blockedArticleCount,
+    'Articles: '+report.summary.articleCount+' | inventoried assets: '+report.summary.assetCount+' | source checks passed: '+report.summary.technicallyValidAssetCount+' | publication-eligible assets: '+report.summary.publicationEligibleAssetCount+' | valid media approvals: '+report.summary.approvedArticleCount+' | blocked: '+report.summary.blockedArticleCount,
     'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | duplicate files: '+report.summary.duplicateFileCount+' | read-only: yes'];
-  for(const article of report.articles) lines.push((article.blockers.length?'BLOCK ':'READY ')+article.slug+' — '+article.blockers.join(', '));
+  for(const article of report.articles) {
+    lines.push((article.blockers.length?'BLOCK ':'READY ')+article.slug+' ['+article.mediaStatus+']');
+    if(article.requirements) {
+      lines.push('  Hero requirement: '+article.requirements.hero.subject);
+      lines.push('  Social requirement: '+article.requirements.socialPreview.subject);
+    }
+    if(!article.candidates.length) lines.push('  Candidate gap: no context-supported local asset identified; source/proper asset needed.');
+    for(const candidate of article.candidates) {
+      lines.push('  Candidate '+candidate.role+': '+candidate.path+' | fit='+candidate.fit+' | review='+candidate.reviewStatus+' | rights='+candidate.rightsStatus+' | role-check='+(candidate.technical?'PASS':'BLOCKED'));
+      lines.push('    '+candidate.rationale);
+      if(candidate.technicalErrors.length) lines.push('    Technical findings: '+candidate.technicalErrors.join('; '));
+    }
+    if(article.blockers.length) lines.push('  Blockers: '+article.blockers.join(', '));
+    if(article.candidateWarnings.length) lines.push('  Candidate warnings: '+[...new Set(article.candidateWarnings)].join(' | '));
+  }
   if(report.errors.length) lines.push('Integrity errors:',...report.errors.map(e=>' - '+e));
   return lines.join('\n');
 }
