@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
+const { spawnSync } = require('node:child_process');
 const { safeRelativePath, validateAgainstSchema } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -26,6 +27,7 @@ function imagePolicy(root) {
 }
 const INSPECTABLE_SOURCE_FORMATS = new Set(['.webp', '.avif', '.jpg', '.jpeg', '.png']);
 const MAX_SCAN_BYTES = 25 * 1024 * 1024;
+const decodeCache = new Map();
 
 function readJson(root, relative) {
   const absolute = path.resolve(root, relative);
@@ -92,6 +94,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
 function validateForRole(info, role, policy) {
   if (!info || !info.exists || !info.safe) return { valid: false, errors: (info && info.errors) || ['asset is not a permitted local file'] };
   const errors = [...(info.errors || [])].filter(error => !/width below |width above |file exceeds /.test(error));
+  if (info.decodeStatus !== 'verified') errors.push(info.decodeStatus === 'failed' ? 'full pixel decode failed' : 'full pixel decode has not been verified');
   if (!policy.formats.has('.' + String(info.format || '').toLowerCase())) errors.push('publication image must use WebP or AVIF');
   const limit = role === 'hero' ? policy.hero : policy.supporting;
   if (info.width == null || info.height == null) errors.push('image dimensions could not be verified');
@@ -101,6 +104,49 @@ function validateForRole(info, role, policy) {
   }
   if (info.bytes > limit.maxBytes) errors.push('file exceeds ' + limit.maxBytes + '-byte policy');
   return { valid: errors.length === 0, errors: [...new Set(errors)] };
+}
+function verifyImageDecode(root, images) {
+  const results = new Map();
+  const pending = [];
+  for (const info of images) {
+    if (!info || !info.path) continue;
+    const key = [info.sha256, info.format, info.width, info.height].join(':');
+    if (decodeCache.has(key)) results.set(info.path, decodeCache.get(key));
+    else if (!info.exists || !info.safe || !info.width || !info.height || !info.sha256) {
+      results.set(info.path, { status: 'failed', error: 'safe file and positive header dimensions are required for pixel decode' });
+    } else {
+      pending.push({ info, key });
+    }
+  }
+  if (!pending.length) return results;
+  const script = path.join(__dirname, 'decode-media-assets.py');
+  const run = spawnSync('python3', [script, path.resolve(root)], {
+    input: JSON.stringify(pending.map(({ info }) => ({
+      path: info.path, width: info.width, height: info.height, bytes: info.bytes,
+    }))),
+    encoding: 'utf8',
+    timeout: 120000,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+  let payload = null;
+  if (!run.error && run.status === 0) {
+    try { payload = JSON.parse(run.stdout); } catch (_) { payload = null; }
+  }
+  const decoded = new Map((payload && payload.results || []).map(item => [item.path, item]));
+  for (const { info, key } of pending) {
+    let result;
+    if (run.error || !payload || payload.ok !== true) {
+      result = { status: 'unavailable', error: (run.error && run.error.message) || (payload && payload.error) || 'browser decoder did not return a valid report' };
+    } else {
+      const found = decoded.get(info.path);
+      result = found && ['verified', 'failed'].includes(found.status)
+        ? { status: found.status, width: found.width || null, height: found.height || null, error: found.error || null }
+        : { status: 'unavailable', error: 'browser decoder omitted this image result' };
+    }
+    if (result.status !== 'unavailable') decodeCache.set(key, result);
+    results.set(info.path, result);
+  }
+  return results;
 }
 function inspectImage(data, extension) {
   if (extension === '.png') return inspectPng(data);
@@ -225,6 +271,23 @@ function auditMedia(root=ROOT) {
     }
   }
   scan('assets/images');
+  // Decode every inspectable local image in one isolated Chromium process. A
+  // header-only match never qualifies as technically ready for publication.
+  const decodes = verifyImageDecode(root, assets.filter(asset =>
+    asset.exists && asset.safe && asset.width > 0 && asset.height > 0 && asset.bytes <= MAX_SCAN_BYTES));
+  for (const asset of assets) {
+    const decoded = decodes.get(asset.path);
+    asset.decodeStatus = decoded ? decoded.status : 'not-run';
+    asset.decodeError = decoded && decoded.error || null;
+    if (asset.decodeStatus === 'verified') {
+      asset.warnings = (asset.warnings || []).filter(warning => !/full pixel decode/.test(warning));
+    } else if (asset.decodeStatus === 'unavailable') {
+      asset.warnings = [...(asset.warnings || []), 'full pixel decode could not run: ' + asset.decodeError];
+    } else if (asset.decodeStatus === 'failed') {
+      asset.errors = [...(asset.errors || []), 'full pixel decode failed: ' + asset.decodeError];
+      asset.valid = false;
+    }
+  }
   for(const item of catalogue) {
     const findings=validateAgainstSchema(schema,item.record,item.relative);
     if(item.name!==item.record.slug+'.json') errors.push(item.relative+': filename must match slug');
@@ -302,7 +365,7 @@ function auditMedia(root=ROOT) {
   const duplicateCandidates=[...candidateOwners.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   const duplicates=[...seenRefs.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   return {schemaVersion:1,state:errors.length?'ERROR':articleReports.length>0&&articleReports.every(article=>article.mediaStatus==='approved'&&article.blockers.length===0)?'READY':'BLOCKED',
-    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,publicationEligibleAssetCount:assets.filter(asset=>validateForRole(asset, /-hero-\\d+\\./.test(asset.path)?'hero':'supporting',policy).valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:articleReports.filter(article=>article.mediaStatus==='approved'&&article.blockers.length===0).length,declaredApprovedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:articleReports.filter(article=>article.blockers.length>0).length},
+    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,publicationEligibleAssetCount:assets.filter(asset=>validateForRole(asset, /-hero-\\d+\\./.test(asset.path)?'hero':'supporting',policy).valid).length,verifiedPixelDecodeAssetCount:assets.filter(asset=>asset.decodeStatus==='verified').length,failedPixelDecodeAssetCount:assets.filter(asset=>asset.decodeStatus==='failed').length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:articleReports.filter(article=>article.mediaStatus==='approved'&&article.blockers.length===0).length,declaredApprovedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:articleReports.filter(article=>article.blockers.length>0).length},
     policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
     inventory:assets.sort((a,b)=>a.path.localeCompare(b.path)),
     duplicates,duplicateCandidates,duplicateFiles,errors,articles:articleReports
@@ -362,7 +425,7 @@ function articleReport(root,item,assets,seenRefs,policy) {
 function reportText(report) {
   const lines=['EDITORIAL MEDIA READINESS: '+report.state,
     'Articles: '+report.summary.articleCount+' | inventoried assets: '+report.summary.assetCount+' | source checks passed: '+report.summary.technicallyValidAssetCount+' | publication-eligible assets: '+report.summary.publicationEligibleAssetCount+' | valid media approvals: '+report.summary.approvedArticleCount+' | blocked: '+report.summary.blockedArticleCount,
-    'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | duplicate files: '+report.summary.duplicateFileCount+' | read-only: yes'];
+    'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | duplicate files: '+report.summary.duplicateFileCount+' | pixel decode verified: '+report.summary.verifiedPixelDecodeAssetCount+' | read-only: yes'];
   for(const article of report.articles) {
     lines.push((article.blockers.length?'BLOCK ':'READY ')+article.slug+' ['+article.mediaStatus+']');
     if(article.requirements) {
@@ -391,4 +454,4 @@ if(require.main===module) {
     }catch(error){console.error('FAIL: media audit could not complete safely: '+error.message);process.exitCode=1;}
   }
 }
-module.exports={auditMedia,imageInfo,inspectImage,safeImagePath,imagePolicy,validateForRole};
+module.exports={auditMedia,imageInfo,inspectImage,safeImagePath,imagePolicy,validateForRole,verifyImageDecode};
