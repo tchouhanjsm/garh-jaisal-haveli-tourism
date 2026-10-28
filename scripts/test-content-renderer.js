@@ -98,6 +98,9 @@ function cleanup(root) {
 const root = copyFixture();
 try {
   const initialSitemap = fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8');
+  assert.equal(initialSitemap.split(SITEMAP_BEGIN).length - 1, 1, 'pre-launch sitemap must contain exactly one generated-content start marker');
+  assert.equal(initialSitemap.split(SITEMAP_END).length - 1, 1, 'pre-launch sitemap must contain exactly one generated-content end marker');
+  assert.doesNotMatch(initialSitemap, /<loc>\\s*https?:\\/\\//i, 'pre-launch sitemap must not publish public URLs');
   const draftResult = buildContentPages(root, { write: true });
   assert.equal(draftResult.publishedTours, 0);
   assert.equal(draftResult.publishedBlogs, 0);
