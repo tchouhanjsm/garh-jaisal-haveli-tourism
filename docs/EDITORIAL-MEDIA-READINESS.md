@@ -18,7 +18,7 @@ Run the machine-readable JSON report:
 node scripts/audit-editorial-media-readiness.js --json
 ```
 
-The quality runner invokes the audit with `--check`. This checks catalogue integrity and unsafe references but does not fail just because review is still pending. Use `--strict-release` only when specifically asking whether all blog media requirements are approved; unresolved review produces a nonzero exit code.
+The quality runner invokes the audit with `--check`. This checks catalogue integrity and unsafe references but does not fail just because editorial review is still pending. Use `--strict-release` when asking whether all required media can be released; unresolved review or invalid media approval produces a nonzero exit code. The audit uses the repository-pinned Playwright/Chromium dependency for full pixel decoding. Install the test dependency and browser with `python3 -m pip install -r requirements-test.txt` and `python3 -m playwright install chromium` before running the audit locally.
 
 The existing combined editorial report also includes media details:
 
@@ -43,7 +43,7 @@ If a candidate is selected for publication, make sure the rendered `heroImage` /
 
 The audit rejects unsafe paths, symlinks, missing files, unsupported/corrupt headers, malformed PNG chunks/CRC or deflate streams, zero-byte files, oversized reads, unavailable/invalid dimensions, over-budget dimensions and byte size, invalid candidate references, duplicate article usage and byte-identical files at different paths. It reports contextual candidate reuse across articles separately from content-identical files.
 
-This repository is dependency-free for the image audit. PNG integrity includes chunk and deflate checks. JPEG, WebP and AVIF are checked for container/marker structure and dimensions, but the audit does not perform a complete pixel decode for those codecs. Such findings remain visible as warnings for a human to verify the actual image; do not treat a passing header check as visual QA. The editor/owner must open the image and confirm its actual subject, crop, alt text, factual context and permissions before marking it reviewed.
+The audit combines format/header inspection with a local Chromium pixel-decode pass for inspectable assets. `scripts/decode-media-assets.py` receives repository-relative paths from the audit, rejects paths outside `assets/images`, loads file bytes into a blank browser page as data URLs, blocks network requests, verifies decoded dimensions against the header dimensions, and writes nothing into the repository. The helper uses the pinned Playwright dependency already installed by CI. If Playwright/Chromium is unavailable, an image cannot pass publication media checks; the report records decoder availability instead of silently treating header inspection as sufficient. PNG integrity also includes chunk CRC and deflate checks. A successful pixel decode proves that the file can be decoded and that dimensions agree—it does not prove visual relevance, correct crop, truthful alt text, licence, owner permission, or factual context. The editor/owner must still inspect the actual image and confirm those items before review.
 
 ## Rights, factual accuracy and release gates
 
