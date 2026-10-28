@@ -65,7 +65,7 @@ for (const slug of EXPECTED_CLUSTER) {
   assert.ok(record.media.requirements.socialPreview.subject.length >= 8, slug + ': social preview requirements must be explicit');
   assert.equal(record.media.approvedAssets.length, 0, slug + ': no image may be pre-approved');
   assert.ok(record.media.candidates.every(candidate => candidate.reviewStatus === 'unreviewed' && candidate.rightsStatus === 'unverified'), slug + ': candidates must stay unreviewed until evidence exists');
-  assert.equal(record.editorialReview.mediaStatus, 'missing', slug + ': media review must stay missing without owner evidence');
+  assert.equal(record.editorialReview.mediaStatus, record.media.candidates.length ? 'pending' : 'missing', slug + ': media status must distinguish candidate review from missing assets');
   assert.equal(record.lastReviewed, null, slug + ': editor review must not be claimed');
   assert.equal(record.publishedAt, null, slug + ': publication date must remain unset');
   assert.ok(record.sections.length >= 3, slug + ': require substantive structured sections');
