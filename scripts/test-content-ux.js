@@ -234,13 +234,23 @@ for (const rule of PAGE_RULES) {
   const ogAlt = readMeta(html, /<meta\b[^>]*\bproperty=["']og:image:alt["'][^>]*>/i);
   const twitterAlt = readMeta(html, /<meta\b[^>]*\bname=["']twitter:image:alt["'][^>]*>/i);
   if (!ogImage || !ogImage.content) fail(`${rule.file}: missing Open Graph image`);
-  else if (/^https?:\/\//i.test(ogImage.content)) fail(`${rule.file}: OG image must use a local asset until the canonical host is approved`);
-  else localFile(ogImage.content, rule.file, 'Open Graph image');
+  else if (/^https?:\/\//i.test(ogImage.content)) {
+    try {
+      const parsed = new URL(ogImage.content);
+      if (parsed.origin !== 'https://hotelgarhjaisal.com') fail(`${rule.file}: OG image must use the configured canonical host`);
+      localFile(decodeURIComponent(parsed.pathname).replace(/^\//, ''), rule.file, 'Open Graph image');
+    } catch (_) { fail(`${rule.file}: OG image must be a valid canonical-host URL`); }
+  } else localFile(ogImage.content, rule.file, 'Open Graph image');
   if (!ogAlt || !ogAlt.content.trim()) fail(`${rule.file}: missing Open Graph image alt text`);
   if (!twitterImage || !twitterImage.content) fail(`${rule.file}: missing explicit Twitter image`);
   else if (!ogImage || twitterImage.content !== ogImage.content) fail(`${rule.file}: Twitter image must match the Open Graph image`);
-  else if (/^https?:\/\//i.test(twitterImage.content)) fail(`${rule.file}: Twitter image must stay local until canonical host approval`);
-  else localFile(twitterImage.content, rule.file, 'Twitter image');
+  else if (/^https?:\/\//i.test(twitterImage.content)) {
+    try {
+      const parsed = new URL(twitterImage.content);
+      if (parsed.origin !== 'https://hotelgarhjaisal.com') fail(`${rule.file}: Twitter image must use the configured canonical host`);
+      localFile(decodeURIComponent(parsed.pathname).replace(/^\//, ''), rule.file, 'Twitter image');
+    } catch (_) { fail(`${rule.file}: Twitter image must be a valid canonical-host URL`); }
+  } else localFile(twitterImage.content, rule.file, 'Twitter image');
   if (!twitterAlt || !twitterAlt.content.trim()) fail(`${rule.file}: missing Twitter image alt text`);
   else if (!ogAlt || decodeEntities(twitterAlt.content).trim() !== decodeEntities(ogAlt.content).trim()) {
     fail(`${rule.file}: Twitter image alt text must match Open Graph image alt text`);
@@ -686,7 +696,17 @@ for (const rule of PAGE_RULES) {
 
   if (/<link\b[^>]*\brel=["']canonical["']/i.test(html)) fail(`${rule.file}: canonical URL must remain unset until the host is approved`);
   if (/<meta\b[^>]*\bproperty=["']og:url["']/i.test(html)) fail(`${rule.file}: OG URL must remain unset until the host is approved`);
-  if (/https:\/\/hotelgarhjaisal\.com/i.test(html)) fail(`${rule.file}: unapproved canonical host appears in public HTML`);
+  const expectedCanonicalRoute = {
+    'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
+    'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
+    'about.html': '/about.html', 'directions.html': '/directions.html', 'gallery.html': '/gallery.html'
+  }[rule.file];
+  const expectedCanonical = 'https://hotelgarhjaisal.com' + expectedCanonicalRoute;
+  const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i);
+  const canonicalAttrs = canonicalTag ? attributes(canonicalTag[0]) : {};
+  const ogUrl = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
+  if (!canonicalTag || canonicalAttrs.href !== expectedCanonical) fail(`${rule.file}: canonical URL does not match the candidate route`);
+  if (!ogUrl || ogUrl.content !== expectedCanonical) fail(`${rule.file}: og:url does not match canonical`);
 }
 
 for (const [file, count] of inbound) {
