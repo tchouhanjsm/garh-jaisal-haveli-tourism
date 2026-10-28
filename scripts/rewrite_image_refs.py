@@ -17,14 +17,14 @@ SOURCE_PREFIX = (
 RESPONSIVE_WIDTHS = (480, 768, 1200, 1600)
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
-IMG_PATTERN = re.compile(r"<img\\b[^>]*>", re.IGNORECASE)
-LINK_PATTERN = re.compile(r"<link\\b[^>]*>", re.IGNORECASE)
+IMG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+LINK_PATTERN = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
 
 
 def get_attribute(tag: str, name: str) -> str | None:
     """Read one quoted or unquoted HTML attribute from a start tag."""
     match = re.search(
-        rf"(?<![\\w:-]){re.escape(name)}\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))",
+        rf"(?<![\w:-]){re.escape(name)}\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s>]+))",
         tag,
         re.IGNORECASE,
     )
@@ -36,7 +36,7 @@ def get_attribute(tag: str, name: str) -> str | None:
 def set_attribute(tag: str, name: str, value: str) -> str:
     """Set an HTML attribute without creating duplicates."""
     pattern = re.compile(
-        rf"(?<![\\w:-]){re.escape(name)}\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+)",
+        rf"(?<![\w:-]){re.escape(name)}\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)",
         re.IGNORECASE,
     )
     replacement = f'{name}="{value}"'
@@ -91,6 +91,8 @@ def generate_responsive_variants(
             width, height = image.size
             full_size = image_root / f"{Path(filename).stem}.webp"
             _save_webp(image, full_size, icc_profile)
+            if full_size.stat().st_size >= source.stat().st_size:
+                raise RuntimeError(f"WebP derivative is not smaller than its JPEG source: {filename}")
             generated: list[dict] = []
             for target_width in RESPONSIVE_WIDTHS:
                 if target_width >= width:
@@ -155,11 +157,11 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
     for name in IMAGE_NAMES:
         stem = Path(name).stem
         destination = f"assets/images/{stem}.{('jpg' if extension == 'jpg' else 'webp')}"
-        remote_pattern = re.escape(SOURCE_PREFIX + name) + r"""(?:\\?[^"'\\s>]*)?"""
+        remote_pattern = re.escape(SOURCE_PREFIX + name) + r"""(?:\?[^"'\s>]*)?"""
         text = re.sub(remote_pattern, destination, text)
         local_pattern = (
-            rf"(?<![\\w:/])assets/images/{re.escape(stem)}\\.(?:jpg|webp)"
-            rf"(?![\\w.-])"
+            rf"(?<![\w:/])assets/images/{re.escape(stem)}\.(?:jpg|webp)"
+            rf"(?![\w.-])"
         )
         text = re.sub(local_pattern, destination, text)
 
