@@ -19,7 +19,7 @@
   let activeWhatsAppBaseUrl = '';
 
   function focusArrivalPlannerFromFragment() {
-    if (window.location.hash !== '#arrival-planning') return;
+    if (!window.location || window.location.hash !== '#arrival-planning') return;
     const target = document.getElementById('arrival-planning');
     if (!target) return;
 
