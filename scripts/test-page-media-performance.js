@@ -103,7 +103,8 @@ for (const page of PAGES) {
   const highPriority = imageTags.filter(tag => (attributes(tag).fetchpriority || '').toLowerCase() === 'high');
   if (heroImageTag) {
     if ((attributes(heroImageTag).fetchpriority || '').toLowerCase() !== 'high') fail(page + ': hero image must use fetchpriority="high"');
-    if ((attributes(heroImageTag).loading || '').toLowerCase() === 'lazy') fail(page + ': hero image must not be lazy-loaded');
+    if ((attributes(heroImageTag).loading || '').toLowerCase() !== 'eager') fail(page + ': hero image must explicitly use loading="eager"');
+    if ((attributes(heroImageTag).decoding || '').toLowerCase() !== 'async') fail(page + ': hero image must use decoding="async"');
     if (highPriority.length !== 1 || highPriority[0] !== heroImageTag) fail(page + ': only the primary hero image may use fetchpriority="high"');
   } else if (highPriority.length) {
     fail(page + ': a page without an image hero must not prioritize a supporting image');
