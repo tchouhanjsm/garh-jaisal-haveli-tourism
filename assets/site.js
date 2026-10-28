@@ -206,12 +206,12 @@
       }
 
       button.dataset.roomCompareContactState = 'ready';
-      button.disabled = panel.querySelectorAll('[data-room-compare-toggle][aria-pressed="true"]').length === 0;
+      button.disabled = document.querySelectorAll('#room-card-grid [data-room-compare-toggle][aria-pressed="true"]').length === 0;
       button.removeAttribute('aria-describedby');
       recovery.hidden = true;
       copyButton.disabled = true;
       button.addEventListener('click', () => {
-        const names = Array.from(panel.querySelectorAll('[data-room-compare-toggle][aria-pressed="true"]'))
+        const names = Array.from(document.querySelectorAll('#room-card-grid [data-room-compare-toggle][aria-pressed="true"]'))
           .map(toggle => {
             const card = document.getElementById(toggle.dataset.roomCompareToggle);
             const heading = card && card.querySelector('h3');
