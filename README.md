@@ -32,6 +32,14 @@ The candidate canonical host is configured as `https://hotelgarhjaisal.com`, but
 - `.htaccess` serves `robots-staging.txt` and `sitemap-empty.xml` with an `X-Robots-Tag: noindex, nofollow` response header on non-canonical hosts. It does not guess a staging hostname or enable redirects.
 - Run the full quality suite and content renderer checks after any approved publication change. The publisher does not deploy the site and does not prove DNS, TLS, HTTP headers, Search Console, or live booking/contact behavior.
 
+## Premium design layer and guest journey
+
+The shared `assets/css/premium-guest-journey.css` layer is loaded last on all eight core routes. It refines the heritage palette, type hierarchy, card surfaces, image framing, form affordances, focus states and responsive spacing without replacing existing route-specific components.
+
+Seven inner pages expose a consistent four-step guest journey—**Stay, Explore, Dine, Arrive**—with the current core route marked where appropriate. The homepage keeps its existing planning panel rather than duplicating the same navigation immediately below its hero. The rail is a set of normal local links: no booking automation, guest-data storage or unverified product claims are introduced.
+
+The new contract is covered by `scripts/test-premium-guest-journey.js` and the existing full site-quality suite. Automated checks do not replace human visual review on real mobile, tablet and desktop browsers. See `docs/PREMIUM-GUEST-JOURNEY-DESIGN.md` for the design brief and release acceptance checklist.
+
 ## Run locally
 
 From this directory:
