@@ -1204,14 +1204,14 @@ def check_staging_publication_guards(page, base_url: str) -> None:
     sitemap = fetch_text("sitemap.xml")
     config_text = fetch_text("content/site-config.json")
 
-    check(bool(re.search(r"(?im)^\\s*User-agent:\\s*\\*\\s*$", robots)),
+    check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
           "robots.txt must explicitly identify all crawlers")
-    check(bool(re.search(r"(?im)^\\s*Disallow:\\s*/\\s*$", robots)),
+    check(bool(re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots)),
           "robots.txt must keep crawling blocked until owner approval")
-    check(not re.search(r"(?im)^\\s*Sitemap\\s*:", robots),
+    check(not re.search(r"(?im)^\s*Sitemap\s*:", robots),
           "robots.txt must not advertise a sitemap before canonical-host approval")
-    check(bool(re.search(r"<urlset\\b", sitemap, re.I)), "sitemap.xml must be a valid URL-set document")
-    check(not re.search(r"<loc>\\s*https?://", sitemap, re.I),
+    check(bool(re.search(r"<urlset\b", sitemap, re.I)), "sitemap.xml must be a valid URL-set document")
+    check(not re.search(r"<loc>\s*https?://", sitemap, re.I),
           "sitemap.xml must not publish public URLs before canonical-host approval")
     try:
         config = json.loads(config_text)
