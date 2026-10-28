@@ -80,7 +80,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   result.errors.push(...dimensions.errors);
   result.warnings = dimensions.warnings || [];
   if (result.width && result.height) {
-    const rolePolicy = policy.hero && relative.includes('-hero-') ? policy.hero : policy.supporting;
+    const rolePolicy = policy.hero && /-hero-\d+\./.test(relative) ? policy.hero : policy.supporting;
     if (result.width < rolePolicy.minWidth) result.errors.push('width below ' + policy.minWidth + 'px requirement');
     if (result.width > rolePolicy.maxWidth) result.errors.push('width above ' + rolePolicy.maxWidth + 'px policy');
     if (stat.size > rolePolicy.maxBytes) result.errors.push('file exceeds ' + rolePolicy.maxBytes + '-byte policy');
@@ -154,7 +154,7 @@ function inspectAvif(data) {
   if(!width||!height) return {width:null,height:null,errors:['invalid AVIF dimensions']};
   const declared=data.readUInt32BE(0);
   if(declared>data.length) return {width,height,errors:['truncated AVIF ftyp box']};
-  return {width,height,errors:[],warnings:['AVIF header and dimensions verified; full pixel decode is unavailable in the dependency-free audit']};
+  return {width,height,errors:[],warnings:['AVIF container header and ispe dimensions verified; pixel decode unavailable in dependency-free runtime']};
 }
 function flattenAssetReferences(value, location, output) {
   if (Array.isArray(value)) { value.forEach((entry,index)=>flattenAssetReferences(entry,location+'['+index+']',output)); return; }
