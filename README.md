@@ -40,6 +40,10 @@ Seven inner pages expose a consistent four-step guest journey—**Stay, Explore,
 
 The new contract is covered by `scripts/test-premium-guest-journey.js` and the existing full site-quality suite. Automated checks do not replace human visual review on real mobile, tablet and desktop browsers. See `docs/PREMIUM-GUEST-JOURNEY-DESIGN.md` for the design brief and release acceptance checklist.
 
+## Guest journey QA
+
+The quality runner exercises the shared guest planning rail in real Chromium across all six responsive audit widths, not only static markup. It checks the four local destinations and their order, exact current-page states, visible 44px minimum targets, viewport and rail overflow, the homepage's existing non-duplicated planning panel, and keyboard focus order/visibility. These are local automated checks; live staging visual acceptance and STG-01–STG-18 remain operator-owned tasks.
+
 ## Run locally
 
 From this directory:

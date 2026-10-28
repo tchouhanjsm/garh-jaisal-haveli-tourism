@@ -573,6 +573,90 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
               f"{page_name}: {label} image must remain a local relative asset until canonical approval")
 
 
+
+PREMIUM_JOURNEY_HREFS = ["rooms.html", "experiences.html", "dining.html", "directions.html"]
+PREMIUM_JOURNEY_CURRENT = {
+    "rooms.html": "rooms.html",
+    "experiences.html": "experiences.html",
+    "dining.html": "dining.html",
+    "directions.html": "directions.html",
+}
+
+
+def check_premium_guest_journey(page, page_name: str, viewport_width: int) -> None:
+    """Verify the real rendered planning rail at every responsive breakpoint."""
+    rail = page.locator(".guest-journey")
+    if page_name == "index.html":
+        check(rail.count() == 0, "index.html: home planning panel should not duplicate the shared journey rail")
+        panel = page.locator(".home-plan-panel")
+        check(panel.count() == 1, "index.html: expected one existing home planning panel")
+        links = panel.locator("a.home-plan-path")
+        check(links.count() == 4, "index.html: home planning panel must expose four decision paths")
+        if links.count() == 4:
+            actual = [link.get_attribute("href") for link in links.all()]
+            check(actual == PREMIUM_JOURNEY_HREFS,
+                  "index.html: home planning paths must align with Stay / Explore / Dine / Arrive order")
+            for link in links.all():
+                check(link.is_visible(), "index.html: every home planning path must be visible")
+                box = link.bounding_box()
+                if box:
+                    check(box["width"] >= 44 and box["height"] >= 44,
+                          "index.html: home planning paths must remain usable tap/click targets")
+                    check(box["x"] >= -1 and box["x"] + box["width"] <= viewport_width + 1,
+                          f"index.html: home planning path exceeds the {viewport_width}px viewport")
+        return
+
+    check(rail.count() == 1, f"{page_name}: expected exactly one rendered premium guest-journey rail at {viewport_width}px")
+    if rail.count() != 1:
+        return
+
+    check(rail.is_visible(), f"{page_name} at {viewport_width}px: guest journey must be visible")
+    nav = rail.locator('nav[aria-label="Stay planning steps"]')
+    check(nav.count() == 1, f"{page_name}: journey must expose one labelled navigation landmark")
+    links = rail.locator("a.guest-journey__step")
+    check(links.count() == 4, f"{page_name}: journey must present four links at {viewport_width}px")
+    if links.count() != 4:
+        return
+
+    actual_hrefs = [link.get_attribute("href") for link in links.all()]
+    check(actual_hrefs == PREMIUM_JOURNEY_HREFS,
+          f"{page_name} at {viewport_width}px: Stay / Explore / Dine / Arrive destination order changed")
+    expected_current = PREMIUM_JOURNEY_CURRENT.get(page_name)
+    active_links = rail.locator('a.guest-journey__step[aria-current="page"]')
+    check(active_links.count() == (1 if expected_current else 0),
+          f"{page_name}: current journey step must be present only for an exact matching destination")
+    if expected_current and active_links.count() == 1:
+        check(active_links.get_attribute("href") == expected_current,
+              f"{page_name}: active journey state points at the wrong page")
+
+    for link in links.all():
+        check(link.is_visible(), f"{page_name}: journey link must be visible at {viewport_width}px")
+        href = link.get_attribute("href") or ""
+        check(href in PAGES, f"{page_name}: journey link must resolve to a listed same-site route ({href})")
+        box = link.bounding_box()
+        if box:
+            check(box["width"] >= 44 and box["height"] >= 44,
+                  f"{page_name} at {viewport_width}px: journey tap target is smaller than 44 CSS pixels")
+            check(box["x"] >= -1 and box["x"] + box["width"] <= viewport_width + 1,
+                  f"{page_name} at {viewport_width}px: journey link exceeds the viewport")
+
+    metrics = rail.evaluate("""(element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        left: box.left,
+        right: box.right,
+        width: box.width,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth
+      };
+    }""")
+    check(metrics["left"] >= -1 and metrics["right"] <= viewport_width + 1,
+          f"{page_name} at {viewport_width}px: journey rail must remain inside the viewport ({metrics})")
+    check(metrics["scrollWidth"] <= metrics["clientWidth"] + 1,
+          f"{page_name} at {viewport_width}px: journey content must not overflow its own rail ({metrics})")
+
+
+
 def check_404_recovery(page, base_url: str) -> dict:
     """Exercise Apache-style 404 recovery without following any external contact link."""
     evidence = {
@@ -1236,6 +1320,7 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                       f"{page_name} at {width}px: navigation redirected away from the requested site origin")
             page.wait_for_selector("main#main", timeout=5000)
             page.wait_for_timeout(80)
+            check_premium_guest_journey(page, page_name, width)
             dimensions = page.evaluate(
                 """() => ({
                   viewport: window.innerWidth,
@@ -1302,6 +1387,22 @@ def check_keyboard_navigation(page, base_url: str) -> None:
     page.wait_for_url("**/rooms.html", timeout=7000)
     check(page.locator('#primary-navigation a[aria-current="page"]').get_attribute("href") == "rooms.html",
           "Selecting Rooms from the mobile navigation must reach the Rooms page")
+
+    journey_first = page.locator(".guest-journey__step").first
+    journey_second = page.locator(".guest-journey__step").nth(1)
+    check(journey_first.is_visible() and journey_second.is_visible(),
+          "Rooms journey must expose the first two keyboard navigation steps")
+    if journey_first.is_visible() and journey_second.is_visible():
+        journey_first.focus()
+        page.keyboard.press("Tab")
+        check(page.evaluate("document.activeElement === document.querySelectorAll('.guest-journey__step')[1]"),
+              "Tab from Stay must advance to Explore in the guest journey")
+        focused_style = journey_second.evaluate("""(el) => {
+          const style = getComputedStyle(el);
+          return {outlineStyle: style.outlineStyle, outlineWidth: parseFloat(style.outlineWidth)};
+        }""")
+        check(focused_style["outlineStyle"] not in ("none", "hidden") and focused_style["outlineWidth"] >= 2.5,
+              "Keyboard-focused guest journey links must have a clearly visible focus outline")
 
     # Desktop About dropdown must have readable light-header text and a real menu item.
     page.set_viewport_size({"width": 1280, "height": 900})
