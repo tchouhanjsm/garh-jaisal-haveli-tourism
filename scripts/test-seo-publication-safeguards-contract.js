@@ -7,27 +7,84 @@ const os = require('node:os');
 const path = require('node:path');
 const { auditPublicationSafeguards } = require('./test-seo-publication-safeguards.js');
 
+const ORIGIN = 'https://hotelgarhjaisal.com';
+const STATIC_ROUTES = [
+  ['index.html', '/'],
+  ['rooms.html', '/rooms.html'],
+  ['experiences.html', '/experiences.html'],
+  ['experience-details.html', '/experience-details.html'],
+  ['dining.html', '/dining.html'],
+  ['about.html', '/about.html'],
+  ['directions.html', '/directions.html'],
+  ['gallery.html', '/gallery.html'],
+];
+const GENERATED_ROUTES = [
+  'tours/desert.html',
+  'blogs/fort.html',
+  'tours/nested/deeper/route.html',
+  'blogs/nested/deeper/guide.html',
+];
+
+function pageFor(url, title = 'Fixture page') {
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' + title + '</title>'
+    + '<meta name="description" content="A useful description for publication fixture testing.">'
+    + '<link rel="canonical" href="' + url + '">'
+    + '<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">'
+    + '<meta property="og:url" content="' + url + '">'
+    + '<meta property="og:image" content="' + ORIGIN + '/assets/hero.jpg">'
+    + '<meta property="og:image:alt" content="A descriptive fixture image">'
+    + '<meta name="twitter:image" content="' + ORIGIN + '/assets/hero.jpg">'
+    + '<meta name="twitter:image:alt" content="A descriptive fixture image">'
+    + '<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","url":"' + url + '"}</script>'
+    + '</head><body><main><h1>' + title + '</h1></main></body></html>';
+}
+
+function stagingPage() {
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Not found</title>'
+    + '<meta name="robots" content="noindex,follow"></head><body><main><h1>Not found</h1></main></body></html>';
+}
+
 function withFixture(mutator = () => {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-seo-publication-'));
   try {
     fs.mkdirSync(path.join(root, 'content'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'tours'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'blogs'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'tours', 'nested', 'deeper'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'blogs', 'nested', 'deeper'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'assets'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'assets', 'hero.jpg'), 'fixture-image');
     fs.writeFileSync(path.join(root, 'content', 'site-config.json'), JSON.stringify({
-      site: { canonicalHostApproved: false, newStaticSiteCanonicalHost: 'https://example.test' },
-    }));
-    fs.writeFileSync(path.join(root, 'robots.txt'), '# staging only\nUser-agent: *\nDisallow: /\n');
-    fs.writeFileSync(path.join(root, 'sitemap.xml'), '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
-    fs.writeFileSync(path.join(root, 'index.html'), '<html><head><meta property="og:image" content="/assets/hero.jpg"></head><body><h1>Home</h1></body></html>');
-    fs.writeFileSync(path.join(root, '404.html'), '<html><head><meta name="robots" content="noindex,follow"></head><body><h1>Not found</h1></body></html>');
-    fs.writeFileSync(path.join(root, 'tours', 'desert.html'), '<html><head><meta property="og:title" content="Desert"></head><body><h1>Desert</h1></body></html>');
-    fs.writeFileSync(path.join(root, 'blogs', 'fort.html'), '<html><head><meta property="og:description" content="Fort"></head><body><h1>Fort</h1></body></html>');
-    fs.writeFileSync(path.join(root, 'tours', 'nested', 'deeper', 'route.html'),
-      '<html><head><meta property="og:title" content="Nested tour"></head><body><h1>Nested tour</h1></body></html>');
-    fs.writeFileSync(path.join(root, 'blogs', 'nested', 'deeper', 'guide.html'),
-      '<html><head><meta property="og:title" content="Nested guide"></head><body><h1>Nested guide</h1></body></html>');
+      site: { canonicalHostApproved: true, newStaticSiteCanonicalHost: ORIGIN },
+    }, null, 2));
+    for (const [file, route] of STATIC_ROUTES) {
+      const url = ORIGIN + route;
+      fs.writeFileSync(path.join(root, file), pageFor(url, file === 'index.html' ? 'Home' : file));
+    }
+    fs.writeFileSync(path.join(root, '404.html'), stagingPage());
+    for (const route of GENERATED_ROUTES) {
+      const target = path.join(root, route);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, pageFor(ORIGIN + '/' + route, route));
+    }
+    fs.writeFileSync(path.join(root, 'robots.txt'),
+      'User-agent: *\nAllow: /\n\nSitemap: ' + ORIGIN + '/sitemap.xml\n');
+    fs.writeFileSync(path.join(root, 'robots-staging.txt'),
+      '# Staging only\nUser-agent: *\nDisallow: /\n');
+    fs.writeFileSync(path.join(root, 'sitemap-staging.xml'),
+      '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+    fs.writeFileSync(path.join(root, '.htaccess'), [
+      'RewriteCond %{HTTP_HOST} ^www\\.hotelgarhjaisal\\.com$ [NC]',
+      'RewriteRule ^ https://hotelgarhjaisal.com%{REQUEST_URI} [R=301,L,NE]',
+      'RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\\.com$ [NC]',
+      'RewriteRule ^robots\\.txt$ robots-staging.txt [L]',
+      'RewriteRule ^sitemap\\.xml$ sitemap-staging.xml [L]',
+      'RewriteRule ^ - [E=NON_CANONICAL_HOST:1]',
+      'Header always set X-Robots-Tag "noindex, nofollow" env=NON_CANONICAL_HOST',
+    ].join('\n'));
+    const locs = STATIC_ROUTES.map(([, route]) => ORIGIN + route)
+      .concat(GENERATED_ROUTES.map(route => ORIGIN + '/' + route));
+    fs.writeFileSync(path.join(root, 'sitemap.xml'),
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+      + locs.map(url => '  <url><loc>' + url + '</loc></url>').join('\n')
+      + '\n</urlset>\n');
     mutator(root);
     return auditPublicationSafeguards(root);
   } finally {
@@ -36,18 +93,17 @@ function withFixture(mutator = () => {}) {
 }
 
 const baseline = withFixture();
-assert.deepEqual(baseline.errors, [], 'valid pre-launch state must pass');
-assert.equal(baseline.pagesChecked, 6, 'root and recursively nested tours/blogs HTML must all be scanned');
+assert.deepEqual(baseline.errors, [], 'approved production SEO and staging isolation fixture must pass');
+assert.equal(baseline.pagesChecked, 13, 'all public root and generated HTML pages must be scanned');
 
 const symlinkBaseline = withFixture(root => {
   const outside = path.join(root, 'outside');
   fs.mkdirSync(outside, { recursive: true });
-  fs.writeFileSync(path.join(outside, 'hidden.html'),
-    '<html><head><link rel="canonical" href="https://example.test/hidden"></head></html>');
-  fs.symlinkSync(outside, path.join(root, 'tours', 'nested', 'linked'), 'dir');
+  fs.writeFileSync(path.join(outside, 'hidden.html'), pageFor(ORIGIN + '/hidden.html', 'Hidden'));
+  fs.symlinkSync(outside, path.join(root, 'tours', 'linked'), 'dir');
 });
-assert.deepEqual(symlinkBaseline.errors, [], 'the SEO guard must not follow symlinked generated directories');
-assert.equal(symlinkBaseline.pagesChecked, 6, 'symlinked HTML must not be counted as public generated output');
+assert.deepEqual(symlinkBaseline.errors, [], 'SEO checks must not follow symlinked generated directories');
+assert.equal(symlinkBaseline.pagesChecked, 13, 'symlinked HTML must not be counted as public generated output');
 
 function rejects(mutator, pattern, message) {
   const result = withFixture(mutator);
@@ -55,52 +111,58 @@ function rejects(mutator, pattern, message) {
 }
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'tours', 'desert.html'),
-    '<html><head><link href="https://example.test/tours/desert.html" rel="alternate canonical"></head></html>');
-}, /tours\/desert\.html: canonical link/, 'canonical links in generated tour pages must be rejected');
+  const file = path.join(root, 'rooms.html');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(ORIGIN + '/rooms.html', ORIGIN + '/wrong.html'));
+}, /rooms\.html: canonical link/, 'a mismatched canonical route must be rejected');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'tours', 'nested', 'deeper', 'route.html'),
-    '<html><head><link rel="canonical" href="https://example.test/tours/nested/deeper/route.html"></head></html>');
-}, /tours\/nested\/deeper\/route\.html: canonical link/,
-'canonical publication must be rejected at arbitrary nested tour depth');
+  const file = path.join(root, 'tours/nested/deeper/route.html');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('property="og:url" content="' + ORIGIN + '/tours/nested/deeper/route.html"',
+    'property="og:url" content="' + ORIGIN + '/wrong.html"'));
+}, /tours\/nested\/deeper\/route\.html: og:url/, 'generated routes at arbitrary depth must have correct social URLs');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'blogs', 'nested', 'deeper', 'guide.html'),
-    '<html><head><meta property="og:url" content="https://example.test/blogs/nested/deeper/guide.html"></head></html>');
-}, /blogs\/nested\/deeper\/guide\.html: og:url/,
-'og:url publication must be rejected at arbitrary nested blog depth');
+  const file = path.join(root, '404.html');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('</head>',
+    '<meta property="og:url" content="' + ORIGIN + '/404.html"></head>'));
+}, /404\.html must not publish og:url/, 'the not-found route must not publish an indexable URL');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, '404.html'),
-    '<html><head><meta name="og:url" content="https://example.test/404.html"></head></html>');
-}, /404\.html: og:url/, 'og:url metadata must be rejected even on the recovery page');
+  const file = path.join(root, 'sitemap.xml');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('<url><loc>' + ORIGIN + '/gallery.html</loc></url>', ''));
+}, /missing canonical route URL/, 'every static and generated canonical URL must be listed in the sitemap');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'sitemap.xml'),
-    '<urlset><url><loc>https://example.test/</loc></url></urlset>');
-}, /sitemap\.xml must not contain URL entries/, 'sitemap URL entries must be rejected');
+  fs.writeFileSync(path.join(root, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
+}, /robots\.txt must allow crawling/, 'production robots must not block search crawlers');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'robots.txt'),
-    'User-agent: *\nDisallow: /\nSitemap: https://example.test/sitemap.xml\n');
-}, /robots\.txt must not publish a Sitemap/, 'robots sitemap directives must be rejected');
+  fs.writeFileSync(path.join(root, 'content/site-config.json'), JSON.stringify({
+    site: { canonicalHostApproved: false, newStaticSiteCanonicalHost: ORIGIN },
+  }));
+}, /canonicalHostApproved must be true/, 'publication requires the explicit host approval flag');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'robots.txt'), 'User-agent: *\nAllow: /\n');
-}, /must retain Disallow: \/ /, 'removing pre-launch crawl blocking must be rejected');
+  fs.writeFileSync(path.join(root, 'content/site-config.json'), JSON.stringify({
+    site: { canonicalHostApproved: true, newStaticSiteCanonicalHost: 'https://example.test' },
+  }));
+}, /must match the configured publication origin/, 'publication must reject a different canonical host');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'content', 'site-config.json'),
-    JSON.stringify({ site: { canonicalHostApproved: true, newStaticSiteCanonicalHost: 'https://example.test' } }));
-}, /canonicalHostApproved must remain exactly false/, 'host approval must require a separately authorized publication implementation');
+  fs.writeFileSync(path.join(root, 'robots-staging.txt'), 'User-agent: *\nAllow: /\n');
+}, /robots-staging\.txt must block all crawlers/, 'staging robots must keep all-crawl blocking');
 
 rejects(root => {
-  fs.unlinkSync(path.join(root, 'content', 'site-config.json'));
-}, /site-config\.json is missing or invalid/, 'missing config must fail closed');
+  const file = path.join(root, 'dining.html');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(ORIGIN + '/assets/hero.jpg', '/assets/hero.jpg'));
+}, /dining\.html: og:image must be an absolute HTTPS image URL/, 'relative social images must be rejected');
 
 rejects(root => {
-  fs.writeFileSync(path.join(root, 'content', 'site-config.json'), '{invalid');
-}, /site-config\.json is missing or invalid/, 'malformed config must fail closed');
+  fs.writeFileSync(path.join(root, '.htaccess'), 'ErrorDocument 404 /404.html\n');
+}, /\.htaccess is missing host-aware SEO guard: robots-staging\.txt/, 'server config must preserve staging crawl isolation');
 
-console.log('PASS: SEO publication guard fixtures cover root/tour/blog pages, safe social metadata, canonical/OG URL regressions, sitemap/robots publication and fail-closed config handling.');
+rejects(root => {
+  fs.writeFileSync(path.join(root, 'content/site-config.json'), '{invalid');
+}, /site-config\.json is missing or invalid/, 'malformed site config must fail closed');
+
+console.log('PASS: SEO publication contract fixtures cover canonical routes, absolute previews, JSON-LD, sitemap completeness, 404 exclusion and staging crawl isolation.');
