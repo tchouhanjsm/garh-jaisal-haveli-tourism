@@ -67,6 +67,16 @@ def _save_webp(image: Image.Image, target: Path, icc_profile: bytes | None) -> N
         raise
 
 
+
+
+def _validate_source_image_header(image: Image.Image, filename: str) -> None:
+    """Reject unexpected formats and excessive pixel counts before decoding bytes."""
+    if image.format != "JPEG":
+        raise ValueError(f"Responsive image source is not a JPEG: {filename}")
+    if image.width < 1 or image.height < 1 or image.width * image.height > MAX_PIXELS:
+        raise ValueError(f"Source image dimensions exceed safe bounds: {filename}")
+
+
 def generate_responsive_variants(
     root: Path, image_names: tuple[str, ...] = IMAGE_NAMES
 ) -> dict[str, dict]:
@@ -81,9 +91,8 @@ def generate_responsive_variants(
         if source.is_symlink() or not source.is_file() or source.stat().st_size <= 0:
             raise FileNotFoundError(f"Missing safe source image: {source}")
         with Image.open(source) as opened:
+            _validate_source_image_header(opened, filename)
             opened.load()
-            if opened.width < 1 or opened.height < 1 or opened.width * opened.height > MAX_PIXELS:
-                raise ValueError(f"Source image dimensions exceed safe bounds: {filename}")
             icc_profile = opened.info.get("icc_profile")
             image = ImageOps.exif_transpose(opened)
             if image.mode not in ("RGB", "RGBA"):
@@ -135,9 +144,8 @@ def _natural_dimensions(root: Path, stem: str) -> tuple[int, int]:
     if source.is_symlink() or not source.is_file() or source.stat().st_size <= 0:
         raise FileNotFoundError(f"Missing safe source image: {source}")
     with Image.open(source) as opened:
+        _validate_source_image_header(opened, source.name)
         opened.load()
-        if opened.format != "JPEG":
-            raise ValueError(f"Responsive image source is not a JPEG: {source}")
         image = ImageOps.exif_transpose(opened)
         width, height = image.size
     if width < 1 or height < 1 or width * height > MAX_PIXELS:
@@ -148,6 +156,7 @@ def _natural_dimensions(root: Path, stem: str) -> tuple[int, int]:
 def _srcset(root: Path, stem: str) -> str:
     source = root / "assets" / "images" / f"{stem}.jpg"
     with Image.open(source) as image:
+        _validate_source_image_header(image, source.name)
         image.load()
         oriented = ImageOps.exif_transpose(image)
         natural_width = oriented.width

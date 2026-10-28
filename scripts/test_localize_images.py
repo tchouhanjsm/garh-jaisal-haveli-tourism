@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 from PIL import Image, ImageDraw
 
@@ -76,6 +77,32 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     self.assertEqual(decoded.size, (item["width"], item["height"]))
                 self.assertGreater(item["bytes"], 0)
                 self.assertLess(item["bytes"], entry["fullSizeBytes"])
+
+    def test_oversized_jpeg_headers_are_rejected_before_decode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_jpeg(root, "rest3.jpg", (20, 20))
+
+            for operation in ("generate", "rewrite"):
+                with self.subTest(operation=operation):
+                    opened = MagicMock()
+                    opened.__enter__.return_value = opened
+                    opened.__exit__.return_value = False
+                    opened.format = "JPEG"
+                    opened.width = 8000
+                    opened.height = 8001
+
+                    with patch("rewrite_image_refs.Image.open", return_value=opened):
+                        with self.assertRaisesRegex(ValueError, "safe bounds"):
+                            if operation == "generate":
+                                generate_responsive_variants(root, ("rest3.jpg",))
+                            else:
+                                rewrite_html_text(
+                                    '<img src="assets/images/rest3.jpg" alt="Rooftop">',
+                                    "responsive",
+                                    root=root,
+                                )
+                    opened.load.assert_not_called()
 
     def test_responsive_markup_preserves_jpeg_fallback_and_preloads_selected_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
