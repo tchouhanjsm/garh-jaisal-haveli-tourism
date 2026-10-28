@@ -96,7 +96,7 @@ assert.ok(validateAgainstSchema(schemas.tour, { ...validTour, slug: '../escape' 
 assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, sources: [] }).length > 0, 'blog without source references must fail');
 assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), approvedAssets: [{ path:'assets/images/blogs/example/example-hero-01.webp', role:'hero', alt:'image', approvedBy:'qa', approvedAt:'2026-10-28', rightsEvidence:'test' }] } }).length > 0,
   'generic alt text for an approved asset must fail schema validation');
-assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), candidates: [{ path:'../outside.webp', role:'hero', fit:'possible-contextual-match', rationale:'Candidate rationale is long enough for the test.', provenance:'Fixture path only, not a real provenance claim.', rightsStatus:'unverified', reviewStatus:'unreviewed', visualReview:{status:'not_assessed',evidence:'Not visually assessed in this fixture.',reviewer:null,reviewedAt:null} }] } }).length > 0,
+assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), candidates: [{ path:'../outside.webp', role:'hero', fit:'not-assessed', rationale:'Candidate rationale is long enough for the test.', provenance:'Fixture path only, not a real provenance claim.', rightsStatus:'unverified', reviewStatus:'unreviewed', visualReview:{status:'not_assessed',evidence:'Not visually assessed in this fixture.',reviewer:null,reviewedAt:null} }] } }).length > 0,
   'unsafe candidate paths must fail schema validation');
 assert.ok(validateAgainstSchema(schemas.gallery, {
   ...validGallery,
