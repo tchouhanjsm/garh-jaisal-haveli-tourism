@@ -4,7 +4,9 @@
   "site": {
     "legacyProductionUrl": "https://www.hotelgarhjaisal.com",
     "newStaticSiteCanonicalHost": "https://hotelgarhjaisal.com",
-    "canonicalHostApproved": false
+    "canonicalHostApproved": false,
+    "canonicalPublicationMode": "candidate-configured-owner-release-required",
+    "publicationNote": "Canonical metadata and crawl files are prepared for the candidate host. Owner approval, DNS, TLS, redirects, response headers, contact reachability and Search Console remain release gates."
   },
   "booking": {
     "legacyBookingEngineUrl": "https://asiatech.in/booking_engine/index3?token=NjA2Ng==",
@@ -36,7 +38,7 @@
   "rules": [
     "Public booking and contact values were migrated from the designated legacy repository at the owner's explicit instruction on 2026-10-26. This is source authorization, not an independent live endpoint or staffing test.",
     "The booking engine is external. Never imply that opening it, clicking an enquiry link, or sending a message confirms a reservation.",
-    "Keep the canonical host unapproved until the owner completes the separate canonical-host launch decision.",
+    "Keep canonicalHostApproved false until the owner completes the separate canonical-host launch decision; generated tour/blog publication remains separately gated.",
     "Do not publish current restaurant menu items or prices while the legacy menu data remains owner_confirmed=false.",
     "Do not add credentials, private guest information or server secrets to this file."
   ]
