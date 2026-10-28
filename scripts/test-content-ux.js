@@ -256,11 +256,6 @@ for (const rule of PAGE_RULES) {
   if (!twitterImage || !twitterImage.content) fail(rule.file + ': missing explicit Twitter image');
   else if (!ogImage || twitterImage.content !== ogImage.content) fail(rule.file + ': Twitter image must match the Open Graph image');
   checkPublishedSocialImage(twitterImage, 'Twitter image');
-  if (!ogAlt || !ogAlt.content.trim()) fail(`${rule.file}: missing Open Graph image alt text`);
-  if (!twitterImage || !twitterImage.content) fail(`${rule.file}: missing explicit Twitter image`);
-  else if (!ogImage || twitterImage.content !== ogImage.content) fail(`${rule.file}: Twitter image must match the Open Graph image`);
-  else if (/^https?:\/\//i.test(twitterImage.content)) fail(`${rule.file}: Twitter image must stay local until canonical host approval`);
-  else localFile(twitterImage.content, rule.file, 'Twitter image');
   if (!twitterAlt || !twitterAlt.content.trim()) fail(`${rule.file}: missing Twitter image alt text`);
   else if (!ogAlt || decodeEntities(twitterAlt.content).trim() !== decodeEntities(ogAlt.content).trim()) {
     fail(`${rule.file}: Twitter image alt text must match Open Graph image alt text`);
