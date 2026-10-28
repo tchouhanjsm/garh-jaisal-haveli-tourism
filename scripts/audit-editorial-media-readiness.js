@@ -230,7 +230,7 @@ function auditMedia(root=ROOT) {
       if(entry.isSymbolicLink()) { errors.push(relative+': symlink is not permitted'); continue; }
       if(entry.isDirectory()) { scan(relative); continue; }
       if(!entry.isFile() || entry.name.startsWith('.')) continue;
-      if(!SUPPORTED.has(path.extname(entry.name).toLowerCase())) { assets.push({path:relative,eligible:false,errors:['unsupported file type']}); continue; }
+      if(!INSPECTABLE_SOURCE_FORMATS.has(path.extname(entry.name).toLowerCase())) { assets.push({path:relative,eligible:false,errors:['unsupported file type']}); continue; }
       assets.push(imageInfo(root,relative,policy));
     }
   }
@@ -325,11 +325,15 @@ function articleReport(root,item,assets,seenRefs,policy) {
   const roles=['hero','socialPreview'];
   const candidateRecords=(Array.isArray(media.candidates)?media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate));
   const approvedRecords=(Array.isArray(media.approvedAssets)?media.approvedAssets:[]).filter(asset=>asset&&typeof asset==='object'&&!Array.isArray(asset));
-  const candidateWarnings=candidateRecords.flatMap(candidate=>[
-    ...(candidate.reviewStatus==='unreviewed'?['candidate-unreviewed:'+candidate.path]:[]),
-    ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
-    ...(!(assets.find(a=>a.path===candidate.path)||{}).valid?['candidate-needs-technical-review:'+candidate.path]:[]),
-  ]);
+  const candidateWarnings=candidateRecords.flatMap(candidate=>{
+    const info=assets.find(a=>a.path===candidate.path);
+    const check=validateForRole(info,candidate.role,policy);
+    return [
+      ...(candidate.reviewStatus==='unreviewed'?['candidate-unreviewed:'+candidate.path]:[]),
+      ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
+      ...(!check.valid?['candidate-needs-technical-review:'+candidate.path+': '+check.errors.join('; ')]:[]),
+    ];
+  });
   return {slug:r.slug,title:r.title,primaryQuery:r.seo&&r.seo.primaryQuery,status:r.status,
     mediaStatus:review.mediaStatus||'missing',
     requirements:media.requirements||null,
