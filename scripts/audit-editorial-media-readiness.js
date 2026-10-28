@@ -10,7 +10,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 const { spawnSync } = require('node:child_process');
-const { safeRelativePath, validateAgainstSchema } = require('./validate-content');
+const { safeRelativePath, validateAgainstSchema, mediaSourceEvidenceIssues } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
 function imagePolicy(root) {
@@ -304,6 +304,9 @@ function auditMedia(root=ROOT) {
     if (!Array.isArray(rawCandidates) || !Array.isArray(rawApproved)) errors.push(item.relative+': media candidates and approvedAssets must be arrays');
     if (Array.isArray(rawCandidates)&&candidates.length!==rawCandidates.length) errors.push(item.relative+': malformed media candidate record');
     if (Array.isArray(rawApproved)&&approved.length!==rawApproved.length) errors.push(item.relative+': malformed approved asset record');
+    for (const candidate of candidates) {
+      for (const issue of mediaSourceEvidenceIssues(candidate)) errors.push(item.relative+': source evidence '+candidate.path+' '+issue);
+    }
     if (item.record.editorialReview.mediaStatus === 'missing' && candidates.length > 0) errors.push(item.relative+': mediaStatus missing conflicts with declared candidates; use pending review');
     if (item.record.editorialReview.mediaStatus === 'pending' && candidates.length === 0) errors.push(item.relative+': mediaStatus pending requires at least one candidate');
     if (item.record.editorialReview.mediaStatus === 'rejected' && !candidates.some(candidate => candidate.reviewStatus === 'rejected')) errors.push(item.relative+': mediaStatus rejected requires a rejected candidate decision');
@@ -383,7 +386,7 @@ function auditMedia(root=ROOT) {
   const duplicates=[...seenRefs.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   return {schemaVersion:1,state:errors.length?'ERROR':articleReports.length>0&&articleReports.every(article=>article.mediaStatus==='approved'&&article.blockers.length===0)?'READY':'BLOCKED',
     summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,publicationEligibleAssetCount:assets.filter(asset=>validateForRole(asset, /-hero-\\d+\\./.test(asset.path)?'hero':'supporting',policy).valid).length,verifiedPixelDecodeAssetCount:assets.filter(asset=>asset.decodeStatus==='verified').length,failedPixelDecodeAssetCount:assets.filter(asset=>asset.decodeStatus==='failed').length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:articleReports.filter(article=>article.mediaStatus==='approved'&&article.blockers.length===0).length,declaredApprovedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:articleReports.filter(article=>article.blockers.length>0).length},
-    policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
+    policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true,structuredSourceEvidenceRequired:true,approvedRightsEvidenceMustMatchSourceEvidenceReference:true},
     inventory:assets.sort((a,b)=>a.path.localeCompare(b.path)),
     duplicates,duplicateCandidates,duplicateFiles,errors,articles:articleReports
   };
@@ -408,8 +411,9 @@ function articleReport(root,item,assets,seenRefs,policy) {
       const info=assets.find(item=>item.path===asset.path);
       const check=validateForRole(info,role,policy);
       if(!check.valid) integrityBlockers.push(role+'-technical-invalid:'+check.errors.join('; '));
-      const candidate=candidateRecords.find(item=>item.path===asset.path&&item.role===role&&item.reviewStatus==='approved'&&['owner-confirmed','licensed'].includes(item.rightsStatus));
+      const candidate=candidateRecords.find(item=>item.path===asset.path&&item.role===role&&item.reviewStatus==='approved'&&item.visualReview&&item.visualReview.status==='matched'&&['owner-confirmed','licensed'].includes(item.rightsStatus)&&mediaSourceEvidenceIssues(item).length===0);
       if(!candidate) integrityBlockers.push(role+'-candidate-or-rights-evidence-invalid');
+      else if(asset.rightsEvidence!==candidate.sourceEvidence.evidenceReference) integrityBlockers.push(role+'-rights-evidence-reference-mismatch');
       const actualPath=role==='hero'?r.heroImage:(r.seo&&r.seo.ogImage);
       const actualAlt=role==='hero'?r.heroAlt:(r.seo&&r.seo.ogAlt);
       if(asset.path!==actualPath) integrityBlockers.push(role+'-rendered-path-mismatch');
@@ -424,6 +428,7 @@ function articleReport(root,item,assets,seenRefs,policy) {
       ...(candidate.visualReview && candidate.visualReview.status==='not_assessed'?['candidate-visual-review-not-assessed:'+candidate.path]:[]),
       ...(candidate.visualReview && candidate.visualReview.status==='mismatch'?['candidate-visual-subject-mismatch:'+candidate.path]:[]),
       ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
+      ...(!candidate.sourceEvidence||candidate.sourceEvidence.status==='unverified'?['candidate-source-provenance-unverified:'+candidate.path]:[]),
       ...(!check.valid?['candidate-needs-technical-review:'+candidate.path+': '+check.errors.join('; ')]:[]),
     ];
   });
@@ -453,7 +458,7 @@ function reportText(report) {
     }
     if(!article.candidates.length) lines.push('  Candidate gap: no context-supported local asset identified; source/proper asset needed.');
     for(const candidate of article.candidates) {
-      lines.push('  Candidate '+candidate.role+': '+candidate.path+' | fit='+candidate.fit+' | visual-review='+(candidate.visualReview&&candidate.visualReview.status||'missing')+' | review='+candidate.reviewStatus+' | rights='+candidate.rightsStatus+' | role-check='+(candidate.technical?'PASS':'BLOCKED'));
+      lines.push('  Candidate '+candidate.role+': '+candidate.path+' | fit='+candidate.fit+' | visual-review='+(candidate.visualReview&&candidate.visualReview.status||'missing')+' | review='+candidate.reviewStatus+' | rights='+candidate.rightsStatus+' | source-evidence='+(candidate.sourceEvidence&&candidate.sourceEvidence.status||'missing')+' | role-check='+(candidate.technical?'PASS':'BLOCKED'));
       lines.push('    '+candidate.rationale);
       if(candidate.technicalErrors.length) lines.push('    Technical findings: '+candidate.technicalErrors.join('; '));
     }
