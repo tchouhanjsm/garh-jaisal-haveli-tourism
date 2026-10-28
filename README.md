@@ -230,3 +230,10 @@ The Directions page shows the owner-maintained legacy source distances for the l
 ### Guest-enquiry fallback and intent guidance
 
 The shared enquiry form updates the visible departure requirement and helper text when the guest switches between overnight/room enquiries and day experiences. A valid submit prepares the same guest-reviewed WhatsApp draft as before, and now reveals a read-only, copyable version beneath the form in case the browser blocks or fails to open the WhatsApp tab. Copying is an explicit guest action. The site never sends the message automatically and does not persist these details to a backend or browser storage. Deterministic tests and Chromium smoke cover the dynamic help, exact draft fallback, and clipboard path without navigating away from the site or sending guest data.
+
+
+### Room shortlist and enquiry recovery
+
+On Rooms, the guest can add up to three catalogue entries to the comparison shortlist and prepare one enquiry listing the selected room names. The action only becomes available after the selected room set is non-empty and the centralized, authorized WhatsApp configuration is ready. The draft asks the team to confirm room assignment, availability, inclusions, rates/taxes and terms; it does not imply live inventory or reserve a room. The exact message remains visible in a read-only copy fallback if the WhatsApp tab is blocked. Changing the shortlist clears that old draft so a guest cannot accidentally copy an outdated room selection.
+
+The Dining table enquiry now has the same recovery principle: after a valid explicit submit, the exact guest-reviewed draft is shown on-page with a copy control. Both clipboard routes are opt-in; failed clipboard access leaves the message selected for manual copy. No message is sent automatically, and these changes introduce no backend storage or production/staging configuration changes.

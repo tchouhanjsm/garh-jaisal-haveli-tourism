@@ -8,6 +8,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'rooms.html'), 'utf8');
 const script = fs.readFileSync(path.join(ROOT, 'assets', 'room-compare.js'), 'utf8');
+const siteScript = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'assets', 'room-compare.css'), 'utf8');
 const quality = fs.readFileSync(path.join(ROOT, 'scripts', 'check-pr-quality.sh'), 'utf8');
 
@@ -45,6 +46,19 @@ assert.match(script, /aria-live/);
 assert.ok(script.includes("compareHeading.id = 'room-compare-heading'"),
   'the dynamic comparison section must have a valid accessible name');
 assert.match(script, /aria-pressed/);
+assert.match(script, /dataset\.roomCompareEnquiry/);
+assert.match(script, /roomCompareContactState/);
+assert.match(script, /Ask about selected rooms/);
+assert.match(script, /dataset\.roomCompareRecovery/);
+assert.match(script, /dataset\.roomCompareDraft/);
+assert.match(script, /dataset\.roomCompareCopy/);
+assert.match(script, /recovery\.hidden = true/);
+assert.match(siteScript, /configureRoomCompareEnquiry/);
+assert.match(siteScript, /\[data-room-compare-toggle\]\[aria-pressed="true"\]/);
+assert.match(siteScript, /whatsappBaseUrl \+ '\?text='/);
+assert.match(siteScript, /does not confirm a booking/);
+assert.match(siteScript, /navigator\.clipboard\.writeText/);
+assert.match(siteScript, /document\.execCommand\('copy'\)/);
 assert.ok(script.includes('row.dataset.roomCompareRow = key'));
 assert.match(script, /function makeCell\(row, tag, text, scope\)/,
   'comparison cell semantics must be centralized in the DOM helper');
@@ -67,10 +81,12 @@ assert.doesNotMatch(script, /wa\.me\/|asiatech|info@hotelgarhjaisal\.com|\+91772
   'comparison must not duplicate contact endpoints');
 
 assert.match(css, /\.room-compare\[hidden\]/);
+assert.match(css, /\.room-compare__enquire/);
+assert.match(css, /\.room-compare__actions/);
 assert.match(css, /overflow-x:\s*auto/);
 assert.match(css, /min-width:\s*700px/);
 assert.match(css, /:focus-visible/);
 assert.match(css, /prefers-reduced-motion/);
 assert.match(quality, /node scripts\/test-room-compare\.js/);
 
-console.log('PASS: room comparison preserves all seven catalogue records, progressive enhancement, accessible side-by-side details, a three-room cap, safe DOM construction, no persistence/network calls and responsive keyboard-accessible scrolling.');
+console.log('PASS: room comparison preserves seven catalogue records, accessible side-by-side details and the three-room cap; shortlist enquiry is contact-authorized, source-backed, copyable, ephemeral and responsive.');

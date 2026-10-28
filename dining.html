@@ -42,6 +42,13 @@
           <div class="dining-table-form__field"><label for="restaurant-table-note">Anything else? <span>(optional)</span></label><textarea id="restaurant-table-note" name="note" rows="3" maxlength="240" aria-describedby="restaurant-table-note-help" placeholder="A question about the visit or table setup…"></textarea><small id="restaurant-table-note-help">Avoid payment details or sensitive personal information.</small></div>
           <p class="dining-table-form__privacy">Only the date, party size, preferred time and optional note you choose are included in the WhatsApp draft. Nothing is stored on this website. Review the draft before sending it.</p>
           <button class="button button--dark dining-table-form__submit" type="submit" data-restaurant-table-submit disabled>Prepare table enquiry <span aria-hidden="true">↗</span></button>
+          <section class="guest-enquiry-recovery dining-table-form__recovery" data-restaurant-table-recovery aria-labelledby="restaurant-table-recovery-heading" hidden>
+            <h4 id="restaurant-table-recovery-heading">Message text fallback</h4>
+            <p>If your browser blocks the WhatsApp tab, copy this prepared message and paste it into the hotel chat. Nothing is sent automatically.</p>
+            <label for="restaurant-table-draft">Prepared message</label>
+            <textarea id="restaurant-table-draft" data-restaurant-table-draft rows="8" readonly spellcheck="false"></textarea>
+            <button class="button button--light" type="button" data-restaurant-table-copy disabled>Copy prepared message</button>
+          </section>
           <p class="dining-table-form__status" data-restaurant-table-status aria-live="polite" data-state="pending">Checking the approved contact channel…</p>
         </form>
       </section>

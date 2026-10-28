@@ -1039,3 +1039,21 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Both exact-head push and pull-request workflows must pass on the same final commit before merge.
 - Desktop/mobile clipboard behavior, pop-up recovery, live channel reachability and all manual staging UAT remain owner verification tasks; STG-01–STG-18 stay NOT RUN.
 - No production deployment, SEO publication change or server-side enquiry storage is included.
+
+
+## 28 October 2026 — Room shortlist conversion and table-enquiry recovery
+
+### Finding
+- The room comparison helped guests compare catalogue features but stopped short of preserving their chosen room names when contacting the hotel. Guests had to remember or retype the shortlist manually.
+- Dining table enquiries, like the general guest enquiries, depended on a newly opened WhatsApp tab. If pop-ups were blocked, the current page did not provide the exact draft text for recovery.
+
+### Implementation
+- Added a contextual enquiry action to the room-comparison panel. It reads the currently selected one-to-three catalogue names and prepares one draft through the validated, centrally configured WhatsApp destination; it never invents room availability or rates.
+- Added a read-only fallback and explicit copy action to both the room shortlist and Dining table flow. Clipboard failure/denial falls back to selecting the exact text for manual copy.
+- Reset the room draft when the selection changes, preventing a previously prepared message from silently representing an outdated shortlist.
+- Extended deterministic room/dining tests and Chromium coverage for selection handoff, exact draft text, clipboard action and same-origin behavior. Tests intercept the external-tab request and never send an enquiry.
+
+### Validation and release boundary
+- Push and pull-request quality workflows must pass on the same final head; the post-merge main quality run must then pass.
+- Owner-approved staging UAT, real-device clipboard behavior, actual WhatsApp reachability, room inventory and restaurant service/menu checks remain open. STG-01–STG-18 remain NOT RUN until manual evidence exists.
+- No production deployment, canonical/sitemap publication, robots-policy change, or server-side guest-data collection is included.

@@ -215,3 +215,11 @@
     transition: none;
   }
 }
+
+
+.room-compare__actions{display:flex;align-items:flex-start;gap:10px;flex:0 0 auto}
+.room-compare__enquire{min-height:42px;padding:10px 14px;border:1px solid var(--ink);border-radius:0;background:var(--ink);color:var(--white);font:inherit;font-size:11px;font-weight:700;line-height:1.4;cursor:pointer}
+.room-compare__enquire:hover:not(:disabled){background:var(--gold-dark);border-color:var(--gold-dark)}
+.room-compare__enquire:focus-visible{outline:2px solid var(--gold-dark);outline-offset:3px}
+.room-compare__enquire:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:620px){.room-compare__actions{width:100%;flex-direction:column}.room-compare__actions button{width:100%}}

@@ -340,3 +340,13 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Exercise copy/recovery in deterministic tests and Chromium while intercepting the external-tab request; automated tests send no message and create no reservation.
 - [ ] On the owner-approved HTTPS staging origin, test the copy action on iOS/Android and desktop browsers, including denied clipboard permission and pop-up blocking; manually verify focus visibility, status announcement and the textarea at narrow widths.
 - [ ] Manual staging UAT and STG-01–STG-18 remain NOT RUN. Do not infer live contact reachability from the static configuration or the browser mock.
+
+
+## 28 October 2026 — Shortlist-to-enquiry and Dining recovery
+
+- [x] Let guests carry one to three selected room names from the comparison shortlist into a single enquiry. Use only current DOM selection, with contact authorization inherited from central site configuration.
+- [x] Explicitly ask the hotel to verify live room assignment, current availability, inclusions, rates/taxes and terms; do not treat the shortlist as inventory or a reservation.
+- [x] Show a read-only copyable version of the room enquiry and Dining table enquiry when a WhatsApp tab is blocked. Reset the room draft when the shortlist changes.
+- [x] Extend static regression checks and Chromium coverage for selected-room names, exact message content, clipboard copy and same-origin/no-send behavior.
+- [ ] Manually test the room shortlist and Dining fallback at 320–390px and desktop widths; verify clipboard permission denied, blocked pop-ups, keyboard focus and announcements on an owner-approved HTTPS staging origin.
+- [ ] STG-01–STG-18 and live contact/booking reachability remain NOT RUN until operator evidence is recorded. Do not activate canonical/sitemap/robots changes or deploy to production as part of this phase.

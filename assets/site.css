@@ -332,3 +332,7 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 .guest-enquiry-recovery button{justify-self:start;cursor:pointer}
 .guest-enquiry-recovery button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:800px){.guest-enquiry-recovery button{width:100%}}
+
+
+/* Keep fallback panel headings consistent when nested below an existing h3. */
+.guest-enquiry-recovery h4{margin:0;font-family:var(--serif);font-size:clamp(20px,2.4vw,26px);font-weight:400;line-height:1.2}
