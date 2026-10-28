@@ -155,6 +155,36 @@ for (const page of PAGES) {
     }
   }
 
+  // A non-responsive image preload must target the actual primary hero image or one of its
+  // <picture> candidates. Preloading an unrelated room/supporting photo wastes bandwidth and
+  // can compete with the real LCP image even when the asset itself is valid.
+  const heroImageCandidates = new Set();
+  if (heroImageTag) {
+    const heroSrc = (attributes(heroImageTag).src || '').split(/[?#]/, 1)[0];
+    if (heroSrc) heroImageCandidates.add(heroSrc);
+    for (const sourceTag of sourceTags) {
+      if (!heroHtml.includes(sourceTag)) continue;
+      for (const candidate of srcsetCandidates(attributes(sourceTag).srcset)) heroImageCandidates.add(candidate);
+    }
+  }
+  for (const match of html.matchAll(/<link\\b[^>]*>/gi)) {
+    const attr = attributes(match[0]);
+    if ((attr.rel || '').toLowerCase() !== 'preload'
+      || (attr.as || '').toLowerCase() !== 'image'
+      || attr.imagesrcset) continue;
+    const href = (attr.href || '').split(/[?#]/, 1)[0];
+    if (!heroImageCandidates.has(href)) {
+      fail(page + ': image preload must target the primary hero image or its picture candidate: ' + href);
+    }
+    const type = (attr.type || '').toLowerCase();
+    const expectedType = /\\.webp$/i.test(href) ? 'image/webp'
+      : /\\.jpe?g$/i.test(href) ? 'image/jpeg'
+      : /\\.png$/i.test(href) ? 'image/png' : '';
+    if (type && expectedType && type !== expectedType) {
+      fail(page + ': image preload type does not match its file extension: ' + href);
+    }
+  }
+
   // Responsive preload hints must agree with a real <picture> source. A mismatched
   // candidate list or slot size can trigger duplicate downloads and waste bandwidth.
   for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
