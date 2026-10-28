@@ -58,6 +58,8 @@ node scripts/validate-content.js
 node scripts/test-content-contract.js
 node scripts/test-editorial-content-cluster.js
 node scripts/test-editorial-readiness.js
+node scripts/test-editorial-media-readiness.js
+node scripts/audit-editorial-media-readiness.js --check
 node scripts/audit-editorial-readiness.js --check
 
 if [[ -f scripts/test-site-js.js ]] && ! grep -Fq "test-site-js.js" scripts/check-site.sh; then
