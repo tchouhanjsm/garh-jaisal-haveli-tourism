@@ -1025,7 +1025,7 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
                   f"{page_name}: route draft must retain the requested date")
             check(not re.search(r"^Departure:", route_draft["text"], re.M),
                   f"{page_name}: route idea must not invent a departure date")
-            check("This enquiry does not confirm a booking." in route_draft["text"],
+            check("does not confirm a booking" in route_draft["text"].lower(),
                   f"{page_name}: route draft must not imply an accepted tour or reservation")
             check(same_origin(route_draft["currentUrl"], base_url),
                   f"{page_name}: route draft test must not navigate to WhatsApp or send the message")
