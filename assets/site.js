@@ -4,6 +4,8 @@
   const menuToggle = document.querySelector('.menu-toggle');
   const nav = document.querySelector('#primary-navigation');
   const contactStatus = document.querySelector('#contact-status');
+  const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
+  const directEnquiryDismiss = directEnquiryDock ? directEnquiryDock.querySelector('[data-direct-enquiry-dismiss]') : null;
   const enquiryLinks = Array.from(document.querySelectorAll('[data-enquiry-link]'));
   const phoneLinks = Array.from(document.querySelectorAll('[data-contact-phone]'));
   const alternatePhoneLinks = Array.from(document.querySelectorAll('[data-contact-alt-phone]'));
@@ -452,11 +454,56 @@
     toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 4200);
   }
 
+  const visibleDirectEnquirySurfaces = new Set();
+  let directEnquiryDismissed = false;
+  // Without IntersectionObserver the dock remains unavailable rather than risk covering controls.
+  let directEnquirySurfaceTrackingReady = false;
+
+  function updateDirectEnquiryDock() {
+    if (!directEnquiryDock) return;
+    const shouldShow = !directEnquiryDismissed
+      && directEnquirySurfaceTrackingReady
+      && window.scrollY > 360
+      && visibleDirectEnquirySurfaces.size === 0
+      && !document.body.classList.contains('menu-open');
+    directEnquiryDock.hidden = !shouldShow;
+  }
+
+  if (directEnquiryDock) {
+    if (directEnquiryDismiss) {
+      directEnquiryDismiss.addEventListener('click', () => {
+        directEnquiryDismissed = true;
+        directEnquiryDock.hidden = true;
+      });
+    }
+
+    if (typeof IntersectionObserver === 'function') {
+      const protectedSurfaces = document.querySelectorAll(
+        '[data-guest-enquiry-form], [data-booking-form], .room-compare-panel, .site-footer'
+      );
+      if (protectedSurfaces.length) {
+        const surfaceObserver = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) visibleDirectEnquirySurfaces.add(entry.target);
+            else visibleDirectEnquirySurfaces.delete(entry.target);
+          });
+          directEnquirySurfaceTrackingReady = true;
+          updateDirectEnquiryDock();
+        }, { threshold: 0.01 });
+        protectedSurfaces.forEach(surface => surfaceObserver.observe(surface));
+      } else {
+        directEnquirySurfaceTrackingReady = true;
+      }
+    }
+  }
+
   function updateHeader() {
     if (header) header.classList.toggle('is-scrolled', window.scrollY > 20);
+    updateDirectEnquiryDock();
   }
   updateHeader();
   window.addEventListener('scroll', updateHeader, { passive: true });
+  window.addEventListener('resize', updateDirectEnquiryDock);
 
   if (menuToggle && nav) {
     menuToggle.addEventListener('click', () => {
@@ -465,12 +512,14 @@
       menuToggle.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
       nav.classList.toggle('is-open', !expanded);
       document.body.classList.toggle('menu-open', !expanded);
+      updateDirectEnquiryDock();
     });
     nav.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
       menuToggle.setAttribute('aria-expanded', 'false');
       menuToggle.setAttribute('aria-label', 'Open navigation');
       nav.classList.remove('is-open');
       document.body.classList.remove('menu-open');
+      updateDirectEnquiryDock();
     }));
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && menuToggle.getAttribute('aria-expanded') === 'true') {
@@ -478,6 +527,7 @@
         menuToggle.setAttribute('aria-label', 'Open navigation');
         nav.classList.remove('is-open');
         document.body.classList.remove('menu-open');
+        updateDirectEnquiryDock();
         menuToggle.focus();
       }
     });

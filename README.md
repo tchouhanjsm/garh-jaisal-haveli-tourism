@@ -259,3 +259,10 @@ On Rooms, the guest can add up to three catalogue entries to the comparison shor
 
 The Dining table enquiry now has the same recovery principle: after a valid explicit submit, the exact guest-reviewed draft is shown on-page with a copy control. Both clipboard routes are opt-in; failed clipboard access leaves the message selected for manual copy. No message is sent automatically, and these changes introduce no backend storage or production/staging configuration changes.
 
+
+
+## Contextual direct-enquiry dock
+
+All eight core routes share a small, dismissible direct-enquiry dock for visitors who have scrolled beyond the initial view. It uses page-specific wording through the existing `data-enquiry-link` contract and centralized `content/site-config.json` validation; it does not introduce a second contact destination. The dock stays hidden while tracked enquiry forms, the room-comparison panel or the site footer are in view, respects the mobile menu state, and offers 44px minimum action/dismiss targets at narrow viewport widths.
+
+Selecting **Prepare enquiry** opens a prefilled WhatsApp draft for the visitor to review. It never sends automatically, creates a reservation, stores the draft in browser storage, or adds a backend. When the contact config or authorized WhatsApp destination is unavailable, the existing fail-closed behavior is retained. `scripts/test-premium-guest-journey.js` validates route coverage and styling contracts; the Chromium smoke suite validates reveal/dismissal, viewport fit, the authorized HTTPS destination and suppression near the footer without following the external link. These checks do not establish live WhatsApp reachability or replace staging UAT.

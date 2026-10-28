@@ -1067,3 +1067,21 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Canonical/OG URL publication, absolute production-host social image URLs, sitemap URL entries and a permissive robots policy remain withheld until the owner explicitly approves the canonical host.
 - [ ] Keep `canonicalHostApproved=false`, `robots.txt` at `Disallow: /`, and `sitemap.xml` without public URL entries until that decision is recorded.
 
+
+
+## 28 October 2026 — Contextual direct-enquiry handoff
+
+### Finding
+- The site already has validated contact links and context-rich enquiry forms, but no consistent direct-enquiry action on every core route once visitors move deeper into the page.
+- A generic WhatsApp shortcut could bypass the current contact-safety contract or send the same context-free wording from every route.
+
+### Implementation
+- Added one shared dock to all eight core pages, with separate stay/room, experience, dining, arrival and property wording. Every link is hydrated through the existing `data-enquiry-link` path and must pass central contact host/status checks.
+- The dock only appears after scrolling and after its visibility observer confirms tracked enquiry surfaces are not visible. It yields to forms, room comparison and the footer, hides when mobile navigation is open, and can be dismissed for the current page view.
+- Added narrow-phone styling, minimum 44px action/dismiss targets, a named landmark, draft-only disclosure and a keyboard-operable close button.
+- Extended route-level static contracts and Chromium behavior checks at 320px, 390px and desktop widths. Tests inspect but never follow the WhatsApp link or send a message.
+
+### Validation and release boundary
+- Both exact-head push and pull-request quality workflows must pass on the final PR head.
+- Live WhatsApp reachability, actual device/browser rendering and owner-approved staging UAT remain outstanding; STG-01–STG-18 remain separate manual gates.
+- This change does not alter contact authorization, booking-provider configuration, guest-data retention, canonical-host approval, robots policy, sitemap publication or deployment state.

@@ -20,6 +20,7 @@ const ROUTES = [
 const stylesheet = 'assets/css/premium-guest-journey.css';
 const cssPath = path.join(ROOT, stylesheet);
 const css = fs.readFileSync(cssPath, 'utf8');
+const siteJs = fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8');
 assert.match(css, /--premium-ease:\s*cubic-bezier\(/, 'premium motion tokens must be centralized');
 assert.match(css, /\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
   'desktop journey needs four consistently aligned steps');
@@ -39,9 +40,34 @@ assert.match(css, /\.room-card:hover[\s\S]*?transform:\s*translateY\(-3px\)/,
   'interactive catalogue cards must use a restrained hover affordance');
 assert.match(css, /\.guest-enquiry-panel,[\s\S]*?\.guest-enquiry-recovery/,
   'enquiry panels must share the premium form surface treatment');
+assert.match(css, /\.direct-enquiry-dock\[hidden\][\s\S]*?display:\s*none\s*!important/,
+  'dock must remain absent until safe reveal conditions are satisfied');
+assert.match(css, /\.direct-enquiry-dock__dismiss[\s\S]*?min-width:\s*44px/,
+  'dock dismissal must provide a 44px touch target');
+assert.match(css, /@media\s*\(max-width:\s*520px\)[\s\S]*?\.direct-enquiry-dock\s*\{/,
+  'dock must have a narrow-phone layout');
+assert.match(siteJs, /querySelector\('\[data-direct-enquiry-dock\]'\)/,
+  'shared runtime must initialize the contextual direct-enquiry dock');
+assert.match(siteJs, /window\.scrollY > 360/,
+  'dock must wait until the visitor has moved past the initial view');
+assert.match(siteJs, /IntersectionObserver/,
+  'dock visibility must respect actual enquiry forms and footer visibility');
+assert.match(siteJs, /directEnquiryDismissed/,
+  'dismissal must persist for the current page view');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
+  const dockMatches = [...html.matchAll(/<aside class="direct-enquiry-dock" data-direct-enquiry-dock[\s\S]*?<\/aside>/g)];
+  assert.equal(dockMatches.length, 1, route.file + ': each core route must expose exactly one contextual enquiry dock');
+  const dock = dockMatches[0] ? dockMatches[0][0] : '';
+  assert.match(dock, /aria-label="Ask the hotel directly"/, route.file + ': dock needs a named landmark');
+  assert.match(dock, /\bhidden(?:\s|>)/, route.file + ': dock must start hidden before safe reveal conditions');
+  assert.match(dock, /data-enquiry-link/, route.file + ': dock action must use existing contact validation');
+  assert.match(dock, /aria-disabled="true" aria-describedby="contact-status"/, route.file + ': dock action must start disabled until contact validation completes');
+  assert.match(dock, /data-enquiry-message="[^"]{40,}"/, route.file + ': dock must carry a contextual draft');
+  assert.match(dock, /data-direct-enquiry-dismiss aria-label="Dismiss direct enquiry"/,
+    route.file + ': visitors must be able to dismiss the dock accessibly');
+  assert.match(dock, /Nothing is sent automatically/, route.file + ': draft-only disclosure must be visible');
   assert.equal((html.match(/assets\/css\/premium-guest-journey\.css/g) || []).length, 1,
     route.file + ': the shared visual system must be loaded exactly once');
   const allStyles = [...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*>/gi)];
@@ -84,4 +110,13 @@ for (const route of ROUTES) {
   assert.match(journey, /Plan the details that matter\./, route.file + ': missing clear guest-facing journey headline');
 }
 
-console.log('PASS: premium visual system is last-loaded across all eight core routes; seven inner routes expose a responsive, accessible four-step guest journey.');
+const allDockMessages = ROUTES.map(route => {
+  const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
+  const block = html.match(/<aside class="direct-enquiry-dock" data-direct-enquiry-dock[\s\S]*?<\/aside>/);
+  const message = block && block[0].match(/data-enquiry-message="([^"]+)"/);
+  assert.ok(message, route.file + ': expected a route-specific enquiry draft');
+  return message ? message[1] : '';
+});
+assert.equal(new Set(allDockMessages).size, ROUTES.length, 'each core route must keep its own contextual draft');
+
+console.log('PASS: premium journey and contextual direct-enquiry dock contracts cover all eight core routes.');
