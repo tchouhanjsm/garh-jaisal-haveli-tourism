@@ -543,14 +543,18 @@ def run_responsive_image_preview_smoke() -> int:
                             'picture:has(source[data-responsive-image="true"])'
                         )
                         picture_count = pictures.count()
-                        if picture_count:
-                            routes_with_responsive_images.add(page_name)
 
                         for index in range(picture_count):
                             picture = pictures.nth(index)
                             source = picture.locator('source[data-responsive-image="true"]').first
                             image = picture.locator("img").first
                             label = f"{page_name} at {width}px picture {index + 1}"
+                            # Inactive carousel slides intentionally remain hidden. Their
+                            # static srcset is covered by the media gate; browser selection
+                            # is checked only for images a guest can currently see.
+                            if not image.is_visible():
+                                continue
+                            routes_with_responsive_images.add(page_name)
                             checked_pictures += 1
                             try:
                                 image.scroll_into_view_if_needed(timeout=3000)
