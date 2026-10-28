@@ -58,10 +58,19 @@ const socialImageMatch = html.match(/<meta property="og:image" content="([^"]+)"
 const socialAltMatch = html.match(/<meta property="og:image:alt" content="([^"]+)"/i);
 assert.ok(socialImageMatch, 'Experiences page has an Open Graph image');
 assert.ok(socialAltMatch && socialAltMatch[1].trim(), 'Experiences social image has descriptive alt text');
-assert.ok(html.includes('src="' + socialImageMatch[1] + '"'), 'social image is one of the page\'s locally hosted option images');
+const socialImageUrl = new URL(socialImageMatch[1]);
+assert.equal(socialImageUrl.origin, 'https://hotelgarhjaisal.com', 'social image uses canonical host');
+assert.ok(socialImageUrl.pathname.startsWith('/assets/images/'), 'social image is a locally hosted asset path');
+const socialImageAsset = path.resolve(ROOT, decodeURIComponent(socialImageUrl.pathname).replace(/^\//, ''));
+assert.ok(socialImageAsset.startsWith(ROOT + path.sep) && fs.existsSync(socialImageAsset), 'canonical social image resolves to an existing local asset');
+assert.ok(pageImageSourcesIncludesLocalAsset(html, socialImageUrl.pathname), 'social image is one of the page\'s locally hosted option images');
 
 const pageImageTags = [...html.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
 const pageImageSources = pageImageTags.map(tag => (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || '');
+function pageImageSourcesIncludesLocalAsset(pageHtml, pathname) {
+  const basename = path.basename(pathname);
+  return pageImageSources.some(source => source === pathname.replace(/^\//, '') || path.basename(source) === basename);
+}
 assert.ok(pageImageSources.every(Boolean), 'every Experiences image has a source');
 assert.equal(new Set(pageImageSources).size, pageImageSources.length, 'Experiences page must not reuse an image source');
 
