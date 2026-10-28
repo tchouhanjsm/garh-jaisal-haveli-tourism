@@ -135,6 +135,80 @@ function visitAssetPaths(value, location, root, findings) {
   }
 }
 
+
+function blogMediaPolicyFindings(record, root, sourcePath) {
+  const findings = [];
+  const media = record.media || {};
+  const review = record.editorialReview || {};
+  const candidates = Array.isArray(media.candidates) ? media.candidates : [];
+  const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets : [];
+  const candidateKeys = new Set();
+  const approvedRoles = new Set();
+  const inside = relative => {
+    if (!safeRelativePath(relative) || !relative.startsWith('assets/images/')) return false;
+    const base = path.resolve(root), target = path.resolve(base, relative);
+    const rel = path.relative(base, target);
+    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return false;
+    let current = base;
+    for (const segment of relative.split('/')) {
+      current = path.join(current, segment);
+      try {
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink()) return false;
+        if (current !== target && !stat.isDirectory()) return false;
+        if (current === target && !stat.isFile()) return false;
+      } catch (_) { return false; }
+    }
+    return true;
+  };
+  for (const candidate of candidates) {
+    const key = String(candidate.path) + ':' + String(candidate.role);
+    if (candidateKeys.has(key)) findings.push({path: sourcePath + '.media.candidates', message: 'duplicate candidate path/role: ' + key});
+    candidateKeys.add(key);
+    if (!inside(candidate.path)) findings.push({path: sourcePath + '.media.candidates', message: 'candidate must resolve to a permitted regular local asset: ' + candidate.path});
+    if (candidate.reviewStatus === 'approved' && !['owner-confirmed', 'licensed'].includes(candidate.rightsStatus)) {
+      findings.push({path: sourcePath + '.media.candidates', message: 'candidate approval requires owner-confirmed or licensed rights evidence: ' + candidate.path});
+    }
+    if (candidate.reviewStatus === 'approved' && !inside(candidate.path)) {
+      findings.push({path: sourcePath + '.media.candidates', message: 'approved candidate path must resolve locally: ' + candidate.path});
+    }
+  }
+  for (const asset of approved) {
+    if (approvedRoles.has(asset.role)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'more than one approved asset for role ' + asset.role});
+    approvedRoles.add(asset.role);
+    const candidate = candidates.find(item => item.path === asset.path && item.role === asset.role
+      && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
+    if (!candidate) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must reference a reviewed candidate with resolved rights: ' + asset.path});
+    if (!inside(asset.path)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must resolve to a permitted local file: ' + asset.path});
+    if (/^(image|photo|picture|image of|photo of|jaisalmer)$/i.test(String(asset.alt || '').trim())) {
+      findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset alt text is too generic: ' + asset.path});
+    }
+    if (!String(asset.rightsEvidence || '').trim()) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset requires rights evidence: ' + asset.path});
+  }
+  if (review.mediaStatus === 'approved') {
+    for (const role of ['hero', 'socialPreview']) {
+      const asset = approved.find(item => item.role === role);
+      const pathValue = role === 'hero' ? record.heroImage : record.seo && record.seo.ogImage;
+      const altValue = role === 'hero' ? record.heroAlt : record.seo && record.seo.ogAlt;
+      if (!asset) findings.push({path: sourcePath + '.media.approvedAssets', message: 'mediaStatus approved requires an approved ' + role + ' asset'});
+      else {
+        if (asset.path !== pathValue) findings.push({path: sourcePath, message: 'approved ' + role + ' asset must match the rendered image path'});
+        if (asset.alt !== altValue) findings.push({path: sourcePath, message: 'approved ' + role + ' alt text must match the rendered alt text'});
+      }
+    }
+  }
+  if (review.mediaStatus === 'missing' && (record.heroImage || (record.seo && record.seo.ogImage))) {
+    findings.push({path: sourcePath + '.editorialReview.mediaStatus', message: 'mediaStatus missing cannot coexist with assigned hero/OG image paths'});
+  }
+  if ((record.status === 'approved_for_release' || record.status === 'live') && review.mediaStatus !== 'approved') {
+    findings.push({path: sourcePath + '.editorialReview.mediaStatus', message: 'approved/live blog requires fully approved media'});
+  }
+  if ((record.status === 'approved_for_release' || record.status === 'live') && approvedRoles.size !== 2) {
+    findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved/live blog requires exactly one approved hero and socialPreview asset'});
+  }
+  return findings;
+}
+
 function validateRecordPolicy(type, record, root, registry, siteConfig, findings, sourcePath) {
   const status = record.status;
   const slug = type === 'gallery' ? record.category : record.slug;
@@ -160,6 +234,7 @@ function validateRecordPolicy(type, record, root, registry, siteConfig, findings
     if (!record.lastVerified || !isValidDate(record.lastVerified)) findings.push({ path: sourcePath, message: 'live tour requires a valid lastVerified date' });
   }
   if (type === 'blog') {
+    findings.push(...blogMediaPolicyFindings(record, root, sourcePath));
     const review = record.editorialReview;
     if (!review || typeof review !== 'object' || Array.isArray(review)) {
       findings.push({ path: sourcePath + '.editorialReview', message: 'blog requires explicit editorial review state' });
@@ -311,4 +386,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy };
+module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy, blogMediaPolicyFindings };
