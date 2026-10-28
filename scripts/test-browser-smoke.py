@@ -1694,6 +1694,15 @@ def check_arrival_planning_deep_links(page, base_url: str) -> None:
         target = page.locator("#arrival-planning")
         check(target.count() == 1, "Directions must provide one arrival-planning fragment target")
         if target.count() == 1:
+            try:
+                page.wait_for_function(
+                    "() => { const target = document.querySelector('#arrival-planning'); "
+                    "if (!target) return false; const rect = target.getBoundingClientRect(); "
+                    "return rect.top < window.innerHeight && rect.bottom > 0; }",
+                    timeout=5000,
+                )
+            except Exception as error:
+                check(False, f"{page_name}: native fragment navigation should scroll the planner into view ({error})")
             bounds = target.bounding_box()
             viewport_height = page.evaluate("() => window.innerHeight")
             check(bounds is not None and bounds["y"] < viewport_height
