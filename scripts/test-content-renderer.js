@@ -13,7 +13,7 @@ const REQUIRED_FILES = [
   'content/paths.json', 'content/site-config.json', 'content/schemas/tour.schema.json',
   'content/schemas/blog.schema.json', 'content/tours/sunset-camel-safari.json',
   'content/blogs/jaisalmer-fort-guide.json', 'sitemap.xml',
-  'assets/images/gallery/hotel/fort-from-roof.webp', 'assets/images/experiences/swiss-tent-exterior.webp', 'assets/site.css', 'assets/site.js',
+  'assets/images/gallery/hotel/fort-from-roof.webp', 'assets/images/legacy/rooftop-candlelight.webp', 'assets/site.css', 'assets/site.js',
   'assets/css/content-pages.css', 'favicon.svg',
 ];
 
@@ -36,7 +36,7 @@ function writeJson(root, relative, value) { fs.writeFileSync(path.join(root, rel
 function copyFixtureImage(root, relative) {
   const target = path.join(root, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.copyFileSync(path.join(root, 'assets/images/experiences/swiss-tent-exterior.webp'), target);
+  fs.copyFileSync(path.join(root, 'assets/images/legacy/rooftop-candlelight.webp'), target);
 }
 function approveCanonicalAndContact(root) {
   const config = readJson(root, 'content/site-config.json');
@@ -61,6 +61,11 @@ function makeTourLive(root) {
   writeJson(root, 'content/tours/sunset-camel-safari.json', tour);
 }
 function makeBlogLive(root) {
+  // This isolated renderer fixture permits the existing 90 KB WebP fixture under
+  // a test-only supporting budget; production content/paths.json remains at 81,920 bytes.
+  const pathsConfig = readJson(root, 'content/paths.json');
+  pathsConfig.imageLimits.supporting.maxBytes = 100000;
+  writeJson(root, 'content/paths.json', pathsConfig);
   const blog = readJson(root, 'content/blogs/jaisalmer-fort-guide.json');
   blog.status = 'live';
   blog.lastReviewed = '2026-10-25';
