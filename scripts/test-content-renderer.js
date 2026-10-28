@@ -36,14 +36,18 @@ function writeJson(root, relative, value) { fs.writeFileSync(path.join(root, rel
 function copyFixtureImage(root, relative) {
   const target = path.join(root, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.copyFileSync(path.join(root, 'assets/images/legacy/rooftop-candlelight.webp'), target);
+  const source = relative.includes('-hero-')
+    ? 'assets/images/gallery/hotel/fort-from-roof.webp'
+    : 'assets/images/legacy/rooftop-candlelight.webp';
+  fs.copyFileSync(path.join(root, source), target);
 }
 function setFixtureMediaPolicy(root) {
-  // The existing source is 900px wide and ~90 KB. These limits apply only in
-  // the temp fixture so positive publication-path tests can use that source;
-  // production policy remains governed by the unmodified registry.
+  // Positive-path fixtures use an existing wide view for the hero and the
+  // smaller rooftop image for the social preview. Test-only byte allowances
+  // are isolated to this temp copy; production registry limits remain intact.
   const config = readJson(root, 'content/paths.json');
-  config.imageLimits.hero.minWidth = 800;
+  config.imageLimits.hero.maxBytes = 500000;
+  config.imageLimits.hero.maxWidth = 2000;
   config.imageLimits.supporting.maxBytes = 100000;
   writeJson(root, 'content/paths.json', config);
 }
