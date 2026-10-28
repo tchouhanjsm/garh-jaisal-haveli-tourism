@@ -561,21 +561,16 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
           f"{page_name}: Twitter and Open Graph image paths must match")
     check(bool(og_alt and og_alt.strip()) and og_alt == twitter_alt,
           f"{page_name}: Twitter and Open Graph image alt text must match")
-    expected_canonical = "https://hotelgarhjaisal.com/" if page_name == "index.html" else "https://hotelgarhjaisal.com/" + page_name
-    check(page.locator('link[rel="canonical"]').count() == 1 and page.locator('link[rel="canonical"]').get_attribute("href") == expected_canonical,
-          f"{page_name}: canonical must match the production route")
-    check(page.locator('meta[property="og:url"]').count() == 1 and page.locator('meta[property="og:url"]').get_attribute("content") == expected_canonical,
-          f"{page_name}: og:url must match the canonical route")
-    robots_meta = page.locator('meta[name="robots"]').get_attribute("content") or ""
-    check("index" in robots_meta.lower() and "follow" in robots_meta.lower() and "noindex" not in robots_meta.lower(),
-          f"{page_name}: public route must permit indexing and link following")
+    check(page.locator('link[rel="canonical"]').count() == 0,
+          f"{page_name}: canonical must remain gated pending explicit owner host approval")
+    check(page.locator('meta[property="og:url"]').count() == 0,
+          f"{page_name}: og:url must remain gated pending explicit owner host approval")
+    check("https://hotelgarhjaisal.com" not in page.content(),
+          f"{page_name}: unapproved canonical origin must not appear in public HTML")
     for label, value in (("Open Graph", og_image), ("Twitter", twitter_image)):
-        try:
-            url = urlparse(value or "")
-            check(url.scheme == "https" and url.netloc.lower() == "hotelgarhjaisal.com" and url.path.startswith("/assets/images/"),
-                  f"{page_name}: {label} image must be an absolute canonical HTTPS URL")
-        except Exception:
-            check(False, f"{page_name}: {label} image URL must be valid")
+        parsed = urlparse(value or "")
+        check(bool(value) and not parsed.scheme and not parsed.netloc and value.startswith("assets/images/"),
+              f"{page_name}: {label} image must remain a local relative asset until canonical approval")
 
 
 def check_404_recovery(page, base_url: str) -> dict:
@@ -1205,32 +1200,26 @@ def check_staging_publication_guards(page, base_url: str) -> None:
         check(response.status == 200, f"{path}: expected HTTP 200 on the target site (found {response.status})")
         return response.text() if response.status == 200 else ""
 
-    local_host = (urlparse(base_url).hostname or '').lower()
-    local_simulation = local_host in ("127.0.0.1", "localhost", "::1")
-    if local_simulation:
-        robots = fetch_text("robots-staging.txt")
-        sitemap = fetch_text("sitemap-staging.xml")
-    else:
-        robots = fetch_text("robots.txt")
-        sitemap = fetch_text("sitemap.xml")
+    robots = fetch_text("robots.txt")
+    sitemap = fetch_text("sitemap.xml")
     config_text = fetch_text("content/site-config.json")
 
-    check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
-          "non-canonical robots policy must identify all crawlers")
-    check(bool(re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots)),
-          "staging/non-canonical hosts must block crawling")
-    check(not re.search(r"(?im)^\s*Sitemap\s*:", robots),
-          "staging/non-canonical robots must not advertise a sitemap")
-    check(bool(re.search(r"<urlset\b", sitemap, re.I)), "staging sitemap must be a valid URL-set document")
-    check(not re.search(r"<loc>\s*https?://", sitemap, re.I),
-          "staging/non-canonical sitemap must not publish URLs")
+    check(bool(re.search(r"(?im)^\\s*User-agent:\\s*\\*\\s*$", robots)),
+          "robots.txt must explicitly identify all crawlers")
+    check(bool(re.search(r"(?im)^\\s*Disallow:\\s*/\\s*$", robots)),
+          "robots.txt must keep crawling blocked until owner approval")
+    check(not re.search(r"(?im)^\\s*Sitemap\\s*:", robots),
+          "robots.txt must not advertise a sitemap before canonical-host approval")
+    check(bool(re.search(r"<urlset\\b", sitemap, re.I)), "sitemap.xml must be a valid URL-set document")
+    check(not re.search(r"<loc>\\s*https?://", sitemap, re.I),
+          "sitemap.xml must not publish public URLs before canonical-host approval")
     try:
         config = json.loads(config_text)
     except json.JSONDecodeError as error:
         check(False, f"content/site-config.json is not valid JSON on the target site: {error}")
     else:
-        check(config.get("site", {}).get("canonicalHostApproved") is True,
-              "source config must identify the configured production canonical host")
+        check(config.get("site", {}).get("canonicalHostApproved") is False,
+              "canonicalHostApproved must remain false until explicit owner approval")
 
 
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
