@@ -40,8 +40,10 @@ for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
   assert.equal((html.match(/assets\/css\/premium-guest-journey\.css/g) || []).length, 1,
     route.file + ': the shared visual system must be loaded exactly once');
-  const allStyles = [...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*>/gi)];,  assert.ok(allStyles.length, route.file + ': expected linked stylesheets');,  assert.ok(allStyles[allStyles.length - 1][0].includes('assets/css/premium-guest-journey.css'),,    route.file + ': premium visual layer must load after route-specific styles');
-
+  const allStyles = [...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*>/gi)];
+  assert.ok(allStyles.length, route.file + ': expected linked stylesheets');
+  assert.ok(allStyles[allStyles.length - 1][0].includes('assets/css/premium-guest-journey.css'),
+    route.file + ': premium visual layer must load after route-specific styles');
   if (!route.journey) continue;
   const journeyMatch = html.match(/<section class="guest-journey" aria-label="Plan your stay">([\s\S]*?)<\/section>/);
   assert.ok(journeyMatch, route.file + ': missing shared guest decision path');
