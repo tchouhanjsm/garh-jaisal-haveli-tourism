@@ -112,8 +112,8 @@
         "path": "assets/images/legacy/camel-sunset.jpg",
         "role": "hero",
         "fit": "possible-contextual-match",
-        "rationale": "Filename suggests a sunset camel scene; verify the image subject, context, origin and usage rights before use.",
-        "provenance": "Target repository legacy asset path; source/creator record not yet verified.",
+        "rationale": "Filename suggests a sunset camel scene; verify the subject and do not infer a current package from the image.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
         "reviewStatus": "unreviewed"
       }
