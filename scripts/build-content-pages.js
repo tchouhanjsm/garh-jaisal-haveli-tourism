@@ -209,7 +209,6 @@ function validateLiveRecord(item, root, siteConfig) {
   }
   if (type === 'blog' && !isValidDate(record.lastReviewed)) fail('Live article requires a valid lastReviewed date: ' + sourcePath);
   if (type === 'blog') {
-    validateApprovedBlogMedia(record, sourcePath, root);
     const review = record.editorialReview || {};
     const requiredApprovals = ['editorialStatus', 'sourceStatus', 'factStatus', 'mediaStatus'];
     const missingApprovals = requiredApprovals.filter(field => review[field] !== 'approved');
@@ -224,6 +223,7 @@ function validateLiveRecord(item, root, siteConfig) {
         || !record.seo || !record.seo.ogImage || typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5) {
       fail('Live article requires hero and OG image assets with meaningful alt text: ' + sourcePath);
     }
+    validateApprovedBlogMedia(record, sourcePath, root);
   }
   if (record.publishedAt != null && !isValidDate(record.publishedAt)) fail('publishedAt must be a real YYYY-MM-DD date: ' + sourcePath);
   walkAssetPaths(record, root, sourcePath);
