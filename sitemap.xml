@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://hotelgarhjaisal.com/</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/rooms.html</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/experiences.html</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/experience-details.html</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/dining.html</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/about.html</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/directions.html</loc></url>
+  <url><loc>https://hotelgarhjaisal.com/gallery.html</loc></url>
   <!-- BEGIN generated content URLs: scripts/build-content-pages.js -->
   <!-- END generated content URLs -->
 </urlset>

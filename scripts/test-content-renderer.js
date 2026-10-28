@@ -213,8 +213,8 @@ try {
   assert.equal((cleanSitemap.match(new RegExp(SITEMAP_BEGIN, 'g')) || []).length, 1,
     'the renderer-owned sitemap block must remain exactly once after all records become drafts');
   assert.equal((cleanSitemap.match(new RegExp(SITEMAP_END, 'g')) || []).length, 1);
-  assert.doesNotMatch(cleanSitemap, /<loc>\s*https?:\/\//i,
-    'draft transition must remove generated public sitemap URLs while preserving the empty owned block');
+  assert.doesNotMatch(cleanSitemap, /https:\/\/hotelgarhjaisal\.com\/(?:tours\/sunset-camel-safari\.html|blogs\/jaisalmer-fort-guide\.html)/,
+    'draft transition must remove generated tour/blog URLs while preserving core route URLs');
   buildContentPages(root, { write: false });
 
   console.log('PASS: static content renderer — draft exclusion, fact/canonical/contact gates, read-only check mode, deterministic pages/sitemap, related links, escaping and safe stale-output cleanup.');
