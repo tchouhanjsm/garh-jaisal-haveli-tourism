@@ -84,9 +84,37 @@
     "editorialStatus": "pending",
     "sourceStatus": "pending",
     "factStatus": "pending",
-    "mediaStatus": "missing",
+    "mediaStatus": "pending",
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A respectful, representative image of Jaisalmer architecture or landscape"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 81920,
+        "subject": "A landscape or architecture frame illustrating visual variety in Jaisalmer"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/gallery/hotel/fort-from-roof.webp",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Potential architecture example; no photographic permission for people or sacred sites is inferred.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }

@@ -15,6 +15,11 @@ assert.equal(report.summary.totalArticles, 12, 'audit should cover the pillar an
 assert.equal(report.summary.contentPacketsReadyForHumanReview, 12,
   'all structurally valid articles should be visible in the human editorial queue');
 assert.equal(report.summary.mediaComplete, 0, 'missing article-specific hero/OG media must be reported');
+assert.equal(report.mediaSummary.articleCount, 12, 'editorial report must include the complete media-readiness catalogue');
+assert.equal(report.mediaSummary.approvedArticleCount, 0, 'no article may be approved based only on asset existence');
+assert.equal(report.articles.filter(article => article.editorialReview.mediaStatus === 'pending').length, 9, 'articles with genuine candidates must be pending review');
+assert.equal(report.articles.filter(article => article.editorialReview.mediaStatus === 'missing').length, 3, 'topics with no suitable local candidate must remain missing');
+assert.equal(report.articles.filter(article => article.mediaReadiness).length, 12, 'every editorial article must expose media detail');
 assert.equal(report.summary.releaseEligible, 0, 'no article may be release-eligible before review and owner approval');
 assert.equal(report.summary.hardErrors, 0, 'known review blockers must not be misreported as structural errors');
 assert.equal(report.summary.publicBlogPages, 0, 'drafts must not have public HTML pages');
@@ -26,12 +31,15 @@ for (const article of report.articles) {
   assert.equal(article.contentPacketReadyForHumanReview, true, article.slug + ': structured packet should be reviewable');
   assert.equal(article.releaseEligible, false, article.slug + ': article must remain release-blocked');
   assert.ok(article.blockers.includes('hero-image-missing-or-unreviewed'), article.slug + ': hero blocker must be explicit');
+  assert.ok(article.mediaReadiness.missingRoles.includes('hero'), article.slug + ': media audit must show missing hero approval');
+  assert.ok(article.mediaReadiness.missingRoles.includes('socialPreview'), article.slug + ': media audit must show missing social preview approval');
+  assert.ok(article.blockers.some(blocker => blocker.startsWith('media:')), article.slug + ': media audit blockers must flow into editorial readiness');
   assert.ok(article.blockers.includes('open-graph-image-missing-or-unreviewed'), article.slug + ': social-image blocker must be explicit');
   assert.ok(article.blockers.includes('owner-fact-approval-pending'), article.slug + ': owner approval blocker must be explicit');
   assert.equal(article.editorialReview.editorialStatus, 'pending');
   assert.equal(article.editorialReview.sourceStatus, 'pending');
   assert.equal(article.editorialReview.factStatus, 'pending');
-  assert.equal(article.editorialReview.mediaStatus, 'missing');
+  assert.equal(article.editorialReview.mediaStatus, article.mediaReadiness.candidates.length ? 'pending' : 'missing');
 }
 
 // The audit is read-only: verify repeated calls produce identical reports and don't alter records or sitemap.

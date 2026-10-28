@@ -75,9 +75,37 @@
     "editorialStatus": "pending",
     "sourceStatus": "pending",
     "factStatus": "pending",
-    "mediaStatus": "missing",
+    "mediaStatus": "pending",
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "An actual fort lane, entrance approach or drop-off context relevant to planning arrival"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 81920,
+        "subject": "Arrival context for navigating a stay inside Jaisalmer Fort"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/directions/haveli-facade.webp",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Facade may identify the property but does not establish the current drop-off point or walking route.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }

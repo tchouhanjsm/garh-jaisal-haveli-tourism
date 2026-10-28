@@ -11,6 +11,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { safeRelativePath, validateAgainstSchema } = require('./validate-content');
+const { auditMedia } = require('./audit-editorial-media-readiness');
 
 const ROOT = path.resolve(__dirname, '..');
 const APPROVED_SOURCE_HOSTS = new Set([
@@ -55,7 +56,7 @@ function validDate(value) {
   const date = new Date(value + 'T00:00:00Z');
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
-function isReviewComplete(record, heroExists, ogExists) {
+function isReviewComplete(record, heroExists, ogExists, mediaItem) {
   const review = record.editorialReview || {};
   return REVIEW_FIELDS.every(field => review[field] === 'approved')
     && review.ownerFactApproved === true
@@ -63,12 +64,15 @@ function isReviewComplete(record, heroExists, ogExists) {
     && typeof review.reviewer === 'string'
     && review.reviewer.trim().length >= 2
     && heroExists && ogExists
+    && Boolean(mediaItem && mediaItem.missingRoles.length === 0 && mediaItem.blockers.length === 0)
     && typeof record.heroAlt === 'string' && record.heroAlt.trim().length >= 5
     && typeof (record.seo && record.seo.ogAlt) === 'string'
     && record.seo.ogAlt.trim().length >= 5;
 }
 
 function auditEditorialReadiness(root = ROOT) {
+  const mediaReport = auditMedia(root);
+  const mediaBySlug = new Map(mediaReport.articles.map(article => [article.slug, article]));
   const schema = readJson(root, 'content/schemas/blog.schema.json');
   const config = readJson(root, 'content/site-config.json');
   const robots = fs.readFileSync(path.resolve(root, 'robots.txt'), 'utf8');
@@ -157,12 +161,14 @@ function auditEditorialReadiness(root = ROOT) {
       if (!slugs.has(related)) structureIssues.push('related article does not exist: ' + related);
     }
     const review = record.editorialReview || {};
+    const mediaItem = mediaBySlug.get(record.slug) || {missingRoles:['hero','socialPreview'],blockers:['media-audit-record-missing'],requirements:null,candidates:[],approvedAssets:[]};
     const heroExists = localImageExists(root, record.heroImage);
     const ogExists = localImageExists(root, record.seo && record.seo.ogImage);
     const heroComplete = heroExists && typeof record.heroAlt === 'string' && record.heroAlt.trim().length >= 5;
     const ogComplete = ogExists && typeof (record.seo && record.seo.ogAlt) === 'string' && record.seo.ogAlt.trim().length >= 5;
-    const mediaComplete = heroComplete && ogComplete;
-    const reviewComplete = isReviewComplete(record, heroExists, ogExists);
+    const mediaComplete = heroComplete && ogComplete && review.mediaStatus === 'approved'
+      && mediaItem.missingRoles.length === 0 && mediaItem.blockers.length === 0;
+    const reviewComplete = isReviewComplete(record, heroExists, ogExists, mediaItem);
     const structuralComplete = schemaFindings.length === 0 && structureIssues.length === 0 && !queryDuplicate;
 
     if (structureIssues.length) errors.push(...structureIssues.map(issue => relative + ': ' + issue));
@@ -178,8 +184,9 @@ function auditEditorialReadiness(root = ROOT) {
     for (const field of REVIEW_FIELDS) {
       if (review[field] !== 'approved') blockers.push(field + '-pending');
     }
-    if (!record.heroImage || !heroExists || !heroComplete) blockers.push('hero-image-missing-or-unreviewed');
-    if (!record.seo || !record.seo.ogImage || !ogExists || !ogComplete) blockers.push('open-graph-image-missing-or-unreviewed');
+    if (!record.heroImage || !heroExists || !heroComplete || !mediaItem.approvedAssets.some(asset => asset.role === 'hero')) blockers.push('hero-image-missing-or-unreviewed');
+    if (!record.seo || !record.seo.ogImage || !ogExists || !ogComplete || !mediaItem.approvedAssets.some(asset => asset.role === 'socialPreview')) blockers.push('open-graph-image-missing-or-unreviewed');
+    blockers.push(...mediaItem.blockers.map(blocker => 'media:' + blocker));
     if (review.ownerFactApproved !== true) blockers.push('owner-fact-approval-pending');
     if (!validDate(review.reviewedAt)) blockers.push('review-date-pending');
     if (typeof review.reviewer !== 'string' || review.reviewer.trim().length < 2) blockers.push('named-reviewer-pending');
@@ -219,6 +226,7 @@ function auditEditorialReadiness(root = ROOT) {
       },
       contentPacketReadyForHumanReview: structuralComplete,
       mediaComplete,
+      mediaReadiness: mediaItem,
       releaseEligible: (record.status === 'approved_for_release' || record.status === 'live')
         && reviewComplete && structuralComplete && canonicalApproved && !robotsBlocking
         && sitemapUrls.includes(String(site.newStaticSiteCanonicalHost || '').replace(/\/+$/, '') + '/blogs/' + record.slug + '.html'),
@@ -241,7 +249,7 @@ function auditEditorialReadiness(root = ROOT) {
       mediaComplete: mediaCompleteCount,
       releaseEligible: releaseEligibleCount,
       blockedFromRelease: reports.length - releaseEligibleCount,
-      hardErrors: errors.length,
+      hardErrors: errors.length + mediaReport.errors.length,
       publicBlogPages: publicBlogPages.length,
     },
     siteGates: {
@@ -251,7 +259,8 @@ function auditEditorialReadiness(root = ROOT) {
       sitemapEmpty: sitemapContainsNoUrls,
       publicationMode: site.canonicalPublicationMode || null,
     },
-    errors,
+    errors: [...errors, ...mediaReport.errors.map(error => 'media audit: ' + error)],
+    mediaSummary: mediaReport.summary,
     articles: reports,
   };
 }

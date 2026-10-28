@@ -86,9 +86,46 @@
     "editorialStatus": "pending",
     "sourceStatus": "pending",
     "factStatus": "pending",
-    "mediaStatus": "missing",
+    "mediaStatus": "pending",
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A representative wide view of the fort as the heritage anchor for a two-day itinerary"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 81920,
+        "subject": "A wide Jaisalmer heritage setting suitable for itinerary context"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/gallery/hotel/fort-from-roof.webp",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Could show a general heritage anchor but cannot represent the lake and desert stops by itself.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      },
+      {
+        "path": "assets/images/directions/haveli-facade.webp",
+        "role": "socialPreview",
+        "fit": "possible-contextual-match",
+        "rationale": "Property facade may support context but does not substantiate itinerary inclusions.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }

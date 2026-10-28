@@ -4,290 +4,94 @@
   "title": "Garh Jaisal Editorial Content",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "slug",
-    "title",
-    "seo",
-    "status",
-    "lede",
-    "sections",
-    "sources",
-    "lastReviewed",
-    "editorialReview"
-  ],
+  "required": ["schemaVersion", "slug", "title", "seo", "status", "lede", "sections", "sources", "lastReviewed", "editorialReview", "media"],
   "properties": {
-    "schemaVersion": {
-      "const": 1
-    },
-    "slug": {
-      "type": "string",
-      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-    },
-    "title": {
-      "type": "string",
-      "minLength": 10,
-      "maxLength": 90
-    },
+    "schemaVersion": {"const": 1},
+    "slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "title": {"type": "string", "minLength": 10, "maxLength": 90},
     "seo": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "title",
-        "description",
-        "primaryQuery",
-        "searchIntent"
-      ],
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "description", "primaryQuery", "searchIntent"],
       "properties": {
-        "title": {
-          "type": "string",
-          "minLength": 10,
-          "maxLength": 60
-        },
-        "description": {
-          "type": "string",
-          "minLength": 110,
-          "maxLength": 160
-        },
-        "ogImage": {
-          "type": "string",
-          "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-og-01\\.(webp|avif)$"
-        },
-        "ogAlt": {
-          "type": "string",
-          "minLength": 5,
-          "maxLength": 200
-        },
-        "primaryQuery": {
-          "type": "string",
-          "minLength": 4,
-          "maxLength": 90
-        },
-        "searchIntent": {
-          "type": "string",
-          "enum": [
-            "informational",
-            "commercial",
-            "transactional",
-            "local"
-          ]
-        }
+        "title": {"type": "string", "minLength": 10, "maxLength": 60},
+        "description": {"type": "string", "minLength": 110, "maxLength": 160},
+        "ogImage": {"type": "string", "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-og-01\\.(webp|avif)$"},
+        "ogAlt": {"type": "string", "minLength": 5, "maxLength": 200},
+        "primaryQuery": {"type": "string", "minLength": 4, "maxLength": 90},
+        "searchIntent": {"type": "string", "enum": ["informational", "commercial", "transactional", "local"]}
       }
     },
-    "status": {
-      "enum": [
-        "draft",
-        "ready_for_review",
-        "approved_for_release",
-        "live",
-        "hidden"
-      ]
-    },
-    "lede": {
-      "type": "string",
-      "minLength": 40,
-      "maxLength": 600
-    },
+    "status": {"enum": ["draft", "ready_for_review", "approved_for_release", "live", "hidden"]},
+    "lede": {"type": "string", "minLength": 40, "maxLength": 600},
     "tableOfContents": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "label"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[a-z0-9-]+$"
-          },
-          "label": {
-            "type": "string",
-            "maxLength": 100
-          }
-        }
-      }
+      "type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "label"],
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9-]+$"}, "label": {"type": "string", "maxLength": 100}}}
     },
-    "heroImage": {
-      "type": "string",
-      "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-hero-01\\.(webp|avif)$"
-    },
-    "heroAlt": {
-      "type": "string",
-      "minLength": 5,
-      "maxLength": 200
-    },
+    "heroImage": {"type": "string", "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-hero-01\\.(webp|avif)$"},
+    "heroAlt": {"type": "string", "minLength": 5, "maxLength": 200},
     "sections": {
-      "type": "array",
-      "minItems": 2,
-      "maxItems": 40,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "id",
-          "heading",
-          "body"
-        ],
+      "type": "array", "minItems": 2, "maxItems": 40,
+      "items": {"type": "object", "additionalProperties": false, "required": ["id", "heading", "body"],
         "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[a-z0-9-]+$"
-          },
-          "heading": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 180
-          },
-          "body": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 5
-            }
-          },
-          "image": {
-            "type": "string"
-          },
-          "imageAlt": {
-            "type": "string"
-          }
-        }
-      }
+          "id": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+          "heading": {"type": "string", "minLength": 3, "maxLength": 180},
+          "body": {"type": "array", "items": {"type": "string", "minLength": 5}},
+          "image": {"type": "string", "pattern": "^assets/images/blogs/[a-z0-9-]+/[a-z0-9-]+-(step|gallery|detail)-[0-9]{2}\\.(webp|avif)$"},
+          "imageAlt": {"type": "string", "minLength": 5, "maxLength": 200}
+        }}
     },
-    "sources": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "label",
-          "url"
-        ],
-        "properties": {
-          "label": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 120
-          },
-          "url": {
-            "type": "string",
-            "format": "uri"
-          }
-        }
-      }
-    },
-    "lastReviewed": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "format": "date"
-    },
-    "publishedAt": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "format": "date"
-    },
-    "relatedTours": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-      }
-    },
-    "relatedBlogs": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-      }
-    },
-    "enquiryCta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "label",
-        "mode"
-      ],
+    "sources": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["label", "url"],
+      "properties": {"label": {"type": "string", "minLength": 2, "maxLength": 120}, "url": {"type": "string", "format": "uri"}}}},
+    "lastReviewed": {"type": ["string", "null"], "format": "date"},
+    "publishedAt": {"type": ["string", "null"], "format": "date"},
+    "relatedTours": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"}},
+    "relatedBlogs": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"}},
+    "enquiryCta": {"type": "object", "additionalProperties": false, "required": ["label", "mode"],
+      "properties": {"label": {"type": "string", "maxLength": 80}, "mode": {"enum": ["whatsapp", "booking_gateway", "contact"]}}},
+    "media": {
+      "type": "object", "additionalProperties": false, "required": ["requirements", "candidates", "approvedAssets"],
       "properties": {
-        "label": {
-          "type": "string",
-          "maxLength": 80
+        "requirements": {
+          "type": "object", "additionalProperties": false, "required": ["hero", "socialPreview"],
+          "properties": {
+            "hero": {"type": "object", "additionalProperties": false, "required": ["required", "minWidth", "maxBytes", "subject"],
+              "properties": {"required": {"const": true}, "minWidth": {"type": "integer", "minimum": 1}, "maxBytes": {"type": "integer", "minimum": 1}, "subject": {"type": "string", "minLength": 8, "maxLength": 240}}},
+            "socialPreview": {"type": "object", "additionalProperties": false, "required": ["required", "minWidth", "maxBytes", "subject"],
+              "properties": {"required": {"const": true}, "minWidth": {"type": "integer", "minimum": 1}, "maxBytes": {"type": "integer", "minimum": 1}, "subject": {"type": "string", "minLength": 8, "maxLength": 240}}}
+          }
         },
-        "mode": {
-          "enum": [
-            "whatsapp",
-            "booking_gateway",
-            "contact"
-          ]
-        }
+        "candidates": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "role", "fit", "rationale", "provenance", "rightsStatus", "reviewStatus"],
+          "properties": {
+            "path": {"type": "string", "pattern": "^assets/images/[a-z0-9._/-]+\\.(jpg|jpeg|png|webp|avif)$"},
+            "role": {"enum": ["hero", "socialPreview"]},
+            "fit": {"enum": ["strong-contextual-match", "possible-contextual-match", "not-assessed"]},
+            "rationale": {"type": "string", "minLength": 10, "maxLength": 300},
+            "provenance": {"type": "string", "minLength": 5, "maxLength": 240},
+            "rightsStatus": {"enum": ["unverified", "owner-confirmed", "licensed", "rejected"]},
+            "reviewStatus": {"enum": ["unreviewed", "approved", "rejected"]}
+          }}},
+        "approvedAssets": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "role", "alt", "approvedBy", "approvedAt", "rightsEvidence"],
+          "properties": {
+            "path": {"type": "string", "pattern": "^assets/images/[a-z0-9._/-]+\\.(webp|avif)$"},
+            "role": {"enum": ["hero", "socialPreview"]},
+            "alt": {"type": "string", "minLength": 10, "maxLength": 200},
+            "approvedBy": {"type": "string", "minLength": 2, "maxLength": 80},
+            "approvedAt": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+            "rightsEvidence": {"type": "string", "minLength": 5, "maxLength": 500}
+          }}}
       }
     },
     "editorialReview": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "editorialStatus",
-        "sourceStatus",
-        "factStatus",
-        "mediaStatus",
-        "ownerFactApproved",
-        "reviewedAt",
-        "reviewer"
-      ],
+      "type": "object", "additionalProperties": false,
+      "required": ["editorialStatus", "sourceStatus", "factStatus", "mediaStatus", "ownerFactApproved", "reviewedAt", "reviewer"],
       "properties": {
-        "editorialStatus": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "approved"
-          ]
-        },
-        "sourceStatus": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "approved"
-          ]
-        },
-        "factStatus": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "approved"
-          ]
-        },
-        "mediaStatus": {
-          "type": "string",
-          "enum": [
-            "missing",
-            "pending",
-            "approved"
-          ]
-        },
-        "ownerFactApproved": {
-          "type": "boolean"
-        },
-        "reviewedAt": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-        },
-        "reviewer": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "minLength": 2,
-          "maxLength": 80
-        }
+        "editorialStatus": {"type": "string", "enum": ["pending", "approved"]},
+        "sourceStatus": {"type": "string", "enum": ["pending", "approved"]},
+        "factStatus": {"type": "string", "enum": ["pending", "approved"]},
+        "mediaStatus": {"type": "string", "enum": ["missing", "pending", "rejected", "approved"]},
+        "ownerFactApproved": {"type": "boolean"},
+        "reviewedAt": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "reviewer": {"type": ["string", "null"], "minLength": 2, "maxLength": 80}
       }
     }
   }

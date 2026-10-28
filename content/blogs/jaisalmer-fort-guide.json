@@ -175,9 +175,46 @@
     "editorialStatus": "pending",
     "sourceStatus": "pending",
     "factStatus": "pending",
-    "mediaStatus": "missing",
+    "mediaStatus": "pending",
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "Sandstone architecture and inhabited lanes inside Jaisalmer Fort"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 81920,
+        "subject": "Wide view of Jaisalmer Fort and its sandstone settlement"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/directions/haveli-facade.webp",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Property facade is related to a heritage-stay guide but does not show the whole fort or its lanes.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      },
+      {
+        "path": "assets/images/gallery/hotel/fort-from-roof.webp",
+        "role": "socialPreview",
+        "fit": "possible-contextual-match",
+        "rationale": "Filename suggests a fort-facing rooftop view; confirm visual content and suitability.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }

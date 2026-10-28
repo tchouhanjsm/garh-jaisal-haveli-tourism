@@ -34,12 +34,20 @@ const validTour = {
   factsConfirmed: false,
   lastVerified: null,
 };
+const mediaFixture = () => ({
+  requirements: {
+    hero: { required: true, minWidth: 1200, maxBytes: 204800, subject: 'A representative wide Jaisalmer Fort view' },
+    socialPreview: { required: true, minWidth: 600, maxBytes: 81920, subject: 'A representative Jaisalmer heritage image for sharing' },
+  },
+  candidates: [], approvedAssets: [],
+});
 const validBlog = {
   schemaVersion: 1,
   slug: 'jaisalmer-fort-guide',
   title: 'A Practical Guide to Jaisalmer Fort',
   seo: { title: 'Jaisalmer Fort Visitor Guide', description, primaryQuery: 'Jaisalmer Fort guide', searchIntent: 'informational' },
   status: 'draft',
+  media: mediaFixture(),
   lede: 'A practical guide to exploring the fort and planning arrival, with advice to verify before travel.',
   sections: [
     { id: 'arrive', heading: 'Plan your arrival', body: ['Confirm your route before travelling.'] },
@@ -86,6 +94,10 @@ assert.ok(validateAgainstSchema(schemas.tour, { ...tourWithOgImage, seo: { ...to
   'empty OG image alt text must fail schema validation');
 assert.ok(validateAgainstSchema(schemas.tour, { ...validTour, slug: '../escape' }).length > 0, 'unsafe tour slug must fail');
 assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, sources: [] }).length > 0, 'blog without source references must fail');
+assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), approvedAssets: [{ path:'assets/images/blogs/example/example-hero-01.webp', role:'hero', alt:'image', approvedBy:'qa', approvedAt:'2026-10-28', rightsEvidence:'test' }] } }).length > 0,
+  'generic alt text for an approved asset must fail schema validation');
+assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), candidates: [{ path:'../outside.webp', role:'hero', fit:'possible-contextual-match', rationale:'Candidate rationale is long enough for the test.', provenance:'Fixture path only, not a real provenance claim.', rightsStatus:'unverified', reviewStatus:'unreviewed' }] } }).length > 0,
+  'unsafe candidate paths must fail schema validation');
 assert.ok(validateAgainstSchema(schemas.gallery, {
   ...validGallery,
   images: [{ src: 'assets/images/gallery/hotel/hotel-hero-01.webp', source: 'Source', approved: false }],
@@ -124,6 +136,9 @@ assert.deepEqual(validateAgainstSchema(schemas.blog, fortGuide), [], 'Fort guide
 assert.equal(fortGuide.status, 'draft', 'Fort guide must remain unpublished');
 assert.equal(fortGuide.lastReviewed, null, 'formal review date must remain unset');
 assert.equal(fortGuide.publishedAt, null, 'article must not claim a publication date');
+assert.equal(fortGuide.editorialReview.mediaStatus, 'missing', 'article media must remain unapproved');
+assert.equal(fortGuide.media.approvedAssets.length, 0, 'existing asset files must not imply editorial approval');
+assert.ok(fortGuide.media.requirements.hero.subject.length >= 8 && fortGuide.media.requirements.socialPreview.subject.length >= 8, 'media requirements must be explicit');
 const blogDirectory = path.join(root, 'content', 'blogs');
 const blogRecords = fs.readdirSync(blogDirectory)
   .filter(name => name.endsWith('.json'))

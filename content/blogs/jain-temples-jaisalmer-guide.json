@@ -75,9 +75,37 @@
     "editorialStatus": "pending",
     "sourceStatus": "pending",
     "factStatus": "pending",
-    "mediaStatus": "missing",
+    "mediaStatus": "pending",
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "Exterior view of Jain temple architecture inside Jaisalmer Fort"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 81920,
+        "subject": "Jain temple architectural detail from the fort complex"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/legacy/fort-temple-spires.jpg",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Filename suggests temple spires; verify that it depicts the relevant Jain temples and clear usage rights.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }
