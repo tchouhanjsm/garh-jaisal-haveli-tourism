@@ -47,6 +47,7 @@ try {
   fs.copyFileSync(path.join(ROOT, 'content/paths.json'), path.join(temp, 'content/paths.json'));
   const fakePath = path.join(temp, 'assets/images/corrupt.png');
   fs.writeFileSync(fakePath, Buffer.from('not a png'));
+  fs.copyFileSync(fakePath, path.join(temp, 'assets/images/corrupt-copy.png'));
   const corrupt = imageInfo(temp, 'assets/images/corrupt.png');
   assert.equal(corrupt.valid, false, 'corrupt image must not pass technical validation');
   assert.ok(corrupt.errors.some(message => /corrupt|invalid|signature/i.test(message)), 'corrupt-file reason should be explicit');
@@ -61,6 +62,7 @@ try {
   });
   fs.writeFileSync(badCandidatePath, JSON.stringify(badCandidateRecord, null, 2) + '\n');
   const corruptReport = auditMedia(temp);
+  assert.ok(corruptReport.duplicateFiles.some(group => group.files.includes('assets/images/corrupt.png') && group.files.includes('assets/images/corrupt-copy.png')), 'byte-identical assets at different paths must be grouped');
   assert.ok(corruptReport.articles.find(article => article.slug === badCandidateRecord.slug).candidates
     .some(candidate => candidate.path === 'assets/images/corrupt.png' && !candidate.technical),
   'corrupt candidate must be reported as technically invalid without auto-approval');
