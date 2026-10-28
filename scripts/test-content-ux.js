@@ -234,13 +234,13 @@ for (const rule of PAGE_RULES) {
   const ogAlt = readMeta(html, /<meta\b[^>]*\bproperty=["']og:image:alt["'][^>]*>/i);
   const twitterAlt = readMeta(html, /<meta\b[^>]*\bname=["']twitter:image:alt["'][^>]*>/i);
   if (!ogImage || !ogImage.content) fail(`${rule.file}: missing Open Graph image`);
-  else if (/^https?:\/\//i.test(ogImage.content)) fail(`${rule.file}: OG image must use a local asset until the canonical host is approved`);
-  else localFile(ogImage.content, rule.file, 'Open Graph image');
+  else if (!/^https:\/\/hotelgarhjaisal\.com\/assets\/images\//i.test(ogImage.content)) fail(rule.file + ': OG image must be an absolute canonical HTTPS image URL');
+  else localFile(ogImage.content.replace(/^https:\/\/hotelgarhjaisal\.com\//i, ''), rule.file, 'Open Graph image');
   if (!ogAlt || !ogAlt.content.trim()) fail(`${rule.file}: missing Open Graph image alt text`);
   if (!twitterImage || !twitterImage.content) fail(`${rule.file}: missing explicit Twitter image`);
   else if (!ogImage || twitterImage.content !== ogImage.content) fail(`${rule.file}: Twitter image must match the Open Graph image`);
-  else if (/^https?:\/\//i.test(twitterImage.content)) fail(`${rule.file}: Twitter image must stay local until canonical host approval`);
-  else localFile(twitterImage.content, rule.file, 'Twitter image');
+  else if (!/^https:\/\/hotelgarhjaisal\.com\/assets\/images\//i.test(twitterImage.content)) fail(rule.file + ': Twitter image must be an absolute canonical HTTPS image URL');
+  else localFile(twitterImage.content.replace(/^https:\/\/hotelgarhjaisal\.com\//i, ''), rule.file, 'Twitter image');
   if (!twitterAlt || !twitterAlt.content.trim()) fail(`${rule.file}: missing Twitter image alt text`);
   else if (!ogAlt || decodeEntities(twitterAlt.content).trim() !== decodeEntities(ogAlt.content).trim()) {
     fail(`${rule.file}: Twitter image alt text must match Open Graph image alt text`);
@@ -684,9 +684,15 @@ for (const rule of PAGE_RULES) {
     if (inbound.has(target) && target !== rule.file) inbound.set(target, inbound.get(target) + 1);
   }
 
-  if (/<link\b[^>]*\brel=["']canonical["']/i.test(html)) fail(`${rule.file}: canonical URL must remain unset until the host is approved`);
-  if (/<meta\b[^>]*\bproperty=["']og:url["']/i.test(html)) fail(`${rule.file}: OG URL must remain unset until the host is approved`);
-  if (/https:\/\/hotelgarhjaisal\.com/i.test(html)) fail(`${rule.file}: unapproved canonical host appears in public HTML`);
+  const expectedCanonical = rule.file === 'index.html' ? 'https://hotelgarhjaisal.com/' : 'https://hotelgarhjaisal.com/' + rule.file;
+  const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["']([^"']+)["'][^>]*>/i);
+  if (!canonicalTag || decodeEntities(canonicalTag[1]) !== expectedCanonical) fail(rule.file + ': canonical URL must match its production route');
+  const ogUrl = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
+  if (!ogUrl || decodeEntities(ogUrl.content || '').trim() !== expectedCanonical) fail(rule.file + ': og:url must match the canonical route');
+  const robotsDirective = readMeta(html, /<meta\b[^>]*\bname=["']robots["'][^>]*>/i);
+  if (!robotsDirective || !/index/i.test(robotsDirective.content) || !/follow/i.test(robotsDirective.content) || /noindex/i.test(robotsDirective.content)) {
+    fail(rule.file + ': public route must permit indexing and link following');
+  }
 }
 
 for (const [file, count] of inbound) {
@@ -695,11 +701,22 @@ for (const [file, count] of inbound) {
 
 const configPath = path.join(ROOT, 'content', 'site-config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-if (config.site && config.site.canonicalHostApproved !== true) {
+if (!config.site || config.site.canonicalHostApproved !== true || config.site.newStaticSiteCanonicalHost !== 'https://hotelgarhjaisal.com') {
+  fail('SEO publication must use the approved configured canonical origin');
+} else {
   const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
   const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
-  if (/<loc>\s*https?:\/\//i.test(sitemap)) fail('sitemap.xml publishes URLs before canonical host approval');
-  if (/^\s*Sitemap\s*:/im.test(robots)) fail('robots.txt advertises a sitemap before canonical host approval');
+  const sitemapUrls = [...sitemap.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)].map(match => decodeEntities(match[1].trim()));
+  if (new Set(sitemapUrls).size !== sitemapUrls.length) fail('sitemap.xml contains duplicate URLs');
+  for (const rule of PAGE_RULES) {
+    const expected = rule.file === 'index.html' ? 'https://hotelgarhjaisal.com/' : 'https://hotelgarhjaisal.com/' + rule.file;
+    if (!sitemapUrls.includes(expected)) fail('sitemap.xml is missing ' + expected);
+  }
+  if (!/^\s*Allow:\s*\/\s*$/im.test(robots)) fail('robots.txt must allow crawling on the canonical host');
+  if (/^\s*Disallow:\s*\/\s*$/im.test(robots)) fail('robots.txt must not block the canonical host');
+  if (!robots.split(/\r?\n/).map(line => line.trim()).includes('Sitemap: https://hotelgarhjaisal.com/sitemap.xml')) {
+    fail('robots.txt must advertise the canonical sitemap');
+  }
 }
 
 for (const type of ['tours', 'blogs']) {
