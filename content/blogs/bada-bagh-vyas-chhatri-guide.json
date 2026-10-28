@@ -79,5 +79,23 @@
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "Cenotaphs and memorial architecture at Bada Bagh or Vyas Chhatri"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A representative Bada Bagh or Vyas Chhatri memorial landscape"
+      }
+    },
+    "candidates": [],
+    "approvedAssets": []
   }
 }
