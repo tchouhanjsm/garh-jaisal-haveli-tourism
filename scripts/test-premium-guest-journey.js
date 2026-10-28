@@ -13,7 +13,7 @@ const ROUTES = [
   { file: 'experience-details.html', journey: true },
   { file: 'dining.html', journey: true, current: 'dining.html' },
   { file: 'about.html', journey: true },
-  { file: 'directions.html', journey: true, current: 'directions.html' },
+  { file: 'directions.html', journey: true, current: 'directions.html#arrival-planning' },
   { file: 'gallery.html', journey: true },
 ];
 
