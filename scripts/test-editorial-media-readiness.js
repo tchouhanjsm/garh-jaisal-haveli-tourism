@@ -96,7 +96,7 @@ try {
     reviewer: 'fixture-reviewer',
     reviewedAt: '2026-10-28',
   };
-  fs.writeFileSync(badCandidatePath, JSON.stringify(badCandidateRecord, null, 2) + '\\n');
+  fs.writeFileSync(badCandidatePath, JSON.stringify(badCandidateRecord, null, 2) + '\n');
   const mismatchReport = auditMedia(temp);
   assert.ok(mismatchReport.errors.some(message => message.includes('visual mismatch must be marked not-a-match and rejected')),
     'mismatched visual evidence must not remain a potential or approved candidate');
