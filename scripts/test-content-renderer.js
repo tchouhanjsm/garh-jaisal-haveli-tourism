@@ -68,6 +68,18 @@ function makeBlogLive(root) {
   blog.heroImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
   blog.heroAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
   copyFixtureImage(root, blog.heroImage);
+  blog.seo.ogImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
+  blog.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  copyFixtureImage(root, blog.seo.ogImage);
+  blog.editorialReview = {
+    editorialStatus: 'approved',
+    sourceStatus: 'approved',
+    factStatus: 'approved',
+    mediaStatus: 'approved',
+    ownerFactApproved: true,
+    reviewedAt: '2026-10-25',
+    reviewer: 'fixture-editor',
+  };
   blog.enquiryCta = { label: 'Email the hotel with a question', mode: 'contact' };
   writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', blog);
 }
@@ -104,6 +116,30 @@ try {
   assert.equal(fs.existsSync(path.join(root, 'tours/sunset-camel-safari.html')), false);
   approveCanonicalAndContact(root);
 
+  const prematureBlog = readJson(root, 'content/blogs/jaisalmer-fort-guide.json');
+  prematureBlog.status = 'live';
+  prematureBlog.lastReviewed = '2026-10-25';
+  prematureBlog.publishedAt = '2026-10-25';
+  prematureBlog.heroImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
+  prematureBlog.heroAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  prematureBlog.seo.ogImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
+  prematureBlog.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  copyFixtureImage(root, prematureBlog.heroImage);
+  copyFixtureImage(root, prematureBlog.seo.ogImage);
+  writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', prematureBlog);
+  assert.throws(() => buildContentPages(root, { write: true }),
+    /Live article requires approved editorial\/source\/fact\/media review and owner fact approval/);
+  assert.equal(fs.existsSync(path.join(root, 'blogs/jaisalmer-fort-guide.html')), false,
+    'renderer must not publish a blog whose review fields are pending');
+  prematureBlog.status = 'draft';
+  prematureBlog.lastReviewed = null;
+  prematureBlog.publishedAt = null;
+  delete prematureBlog.heroImage;
+  delete prematureBlog.heroAlt;
+  delete prematureBlog.seo.ogImage;
+  delete prematureBlog.seo.ogAlt;
+  writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', prematureBlog);
+
   makeBlogLive(root);
   const beforeWrite = fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8');
   assert.throws(() => buildContentPages(root, { write: false }), /Generated content is out of date/);
@@ -124,7 +160,7 @@ try {
   assert.ok(tourHtml.includes('rel="noopener noreferrer"'));
   const imageAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
   const tourImage = 'https://hotelgarhjaisal.com/assets/images/tours/sunset-camel-safari/sunset-camel-safari-og-01.webp';
-  const blogImage = 'https://hotelgarhjaisal.com/assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
+  const blogImage = 'https://hotelgarhjaisal.com/assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
   for (const [html, image] of [[tourHtml,tourImage],[blogHtml,blogImage]]) {
     assert.ok(html.includes('<meta property="og:image" content="' + image + '">'));
     assert.ok(html.includes('<meta property="og:image:alt" content="' + imageAlt + '">'));

@@ -70,5 +70,14 @@
     "jaisalmer-fort-guide",
     "jaisalmer-fort-arrival-checklist",
     "heritage-hotel-booking-checklist"
-  ]
+  ],
+  "editorialReview": {
+    "editorialStatus": "pending",
+    "sourceStatus": "pending",
+    "factStatus": "pending",
+    "mediaStatus": "missing",
+    "ownerFactApproved": false,
+    "reviewedAt": null,
+    "reviewer": null
+  }
 }

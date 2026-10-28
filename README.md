@@ -295,3 +295,10 @@ The form still asks the hotel to confirm current meeting/drop-off and walking-ro
 
 
 The date-specific arrival planner also receives programmatic focus when its fragment is opened. This helps keyboard and assistive-technology users continue at the form rather than being left at the source link. The target has a focus-visible outline and a top scroll margin for the sticky site header; Chromium smoke verifies both focus transfer and in-viewport positioning.
+
+
+## Editorial readiness gate
+
+The twelve-article Jaisalmer guide cluster now carries an explicit `editorialReview` state for editorial copy, sources, facts, media and owner fact approval. `node scripts/audit-editorial-readiness.js --check` produces a read-only per-article readiness report; add `--json` for machine-readable output or `--strict-release` to return exit code 2 while release blockers remain. The tool never changes article status, generates public pages or edits the sitemap.
+
+Each guide can be structurally ready for human review while still blocked from release. Publication requires approved editorial/source/fact/media review, a named reviewer and date, explicit owner fact sign-off, a reviewed hero image and OG image with alt text, an approved canonical host, a non-blocking robots policy and the release-generated sitemap. No draft is promoted automatically.

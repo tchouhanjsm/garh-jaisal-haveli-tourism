@@ -159,6 +159,48 @@ function validateRecordPolicy(type, record, root, registry, siteConfig, findings
     if (record.factsConfirmed !== true) findings.push({ path: sourcePath, message: 'live tour requires factsConfirmed: true' });
     if (!record.lastVerified || !isValidDate(record.lastVerified)) findings.push({ path: sourcePath, message: 'live tour requires a valid lastVerified date' });
   }
+  if (type === 'blog') {
+    const review = record.editorialReview;
+    if (!review || typeof review !== 'object' || Array.isArray(review)) {
+      findings.push({ path: sourcePath + '.editorialReview', message: 'blog requires explicit editorial review state' });
+    } else {
+      const hasHero = typeof record.heroImage === 'string' && record.heroImage.length > 0;
+      const hasHeroAlt = typeof record.heroAlt === 'string' && record.heroAlt.trim().length >= 5;
+      const hasOg = Boolean(record.seo && typeof record.seo.ogImage === 'string' && record.seo.ogImage.length > 0);
+      const hasOgAlt = Boolean(record.seo && typeof record.seo.ogAlt === 'string' && record.seo.ogAlt.trim().length >= 5);
+      if (review.ownerFactApproved === true && review.factStatus !== 'approved') {
+        findings.push({ path: sourcePath + '.editorialReview', message: 'owner fact approval requires factStatus: approved' });
+      }
+      if (review.mediaStatus === 'missing' && (hasHero || hasOg)) {
+        findings.push({ path: sourcePath + '.editorialReview.mediaStatus', message: 'mediaStatus cannot be missing when hero/OG media paths are assigned' });
+      }
+      if (review.mediaStatus === 'approved' && !(hasHero && hasHeroAlt && hasOg && hasOgAlt)) {
+        findings.push({ path: sourcePath + '.editorialReview.mediaStatus', message: 'approved media requires existing hero and OG image paths with meaningful alt text' });
+      }
+      if (status === 'approved_for_release' || status === 'live') {
+        for (const field of ['editorialStatus', 'sourceStatus', 'factStatus', 'mediaStatus']) {
+          if (review[field] !== 'approved') {
+            findings.push({ path: sourcePath + '.editorialReview.' + field, message: 'approved/live blog requires ' + field + ': approved' });
+          }
+        }
+        if (review.ownerFactApproved !== true) {
+          findings.push({ path: sourcePath + '.editorialReview.ownerFactApproved', message: 'approved/live blog requires explicit owner fact approval' });
+        }
+        if (!review.reviewedAt || !isValidDate(review.reviewedAt)) {
+          findings.push({ path: sourcePath + '.editorialReview.reviewedAt', message: 'approved/live blog requires a valid review date' });
+        }
+        if (typeof review.reviewer !== 'string' || review.reviewer.trim().length < 2) {
+          findings.push({ path: sourcePath + '.editorialReview.reviewer', message: 'approved/live blog requires a named reviewer' });
+        }
+        if (!(hasHero && hasHeroAlt && hasOg && hasOgAlt)) {
+          findings.push({ path: sourcePath, message: 'approved/live blog requires a hero image, OG image, and meaningful alt text for both' });
+        }
+      }
+      if (status === 'approved_for_release' && record.publishedAt != null) {
+        findings.push({ path: sourcePath + '.publishedAt', message: 'approved_for_release blog must not claim a publication date before going live' });
+      }
+    }
+  }
   if (type === 'blog' && status === 'live' && (!record.lastReviewed || !isValidDate(record.lastReviewed))) {
     findings.push({ path: sourcePath, message: 'live article requires a valid lastReviewed date' });
   }

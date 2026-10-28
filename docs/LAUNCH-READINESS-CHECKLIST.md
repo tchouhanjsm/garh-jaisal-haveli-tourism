@@ -413,3 +413,13 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Confirm the Home Arrive tile and every Stay / Explore / Dine / Arrive navigation rail link to `directions.html#arrival-planning`; do not regress to the top-of-page URL.
 - [ ] Verify the date-specific planner section and heading resolve after navigation from all eight core routes at desktop and mobile viewports.
 - [ ] Continue to treat this as a draft enquiry only; actual meeting point, route conditions, luggage support and contact responsiveness require owner/staging confirmation.
+
+
+## Editorial readiness — not yet cleared for publication
+
+- [ ] Run `node scripts/audit-editorial-readiness.js --json` and review the blockers for all twelve Jaisalmer articles.
+- [ ] Complete and record source verification and fact review; do not equate a source URL with verification of every claim.
+- [ ] Add the correct, owner-controlled article hero and OG assets; verify image subject, provenance, file existence, dimensions/size and meaningful alt text.
+- [ ] Record a named editorial reviewer and review date, then obtain explicit owner fact approval before moving a record to `approved_for_release`.
+- [ ] Verify the renderer/validator rejects incomplete review fields and that draft records produce no public HTML pages.
+- [ ] Keep canonical approval false, `robots.txt` blocking and the sitemap URL-empty until the separate owner-authorized SEO release decision is complete.

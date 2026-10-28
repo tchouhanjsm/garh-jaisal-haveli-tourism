@@ -70,5 +70,14 @@
     "jaisalmer-two-day-itinerary",
     "gadisar-lake-jaisalmer-guide",
     "jaisalmer-photography-guide"
-  ]
+  ],
+  "editorialReview": {
+    "editorialStatus": "pending",
+    "sourceStatus": "pending",
+    "factStatus": "pending",
+    "mediaStatus": "missing",
+    "ownerFactApproved": false,
+    "reviewedAt": null,
+    "reviewer": null
+  }
 }

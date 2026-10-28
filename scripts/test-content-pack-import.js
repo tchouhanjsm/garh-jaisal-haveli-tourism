@@ -42,6 +42,10 @@ function blogRecord(slug) {
       { id: 'next-steps', heading: 'Confirm before travel', body: ['Contact the relevant operator to confirm current details for your date.'] }
     ],
     sources: [{ label: 'Example source for pack testing', url: 'https://example.org/travel' }],
+    editorialReview: {
+      editorialStatus: 'pending', sourceStatus: 'pending', factStatus: 'pending',
+      mediaStatus: 'missing', ownerFactApproved: false, reviewedAt: null, reviewer: null
+    },
     lastReviewed: null, publishedAt: null, relatedTours: [], relatedBlogs: []
   };
 }

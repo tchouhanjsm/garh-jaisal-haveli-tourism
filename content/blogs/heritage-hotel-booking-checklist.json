@@ -82,5 +82,14 @@
     "staying-inside-jaisalmer-fort",
     "jaisalmer-fort-arrival-checklist",
     "jaisalmer-fort-guide"
-  ]
+  ],
+  "editorialReview": {
+    "editorialStatus": "pending",
+    "sourceStatus": "pending",
+    "factStatus": "pending",
+    "mediaStatus": "missing",
+    "ownerFactApproved": false,
+    "reviewedAt": null,
+    "reviewer": null
+  }
 }
