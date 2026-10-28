@@ -34,3 +34,12 @@ The script is a local artifact preparation tool only. It does not deploy, modify
 ## Rollback
 
 If an approved publication is prepared incorrectly, revert the publisher's exact HTML/robots/sitemap artifact diff and restore `canonicalHostApproved: false`. Verify that `robots.txt` returns to `Disallow: /` and `sitemap.xml` contains no `loc` entries. A rollback in Git does not roll back a deployment; confirm the hosted files separately.
+
+
+## Editorial review is a separate release gate
+
+Before approving a blog record for release, run `node scripts/audit-editorial-readiness.js --json` and inspect each article's blockers. The report distinguishes a structurally complete packet ready for a human editor from a release-eligible article. An article's primary query or official-source URLs alone do not constitute verified facts or owner approval.
+
+The `editorialReview` fields must reflect completed work rather than intended work. `editorialStatus`, `sourceStatus`, `factStatus` and `mediaStatus` must all be `approved`; `ownerFactApproved` must be `true`; a real review date and named reviewer must be present. Both `heroImage`/`heroAlt` and `seo.ogImage`/`seo.ogAlt` must point to existing, reviewed assets. Do not fill those fields using assumptions or placeholder evidence.
+
+The site-wide canonical, robots and sitemap gates remain separate. `--strict-release` should stay blocked until content review, owner approval and site release gates are actually clear. No audit command publishes content or mutates the crawl policy.

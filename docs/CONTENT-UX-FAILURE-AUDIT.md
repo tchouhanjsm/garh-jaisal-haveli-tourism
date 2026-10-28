@@ -1142,3 +1142,12 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Made `#arrival-planning` programmatically focusable and gave it a top scroll margin so the heading/form does not sit beneath the sticky header.
 - Added a fragment-aware focus handoff in the shared site runtime and a visible focus treatment for the planner.
 - Chromium regression now checks both the target's viewport position and that it becomes the active element after navigation from every core route.
+
+
+## 28 October 2026 — Editorial readiness report and publication-state enforcement
+
+- Added a required `editorialReview` object to each of the twelve blog records. All fields remain accurately pending; article-specific hero/OG media is explicitly marked missing, owner fact approval is false, and review date/reviewer are null.
+- Added the read-only `scripts/audit-editorial-readiness.js` report. It validates schemas, primary-query uniqueness, official HTTPS source hosts, related article references, source/section completeness, image files and alt text, review-state consistency, public-output absence and canonical/robots/sitemap gates.
+- Added repository-validator and renderer rules that refuse approved/live blog state until all review dimensions and owner fact approval are complete and both hero and OG images exist with meaningful alt text.
+- Added regression coverage for a duplicate primary query, read-only report behavior, explicit review blockers and attempted promotion with pending review.
+- No article status was promoted; no image is represented as reviewed; no public page, canonical tag, sitemap URL or deployment artifact was generated. The quality suite reports the present release gate as blocked by design.

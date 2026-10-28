@@ -79,5 +79,14 @@
     "jain-temples-jaisalmer-guide",
     "gadisar-lake-jaisalmer-guide",
     "bada-bagh-vyas-chhatri-guide"
-  ]
+  ],
+  "editorialReview": {
+    "editorialStatus": "pending",
+    "sourceStatus": "pending",
+    "factStatus": "pending",
+    "mediaStatus": "missing",
+    "ownerFactApproved": false,
+    "reviewedAt": null,
+    "reviewer": null
+  }
 }

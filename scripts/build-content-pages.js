@@ -181,7 +181,22 @@ function validateLiveRecord(item, root, siteConfig) {
     }
   }
   if (type === 'blog' && !isValidDate(record.lastReviewed)) fail('Live article requires a valid lastReviewed date: ' + sourcePath);
-  if (type === 'blog' && record.heroImage && (typeof record.heroAlt !== 'string' || record.heroAlt.trim().length < 5)) fail('Live article heroImage requires meaningful heroAlt text: ' + sourcePath);
+  if (type === 'blog') {
+    const review = record.editorialReview || {};
+    const requiredApprovals = ['editorialStatus', 'sourceStatus', 'factStatus', 'mediaStatus'];
+    const missingApprovals = requiredApprovals.filter(field => review[field] !== 'approved');
+    if (missingApprovals.length || review.ownerFactApproved !== true) {
+      fail('Live article requires approved editorial/source/fact/media review and owner fact approval: '
+        + sourcePath + ' (' + missingApprovals.concat(review.ownerFactApproved === true ? [] : ['ownerFactApproved']).join(', ') + ')');
+    }
+    if (!isValidDate(review.reviewedAt) || typeof review.reviewer !== 'string' || review.reviewer.trim().length < 2) {
+      fail('Live article requires a valid editorial review date and named reviewer: ' + sourcePath);
+    }
+    if (!record.heroImage || typeof record.heroAlt !== 'string' || record.heroAlt.trim().length < 5
+        || !record.seo || !record.seo.ogImage || typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5) {
+      fail('Live article requires hero and OG image assets with meaningful alt text: ' + sourcePath);
+    }
+  }
   if (record.publishedAt != null && !isValidDate(record.publishedAt)) fail('publishedAt must be a real YYYY-MM-DD date: ' + sourcePath);
   walkAssetPaths(record, root, sourcePath);
   item.cta = verifiedCta(type, record, siteConfig);

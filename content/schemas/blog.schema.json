@@ -13,7 +13,8 @@
     "lede",
     "sections",
     "sources",
-    "lastReviewed"
+    "lastReviewed",
+    "editorialReview"
   ],
   "properties": {
     "schemaVersion": {
@@ -224,6 +225,68 @@
             "booking_gateway",
             "contact"
           ]
+        }
+      }
+    },
+    "editorialReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "editorialStatus",
+        "sourceStatus",
+        "factStatus",
+        "mediaStatus",
+        "ownerFactApproved",
+        "reviewedAt",
+        "reviewer"
+      ],
+      "properties": {
+        "editorialStatus": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved"
+          ]
+        },
+        "sourceStatus": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved"
+          ]
+        },
+        "factStatus": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved"
+          ]
+        },
+        "mediaStatus": {
+          "type": "string",
+          "enum": [
+            "missing",
+            "pending",
+            "approved"
+          ]
+        },
+        "ownerFactApproved": {
+          "type": "boolean"
+        },
+        "reviewedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 2,
+          "maxLength": 80
         }
       }
     }

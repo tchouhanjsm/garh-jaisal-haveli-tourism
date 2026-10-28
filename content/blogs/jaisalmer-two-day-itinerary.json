@@ -81,5 +81,14 @@
     "gadisar-lake-jaisalmer-guide",
     "bada-bagh-vyas-chhatri-guide",
     "thar-desert-experience-planning"
-  ]
+  ],
+  "editorialReview": {
+    "editorialStatus": "pending",
+    "sourceStatus": "pending",
+    "factStatus": "pending",
+    "mediaStatus": "missing",
+    "ownerFactApproved": false,
+    "reviewedAt": null,
+    "reviewer": null
+  }
 }

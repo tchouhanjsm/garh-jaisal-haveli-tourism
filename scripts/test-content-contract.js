@@ -47,6 +47,15 @@ const validBlog = {
   ],
   sources: [{ label: 'Official travel information', url: 'https://example.org/travel' }],
   lastReviewed: null,
+  editorialReview: {
+    editorialStatus: 'pending',
+    sourceStatus: 'pending',
+    factStatus: 'pending',
+    mediaStatus: 'missing',
+    ownerFactApproved: false,
+    reviewedAt: null,
+    reviewer: null,
+  },
 };
 const validGallery = {
   schemaVersion: 1,

@@ -70,5 +70,14 @@
     "jaisalmer-two-day-itinerary",
     "bada-bagh-vyas-chhatri-guide",
     "jaisalmer-photography-guide"
-  ]
+  ],
+  "editorialReview": {
+    "editorialStatus": "pending",
+    "sourceStatus": "pending",
+    "factStatus": "pending",
+    "mediaStatus": "missing",
+    "ownerFactApproved": false,
+    "reviewedAt": null,
+    "reviewer": null
+  }
 }
