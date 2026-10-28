@@ -136,7 +136,7 @@ assert.deepEqual(validateAgainstSchema(schemas.blog, fortGuide), [], 'Fort guide
 assert.equal(fortGuide.status, 'draft', 'Fort guide must remain unpublished');
 assert.equal(fortGuide.lastReviewed, null, 'formal review date must remain unset');
 assert.equal(fortGuide.publishedAt, null, 'article must not claim a publication date');
-assert.equal(fortGuide.editorialReview.mediaStatus, 'missing', 'article media must remain unapproved');
+assert.equal(fortGuide.editorialReview.mediaStatus, fortGuide.media.candidates.length ? 'pending' : 'missing', 'article must distinguish unreviewed candidates from missing media');
 assert.equal(fortGuide.media.approvedAssets.length, 0, 'existing asset files must not imply editorial approval');
 assert.ok(fortGuide.media.requirements.hero.subject.length >= 8 && fortGuide.media.requirements.socialPreview.subject.length >= 8, 'media requirements must be explicit');
 const blogDirectory = path.join(root, 'content', 'blogs');
