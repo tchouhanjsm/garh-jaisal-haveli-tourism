@@ -115,6 +115,15 @@ try {
 assert.ok(inspectImage(Buffer.from('not webp'), '.webp').errors.length > 0);
 assert.ok(inspectImage(Buffer.from('not avif'), '.avif').errors.length > 0);
 const sourcePolicy = imagePolicy(ROOT);
+const headerOnly = {
+  path: 'assets/images/blogs/example/example-hero-01.webp',
+  exists: true, safe: true, bytes: 50000, format: 'webp',
+  width: 1200, height: 800, sha256: 'fixture-header-only', errors: [], warnings: [],
+};
+const headerOnlyResult = validateForRole(headerOnly, 'hero', sourcePolicy);
+assert.equal(headerOnlyResult.valid, false, 'headers and dimensions alone must not pass release validation');
+assert.ok(headerOnlyResult.errors.some(message => /full pixel decode has not been verified/.test(message)),
+  'missing full-decode evidence must be an explicit blocker');
 const sourceCandidate = imageInfo(ROOT, 'assets/images/legacy/rooftop-candlelight.webp', sourcePolicy);
 assert.equal(verifyImageDecode(ROOT, [sourceCandidate]).get(sourceCandidate.path).status, 'verified', 'real WebP source must decode in Chromium and match header dimensions');
 const tooLargeForSocial = validateForRole(sourceCandidate, 'socialPreview', sourcePolicy);
