@@ -67,7 +67,7 @@ assert.match(form, /id="restaurant-table-note-help"/, 'Optional note has a stabl
 assert.match(form, /aria-describedby="restaurant-table-note-help"/, 'Optional note help is associated for assistive technology');
 assert.match(form, /Avoid payment details or sensitive personal information/i, 'Optional note warns against sensitive data');
 assert.equal((form.match(/name="guests"/g) || []).length, 1, 'Dining table form has exactly one party-size field');
-assert.doesNotMatch(form, /guest-enquiry-|data-guest-enquiry/, 'Table form must not contain stay-enquiry fields');
+assert.doesNotMatch(form, /data-guest-enquiry|id="guest-enquiry-/, 'Table form must not contain stay-enquiry fields; shared recovery styling is allowed');
 assert.match(form, /data-restaurant-table-submit/, 'Table form includes its own submit control');
 assert.match(form, /data-restaurant-table-status/, 'Table form includes its own status message');
 assert.match(form, /data-restaurant-table-recovery[^>]*hidden/, 'The fallback panel stays hidden until an explicit valid submit');
