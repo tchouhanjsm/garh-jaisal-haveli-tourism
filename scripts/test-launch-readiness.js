@@ -28,7 +28,9 @@ assert.equal(config.verificationStatus, 'owner-authorized-source',
 assert.equal(config.contact.status, 'source-authorized');
 assert.equal(config.booking.status, 'source-authorized');
 assert.equal(config.site.canonicalHostApproved, false,
-  'Do not approve a canonical host as part of contact/content delivery');
+  'Metadata publication must not imply owner approval of the live host');
+assert.equal(config.site.newStaticSiteCanonicalHost, 'https://hotelgarhjaisal.com');
+assert.equal(config.site.canonicalPublicationMode, 'candidate-configured-owner-release-required');
 assert.match(config.contact.whatsappBaseUrl || '', /^https:\/\/wa\.me\/\d{8,15}$/);
 assert.match(config.contact.primaryPhoneE164 || '', /^\+[1-9]\d{7,14}$/);
 assert.match(config.contact.alternatePhoneE164 || '', /^\+[1-9]\d{7,14}$/);
@@ -62,8 +64,17 @@ for (const file of PAGE_NAMES) {
   }
   assert.doesNotMatch(html, /href="(?:tel:\+?\d+|mailto:[^"]+)|https:\/\/wa\.me\/\d{8,15}/i,
     file + ': direct contact endpoints must not be hard-coded into public HTML');
-  assert.doesNotMatch(html, /<link\b[^>]*\brel=["']canonical["']|property=["']og:url["']/i,
-    file + ': canonical URL remains gated until owner host approval');
+  const routes = {
+    'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
+    'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
+    'about.html': '/about.html', 'directions.html': '/directions.html', 'gallery.html': '/gallery.html'
+  };
+  const expectedUrl = 'https://hotelgarhjaisal.com' + routes[file];
+  assert.equal((html.match(/<link rel="canonical"/g) || []).length, 1, file + ': must have exactly one canonical');
+  assert.ok(html.includes('<link rel="canonical" href="' + expectedUrl + '">'), file + ': canonical mismatch');
+  assert.ok(html.includes('<meta property="og:url" content="' + expectedUrl + '">'), file + ': og:url mismatch');
+  assert.match(html, /<meta property="og:image" content="https:\/\/hotelgarhjaisal\.com\/assets\//, file + ': OG image must use absolute canonical asset URL');
+  assert.match(html, /<meta name="twitter:image" content="https:\/\/hotelgarhjaisal\.com\/assets\//, file + ': Twitter image must use absolute canonical asset URL');
 }
 
 const recoveryPage = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
@@ -95,8 +106,15 @@ assert.match(siteCss, /\.not-found-page__route:focus-visible|a:focus-visible/,
 const dining = fs.readFileSync(path.join(ROOT, 'dining.html'), 'utf8');
 assert.match(dining, /source menu record is still marked as awaiting owner confirmation/i,
   'Dining page must not imply that unconfirmed legacy menu items/prices are current');
-assert.doesNotMatch(sitemap, /<loc>\s*https?:\/\//i, 'Sitemap must stay URL-empty before canonical host approval');
-assert.doesNotMatch(robots, /^\s*Sitemap\s*:/im, 'Robots must not publish a sitemap URL before canonical host approval');
+for (const route of ['/', '/rooms.html', '/experiences.html', '/experience-details.html', '/dining.html', '/about.html', '/directions.html', '/gallery.html']) {
+  assert.ok(sitemap.includes('<loc>https://hotelgarhjaisal.com' + route + '</loc>'), 'Missing core sitemap route ' + route);
+}
+assert.match(robots, /^User-agent:\s*\*\s*$/im);
+assert.match(robots, /^Allow:\s*\/$/im);
+assert.match(robots, /^Sitemap:\s*https:\/\/hotelgarhjaisal\.com\/sitemap\.xml$/im);
+assert.match(fs.readFileSync(path.join(ROOT, 'robots-staging.txt'), 'utf8'), /^Disallow:\s*\/$/im);
+assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'sitemap-empty.xml'), 'utf8'), /<loc>/i);
+assert.match(fs.readFileSync(path.join(ROOT, '.htaccess'), 'utf8'), /X-Robots-Tag "noindex, nofollow" env=STAGING_HOST/);
 
 assert.match(launchDoc, /MANUAL RELEASE GATES/i, 'Launch checklist must distinguish manual release gates');
 assert.match(launchDoc, /HTTP 403/i, 'Launch checklist must record the external booking-provider probe result');
