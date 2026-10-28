@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole } = require('./audit-editorial-media-readiness');
+const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, verifyImageDecode } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -17,6 +17,7 @@ assert.equal(report.summary.approvedArticleCount, 0, 'asset inventory must not i
 assert.equal(report.summary.declaredApprovedArticleCount, 0, 'no draft record may claim media approval');
 assert.ok(report.articles.every(article => article.requirements.hero.subject && article.requirements.socialPreview.subject), 'human report must expose role-specific requirements');
 assert.equal(report.summary.blockedArticleCount, 12);
+assert.ok(report.summary.verifiedPixelDecodeAssetCount > 0, 'real local image assets must receive a complete Chromium pixel decode');
 assert.ok(report.summary.assetCount > 0, 'inventory should include existing non-blog media');
 assert.ok(report.inventory.some(asset => asset.path.endsWith('.jpg') && asset.warnings?.some(warning => /convert to WebP or AVIF/.test(warning))), 'JPEG source candidates should be distinguished from permitted publication formats');
 assert.ok(report.articles.some(article => article.candidateWarnings.length > 0), 'candidate technical/rights warnings must be visible separately from blockers');
@@ -58,6 +59,7 @@ try {
   const corrupt = imageInfo(temp, 'assets/images/corrupt.png');
   assert.equal(corrupt.valid, false, 'corrupt image must not pass technical validation');
   assert.ok(corrupt.errors.some(message => /corrupt|invalid|signature/i.test(message)), 'corrupt-file reason should be explicit');
+  assert.equal(verifyImageDecode(temp, [corrupt]).get('assets/images/corrupt.png').status, 'failed', 'a corrupt file must not receive decode verification');
 
   const badCandidatePath = path.join(temp, 'content/blogs/jaisalmer-fort-guide.json');
   const badCandidateRecord = JSON.parse(fs.readFileSync(badCandidatePath, 'utf8'));
@@ -114,6 +116,7 @@ assert.ok(inspectImage(Buffer.from('not webp'), '.webp').errors.length > 0);
 assert.ok(inspectImage(Buffer.from('not avif'), '.avif').errors.length > 0);
 const sourcePolicy = imagePolicy(ROOT);
 const sourceCandidate = imageInfo(ROOT, 'assets/images/legacy/rooftop-candlelight.webp', sourcePolicy);
+assert.equal(verifyImageDecode(ROOT, [sourceCandidate]).get(sourceCandidate.path).status, 'verified', 'real WebP source must decode in Chromium and match header dimensions');
 const tooLargeForSocial = validateForRole(sourceCandidate, 'socialPreview', sourcePolicy);
 assert.equal(tooLargeForSocial.valid, false, 'oversized source file must not be approved as a production social image');
 assert.ok(tooLargeForSocial.errors.some(message => /file exceeds 81920-byte policy/.test(message)), 'supporting budget failure must be explicit');
