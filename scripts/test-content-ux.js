@@ -553,7 +553,7 @@ for (const rule of PAGE_RULES) {
     if (!html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"')) {
       fail('dining.html: candlelight section and Open Graph metadata must use the reviewed night-time table image');
     }
-    if (!html.includes('<meta property="og:image" content="assets/images/dining/rooftop-candlelit-table.jpg"><meta property="og:image:alt" content="Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond">')) {
+    if (!html.includes('<meta property="og:image" content="https://hotelgarhjaisal.com/assets/images/dining/rooftop-candlelit-table.jpg"><meta property="og:image:alt" content="Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond">')) {
       fail('dining.html: Open Graph image and alt text must match the reviewed night-time table image');
     }
     if (!/not confirmation that a candlelit setup is available for your date/i.test(html)) {
@@ -625,7 +625,7 @@ for (const rule of PAGE_RULES) {
 
   if (rule.file === 'about.html') {
     if (!html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"')
-        || !html.includes('<meta property="og:image" content="assets/images/gallery/hotel/fort-from-roof.webp">')
+        || !html.includes('<meta property="og:image" content="https://hotelgarhjaisal.com/assets/images/gallery/hotel/fort-from-roof.webp">')
         || !html.includes('<meta property="og:image:alt" content="Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk">')) {
       fail('about.html: hero and social preview must use the same authentic fort photograph and descriptive alt text');
     }
@@ -707,9 +707,17 @@ for (const rule of PAGE_RULES) {
     if (inbound.has(target) && target !== rule.file) inbound.set(target, inbound.get(target) + 1);
   }
 
-  if (/<link\b[^>]*\brel=["']canonical["']/i.test(html)) fail(`${rule.file}: canonical URL must remain unset until the host is approved`);
-  if (/<meta\b[^>]*\bproperty=["']og:url["']/i.test(html)) fail(`${rule.file}: OG URL must remain unset until the host is approved`);
-  if (/https:\/\/hotelgarhjaisal\.com/i.test(html)) fail(`${rule.file}: unapproved canonical host appears in public HTML`);
+  const canonicalRoutes = {
+    'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
+    'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
+    'about.html': '/about.html', 'directions.html': '/directions.html', 'gallery.html': '/gallery.html'
+  };
+  const canonicalExpected = 'https://hotelgarhjaisal.com' + canonicalRoutes[rule.file];
+  const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i);
+  const canonicalAttrs = canonicalTag ? attributes(canonicalTag[0]) : {};
+  const ogUrlTag = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
+  if (!canonicalTag || canonicalAttrs.href !== canonicalExpected) fail(`${rule.file}: canonical URL must match candidate route ${canonicalExpected}`);
+  if (!ogUrlTag || ogUrlTag.content !== canonicalExpected) fail(`${rule.file}: OG URL must match canonical route ${canonicalExpected}`);
 }
 
 for (const [file, count] of inbound) {
@@ -719,10 +727,15 @@ for (const [file, count] of inbound) {
 const configPath = path.join(ROOT, 'content', 'site-config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 if (config.site && config.site.canonicalHostApproved !== true) {
-  const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
+  if (config.site.newStaticSiteCanonicalHost !== 'https://hotelgarhjaisal.com') fail('candidate canonical host must remain exactly https://hotelgarhjaisal.com');
+  if (config.site.canonicalPublicationMode !== 'candidate-configured-owner-release-required') fail('canonical metadata publication must retain the separate owner-release gate');
   const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
-  if (/<loc>\s*https?:\/\//i.test(sitemap)) fail('sitemap.xml publishes URLs before canonical host approval');
-  if (/^\s*Sitemap\s*:/im.test(robots)) fail('robots.txt advertises a sitemap before canonical host approval');
+  const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
+  if (!/^\s*Allow:\s*\/$/im.test(robots)) fail('production candidate robots must allow crawling');
+  if (!/^\s*Sitemap:\s*https:\/\/hotelgarhjaisal\.com\/sitemap\.xml$/im.test(robots)) fail('production candidate robots must advertise the candidate sitemap');
+  const coreRoutes = ['/', '/rooms.html', '/experiences.html', '/experience-details.html', '/dining.html', '/about.html', '/directions.html', '/gallery.html'];
+  for (const route of coreRoutes) if (!sitemap.includes('<loc>https://hotelgarhjaisal.com' + route + '</loc>')) fail('sitemap missing core route ' + route);
+  if (/<loc>[^<]*404\.html/i.test(sitemap)) fail('sitemap must exclude 404.html');
 }
 
 for (const type of ['tours', 'blogs']) {
