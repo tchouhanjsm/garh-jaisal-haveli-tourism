@@ -210,8 +210,11 @@ try {
   assert.equal(fs.existsSync(path.join(root, 'blogs/jaisalmer-fort-guide.html')), false);
   assert.equal(fs.existsSync(manualPage), true, 'renderer must not delete unowned HTML files');
   const cleanSitemap = fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8');
-  assert.equal(cleanSitemap.includes(SITEMAP_BEGIN), false, 'draft transition must remove generated sitemap URLs');
-  assert.equal(cleanSitemap.includes(SITEMAP_END), false);
+  assert.equal((cleanSitemap.match(new RegExp(SITEMAP_BEGIN, 'g')) || []).length, 1,
+    'the renderer-owned sitemap block must remain exactly once after all records become drafts');
+  assert.equal((cleanSitemap.match(new RegExp(SITEMAP_END, 'g')) || []).length, 1);
+  assert.doesNotMatch(cleanSitemap, /<loc>\s*https?:\/\//i,
+    'draft transition must remove generated public sitemap URLs while preserving the empty owned block');
   buildContentPages(root, { write: false });
 
   console.log('PASS: static content renderer — draft exclusion, fact/canonical/contact gates, read-only check mode, deterministic pages/sitemap, related links, escaping and safe stale-output cleanup.');
