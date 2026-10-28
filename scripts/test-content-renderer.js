@@ -13,7 +13,7 @@ const REQUIRED_FILES = [
   'content/paths.json', 'content/site-config.json', 'content/schemas/tour.schema.json',
   'content/schemas/blog.schema.json', 'content/tours/sunset-camel-safari.json',
   'content/blogs/jaisalmer-fort-guide.json', 'sitemap.xml',
-  'assets/images/gallery/hotel/fort-from-roof.webp', 'assets/site.css', 'assets/site.js',
+  'assets/images/gallery/hotel/fort-from-roof.webp', 'assets/images/experiences/swiss-tent-exterior.webp', 'assets/site.css', 'assets/site.js',
   'assets/css/content-pages.css', 'favicon.svg',
 ];
 
@@ -36,7 +36,7 @@ function writeJson(root, relative, value) { fs.writeFileSync(path.join(root, rel
 function copyFixtureImage(root, relative) {
   const target = path.join(root, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.copyFileSync(path.join(root, 'assets/images/gallery/hotel/fort-from-roof.webp'), target);
+  fs.copyFileSync(path.join(root, 'assets/images/experiences/swiss-tent-exterior.webp'), target);
 }
 function approveCanonicalAndContact(root) {
   const config = readJson(root, 'content/site-config.json');
@@ -71,6 +71,20 @@ function makeBlogLive(root) {
   blog.seo.ogImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
   blog.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
   copyFixtureImage(root, blog.seo.ogImage);
+  blog.media = {
+    requirements: {
+      hero: { required: true, minWidth: 1200, maxBytes: 204800, subject: 'A representative wide Jaisalmer Fort view' },
+      socialPreview: { required: true, minWidth: 600, maxBytes: 81920, subject: 'A representative Jaisalmer heritage image for sharing' },
+    },
+    candidates: [
+      { path: blog.heroImage, role: 'hero', fit: 'possible-contextual-match', rationale: 'Fixture-only image approval path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', rightsStatus: 'owner-confirmed', reviewStatus: 'approved' },
+      { path: blog.seo.ogImage, role: 'socialPreview', fit: 'possible-contextual-match', rationale: 'Fixture-only social preview path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', rightsStatus: 'owner-confirmed', reviewStatus: 'approved' },
+    ],
+    approvedAssets: [
+      { path: blog.heroImage, role: 'hero', alt: blog.heroAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'Synthetic test fixture only; not a real publication approval.' },
+      { path: blog.seo.ogImage, role: 'socialPreview', alt: blog.seo.ogAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'Synthetic test fixture only; not a real publication approval.' },
+    ],
+  };
   blog.editorialReview = {
     editorialStatus: 'approved',
     sourceStatus: 'approved',
