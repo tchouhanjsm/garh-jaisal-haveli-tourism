@@ -337,9 +337,9 @@ for (const rule of PAGE_RULES) {
     }
 
     const hero = html.match(/<section class="hero"[\s\S]*?<\/section>/i);
-    const hero = html.match(/<section class="hero"[\s\S]*?<\/section>/i);
     if (!hero || !/src="assets\/images\/rest3\.jpg"/i.test(hero[0])
         || !/alt="Golden sandstone rooftop terrace overlooking Jaisalmer at dusk"/i.test(hero[0])) {
+      fail('index.html: homepage hero must keep its locally hosted, accurately described rooftop image');
     }
     if (!/<meta property="og:image" content="https:\/\/hotelgarhjaisal\.com\/assets\/images\/rest3\.jpg">/i.test(html)
         || !/<meta property="og:image:alt" content="Rooftop terrace overlooking Jaisalmer at dusk">/i.test(html)) {
