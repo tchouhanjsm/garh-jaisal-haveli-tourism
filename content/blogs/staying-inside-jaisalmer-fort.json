@@ -91,7 +91,7 @@
       "socialPreview": {
         "required": true,
         "minWidth": 1200,
-        "maxBytes": 204800,
+        "maxBytes": 81920,
         "subject": "A contextual view of the fort neighbourhood and heritage accommodation"
       }
     },
