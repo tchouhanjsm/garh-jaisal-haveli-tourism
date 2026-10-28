@@ -67,6 +67,9 @@ for (const slug of EXPECTED_CLUSTER) {
   assert.ok(record.media.candidates.every(candidate =>
     candidate.reviewStatus === 'unreviewed'
     && candidate.rightsStatus === 'unverified'
+    && candidate.sourceEvidence.status === 'unverified'
+    && candidate.sourceEvidence.verifiedBy === null
+    && candidate.sourceEvidence.verifiedAt === null
     && candidate.fit === 'not-assessed'
     && candidate.visualReview.status === 'not_assessed'
     && candidate.visualReview.reviewer === null
