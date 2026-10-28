@@ -26,7 +26,6 @@ function imagePolicy(root) {
 }
 const SUPPORTED = new Set(['.webp', '.avif', '.jpg', '.jpeg', '.png']);
 const MAX_SCAN_BYTES = 25 * 1024 * 1024;
-const BLOG_ASSET_ROOT = 'assets/images/blogs';
 
 function readJson(root, relative) {
   const absolute = path.resolve(root, relative);
@@ -69,7 +68,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   if (!absolute) return { path: relative, exists: false, safe: false, errors: ['missing, unsafe or non-regular file'] };
   const stat = fs.statSync(absolute);
   const extension = path.extname(relative).toLowerCase();
-  const result = { path: relative, exists: true, safe: true, bytes: stat.size, format: extension.slice(1), width: null, height: null, sha256: null, valid: false, errors: [] };
+  const result = { path: relative, exists: true, safe: true, bytes: stat.size, format: extension.slice(1), width: null, height: null, sha256: null, valid: false, errors: [], warnings: [] };
   if (!SUPPORTED.has(extension) || !policy.formats.has(extension)) result.errors.push('unsupported extension or format not permitted by content/paths.json');
   if (!stat.size) result.errors.push('empty file');
   if (stat.size > MAX_SCAN_BYTES) result.errors.push('asset exceeds audit safety read limit');
@@ -79,6 +78,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   const dimensions = inspectImage(data, extension);
   result.width = dimensions.width; result.height = dimensions.height;
   result.errors.push(...dimensions.errors);
+  result.warnings = dimensions.warnings || [];
   if (result.width && result.height) {
     const rolePolicy = policy.hero && relative.includes('-hero-') ? policy.hero : policy.supporting;
     if (result.width < rolePolicy.minWidth) result.errors.push('width below ' + policy.minWidth + 'px requirement');
@@ -154,7 +154,7 @@ function inspectAvif(data) {
   if(!width||!height) return {width:null,height:null,errors:['invalid AVIF dimensions']};
   const declared=data.readUInt32BE(0);
   if(declared>data.length) return {width,height,errors:['truncated AVIF ftyp box']};
-  return {width,height,errors:['AVIF container/header verified; full pixel decode not available in dependency-free audit']};
+  return {width,height,errors:[],warnings:['AVIF header and dimensions verified; full pixel decode is unavailable in the dependency-free audit']};
 }
 function flattenAssetReferences(value, location, output) {
   if (Array.isArray(value)) { value.forEach((entry,index)=>flattenAssetReferences(entry,location+'['+index+']',output)); return; }
@@ -241,7 +241,7 @@ function auditMedia(root=ROOT) {
     const owners=candidateOwners.get(candidate.path)||[]; owners.push(item.record.slug+':'+candidate.role); candidateOwners.set(candidate.path,owners);
   }
   const duplicateCandidates=[...candidateOwners.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
-  const duplicates=[...seenRefs.entries()].filter(([,owners])=>owners.length>1).map(([asset,owners])=>({path:asset,owners}));
+  const duplicates=[...seenRefs.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   return {schemaVersion:1,state:errors.length?'ERROR':catalogue.length>0&&catalogue.every(i=>i.record.editorialReview.mediaStatus==='approved'&&(i.record.media.approvedAssets||[]).length===2)?'READY':'BLOCKED',
     summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,approvedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus!=='approved').length},
     policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
@@ -262,11 +262,14 @@ function articleReport(root,item,assets,seenRefs) {
     mediaStatus:review.mediaStatus||'missing',
     requirements:media.requirements||null,
     heroImage:r.heroImage||null,socialPreviewImage:r.seo&&r.seo.ogImage||null,
-    candidates:media.candidates||[],approvedAssets:media.approvedAssets||[],
+    candidates:(media.candidates||[]).map(candidate=>({...candidate,technical:(assets.find(a=>a.path===candidate.path)||{}).valid===true,technicalErrors:(assets.find(a=>a.path===candidate.path)||{}).errors||['not in local inventory']})),approvedAssets:media.approvedAssets||[],
     missingRoles:roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)),
     duplicateAssetUsage:[...seenRefs.entries()].filter(([,owners])=>owners.some(owner=>owner.startsWith(r.slug+':'))&&owners.length>1).map(([asset,owners])=>({asset,owners})),
     blockers:[...(review.mediaStatus==='approved'?[]:['media-review-'+review.mediaStatus]),
-      ...roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)).map(role=>role+'-approval-missing')]
+      ...roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)).map(role=>role+'-approval-missing'),
+      ...(media.candidates||[]).filter(candidate=>candidate.reviewStatus==='unreviewed').map(candidate=>'candidate-unreviewed:'+candidate.path),
+      ...(media.candidates||[]).filter(candidate=>candidate.rightsStatus==='unverified').map(candidate=>'candidate-rights-unverified:'+candidate.path),
+      ...(media.candidates||[]).filter(candidate=>!(assets.find(a=>a.path===candidate.path)||{}).valid).map(candidate=>'candidate-technical-review-required:'+candidate.path)]
   };
 }
 function scoreCandidates(root, article, inventory) {
