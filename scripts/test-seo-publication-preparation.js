@@ -153,7 +153,7 @@ function cleanup(root) { fs.rmSync(root, { recursive: true, force: true }); }
     '.htaccess must serve the empty sitemap on non-canonical hosts');
   assert.match(htaccess, /X-Robots-Tag "noindex, nofollow" env=GJ_NONCANONICAL_HOST/,
     'non-canonical hosts must emit a noindex response header');
-  assert.match(stagingRobots, /^User-agent: \*\nDisallow: \/$/);
+  assert.match(stagingRobots, /(?:^|\n)User-agent:\s*\*\s*\nDisallow:\s*\/\s*(?:\n|$)/, 'staging robots must block crawlers');
   assert.doesNotMatch(emptySitemap, /<loc\b/i, 'non-canonical hosts must not expose crawlable sitemap URLs');
   const actualConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
   assert.equal(actualConfig.site.canonicalHostApproved, false,
