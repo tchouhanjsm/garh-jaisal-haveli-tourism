@@ -27,9 +27,9 @@ assert.equal(config.verificationStatus, 'owner-authorized-source',
   'Source-derived contact endpoints must be marked source-authorized, not live-tested');
 assert.equal(config.contact.status, 'source-authorized');
 assert.equal(config.booking.status, 'source-authorized');
-assert.equal(config.site.canonicalHostApproved, true,
-  'The configured canonical host is enabled for the source SEO publication phase');
-assert.equal(config.site.newStaticSiteCanonicalHost, 'https://hotelgarhjaisal.com');
+assert.equal(config.site.canonicalHostApproved, false,
+  'Do not approve a canonical host as part of contact/content delivery');
+assert.match(config.contact.whatsappBaseUrl || '', /^https:\/\/wa\.me\/\d{8,15}$/);
 assert.match(config.contact.primaryPhoneE164 || '', /^\+[1-9]\d{7,14}$/);
 assert.match(config.contact.alternatePhoneE164 || '', /^\+[1-9]\d{7,14}$/);
 assert.match(config.contact.email || '', /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
@@ -62,10 +62,8 @@ for (const file of PAGE_NAMES) {
   }
   assert.doesNotMatch(html, /href="(?:tel:\+?\d+|mailto:[^"]+)|https:\/\/wa\.me\/\d{8,15}/i,
     file + ': direct contact endpoints must not be hard-coded into public HTML');
-  const expectedCanonical = file === 'index.html' ? 'https://hotelgarhjaisal.com/' : 'https://hotelgarhjaisal.com/' + file;
-  assert.ok(html.includes('<link rel="canonical" href="' + expectedCanonical + '">'), file + ': canonical URL must match production route');
-  assert.ok(html.includes('<meta property="og:url" content="' + expectedCanonical + '">'), file + ': og:url must match canonical URL');
-  assert.match(html, /<meta name="robots" content="index,follow,/i, file + ': public route must permit indexing');
+  assert.doesNotMatch(html, /<link\b[^>]*\brel=["']canonical["']|property=["']og:url["']/i,
+    file + ': canonical URL remains gated until owner host approval');
 }
 
 const recoveryPage = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
@@ -96,20 +94,8 @@ assert.match(siteCss, /\.not-found-page__route:focus-visible|a:focus-visible/,
 
 const dining = fs.readFileSync(path.join(ROOT, 'dining.html'), 'utf8');
 assert.match(dining, /source menu record is still marked as awaiting owner confirmation/i,
-const sitemapUrls = [...sitemap.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)].map(match => match[1].trim());
-assert.equal(new Set(sitemapUrls).size, sitemapUrls.length, 'Sitemap must not contain duplicate URLs');
-for (const file of PAGE_NAMES) {
-  const expected = file === 'index.html' ? 'https://hotelgarhjaisal.com/' : 'https://hotelgarhjaisal.com/' + file;
-  assert.ok(sitemapUrls.includes(expected), 'Sitemap must include ' + expected);
-}
-assert.match(robots, /^User-agent:\s*\*\s*\nAllow:\s*\//m, 'Production robots must permit crawling');
-assert.ok(robots.split(/\r?\n/).map(line => line.trim()).includes('Sitemap: https://hotelgarhjaisal.com/sitemap.xml'), 'Production robots must advertise the canonical sitemap');
-const stagingRobots = fs.readFileSync(path.join(ROOT, 'robots-staging.txt'), 'utf8');
-assert.match(stagingRobots, /^User-agent:\s*\*\s*\nDisallow:\s*\/$/m, 'Staging robots must block crawling');
-const stagingSitemap = fs.readFileSync(path.join(ROOT, 'sitemap-staging.xml'), 'utf8');
-assert.doesNotMatch(stagingSitemap, /<loc>\s*https?:\/\//i, 'Staging sitemap must remain URL-empty');
-assert.match(fs.readFileSync(path.join(ROOT, ".htaccess"), "utf8"), /X-Robots-Tag "noindex, nofollow" env=NON_CANONICAL_HOST/,
-  'Non-canonical hosts must receive a noindex response header');
+  'Dining page must not imply that unconfirmed legacy menu items/prices are current');
+assert.doesNotMatch(sitemap, /<loc>\s*https?:\/\//i, 'Sitemap must stay URL-empty before canonical host approval');
 assert.doesNotMatch(robots, /^\s*Sitemap\s*:/im, 'Robots must not publish a sitemap URL before canonical host approval');
 
 assert.match(launchDoc, /MANUAL RELEASE GATES/i, 'Launch checklist must distinguish manual release gates');
