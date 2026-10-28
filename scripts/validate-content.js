@@ -394,6 +394,8 @@ function validateRepository(root = ROOT) {
   return { ok: findings.length === 0, findings, records: recordCount, schemas: schemaCount };
 }
 
+module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy, blogMediaPolicyFindings };
+
 if (require.main === module) {
   const result = validateRepository();
   for (const finding of result.findings) console.error('FAIL ' + finding.path + ': ' + finding.message);
@@ -406,4 +408,3 @@ if (require.main === module) {
   }
 }
 
-module.exports = { safeRelativePath, validateAgainstSchema, validateRepository, validateRecordPolicy, blogMediaPolicyFindings };
