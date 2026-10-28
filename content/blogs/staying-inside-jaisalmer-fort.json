@@ -99,20 +99,32 @@
       {
         "path": "assets/images/directions/haveli-facade.webp",
         "role": "hero",
-        "fit": "possible-contextual-match",
-        "rationale": "Existing facade is relevant to accommodation context but does not prove current access conditions.",
+        "fit": "not-assessed",
+        "rationale": "The asset path is a lead only; inspect the actual pixels to verify the visible subject and its fit for this article before assigning a match.",
         "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
-        "reviewStatus": "unreviewed"
+        "reviewStatus": "unreviewed",
+        "visualReview": {
+          "status": "not_assessed",
+          "evidence": "No visual subject assessment recorded; filename and path are not proof of image content.",
+          "reviewer": null,
+          "reviewedAt": null
+        }
       },
       {
         "path": "assets/images/gallery/hotel/fort-from-roof.webp",
         "role": "socialPreview",
-        "fit": "possible-contextual-match",
-        "rationale": "Potential view of the fort settlement; check its actual contents and relevance.",
+        "fit": "not-assessed",
+        "rationale": "The filename is a lead only; inspect the actual pixels and confirm the visible fort/rooftop context before assigning a match.",
         "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
-        "reviewStatus": "unreviewed"
+        "reviewStatus": "unreviewed",
+        "visualReview": {
+          "status": "not_assessed",
+          "evidence": "No visual subject assessment recorded; filename and path are not proof of image content.",
+          "reviewer": null,
+          "reviewedAt": null
+        }
       }
     ],
     "approvedAssets": []
