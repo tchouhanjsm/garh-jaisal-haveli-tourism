@@ -39,7 +39,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 
 ## Open owner / publication blockers
 
-1. Verify the configured canonical host `https://hotelgarhjaisal.com` against live DNS/TLS, production document root and redirect/header behavior after deployment. The publication files are now configured in PR #53, but no production host has been contacted or deployed.
+1. Approve the final canonical host and production URL policy. Until then, canonical/OG URL tags and sitemap URLs remain withheld and robots remains blocked.
 2. Verify the exact staffed booking/contact channels before populating `content/site-config.json` or enabling any enquiry CTA.
 3. Confirm room names/details, inventory, bed arrangements, amenities, rates, taxes, cancellation terms and check-in/out policy.
 4. Confirm current dining menu, prices, service hours, dietary handling and candlelit setup/availability.
@@ -1059,22 +1059,10 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - No production deployment, canonical/sitemap publication, robots-policy change, or server-side guest-data collection is included.
 
 
-## Bulk SEO publication and cross-journey improvements — 28 October 2026
+## Bulk guest-conversion improvements — 28 October 2026
 
-**Implementation status: added to PR #53; automated checks must pass on the exact final head. Production deployment has not occurred.**
-
-### Production-facing SEO delivery
-
-- Published exact canonical URLs and matching Open Graph URLs for the eight core routes on `https://hotelgarhjaisal.com`, including `index,follow` directives, absolute HTTPS Open Graph/Twitter images and descriptive image-alt metadata.
-- Added/updated JSON-LD for Hotel/WebSite, Restaurant and BreadcrumbList page context. The restaurant schema does not duplicate the map link; the map target remains centrally configured. Existing claims about room availability, current restaurant menu/prices and operating services remain explicitly unconfirmed.
-- Populated `sitemap.xml` with the eight public routes. The existing generated-content marker remains ready for tours/blogs only after each source record independently passes the fact/date/contact gates; the sample tour and article remain drafts.
-- Made production `robots.txt` crawlable with the canonical sitemap directive. Added `robots-staging.txt` and `sitemap-staging.xml`; the `.htaccess` plan normalizes www→apex, HTTP→HTTPS and `/index.html`→`/`, and keeps non-canonical hosts blocked with a noindex response header.
-- Updated publication guard contracts, the content/UX audit, launch readiness checks and Chromium smoke checks to assert the production-vs-staging policy instead of the retired pre-launch “all canonicals blocked” state.
-
-### Remaining release checks
-
-- [ ] Verify live DNS, HTTPS certificate/chain, redirects, Apache rewrite behavior, response headers, social image fetches, canonical URLs and sitemap response from the actual GoDaddy/cPanel production document root.
-- [ ] Verify the non-canonical/staging host serves `Disallow: /`, an empty sitemap and `X-Robots-Tag: noindex, nofollow`; do not rely on repository files alone to prove server behavior.
-- [ ] Submit `https://hotelgarhjaisal.com/sitemap.xml` in the owner’s search-console account and inspect fetch/crawl/index coverage after deployment.
-- [ ] Exact-head GitHub Actions must pass. Manual STG-01–STG-18, booking-provider browser verification, live contact channels, owner facts/menu approval, Lighthouse/formal accessibility and visual review remain NOT RUN until evidence exists.
-- [ ] Back up current production files and confirm rollback before a production upload. No production deployment, payment, reservation or guest-data action was performed by this PR.
+- Added a room-shortlist enquiry for one to three selected catalogue rooms; the draft names only the selected rooms and asks the hotel to confirm current availability, rates/taxes and terms.
+- Added a guest-reviewed, copyable Dining enquiry fallback when WhatsApp does not open. The guest remains responsible for reviewing and sending the message.
+- These enquiries remain client-side and non-persistent; neither action creates a reservation or sends a message automatically.
+- Canonical/OG URL publication, absolute production-host social image URLs, sitemap URL entries and a permissive robots policy remain withheld until the owner explicitly approves the canonical host.
+- [ ] Keep `canonicalHostApproved=false`, `robots.txt` at `Disallow: /`, and `sitemap.xml` without public URL entries until that decision is recorded.

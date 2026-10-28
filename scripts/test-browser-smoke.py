@@ -561,27 +561,20 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
           f"{page_name}: Twitter and Open Graph image paths must match")
     check(bool(og_alt and og_alt.strip()) and og_alt == twitter_alt,
           f"{page_name}: Twitter and Open Graph image alt text must match")
-    expected_canonical = (
-        "https://hotelgarhjaisal.com/"
-        if page_name == "index.html"
-        else "https://hotelgarhjaisal.com/" + page_name
-    )
-    canonical = page.locator('link[rel="canonical"]').get_attribute("href")
-    og_url = page.locator('meta[property="og:url"]').get_attribute("content")
-    robots = page.locator('meta[name="robots"]').get_attribute("content") or ""
-    check(canonical == expected_canonical,
-          f"{page_name}: canonical must match the approved production route")
-    check(og_url == expected_canonical,
-          f"{page_name}: og:url must match the canonical route")
-    check(robots.lower().startswith("index,follow,"),
-          f"{page_name}: published page must permit indexing and following links")
+    check(page.locator('link[rel="canonical"]').count() == 0,
+          f"{page_name}: canonical must remain gated pending owner host approval")
+    check(page.locator('meta[property="og:url"]').count() == 0,
+          f"{page_name}: og:url must remain gated pending owner host approval")
+    check(page.locator('meta[name="robots"]').count() == 0,
+          f"{page_name}: index/follow directive must remain withheld pending owner host approval")
     for label, value in (("Open Graph", og_image), ("Twitter", twitter_image)):
         try:
             url = urlparse(value or "")
-            check(url.scheme == "https" and url.netloc == "hotelgarhjaisal.com" and bool(url.path),
-                  f"{page_name}: {label} image must use the absolute canonical HTTPS origin")
+            check(bool(value) and not url.scheme and not url.netloc
+                  and not (value or "").startswith(("/", "//")),
+                  f"{page_name}: {label} image must remain a local relative path until host approval")
         except Exception:
-            check(False, f"{page_name}: {label} image URL must be valid")
+            check(False, f"{page_name}: {label} image path must be valid")
 
 
 def check_404_recovery(page, base_url: str) -> dict:
