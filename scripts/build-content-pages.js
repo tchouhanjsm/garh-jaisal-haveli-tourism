@@ -183,9 +183,17 @@ function validateApprovedBlogMedia(record, sourcePath, root) {
     if (!String(asset.approvedBy || '').trim() || !isValidDate(asset.approvedAt) || !String(asset.rightsEvidence || '').trim()) {
       fail('Live article ' + role + ' requires reviewer, approval date and rights evidence: ' + sourcePath);
     }
-    const candidate = candidates.find(item => item.path === asset.path && item.role === role
-      && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
-    if (!candidate) fail('Live article ' + role + ' must reference a candidate explicitly reviewed with resolved rights: ' + sourcePath);
+    const candidate = candidates.find(item => {
+      const visual = item.visualReview || {};
+      return item.path === asset.path && item.role === role
+        && item.reviewStatus === 'approved'
+        && visual.status === 'matched'
+        && typeof visual.evidence === 'string' && visual.evidence.trim().length >= 10
+        && typeof visual.reviewer === 'string' && visual.reviewer.trim().length >= 2
+        && isValidDate(visual.reviewedAt)
+        && ['owner-confirmed', 'licensed'].includes(item.rightsStatus);
+    });
+    if (!candidate) fail('Live article ' + role + ' must reference a candidate with documented visual match and resolved rights: ' + sourcePath);
     const info = mediaAudit.imageInfo(root, asset.path, policy);
     return { role, asset, info };
   });
