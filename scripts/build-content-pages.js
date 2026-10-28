@@ -219,7 +219,12 @@ function renderSitemap(original, urls, origin) {
   }
   const existingSet = new Set(existing);
   const uniqueUrls = [...new Set(urls)].filter(url => !existingSet.has(url)).sort();
-  if (!uniqueUrls.length) return xml;
+  if (!uniqueUrls.length) {
+    // Keep the empty owned block in place so future approved content can be
+    // added deterministically without rewriting the hand-maintained core URLs.
+    const emptyBlock = ['  ' + SITEMAP_BEGIN, '  ' + SITEMAP_END].join('\n');
+    return xml.replace(/\n\s*\n<\/urlset>$/, '\n' + emptyBlock + '\n</urlset>');
+  }
   const block = [
     '  ' + SITEMAP_BEGIN,
     ...uniqueUrls.map(url => '  <url><loc>' + xmlEscape(url) + '</loc></url>'),
