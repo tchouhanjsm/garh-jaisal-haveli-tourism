@@ -693,3 +693,123 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+
+/* Contextual direct enquiry: visible only when useful, suppressed over forms/footer. */
+.direct-enquiry-dock {
+  position: fixed;
+  z-index: 95;
+  right: clamp(14px, 2.5vw, 36px);
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, calc(100vw - 28px));
+  padding: 13px 14px 13px 18px;
+  border: 1px solid rgba(140, 103, 58, .22);
+  border-top: 2px solid var(--gold);
+  background: rgba(255, 253, 249, .98);
+  box-shadow: var(--premium-shadow);
+  color: var(--ink);
+}
+
+.direct-enquiry-dock[hidden] {
+  display: none !important;
+}
+
+.direct-enquiry-dock__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.direct-enquiry-dock__eyebrow {
+  display: block;
+  color: var(--gold-dark);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .15em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.direct-enquiry-dock__copy p {
+  margin: 3px 0 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.direct-enquiry-dock__action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 14px;
+  background: var(--ink);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .025em;
+  white-space: nowrap;
+}
+
+.direct-enquiry-dock__action:hover,
+.direct-enquiry-dock__action:focus-visible {
+  background: var(--gold-dark);
+  color: #fff;
+}
+
+.direct-enquiry-dock__dismiss {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.direct-enquiry-dock__dismiss:hover,
+.direct-enquiry-dock__dismiss:focus-visible {
+  border-color: var(--gold-dark);
+  background: #f6f0e5;
+}
+
+@media (max-width: 520px) {
+  .direct-enquiry-dock {
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+    width: calc(100vw - 20px);
+    padding: 10px;
+  }
+
+  .direct-enquiry-dock__copy p {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  .direct-enquiry-dock__action {
+    gap: 5px;
+    padding-inline: 10px;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .direct-enquiry-dock,
+  .direct-enquiry-dock * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

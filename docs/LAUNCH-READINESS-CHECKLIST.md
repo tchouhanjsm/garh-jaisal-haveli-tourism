@@ -1,6 +1,6 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 28 October 2026: PR #55 is merged. The follow-on Chromium contract strengthens the premium journey's responsive and keyboard checks; owner-approved staging UAT and live SEO release gates remain outstanding.**
+**Status as of 28 October 2026: PR #56 is merged. The shared premium journey and responsive/keyboard contracts are in main; the contextual direct-enquiry dock is covered by route and browser contracts in the current phase. Owner-approved staging UAT and live SEO release gates remain outstanding.**
 
 Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
@@ -16,6 +16,7 @@ Baseline main at the start of the current staging-preflight phase: 22f40dd1f0700
 - Canonical/OG metadata and public sitemap URLs remain withheld while the canonical host is unapproved. `robots.txt` must continue to block crawlers until an explicit owner-approved production launch.
 
 - The branded 404 recovery page is included in static link/anchor integrity checks, uses `noindex,follow`, and hydrates booking/contact actions from `content/site-config.json` rather than hard-coded endpoints.
+- All eight core routes include the same contextual direct-enquiry dock. It is revealed after scrolling, hidden while a supported enquiry surface or footer is visible, dismissible for the current page, and hydrated through the existing centrally authorized WhatsApp destination. The link opens a guest-reviewed draft; it does not send a message or store personal details.
 
 A passing automated suite is not proof that the hotel’s live phone is answered, the booking provider accepts guests, the current menu is correct, or staging/production renders correctly. The offline screenshot renderer also rejects contradictory report metadata, unsafe-action flags, inconsistent failure counts and any release status other than `BLOCKED_PENDING_MANUAL_UAT`.
 
@@ -63,6 +64,14 @@ The premium visual layer and four-step journey are now source-controlled. The ho
 - [ ] Capture visual evidence and record operator, date/time, URL, browser/device and follow-up items before marking the review complete.
 
 Automated CI does not mark these manual items complete. This design work does not approve the canonical host or permit production SEO publication.
+
+## Contextual direct-enquiry dock — manual staging review
+
+The shared dock is part of the conversion path, not a live booking channel. Before release, inspect it on Home, Rooms, Experiences, Experience details, Dining, Directions, About and Gallery at 320px, 390px and desktop width. Confirm it stays off the initial view, remains within the viewport, hides while enquiry forms/footer controls are visible, dismisses on request, and never obscures a primary form action. Open the draft only to inspect its contextual wording and validated destination; close it without sending. A successful local browser test is not proof that WhatsApp opens reliably on a real device or that the hotel can respond to enquiries.
+
+- [ ] Verify each contextual draft asks for confirmation rather than asserting current availability, rates, menu or service operation.
+- [ ] Confirm the channel remains disabled if `content/site-config.json` is unavailable or the WhatsApp destination fails the current authorization/host validation.
+- [ ] Record real-device viewport, browser, operator, date/time and any overlap/readability issue in the staging evidence; do not mark the row complete from local Chromium screenshots alone.
 
 ## MANUAL RELEASE GATES
 

@@ -893,6 +893,83 @@ def check_contact_hydration(page, base_url: str) -> None:
     # This test only inspects links; it never navigates to the provider or submits guest data.
 
 
+
+def check_direct_enquiry_dock(page, base_url: str) -> None:
+    """Exercise the contextual enquiry dock without following WhatsApp or sending data."""
+    response = page.goto(base_url + "about.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200, "direct enquiry dock: expected About route HTTP 200")
+    page.wait_for_selector("main#main", timeout=5000)
+    dock = page.locator("[data-direct-enquiry-dock]")
+    check(dock.count() == 1, "direct enquiry dock: expected exactly one dock on the route")
+    if dock.count() != 1:
+        return
+    check(dock.is_hidden(), "direct enquiry dock: it must start hidden at the top of the page")
+
+    page.evaluate("window.scrollTo(0, 420)")
+    page.wait_for_function(
+        "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
+        timeout=5000,
+    )
+    check(dock.is_visible(), "direct enquiry dock: it should appear after scrolling")
+    action = dock.locator("a[data-enquiry-link]")
+    check(action.count() == 1, "direct enquiry dock: expected one validated enquiry action")
+    if action.count() == 1:
+        page.wait_for_function(
+            "() => { const link = document.querySelector('[data-direct-enquiry-dock] a[data-enquiry-link]'); return link && /^https:\\/\\/wa\\.me\\//i.test(link.href); }",
+            timeout=5000,
+        )
+        href = action.get_attribute("href") or ""
+        parsed = urlparse(href)
+        check(parsed.scheme == "https" and parsed.hostname == "wa.me"
+              and bool(re.fullmatch(r"/\d{8,15}", parsed.path)),
+              "direct enquiry dock: CTA must use the authorized HTTPS WhatsApp endpoint")
+        check(action.get_attribute("target") == "_blank",
+              "direct enquiry dock: external draft must open separately for guest review")
+        rel = set((action.get_attribute("rel") or "").lower().split())
+        check({"noopener", "noreferrer"}.issubset(rel),
+              "direct enquiry dock: external target must use noopener/noreferrer")
+        message = action.evaluate("(link) => new URL(link.href).searchParams.get('text') || ''")
+        check("room options" in message.lower() and "arrival" in message.lower(),
+              "direct enquiry dock: About route must ask about rooms and arrival")
+        check("nothing is sent automatically" in (dock.inner_text() or "").lower(),
+              "direct enquiry dock: visitor disclosure must state draft-only behavior")
+
+    for width in (320, 390, 1440):
+        page.set_viewport_size({"width": width, "height": 900})
+        page.evaluate("window.scrollTo(0, 420)")
+        page.wait_for_function(
+            "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
+            timeout=5000,
+        )
+        bounds = dock.bounding_box()
+        check(bounds is not None, f"direct enquiry dock at {width}px: missing rendered geometry")
+        if bounds:
+            check(bounds["x"] >= -1 and bounds["x"] + bounds["width"] <= width + 1,
+                  f"direct enquiry dock at {width}px: dock must remain inside the viewport ({bounds})")
+        for selector in ("a[data-enquiry-link]", "[data-direct-enquiry-dismiss]"):
+            box = dock.locator(selector).bounding_box()
+            check(box is not None and box["width"] >= 44 and box["height"] >= 44,
+                  f"direct enquiry dock at {width}px: {selector} must be at least 44px square")
+
+    page.locator(".site-footer").scroll_into_view_if_needed(timeout=5000)
+    page.wait_for_function(
+        "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && dock.hidden; }",
+        timeout=5000,
+    )
+    check(dock.is_hidden(), "direct enquiry dock: it must yield while the footer is visible")
+    page.evaluate("window.scrollTo(0, 420)")
+    page.wait_for_function(
+        "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
+        timeout=5000,
+    )
+    dock.locator("[data-direct-enquiry-dismiss]").click()
+    check(dock.is_hidden(), "direct enquiry dock: explicit dismissal must hide it")
+    page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+    page.evaluate("window.scrollTo(0, 420)")
+    check(dock.is_hidden(), "direct enquiry dock: dismissal must persist while scrolling")
+    page.set_viewport_size({"width": 1440, "height": 900})
+
+
 def check_guest_enquiry_forms(page, base_url: str) -> None:
     # Capture the intended WhatsApp destination in-page. The test never opens
     # a real external tab, sends a message, or submits guest data to a service.
@@ -2042,6 +2119,7 @@ def main(argv: list[str] | None = None) -> int:
 
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
+            check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
             check_room_finder(page, base_url, browser)
