@@ -43,3 +43,19 @@
   .experience-discovery-nav__link { transition: none; }
   .experience-discovery-nav__link:hover { transform: none; }
 }
+
+/* Research-led itinerary themes remain visually distinct from source-listed packages. */
+.experience-research-ideas { padding-top: clamp(42px, 6vw, 76px); }
+.experience-research-ideas__intro { max-width: 920px; }
+.experience-research-ideas__grid { align-items: stretch; }
+.experience-research-idea { display: flex; flex-direction: column; min-height: 100%; }
+.experience-research-idea .eyebrow { color: var(--gold-dark); }
+.experience-research-idea__actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 18px; margin-top: auto; padding-top: 8px; }
+.experience-research-idea__actions .text-link { margin: 0; }
+.experience-research-idea__actions a:focus-visible { outline: 3px solid var(--gold-dark); outline-offset: 3px; }
+.experience-research-detail .experience-detail-facts a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--gold-dark); text-underline-offset: 3px; }
+.experience-research-detail .experience-detail-facts a:focus-visible { outline: 3px solid var(--gold-dark); outline-offset: 3px; }
+@media (max-width: 760px) {
+  .experience-research-ideas { padding-top: 32px; }
+  .experience-research-idea__actions { flex-direction: column; }
+}
