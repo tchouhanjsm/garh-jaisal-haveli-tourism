@@ -732,7 +732,6 @@ if (config.site && config.site.canonicalHostApproved !== true) {
   if (/<loc>[^<]*404\.html/i.test(sitemap)) fail('sitemap must exclude 404');
 }
 }
-}
 
 for (const type of ['tours', 'blogs']) {
   const directory = path.join(ROOT, 'content', type);
