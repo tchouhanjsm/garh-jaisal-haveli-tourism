@@ -21,9 +21,7 @@ node scripts/test-page-media-performance.js
 node scripts/test-public-image-uniqueness-contract.js
 node scripts/test-public-image-uniqueness.js
 node scripts/test-seo-publication-safeguards-contract.js
-node scripts/test-seo-publication-safeguards.js production
-node scripts/test-seo-publication-safeguards.js staging
-node scripts/test-core-seo-publication.js
+node scripts/test-seo-publication-safeguards.js
 
 echo "== Shared public-route and staging evidence contract =="
 python3 scripts/test-public-route-contract.py

@@ -2,124 +2,142 @@
 'use strict';
 
 /**
- * Validate static technical SEO publication files and the protected staging
- * model. This is repository evidence, not a live DNS/TLS/header check.
+ * Guard pre-launch technical SEO publication boundaries.
+ *
+ * This deliberately fails closed while the owner has not approved the public
+ * canonical host. It is not a production SEO publisher or a live-host checker.
  */
 const fs = require('node:fs');
 const path = require('node:path');
-const CANONICAL = 'https://hotelgarhjaisal.com';
-const CORE_ROUTES = [
-  ['index.html', '/'], ['rooms.html', '/rooms.html'],
-  ['experiences.html', '/experiences.html'], ['experience-details.html', '/experience-details.html'],
-  ['dining.html', '/dining.html'], ['about.html', '/about.html'],
-  ['directions.html', '/directions.html'], ['gallery.html', '/gallery.html'],
-];
-function attrs(tag) {
-  const out = {};
-  const re = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
-  let m;
-  while ((m = re.exec(tag))) out[m[1].toLowerCase()] = m[2] ?? m[3] ?? m[4] ?? '';
-  return out;
-}
-function read(root, relative, errors) {
-  try { return fs.readFileSync(path.join(root, relative), 'utf8'); }
-  catch (e) { errors.push(relative + ' missing/unreadable: ' + e.message); return ''; }
-}
-function htmlFiles(root) {
-  const found = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (entry.isFile() && /\.html$/i.test(entry.name)) found.push(path.join(root, entry.name));
+
+function parseAttributes(tag) {
+  const attrs = {};
+  const pattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+  let match;
+  while ((match = pattern.exec(tag))) {
+    attrs[match[1].toLowerCase()] = match[2] ?? match[3] ?? match[4] ?? '';
   }
-  for (const dirname of ['tours', 'blogs']) {
-    const base = path.join(root, dirname);
+  return attrs;
+}
+
+function publicHtmlFiles(rootDirectory) {
+  const root = path.resolve(rootDirectory);
+  const files = [];
+
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.isFile() && /\.html$/i.test(entry.name)) {
+      files.push(path.join(root, entry.name));
+    }
+  }
+
+  for (const directory of ['tours', 'blogs']) {
+    const base = path.join(root, directory);
     let stat;
     try { stat = fs.lstatSync(base); } catch (_) { continue; }
     if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
+
     const walk = current => {
       for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
         if (entry.isSymbolicLink()) continue;
-        const absolute = path.join(current, entry.name);
-        if (entry.isDirectory()) walk(absolute);
-        else if (entry.isFile() && /\.html$/i.test(entry.name)) found.push(absolute);
+        const candidate = path.join(current, entry.name);
+        if (entry.isDirectory()) walk(candidate);
+        else if (entry.isFile() && /\.html$/i.test(entry.name)) files.push(candidate);
       }
     };
     walk(base);
   }
-  return [...new Set(found)].sort();
+
+  return [...new Set(files)].sort();
 }
-function auditPublicationSafeguards(rootDirectory, options = {}) {
-  const root = path.resolve(rootDirectory), mode = options.mode || 'repository', errors = [];
+
+function auditPublicationSafeguards(rootDirectory) {
+  const root = path.resolve(rootDirectory);
+  const errors = [];
   const fail = message => errors.push(message);
+  const configPath = path.join(root, 'content', 'site-config.json');
   let config = null;
-  try { config = JSON.parse(read(root, 'content/site-config.json', errors)); }
-  catch (e) { fail('content/site-config.json contains invalid JSON: ' + e.message); }
-  if (!config?.site || config.site.newStaticSiteCanonicalHost !== CANONICAL) fail('canonical host config must equal ' + CANONICAL);
-  if (!config?.site || config.site.canonicalHostApproved !== false) fail('canonicalHostApproved must remain false until separate owner release approval');
-  if (!['repository', 'production', 'staging'].includes(mode)) fail('unsupported mode: ' + mode);
 
-  const files = htmlFiles(root), core = new Map(CORE_ROUTES);
-  if (!files.length) fail('no public HTML pages found');
-  for (const absolute of files) {
-    const label = path.relative(root, absolute).split(path.sep).join('/');
-    const html = read(root, label, errors);
-    const links = [...html.matchAll(/<link\b[^>]*>/gi)].map(m => attrs(m[0]));
-    const metas = [...html.matchAll(/<meta\b[^>]*>/gi)].map(m => attrs(m[0]));
-    const canonical = links.filter(a => (a.rel || '').toLowerCase().split(/\s+/).includes('canonical'));
-    const ogUrl = metas.filter(a => (a.property || a.name || '').toLowerCase() === 'og:url');
-    if (label === '404.html') {
-      const robotsMeta = metas.find(a => (a.name || '').toLowerCase() === 'robots');
-      if (!robotsMeta || (robotsMeta.content || '').replace(/\s+/g, '').toLowerCase() !== 'noindex,follow') fail('404.html must remain noindex,follow');
-      if (canonical.length || ogUrl.length) fail('404.html must not carry canonical or og:url');
-      const mapFile = mode === 'staging' ? 'sitemap-empty.xml' : 'sitemap.xml';
-      if (/<loc>[^<]*404\.html/i.test(read(root, mapFile, errors))) fail('404.html must be excluded from sitemap');
-      continue;
-    }
-    if (mode === 'staging') {
-      if (canonical.length || ogUrl.length) fail(label + ': canonical and og:url must be absent from staging HTML');
-      continue;
-    }
-    if (core.has(label)) {
-      const expected = CANONICAL + core.get(label);
-      if (canonical.length !== 1 || canonical[0].href !== expected) fail(label + ': expected exactly one canonical ' + expected);
-      if (ogUrl.length !== 1 || ogUrl[0].content !== expected) fail(label + ': expected exactly one matching og:url ' + expected);
-    }
-    for (const meta of metas) {
-      const key = (meta.property || meta.name || '').toLowerCase();
-      if (key !== 'og:image' && key !== 'twitter:image') continue;
-      let imageUrl = null;
-      try { imageUrl = new URL(meta.content || ''); } catch (_) {}
-      if (!imageUrl || imageUrl.origin !== CANONICAL) fail(label + ': ' + key + ' must be absolute on ' + CANONICAL);
-      const altKey = key === 'og:image' ? 'og:image:alt' : 'twitter:image:alt';
-      if (!metas.some(item => (item.property || item.name || '').toLowerCase() === altKey && (item.content || '').trim())) fail(label + ': ' + key + ' needs meaningful alt text');
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    fail('content/site-config.json is missing or invalid: ' + error.message);
+  }
+
+  if (config) {
+    if (!config.site || config.site.canonicalHostApproved !== false) {
+      fail('site.canonicalHostApproved must remain exactly false in the pre-launch publication guard; canonical activation requires a separately authorized implementation.');
     }
   }
 
-  const robots = read(root, mode === 'staging' ? 'robots-staging.txt' : 'robots.txt', errors);
-  const sitemap = read(root, mode === 'staging' ? 'sitemap-empty.xml' : 'sitemap.xml', errors);
-  const htaccess = read(root, '.htaccess', errors);
-  if (mode === 'staging') {
-    if (!/^\s*User-agent:\s*\*\s*$/im.test(robots) || !/^\s*Disallow:\s*\/\s*$/im.test(robots)) fail('staging robots must disallow crawling');
-    if (/<loc>\s*https?:\/\//i.test(sitemap)) fail('staging sitemap must remain URL-empty');
-    if (!/X-Robots-Tag\s+"noindex, nofollow"\s+env=STAGING_HOST/i.test(htaccess)) fail('staging host must receive X-Robots-Tag noindex,nofollow');
-  } else {
-    if (!/^\s*User-agent:\s*\*\s*$/im.test(robots) || !/^\s*Allow:\s*\/\s*$/im.test(robots)) fail('production robots must allow crawling');
-    if (!/^\s*Sitemap:\s*https:\/\/hotelgarhjaisal\.com\/sitemap\.xml\s*$/im.test(robots)) fail('production robots must advertise the candidate canonical sitemap');
-    for (const [, route] of CORE_ROUTES) if (!sitemap.includes('<loc>' + CANONICAL + route + '</loc>')) fail('production sitemap missing core URL ' + CANONICAL + route);
-    if (/<loc>[^<]*404\.html/i.test(sitemap)) fail('production sitemap must exclude 404');
+  const pages = publicHtmlFiles(root);
+  if (pages.length === 0) fail('no public HTML pages found in root, tours/ or blogs/');
+
+  for (const page of pages) {
+    const label = path.relative(root, page).split(path.sep).join('/');
+    let html;
+    try {
+      html = fs.readFileSync(page, 'utf8');
+    } catch (error) {
+      fail(label + ': could not read public HTML: ' + error.message);
+      continue;
+    }
+
+    for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+      const attrs = parseAttributes(match[0]);
+      const rel = (attrs.rel || '').toLowerCase().split(/\s+/).filter(Boolean);
+      if (rel.includes('canonical')) {
+        fail(label + ': canonical link must remain unpublished until owner host approval');
+      }
+    }
+
+    for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+      const attrs = parseAttributes(match[0]);
+      const property = (attrs.property || '').toLowerCase();
+      const name = (attrs.name || '').toLowerCase();
+      if (property === 'og:url' || name === 'og:url') {
+        fail(label + ': og:url must remain unpublished until owner host approval');
+      }
+    }
   }
-  if (!/RewriteEngine\s+On/i.test(htaccess) || !/hotelgarhjaisal\.com/i.test(htaccess) || !/REQUEST_URI/i.test(htaccess)) fail('.htaccess requires host-aware path/query-preserving redirects');
-  if (!/RewriteRule\s+\^robots\\\.txt\$\s+robots-staging\.txt/i.test(htaccess)) fail('.htaccess must provide staging robots');
-  if (!/RewriteRule\s+\^sitemap\\\.xml\$\s+sitemap-empty\.xml/i.test(htaccess)) fail('.htaccess must provide the empty staging sitemap');
-  return { errors, pagesChecked: files.length };
+
+  const robotsPath = path.join(root, 'robots.txt');
+  let robots = '';
+  try {
+    robots = fs.readFileSync(robotsPath, 'utf8');
+    if (!/^\s*User-agent:\s*\*\s*$/im.test(robots)) {
+      fail('robots.txt must retain the wildcard User-agent: * pre-launch policy');
+    }
+    if (!/^\s*Disallow:\s*\/\s*$/im.test(robots)) {
+      fail('robots.txt must retain Disallow: / while the staging copy is pre-launch');
+    }
+    if (/^\s*Sitemap\s*:/im.test(robots)) {
+      fail('robots.txt must not publish a Sitemap directive before canonical host approval');
+    }
+  } catch (error) {
+    fail('robots.txt is missing or unreadable: ' + error.message);
+  }
+
+  const sitemapPath = path.join(root, 'sitemap.xml');
+  try {
+    const sitemap = fs.readFileSync(sitemapPath, 'utf8');
+    if (/<\s*(?:[\w.-]+:)?loc\b/i.test(sitemap)) {
+      fail('sitemap.xml must not contain URL entries before canonical host approval');
+    }
+  } catch (error) {
+    fail('sitemap.xml is missing or unreadable: ' + error.message);
+  }
+
+  return { errors, pagesChecked: pages.length };
 }
+
 if (require.main === module) {
-  const mode = process.argv[2] || 'repository';
-  const result = auditPublicationSafeguards(path.resolve(__dirname, '..'), { mode });
+  const result = auditPublicationSafeguards(path.resolve(__dirname, '..'));
   if (result.errors.length) {
-    console.error('FAIL: ' + result.errors.length + ' SEO publication checks failed (' + mode + ').');
-    result.errors.forEach(error => console.error(' - ' + error));
+    console.error('FAIL: ' + result.errors.length + ' technical SEO publication safeguard(s) failed.');
+    for (const message of result.errors) console.error(' - ' + message);
     process.exit(1);
   }
-  console.log('PASS: ' + result.pagesChecked + ' HTML pages checked in ' + mode + ' mode; no live host behavior is implied.');
+  console.log('PASS: ' + result.pagesChecked + ' public HTML page(s) remain unpublished to canonical/sitemap discovery; robots.txt blocks crawling until owner approval. This does not validate a live host or authorize deployment.');
 }
-module.exports = { auditPublicationSafeguards, CORE_ROUTES, CANONICAL };
+
+module.exports = { auditPublicationSafeguards };
