@@ -136,6 +136,12 @@ function visitAssetPaths(value, location, root, findings) {
 }
 
 
+function validMediaReviewDate(value) {
+  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function blogMediaPolicyFindings(record, root, sourcePath) {
   const findings = [];
   const media = record.media || {};
@@ -172,6 +178,26 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
     if (candidateKeys.has(key)) findings.push({path: sourcePath + '.media.candidates', message: 'duplicate candidate path/role: ' + key});
     candidateKeys.add(key);
     if (!inside(candidate.path)) findings.push({path: sourcePath + '.media.candidates', message: 'candidate must resolve to a permitted regular local asset: ' + candidate.path});
+    const visual = candidate.visualReview || {};
+    if (visual.status === 'not_assessed') {
+      if (candidate.fit !== 'not-assessed') findings.push({path: sourcePath + '.media.candidates', message: 'unassessed visual subject must use fit=not-assessed: ' + candidate.path});
+      if (visual.reviewer !== null || visual.reviewedAt !== null) findings.push({path: sourcePath + '.media.candidates', message: 'unassessed visual subject cannot claim a reviewer or review date: ' + candidate.path});
+    } else if (visual.status === 'matched') {
+      if (!['strong-contextual-match', 'possible-contextual-match'].includes(candidate.fit)) findings.push({path: sourcePath + '.media.candidates', message: 'visually matched subject requires an assessed contextual fit: ' + candidate.path});
+      if (typeof visual.evidence !== 'string' || visual.evidence.trim().length < 10 || typeof visual.reviewer !== 'string' || visual.reviewer.trim().length < 2 || !validMediaReviewDate(visual.reviewedAt)) {
+        findings.push({path: sourcePath + '.media.candidates', message: 'visual match requires evidence, reviewer and valid review date: ' + candidate.path});
+      }
+    } else if (visual.status === 'mismatch') {
+      if (candidate.fit !== 'not-a-match' || candidate.reviewStatus !== 'rejected') findings.push({path: sourcePath + '.media.candidates', message: 'visual mismatch must be marked not-a-match and rejected: ' + candidate.path});
+      if (typeof visual.evidence !== 'string' || visual.evidence.trim().length < 10 || typeof visual.reviewer !== 'string' || visual.reviewer.trim().length < 2 || !validMediaReviewDate(visual.reviewedAt)) {
+        findings.push({path: sourcePath + '.media.candidates', message: 'visual mismatch requires evidence, reviewer and valid review date: ' + candidate.path});
+      }
+    } else {
+      findings.push({path: sourcePath + '.media.candidates', message: 'candidate requires an explicit visual review state: ' + candidate.path});
+    }
+    if (candidate.reviewStatus === 'approved' && visual.status !== 'matched') {
+      findings.push({path: sourcePath + '.media.candidates', message: 'candidate cannot be approved before a documented visual subject match: ' + candidate.path});
+    }
     if (candidate.reviewStatus === 'approved' && !['owner-confirmed', 'licensed'].includes(candidate.rightsStatus)) {
       findings.push({path: sourcePath + '.media.candidates', message: 'candidate approval requires owner-confirmed or licensed rights evidence: ' + candidate.path});
     }
@@ -184,7 +210,8 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
     if (approvedRoles.has(asset.role)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'more than one approved asset for role ' + asset.role});
     approvedRoles.add(asset.role);
     const candidate = candidates.find(item => item.path === asset.path && item.role === asset.role
-      && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
+      && item.reviewStatus === 'approved' && item.visualReview && item.visualReview.status === 'matched'
+      && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
     if (!candidate) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must reference a reviewed candidate with resolved rights: ' + asset.path});
     if (!inside(asset.path)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must resolve to a permitted local file: ' + asset.path});
     else {
