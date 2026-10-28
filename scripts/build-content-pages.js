@@ -223,7 +223,8 @@ function renderSitemap(original, urls, origin) {
     // Keep the empty owned block in place so future approved content can be
     // added deterministically without rewriting the hand-maintained core URLs.
     const emptyBlock = ['  ' + SITEMAP_BEGIN, '  ' + SITEMAP_END].join('\n');
-    return xml.replace(/\n\s*\n<\/urlset>$/, '\n' + emptyBlock + '\n</urlset>');
+    // Normalize whitespace before the closing element; files may or may not end with a newline.
+    return xml.replace(/\s*<\/urlset>/, '\n' + emptyBlock + '\n</urlset>');
   }
   const block = [
     '  ' + SITEMAP_BEGIN,
