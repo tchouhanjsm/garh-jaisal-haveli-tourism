@@ -51,9 +51,11 @@ function stripMarkup(value) {
 
 function attributes(tag) {
   const result = {};
-  const pattern = /([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+  // Start at the opening tag name so "<link" / "<meta" are not mistaken for attributes.
+  const source = tag.replace(/^\s*<[^\s/>]+\s*/i, '').replace(/\s*\/?\s*>\s*$/, '');
+  const pattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
   let match;
-  while ((match = pattern.exec(tag))) {
+  while ((match = pattern.exec(source))) {
     const key = match[1].toLowerCase();
     result[key] = match[2] ?? match[3] ?? match[4] ?? '';
   }
