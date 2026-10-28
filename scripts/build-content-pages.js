@@ -163,6 +163,28 @@ function walkAssetPaths(value, root, location) {
   }
 }
 
+
+function validateApprovedBlogMedia(record, sourcePath) {
+  const media = record.media || {};
+  const candidates = Array.isArray(media.candidates) ? media.candidates : [];
+  const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets : [];
+  for (const [role, imagePath, alt] of [
+    ['hero', record.heroImage, record.heroAlt],
+    ['socialPreview', record.seo && record.seo.ogImage, record.seo && record.seo.ogAlt],
+  ]) {
+    const asset = approved.find(item => item.role === role);
+    if (!asset) fail('Live article requires approved ' + role + ' media evidence: ' + sourcePath);
+    if (asset.path !== imagePath || asset.alt !== alt) fail('Live article ' + role + ' metadata must match approved path and alt text: ' + sourcePath);
+    if (!String(asset.approvedBy || '').trim() || !isValidDate(asset.approvedAt) || !String(asset.rightsEvidence || '').trim()) {
+      fail('Live article ' + role + ' requires reviewer, approval date and rights evidence: ' + sourcePath);
+    }
+    const candidate = candidates.find(item => item.path === asset.path && item.role === role
+      && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
+    if (!candidate) fail('Live article ' + role + ' must reference a candidate explicitly reviewed with resolved rights: ' + sourcePath);
+  }
+  if (approved.length !== 2) fail('Live article must have exactly two approved media-role records: ' + sourcePath);
+}
+
 function validateLiveRecord(item, root, siteConfig) {
   const { type, record, sourcePath } = item;
   if (record.status !== 'live') return;
@@ -182,6 +204,7 @@ function validateLiveRecord(item, root, siteConfig) {
   }
   if (type === 'blog' && !isValidDate(record.lastReviewed)) fail('Live article requires a valid lastReviewed date: ' + sourcePath);
   if (type === 'blog') {
+    validateApprovedBlogMedia(record, sourcePath);
     const review = record.editorialReview || {};
     const requiredApprovals = ['editorialStatus', 'sourceStatus', 'factStatus', 'mediaStatus'];
     const missingApprovals = requiredApprovals.filter(field => review[field] !== 'approved');
