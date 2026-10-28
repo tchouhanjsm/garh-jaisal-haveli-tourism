@@ -81,15 +81,19 @@ class RewriteImageReferencesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_jpeg(root, "rest3.jpg", (1200, 800))
-            generate_responsive_variants(root, ("rest3.jpg",))
+            create_jpeg(root, "scarlet.jpg", (900, 600))
+            generate_responsive_variants(root, ("rest3.jpg", "scarlet.jpg"))
             html = (
                 '<head><meta property="og:image" content="assets/images/rest3.jpg">'
                 '<meta property="og:image:type" content="image/jpeg">'
                 '<link rel="preload" as="image" href="assets/images/rest3.jpg" '
-                'type="image/jpeg" fetchpriority="high"></head>'
+                'type="image/jpeg" fetchpriority="high">'
+                '<link rel="preload" as="image" href="assets/images/scarlet.jpg">'
+                '</head>'
                 '<section class="hero"><img class="hero__image" '
                 'src="assets/images/rest3.jpg" alt="Rooftop terrace at dusk" '
-                'fetchpriority="high" loading="eager" width="1200" height="800"></section>'
+                'fetchpriority="high" loading="eager"></section>'
+                '<img src="assets/images/scarlet.jpg" alt="Scarlet room">'
             )
             result = rewrite_html_text(html, "responsive", root=root)
             self.assertIn('<picture class="responsive-image">', result)
@@ -97,6 +101,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn("assets/images/responsive/rest3-480.webp 480w", result)
             self.assertIn("assets/images/responsive/rest3-768.webp 768w", result)
             self.assertIn('src="assets/images/rest3.jpg"', result)
+            self.assertIn('width="1200"', result)
+            self.assertIn('height="800"', result)
+            self.assertIn('decoding="async"', result)
+            self.assertIn('width="900"', result)
+            self.assertIn('height="600"', result)
             self.assertIn('<meta property="og:image" content="assets/images/rest3.jpg">', result)
             self.assertIn('<meta property="og:image:type" content="image/jpeg">', result)
             self.assertNotIn('<meta property="og:image" content="assets/images/rest3.webp">', result)
@@ -105,6 +114,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn('imagesrcset="assets/images/responsive/rest3-480.webp 480w', result)
             self.assertIn("assets/images/rest3.webp 1200w", result)
             self.assertIn('imagesizes="100vw"', result)
+            self.assertIn(
+                'imagesizes="(max-width: 760px) 100vw, (max-width: 1200px) 50vw, 50vw"',
+                result,
+            )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
 
     def test_site_rewrite_is_idempotent_after_responsive_generation(self) -> None:
