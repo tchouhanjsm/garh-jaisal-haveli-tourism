@@ -102,7 +102,7 @@
       "socialPreview": {
         "required": true,
         "minWidth": 1200,
-        "maxBytes": 204800,
+        "maxBytes": 81920,
         "subject": "A wide Jaisalmer heritage setting suitable for itinerary context"
       }
     },
