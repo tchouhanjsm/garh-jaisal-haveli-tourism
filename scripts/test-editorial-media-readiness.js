@@ -5,16 +5,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { auditMedia, imageInfo, inspectImage, safeImagePath } = require('./audit-editorial-media-readiness');
+const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
+assert.equal(imagePolicy(ROOT).supporting.maxBytes, 81920, 'production social/supporting image budget must remain strict');
 assert.equal(report.summary.articleCount, 12, 'media audit must cover all 12 articles');
 assert.equal(report.state, 'BLOCKED', 'draft media cannot be release-ready');
 assert.equal(report.summary.approvedArticleCount, 0, 'asset inventory must not infer approval');
 assert.equal(report.summary.blockedArticleCount, 12);
 assert.ok(report.summary.assetCount > 0, 'inventory should include existing non-blog media');
+assert.ok(report.inventory.some(asset => asset.path.endsWith('.jpg') && asset.warnings?.some(warning => /convert to WebP or AVIF/.test(warning))), 'JPEG source candidates should be distinguished from permitted publication formats');
 assert.equal(report.articles.filter(article => article.slug === 'gadisar-lake-jaisalmer-guide')[0].candidates.length, 0,
   'do not fabricate candidates when the inventory contains no suitable lake asset');
 assert.equal(report.articles.filter(article => article.slug === 'bada-bagh-vyas-chhatri-guide')[0].candidates.length, 0,
@@ -101,4 +103,9 @@ try {
 // Direct header tests ensure unsupported/corrupt formats fail closed.
 assert.ok(inspectImage(Buffer.from('not webp'), '.webp').errors.length > 0);
 assert.ok(inspectImage(Buffer.from('not avif'), '.avif').errors.length > 0);
+const sourcePolicy = imagePolicy(ROOT);
+const sourceCandidate = imageInfo(ROOT, 'assets/images/legacy/rooftop-candlelight.webp', sourcePolicy);
+const tooLargeForSocial = validateForRole(sourceCandidate, 'socialPreview', sourcePolicy);
+assert.equal(tooLargeForSocial.valid, false, 'oversized source file must not be approved as a production social image');
+assert.ok(tooLargeForSocial.errors.some(message => /file exceeds 81920-byte policy/.test(message)), 'supporting budget failure must be explicit');
 console.log('PASS: editorial media readiness — 12-article coverage, contextual gaps, deterministic read-only reporting, invalid/missing candidates, unsafe paths, and approval/rights separation.');
