@@ -58,7 +58,13 @@ const socialImageMatch = html.match(/<meta property="og:image" content="([^"]+)"
 const socialAltMatch = html.match(/<meta property="og:image:alt" content="([^"]+)"/i);
 assert.ok(socialImageMatch, 'Experiences page has an Open Graph image');
 assert.ok(socialAltMatch && socialAltMatch[1].trim(), 'Experiences social image has descriptive alt text');
-assert.ok(html.includes('src="' + socialImageMatch[1] + '"'), 'social image is one of the page\'s locally hosted option images');
+const socialImageUrl = new URL(socialImageMatch[1]);
+assert.equal(socialImageUrl.origin, 'https://hotelgarhjaisal.com', 'social image uses the approved canonical host');
+const localSocialImage = socialImageUrl.pathname.replace(/^\\/+/, '');
+assert.ok(html.includes('src="' + localSocialImage + '"'), 'social image maps to one of the page\'s locally hosted option images');
+const socialImagePath = path.resolve(ROOT, localSocialImage);
+assert.ok(socialImagePath.startsWith(ROOT + path.sep) && fs.existsSync(socialImagePath),
+  'absolute social preview URL must resolve to an existing local file');
 
 const pageImageTags = [...html.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
 const pageImageSources = pageImageTags.map(tag => (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || '');
