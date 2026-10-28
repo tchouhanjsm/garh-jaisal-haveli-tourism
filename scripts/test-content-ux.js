@@ -696,16 +696,21 @@ for (const rule of PAGE_RULES) {
     if (inbound.has(target) && target !== rule.file) inbound.set(target, inbound.get(target) + 1);
   }
 
-  const expectedCanonicalRoute = {
-    'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
-    'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
-    'about.html': '/about.html', 'directions.html': '/directions.html', 'gallery.html': '/gallery.html'
-  }[rule.file];
-  const expectedCanonical = 'https://hotelgarhjaisal.com' + expectedCanonicalRoute;
-  const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i);
+  const canonicalRouteByFile = {
+    'index.html': '/',
+    'rooms.html': '/rooms.html',
+    'experiences.html': '/experiences.html',
+    'experience-details.html': '/experience-details.html',
+    'dining.html': '/dining.html',
+    'about.html': '/about.html',
+    'directions.html': '/directions.html',
+    'gallery.html': '/gallery.html'
+  };
+  const expectedCanonical = 'https://hotelgarhjaisal.com' + canonicalRouteByFile[rule.file];
+  const canonicalTag = html.match(/<link\\b[^>]*\\brel=["']canonical["'][^>]*>/i);
   const canonicalAttrs = canonicalTag ? attributes(canonicalTag[0]) : {};
-  const ogUrl = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
-  if (!canonicalTag || canonicalAttrs.href !== expectedCanonical) fail(`${rule.file}: canonical URL does not match the candidate route`);
+  const ogUrl = readMeta(html, /<meta\\b[^>]*\\bproperty=["']og:url["'][^>]*>/i);
+  if (!canonicalTag || canonicalAttrs.href !== expectedCanonical) fail(`${rule.file}: canonical URL does not match candidate route`);
   if (!ogUrl || ogUrl.content !== expectedCanonical) fail(`${rule.file}: og:url does not match canonical`);
 }
 
@@ -716,10 +721,16 @@ for (const [file, count] of inbound) {
 const configPath = path.join(ROOT, 'content', 'site-config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 if (config.site && config.site.canonicalHostApproved !== true) {
+  if (config.site.newStaticSiteCanonicalHost !== 'https://hotelgarhjaisal.com') fail('candidate canonical host must remain exact');
+  if (config.site.canonicalPublicationMode !== 'candidate-configured-owner-release-required') fail('owner-release gate must remain in place');
   const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
   const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
-  if (/<loc>\s*https?:\/\//i.test(sitemap)) fail('sitemap.xml publishes URLs before canonical host approval');
-  if (/^\s*Sitemap\s*:/im.test(robots)) fail('robots.txt advertises a sitemap before canonical host approval');
+  const coreRoutes = ['/', '/rooms.html', '/experiences.html', '/experience-details.html', '/dining.html', '/about.html', '/directions.html', '/gallery.html'];
+  for (const route of coreRoutes) if (!sitemap.includes('<loc>https://hotelgarhjaisal.com' + route + '</loc>')) fail('sitemap missing core URL ' + route);
+  if (!/^\\s*Allow:\\s*\\/$/im.test(robots)) fail('production candidate robots must allow crawling');
+  if (!/^\\s*Sitemap:\\s*https:\\/\\/hotelgarhjaisal\\.com\\/sitemap\\.xml$/im.test(robots)) fail('production candidate robots must advertise canonical sitemap');
+  if (/<loc>[^<]*404\\.html/i.test(sitemap)) fail('sitemap must exclude 404');
+}
 }
 
 for (const type of ['tours', 'blogs']) {
