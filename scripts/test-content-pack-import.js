@@ -16,6 +16,7 @@ const TEMP_PREFIX = path.join(os.tmpdir(), 'garh-content-pack-import-');
 function copyFixture() {
   const root = fs.mkdtempSync(TEMP_PREFIX);
   fs.cpSync(path.join(ROOT, 'content'), path.join(root, 'content'), { recursive: true });
+  fs.cpSync(path.join(ROOT, 'assets/images'), path.join(root, 'assets/images'), { recursive: true });
   for (const relative of ['sitemap.xml', 'favicon.svg', 'assets/site.css', 'assets/site.js', 'assets/css/content-pages.css']) {
     const from = path.join(ROOT, relative);
     const to = path.join(root, relative);
