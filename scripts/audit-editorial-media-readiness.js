@@ -24,7 +24,7 @@ function imagePolicy(root) {
     formats: new Set(registry.imageFormats.map(format => '.' + format)),
   };
 }
-const SUPPORTED = new Set(['.webp', '.avif', '.jpg', '.jpeg', '.png']);
+const INSPECTABLE_SOURCE_FORMATS = new Set(['.webp', '.avif', '.jpg', '.jpeg', '.png']);
 const MAX_SCAN_BYTES = 25 * 1024 * 1024;
 
 function readJson(root, relative) {
@@ -69,7 +69,8 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   const stat = fs.statSync(absolute);
   const extension = path.extname(relative).toLowerCase();
   const result = { path: relative, exists: true, safe: true, bytes: stat.size, format: extension.slice(1), width: null, height: null, sha256: null, valid: false, errors: [], warnings: [] };
-  if (!SUPPORTED.has(extension) || !policy.formats.has(extension)) result.errors.push('unsupported extension or format not permitted by content/paths.json');
+  if (!INSPECTABLE_SOURCE_FORMATS.has(extension)) result.errors.push('unsupported image extension');
+  else if (!policy.formats.has(extension)) result.warnings.push('source format is not permitted for publication; convert to WebP or AVIF after editorial approval');
   if (!stat.size) result.errors.push('empty file');
   if (stat.size > MAX_SCAN_BYTES) result.errors.push('asset exceeds audit safety read limit');
   if (stat.size > MAX_SCAN_BYTES || !stat.size) return result;
@@ -81,7 +82,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   result.warnings = dimensions.warnings || [];
   if (result.width && result.height) {
     const rolePolicy = policy.hero && /-hero-\d+\./.test(relative) ? policy.hero : policy.supporting;
-    if (result.width < rolePolicy.minWidth) result.errors.push('width below ' + policy.minWidth + 'px requirement');
+    if (result.width < rolePolicy.minWidth) result.errors.push('width below ' + rolePolicy.minWidth + 'px requirement');
     if (result.width > rolePolicy.maxWidth) result.errors.push('width above ' + rolePolicy.maxWidth + 'px policy');
     if (stat.size > rolePolicy.maxBytes) result.errors.push('file exceeds ' + rolePolicy.maxBytes + '-byte policy');
   }
