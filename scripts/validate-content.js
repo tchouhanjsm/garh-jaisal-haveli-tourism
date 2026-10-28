@@ -140,8 +140,14 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
   const findings = [];
   const media = record.media || {};
   const review = record.editorialReview || {};
-  const candidates = Array.isArray(media.candidates) ? media.candidates : [];
-  const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets : [];
+  const rawCandidates = Array.isArray(media.candidates) ? media.candidates : [];
+  const rawApproved = Array.isArray(media.approvedAssets) ? media.approvedAssets : [];
+  if (!Array.isArray(media.candidates)) findings.push({path: sourcePath + '.media.candidates', message: 'must be an array'});
+  if (!Array.isArray(media.approvedAssets)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'must be an array'});
+  const candidates = rawCandidates.filter(candidate => candidate && typeof candidate === 'object' && !Array.isArray(candidate));
+  const approved = rawApproved.filter(asset => asset && typeof asset === 'object' && !Array.isArray(asset));
+  if (candidates.length !== rawCandidates.length) findings.push({path: sourcePath + '.media.candidates', message: 'contains a malformed candidate record'});
+  if (approved.length !== rawApproved.length) findings.push({path: sourcePath + '.media.approvedAssets', message: 'contains a malformed approved asset record'});
   const candidateKeys = new Set();
   const approvedRoles = new Set();
   const inside = relative => {
@@ -173,6 +179,7 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
       findings.push({path: sourcePath + '.media.candidates', message: 'approved candidate path must resolve locally: ' + candidate.path});
     }
   }
+  let sharedImagePolicy = null;
   for (const asset of approved) {
     if (approvedRoles.has(asset.role)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'more than one approved asset for role ' + asset.role});
     approvedRoles.add(asset.role);
@@ -180,6 +187,19 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
       && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
     if (!candidate) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must reference a reviewed candidate with resolved rights: ' + asset.path});
     if (!inside(asset.path)) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset must resolve to a permitted local file: ' + asset.path});
+    else {
+      try {
+        // Loaded lazily to avoid module-initialization cycles: this path runs only
+        // during validation, after validate-content exports are established.
+        const mediaAudit = require('./audit-editorial-media-readiness');
+        sharedImagePolicy = sharedImagePolicy || mediaAudit.imagePolicy(root);
+        const image = mediaAudit.imageInfo(root, asset.path, sharedImagePolicy);
+        const technical = mediaAudit.validateForRole(image, asset.role, sharedImagePolicy);
+        if (!technical.valid) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset fails publication media checks: ' + asset.path + ' (' + technical.errors.join('; ') + ')'});
+      } catch (error) {
+        findings.push({path: sourcePath + '.media.approvedAssets', message: 'could not validate approved image safely: ' + asset.path + ' (' + error.message + ')'});
+      }
+    }
     if (/^(image|photo|picture|image of|photo of|jaisalmer)$/i.test(String(asset.alt || '').trim())) {
       findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset alt text is too generic: ' + asset.path});
     }
