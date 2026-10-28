@@ -160,7 +160,7 @@ try {
   assert.ok(tourHtml.includes('rel="noopener noreferrer"'));
   const imageAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
   const tourImage = 'https://hotelgarhjaisal.com/assets/images/tours/sunset-camel-safari/sunset-camel-safari-og-01.webp';
-  const blogImage = 'https://hotelgarhjaisal.com/assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
+  const blogImage = 'https://hotelgarhjaisal.com/assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
   for (const [html, image] of [[tourHtml,tourImage],[blogHtml,blogImage]]) {
     assert.ok(html.includes('<meta property="og:image" content="' + image + '">'));
     assert.ok(html.includes('<meta property="og:image:alt" content="' + imageAlt + '">'));
