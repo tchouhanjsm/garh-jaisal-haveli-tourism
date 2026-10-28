@@ -76,3 +76,218 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* Guest-controlled arrival enquiry: scoped to Directions and progressively enhanced. */
+.arrival-enquiry {
+  padding-top: 0;
+  scroll-margin-top: 100px;
+}
+
+.arrival-enquiry:focus-visible {
+  outline: 3px solid var(--gold, #9c762f);
+  outline-offset: -4px;
+}
+
+.arrival-enquiry__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: clamp(22px, 4vw, 56px);
+}
+
+.arrival-enquiry__intro {
+  max-width: 560px;
+}
+
+.arrival-enquiry__privacy,
+.arrival-enquiry__fallback {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.arrival-enquiry__form-area {
+  min-width: 0;
+}
+
+.arrival-enquiry-form {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: clamp(18px, 2.4vw, 30px);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.arrival-enquiry-form[hidden],
+.arrival-enquiry-form__recovery[hidden],
+.arrival-enquiry__fallback[hidden] {
+  display: none;
+}
+
+.arrival-enquiry-form__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.arrival-enquiry-form__field {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.arrival-enquiry-form__field--full {
+  grid-column: 1 / -1;
+}
+
+.arrival-enquiry-form label,
+.arrival-enquiry-form legend {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.arrival-enquiry-form label span,
+.arrival-enquiry-form legend span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.arrival-enquiry-form input[type="date"],
+.arrival-enquiry-form input[type="text"],
+.arrival-enquiry-form select,
+.arrival-enquiry-form textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+}
+
+.arrival-enquiry-form textarea {
+  min-height: 150px;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.arrival-enquiry-form__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.arrival-enquiry-form__checks {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+}
+
+.arrival-enquiry-form__checks legend {
+  padding: 0 5px;
+}
+
+.arrival-enquiry-form__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.arrival-enquiry-form__check input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+}
+
+.arrival-enquiry-form__check span {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.arrival-enquiry-form__submit,
+.arrival-enquiry-form__copy {
+  justify-self: start;
+  min-height: 46px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.arrival-enquiry-form__submit:disabled,
+.arrival-enquiry-form__copy:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.arrival-enquiry-form__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.arrival-enquiry-form__status[data-state="error"] {
+  color: var(--ink);
+  border-left: 3px solid var(--line);
+  padding-left: 12px;
+}
+
+.arrival-enquiry-form__recovery {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.arrival-enquiry-form input:focus-visible,
+.arrival-enquiry-form select:focus-visible,
+.arrival-enquiry-form textarea:focus-visible,
+.arrival-enquiry-form button:focus-visible {
+  outline: 3px solid var(--gold, #9c762f);
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .arrival-enquiry__layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .arrival-enquiry__intro {
+    max-width: 760px;
+  }
+}
+
+@media (max-width: 620px) {
+  .arrival-enquiry-form__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arrival-enquiry-form__field--full {
+    grid-column: auto;
+  }
+
+  .arrival-enquiry-form__submit,
+  .arrival-enquiry-form__copy {
+    width: 100%;
+    justify-self: stretch;
+  }
+}

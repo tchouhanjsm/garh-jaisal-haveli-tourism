@@ -1107,3 +1107,38 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Assigned one query and intent to the existing Fort pillar and each of eleven supporting Jaisalmer guides; queries are checked for collisions across all records.
 - Extended the synthetic content-contract fixture and editorial cluster regression to enforce the new schema.
 - This is authoring/QA metadata, not a claim about search demand, rankings or indexing. All posts remain drafts and the canonical/robots/sitemap publication gate remains closed.
+
+
+## 28 October 2026 — Date-specific arrival enquiry recovery
+
+### Finding
+- Directions explained the final walk and offered general contact links, but guests still had to compose a message from scratch to confirm their own date, expected approach and questions about route conditions.
+- A context-free shortcut could not preserve the date-specific details that the hotel needs to answer, and a free-text field could encourage guests to submit unnecessary personal or health information.
+
+### Implementation
+- Added a Directions-only arrival form with a required travel date, bounded optional arrival window, controlled expected-approach options and two optional questions about luggage and route/step information.
+- The form uses the existing centrally validated WhatsApp destination, remains hidden until that configuration is valid, and provides a static fallback when JavaScript or configuration is unavailable.
+- A valid explicit submit prepares a guest-reviewed WhatsApp draft and displays the exact text in a read-only recovery field. Clipboard failure leaves the message available for manual selection; editing any field invalidates the prior draft.
+- No name, phone, email, open-ended note or medical detail is collected. No browser storage, backend submission, automatic message or reservation is introduced.
+- Added deterministic contract coverage and Chromium tests for date validation, message semantics, protected external-tab interception, copy recovery, responsive fit and the no-JavaScript fallback.
+
+### Validation and release boundary
+- Final exact-head push and pull-request quality workflows must both pass before merge; the post-merge main quality run must then pass.
+- The current meeting point, route, vehicle access and any luggage/mobility assistance remain date-specific owner confirmation items. The draft must not guarantee service availability.
+- Human staging UAT, live contact reachability, Lighthouse and formal accessibility audits remain NOT RUN. STG-01–STG-18 stay open until a human operator records evidence on an owner-approved HTTPS origin.
+- Canonical-host approval, robots policy, public sitemap, deployment and server-side guest-data collection remain unchanged.
+
+
+## 28 October 2026 — Direct route-to-form arrival handoff
+
+- Repointed the Home planning tile and the Arrive step on the seven shared guest-planning rails to the stable `#arrival-planning` target instead of the top of Directions.
+- Added an explicit fragment ID to the enquiry section and static contract checks to prevent link drift.
+- Extended Chromium smoke to click the Arrive entry from each of the eight core pages, confirm same-origin navigation, and verify the planner heading/section enters the viewport.
+- No new arrival form is duplicated on other pages; all routes share the existing centralized validation and guest-reviewed WhatsApp draft.
+
+
+### Arrival fragment focus review
+
+- Made `#arrival-planning` programmatically focusable and gave it a top scroll margin so the heading/form does not sit beneath the sticky header.
+- Added a fragment-aware focus handoff in the shared site runtime and a visible focus treatment for the planner.
+- Chromium regression now checks both the target's viewport position and that it becomes the active element after navigation from every core route.

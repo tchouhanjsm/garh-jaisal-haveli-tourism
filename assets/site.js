@@ -14,8 +14,27 @@
   const propertyMapLinks = Array.from(document.querySelectorAll('[data-property-map-link]'));
   const bookingForms = Array.from(document.querySelectorAll('[data-booking-form]'));
   const guestEnquiryForms = Array.from(document.querySelectorAll('[data-guest-enquiry-form]'));
+  const arrivalPlanningForms = Array.from(document.querySelectorAll('[data-arrival-planning-form]'));
   const roomCompareEnquiryButtons = Array.from(document.querySelectorAll('[data-room-compare-enquiry]'));
   let activeWhatsAppBaseUrl = '';
+
+  function focusArrivalPlannerFromFragment() {
+    if (!window.location || window.location.hash !== '#arrival-planning') return;
+    const target = document.getElementById('arrival-planning');
+    if (!target) return;
+
+    window.requestAnimationFrame(() => {
+      try {
+        target.focus({ preventScroll: true });
+      } catch (_) {
+        target.focus();
+      }
+      target.scrollIntoView({ block: 'start', behavior: 'auto' });
+    });
+  }
+
+  window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
+  focusArrivalPlannerFromFragment();
 
   function disableContactLink(link, fallbackText) {
     link.setAttribute('href', '#contact-status');
@@ -269,10 +288,159 @@
     });
   }
 
+  function configureArrivalPlanningForms(whatsappBaseUrl) {
+    arrivalPlanningForms.forEach(form => {
+      const submit = form.querySelector('[data-arrival-enquiry-submit]');
+      const status = form.querySelector('[data-arrival-enquiry-status]');
+      const travelDate = form.querySelector('[name="arrival-date"]');
+      const arrivalWindow = form.querySelector('[name="arrival-window"]');
+      const arrivalMode = form.querySelector('[name="arrival-mode"]');
+      const luggageHelp = form.querySelector('[name="arrival-luggage"]');
+      const accessInfo = form.querySelector('[name="arrival-access"]');
+      const recovery = form.querySelector('[data-arrival-enquiry-recovery]');
+      const draftField = form.querySelector('[data-arrival-enquiry-draft]');
+      const copyButton = form.querySelector('[data-arrival-enquiry-copy]');
+      const fallback = form.parentElement
+        ? form.parentElement.querySelector('[data-arrival-enquiry-fallback]')
+        : null;
+
+      if (!submit || !status || !travelDate || !arrivalWindow || !arrivalMode
+          || !luggageHelp || !accessInfo || !recovery || !draftField || !copyButton || !whatsappBaseUrl) {
+        form.hidden = true;
+        if (submit) submit.disabled = true;
+        if (fallback) fallback.hidden = false;
+        if (status) {
+          status.dataset.state = 'error';
+          status.textContent = 'The arrival enquiry builder is unavailable because an authorized WhatsApp destination could not be loaded. No details were sent or saved.';
+        }
+        return;
+      }
+
+      const localDateString = date => {
+        const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+      };
+      const updateTravelDateMinimum = () => {
+        const today = localDateString(new Date());
+        travelDate.min = today;
+        travelDate.setCustomValidity(
+          travelDate.value && travelDate.value < today
+            ? 'Choose today or a future travel date.'
+            : ''
+        );
+      };
+      const invalidateDraft = () => {
+        if (recovery.hidden) return;
+        recovery.hidden = true;
+        draftField.value = '';
+        copyButton.disabled = true;
+        status.dataset.state = 'ready';
+        status.textContent = 'Arrival details changed. Prepare a new draft before copying.';
+      };
+
+      [travelDate, arrivalWindow, arrivalMode, luggageHelp, accessInfo].forEach(field => {
+        ['input', 'change'].forEach(type => field.addEventListener(type, () => {
+          if (field === travelDate) updateTravelDateMinimum();
+          invalidateDraft();
+        }));
+      });
+      updateTravelDateMinimum();
+
+      form.hidden = false;
+      if (fallback) fallback.hidden = true;
+      recovery.hidden = true;
+      draftField.value = '';
+      copyButton.disabled = true;
+      submit.disabled = false;
+      status.dataset.state = 'ready';
+      status.textContent = 'Ready. Choose your travel details, then prepare a WhatsApp draft. Nothing is sent or saved automatically.';
+
+      copyButton.addEventListener('click', async () => {
+        const text = String(draftField.value || '');
+        if (!text) return;
+        try {
+          if (window.isSecureContext && navigator.clipboard
+              && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+            status.dataset.state = 'ready';
+            status.textContent = 'Arrival enquiry text copied. Open the hotel WhatsApp chat and review it before sending. Nothing was sent by this website.';
+            return;
+          }
+        } catch (_) {
+          // Clipboard access may be unavailable or permission may be denied.
+        }
+        try {
+          draftField.focus();
+          draftField.select();
+        } catch (_) {
+          // Keep the message available even if selection is unsupported.
+        }
+        let copied = false;
+        try {
+          copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+        } catch (_) {
+          // Manual selection remains available below.
+        }
+        status.dataset.state = copied ? 'ready' : 'error';
+        status.textContent = copied
+          ? 'Arrival enquiry text copied. Open the hotel WhatsApp chat and review it before sending. Nothing was sent.'
+          : 'The prepared arrival message is selected below. Use your device’s Copy command, then paste it into the hotel WhatsApp chat. Nothing was sent.';
+      });
+
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        updateTravelDateMinimum();
+        if (!form.reportValidity()) return;
+        const date = String(travelDate.value || '').trim();
+        const today = localDateString(new Date());
+        if (!date || date < today) {
+          travelDate.setCustomValidity('Choose today or a future travel date.');
+          form.reportValidity();
+          return;
+        }
+        const modeLabel = arrivalMode.selectedOptions && arrivalMode.selectedOptions[0]
+          ? arrivalMode.selectedOptions[0].textContent.trim()
+          : '';
+        if (!modeLabel) return;
+
+        const windowText = String(arrivalWindow.value || '').trim().slice(0, 80);
+        const lines = [
+          'Namaste Garh Jaisal Haveli, please help me plan my arrival.',
+          'Travel date: ' + date,
+          ...(windowText ? ['Approximate arrival window: ' + windowText] : []),
+          'Expected approach: ' + modeLabel,
+          'Please confirm the current vehicle drop-off or meeting point and the recommended walking route for this date.',
+          'I understand vehicles cannot reach the hotel door inside the fort and the final approach is on foot. Please confirm current access details before I travel.'
+        ];
+        if (luggageHelp.checked) {
+          lines.push('Please advise whether luggage assistance can be arranged; I understand availability is not guaranteed.');
+        }
+        if (accessInfo.checked) {
+          lines.push('Please share available information about route conditions, steps and uneven surfaces so I can plan. I am not assuming any particular assistance is available.');
+        }
+        lines.push('This is an enquiry only, not a transfer booking or reservation. Please confirm current arrangements before I travel.');
+
+        const draftText = lines.join('\n');
+        const target = whatsappBaseUrl + '?text=' + encodeURIComponent(draftText);
+        try {
+          window.open(target, '_blank', 'noopener,noreferrer');
+        } catch (_) {
+          // The on-page draft remains the recovery path if the browser blocks opening a tab.
+        }
+        draftField.value = draftText;
+        recovery.hidden = false;
+        copyButton.disabled = false;
+        status.dataset.state = 'ready';
+        status.textContent = 'Your arrival draft is ready to review in WhatsApp. If the tab did not open, copy the prepared message below. Nothing was sent automatically and no details were saved.';
+      });
+    });
+  }
+
   async function configureContactChannels() {
     if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
         && !emailLinks.length && !bookingLinks.length && !propertyMapLinks.length
-        && !bookingForms.length && !guestEnquiryForms.length && !roomCompareEnquiryButtons.length) return;
+        && !bookingForms.length && !guestEnquiryForms.length && !arrivalPlanningForms.length
+        && !roomCompareEnquiryButtons.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
       const scriptUrl = document.currentScript && document.currentScript.src;
@@ -303,6 +471,7 @@
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
       configureRoomCompareEnquiry(whatsappBaseUrl);
+      configureArrivalPlanningForms(whatsappBaseUrl);
 
       const phoneE164 = contactAuthorized && typeof contact.primaryPhoneE164 === 'string'
         && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
@@ -412,7 +581,8 @@
         || (emailLinks.length > 0 && !email)
         || (bookingLinks.length > 0 && !bookingUrl)
         || (propertyMapLinks.length > 0 && !hotelMapUrl)
-        || (bookingForms.length > 0 && !whatsappBaseUrl);
+        || (bookingForms.length > 0 && !whatsappBaseUrl)
+        || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
       if (contactStatus) contactStatus.hidden = false;
@@ -435,6 +605,20 @@
         if (status) {
           status.dataset.state = 'error';
           status.textContent = 'The enquiry form is unavailable because the contact configuration could not be loaded. No message has been sent. Refresh this page and try again, or use contact details supplied directly by the hotel.';
+        }
+      });
+      arrivalPlanningForms.forEach(form => {
+        form.hidden = true;
+        const submit = form.querySelector('[data-arrival-enquiry-submit]');
+        const status = form.querySelector('[data-arrival-enquiry-status]');
+        const fallback = form.parentElement
+          ? form.parentElement.querySelector('[data-arrival-enquiry-fallback]')
+          : null;
+        if (submit) submit.disabled = true;
+        if (fallback) fallback.hidden = false;
+        if (status) {
+          status.dataset.state = 'error';
+          status.textContent = 'The arrival enquiry builder could not load the contact configuration. No details were sent or saved. Use contact details supplied directly by the hotel to confirm your plan.';
         }
       });
     }

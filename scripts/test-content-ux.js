@@ -310,7 +310,7 @@ for (const rule of PAGE_RULES) {
         { href: 'rooms.html', title: 'Compare the rooms' },
         { href: 'experiences.html', title: 'Choose your experience' },
         { href: 'dining.html', title: 'Plan a rooftop meal' },
-        { href: 'directions.html', title: 'Know the final walk' },
+        { href: 'directions.html#arrival-planning', title: 'Know the final walk' },
       ];
       if (cards.length !== expected.length) {
         fail('index.html: expected four distinct guest-planning paths, found ' + cards.length);
