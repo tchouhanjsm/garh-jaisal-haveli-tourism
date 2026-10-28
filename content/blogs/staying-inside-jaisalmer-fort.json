@@ -100,8 +100,8 @@
         "path": "assets/images/directions/haveli-facade.webp",
         "role": "hero",
         "fit": "possible-contextual-match",
-        "rationale": "Existing haveli facade is relevant to heritage accommodation, but does not prove inside-fort access or depict the wider neighbourhood.",
-        "provenance": "Target repository asset path; source/creator record not yet verified.",
+        "rationale": "Existing facade is relevant to accommodation context but does not prove current access conditions.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
         "reviewStatus": "unreviewed"
       },
@@ -109,8 +109,8 @@
         "path": "assets/images/gallery/hotel/fort-from-roof.webp",
         "role": "socialPreview",
         "fit": "possible-contextual-match",
-        "rationale": "Potential supporting view of the surrounding fort settlement; confirm actual content and contextual fit.",
-        "provenance": "Target repository asset path; source/creator record not yet verified.",
+        "rationale": "Potential view of the fort settlement; check its actual contents and relevance.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
         "reviewStatus": "unreviewed"
       }
