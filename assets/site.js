@@ -18,6 +18,24 @@
   const roomCompareEnquiryButtons = Array.from(document.querySelectorAll('[data-room-compare-enquiry]'));
   let activeWhatsAppBaseUrl = '';
 
+  function focusArrivalPlannerFromFragment() {
+    if (window.location.hash !== '#arrival-planning') return;
+    const target = document.getElementById('arrival-planning');
+    if (!target) return;
+
+    window.requestAnimationFrame(() => {
+      try {
+        target.focus({ preventScroll: true });
+      } catch (_) {
+        target.focus();
+      }
+      target.scrollIntoView({ block: 'start', behavior: 'auto' });
+    });
+  }
+
+  window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
+  focusArrivalPlannerFromFragment();
+
   function disableContactLink(link, fallbackText) {
     link.setAttribute('href', '#contact-status');
     link.setAttribute('aria-disabled', 'true');

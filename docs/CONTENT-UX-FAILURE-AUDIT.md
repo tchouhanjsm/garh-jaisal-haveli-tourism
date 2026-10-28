@@ -1135,3 +1135,10 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Added an explicit fragment ID to the enquiry section and static contract checks to prevent link drift.
 - Extended Chromium smoke to click the Arrive entry from each of the eight core pages, confirm same-origin navigation, and verify the planner heading/section enters the viewport.
 - No new arrival form is duplicated on other pages; all routes share the existing centralized validation and guest-reviewed WhatsApp draft.
+
+
+### Arrival fragment focus review
+
+- Made `#arrival-planning` programmatically focusable and gave it a top scroll margin so the heading/form does not sit beneath the sticky header.
+- Added a fragment-aware focus handoff in the shared site runtime and a visible focus treatment for the planner.
+- Chromium regression now checks both the target's viewport position and that it becomes the active element after navigation from every core route.

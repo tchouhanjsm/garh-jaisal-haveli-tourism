@@ -1698,13 +1698,16 @@ def check_arrival_planning_deep_links(page, base_url: str) -> None:
                 page.wait_for_function(
                     "() => { const target = document.querySelector('#arrival-planning'); "
                     "if (!target) return false; const rect = target.getBoundingClientRect(); "
-                    "return rect.top < window.innerHeight && rect.bottom > 0; }",
+                    "return rect.top < window.innerHeight && rect.bottom > 0 "
+                    "&& document.activeElement === target; }",
                     timeout=5000,
                 )
             except Exception as error:
-                check(False, f"{page_name}: native fragment navigation should scroll the planner into view ({error})")
+                check(False, f"{page_name}: arrival fragment should scroll into view and transfer focus ({error})")
             bounds = target.bounding_box()
             viewport_height = page.evaluate("() => window.innerHeight")
+            is_focused = page.evaluate("() => document.activeElement && document.activeElement.id === 'arrival-planning'")
+            check(is_focused, f"{page_name}: focus must move to the arrival planner for keyboard/screen-reader continuity")
             check(bounds is not None and bounds["y"] < viewport_height
                   and bounds["y"] + bounds["height"] > 0,
                   f"{page_name}: deep-linked arrival planner must be within the viewport ({bounds})")

@@ -292,3 +292,6 @@ The form stays hidden until the existing centralized contact configuration valid
 The Home planning panel and every shared Stay / Explore / Dine / Arrive rail now send the Arrive step directly to `directions.html#arrival-planning`, the date-specific arrival enquiry section. The Chromium smoke suite follows every one of the eight same-site planning entry points and verifies the destination heading is visible. This avoids duplicating an arrival form on every page.
 
 The form still asks the hotel to confirm current meeting/drop-off and walking-route information; it does not book a transfer, save guest details or guarantee assistance. External contact links are not followed by the browser test.
+
+
+The date-specific arrival planner also receives programmatic focus when its fragment is opened. This helps keyboard and assistive-technology users continue at the form rather than being left at the source link. The target has a focus-visible outline and a top scroll margin for the sticky site header; Chromium smoke verifies both focus transfer and in-viewport positioning.

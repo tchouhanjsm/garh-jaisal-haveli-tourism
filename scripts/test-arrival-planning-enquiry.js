@@ -20,6 +20,14 @@ assert.ok(form, 'Directions must include one progressively enhanced arrival enqu
 
 assert.match(directions, /<section id="arrival-planning" class="section wrap arrival-enquiry"/,
   'Directions must expose a stable fragment target for arrival planning');
+assert.match(directions, /<section id="arrival-planning" class="section wrap arrival-enquiry"[^>]*tabindex="-1"/,
+  'Arrival planner fragment target must be programmatically focusable');
+assert.match(siteJs, /function focusArrivalPlannerFromFragment\(\)/,
+  'Shared runtime must transfer focus when an arrival-planner fragment is opened');
+assert.match(siteJs, /target\.focus\(\{ preventScroll: true \}\)/,
+  'Fragment focus must be explicit rather than relying on pointer focus');
+assert.match(css, /\.arrival-enquiry:focus-visible[\s\S]*?outline:\s*3px solid/,
+  'Arrival planner must show a visible focus indicator');
 for (const route of ['rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'gallery.html']) {
   const html = fs.readFileSync(path.join(ROOT, route), 'utf8');
   const journey = html.match(/<section class="guest-journey" aria-label="Plan your stay">([\s\S]*?)<\/section>/);

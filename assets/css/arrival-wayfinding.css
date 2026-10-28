@@ -81,6 +81,12 @@
 /* Guest-controlled arrival enquiry: scoped to Directions and progressively enhanced. */
 .arrival-enquiry {
   padding-top: 0;
+  scroll-margin-top: 100px;
+}
+
+.arrival-enquiry:focus-visible {
+  outline: 3px solid var(--gold, #9c762f);
+  outline-offset: -4px;
 }
 
 .arrival-enquiry__layout {
