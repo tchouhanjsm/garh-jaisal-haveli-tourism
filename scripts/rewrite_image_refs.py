@@ -129,6 +129,22 @@ def _responsive_sizes(tag: str) -> str:
     return "(max-width: 760px) 100vw, (max-width: 1200px) 50vw, 50vw"
 
 
+def _natural_dimensions(root: Path, stem: str) -> tuple[int, int]:
+    """Read the EXIF-corrected intrinsic dimensions for a safe allowlisted JPEG."""
+    source = root / "assets" / "images" / f"{stem}.jpg"
+    if source.is_symlink() or not source.is_file() or source.stat().st_size <= 0:
+        raise FileNotFoundError(f"Missing safe source image: {source}")
+    with Image.open(source) as opened:
+        opened.load()
+        if opened.format != "JPEG":
+            raise ValueError(f"Responsive image source is not a JPEG: {source}")
+        image = ImageOps.exif_transpose(opened)
+        width, height = image.size
+    if width < 1 or height < 1 or width * height > MAX_PIXELS:
+        raise ValueError(f"Source image dimensions exceed safe bounds: {source.name}")
+    return width, height
+
+
 def _srcset(root: Path, stem: str) -> str:
     source = root / "assets" / "images" / f"{stem}.jpg"
     with Image.open(source) as image:
@@ -192,7 +208,13 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if filename not in {f"{name[:-4]}.{suffix}" for name in IMAGE_NAMES for suffix in ("jpg", "webp")}:
             return tag
         fallback = f"assets/images/{stem}.jpg"
+        natural_width, natural_height = _natural_dimensions(root, stem)
         tag = set_attribute(tag, "src", fallback)
+        # Reserve the image's real, EXIF-corrected aspect ratio before it downloads.
+        # Keep dimensions sourced from decoded bytes, not guesses from filenames or CSS.
+        tag = set_attribute(tag, "width", str(natural_width))
+        tag = set_attribute(tag, "height", str(natural_height))
+        tag = set_attribute(tag, "decoding", "async")
         if get_attribute(tag, "data-responsive-image-fallback") == "true":
             return tag
         srcset = _srcset(root, stem)
@@ -225,11 +247,24 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if filename not in {f"{name[:-4]}.{suffix}" for name in IMAGE_NAMES for suffix in ("jpg", "webp")}:
             return tag
         tag = set_attribute(tag, "href", f"assets/images/{stem}.webp")
+        matching_image = next(
+            (
+                image_match.group(0)
+                for image_match in IMG_PATTERN.finditer(text)
+                if Path(
+                    (get_attribute(image_match.group(0), "src") or "").split("?", 1)[0]
+                ).stem == stem
+            ),
+            None,
+        )
+        # Keep the preload's slot calculation aligned with its image element so the
+        # browser does not waste bandwidth on an unnecessarily large candidate.
+        sizes = _responsive_sizes(matching_image) if matching_image else "100vw"
         return set_attribute(
             set_attribute(
                 set_attribute(tag, "imagesrcset", _srcset(root, stem)),
                 "imagesizes",
-                "100vw",
+                sizes,
             ),
             "type",
             "image/webp",
