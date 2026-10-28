@@ -250,6 +250,11 @@ function inspectAvif(data) {
   if(declared>data.length) return {width,height,errors:['truncated AVIF ftyp box']};
   return {width,height,errors:[],warnings:['AVIF container header and ispe dimensions verified; pixel decode unavailable in dependency-free runtime']};
 }
+function isValidReviewDate(value) {
+  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 function auditMedia(root=ROOT) {
   const schema=readJson(root,'content/schemas/blog.schema.json');
   const policy=imagePolicy(root);
@@ -312,6 +317,18 @@ function auditMedia(root=ROOT) {
       const inventory=assets.find(a=>a.path===candidate.path);
       if(!inventory) errors.push(item.relative+': candidate is not present in inventory: '+candidate.path);
       const candidateTechnical = validateForRole(inventory, candidate.role, policy);
+      const visual = candidate.visualReview || {};
+      if(visual.status==='not_assessed') {
+        if(candidate.fit!=='not-assessed') errors.push(item.relative+': unassessed visual subject must use fit=not-assessed: '+candidate.path);
+        if(visual.reviewer!==null || visual.reviewedAt!==null) errors.push(item.relative+': unassessed visual subject cannot have reviewer/date evidence: '+candidate.path);
+      } else if(visual.status==='matched') {
+        if(!['strong-contextual-match','possible-contextual-match'].includes(candidate.fit)) errors.push(item.relative+': visually matched candidate requires an assessed contextual fit: '+candidate.path);
+        if(typeof visual.evidence!=='string'||visual.evidence.trim().length<10||typeof visual.reviewer!=='string'||visual.reviewer.trim().length<2||!isValidReviewDate(visual.reviewedAt)) errors.push(item.relative+': visual match requires evidence, reviewer and valid date: '+candidate.path);
+      } else if(visual.status==='mismatch') {
+        if(candidate.fit!=='not-a-match'||candidate.reviewStatus!=='rejected') errors.push(item.relative+': visual mismatch must be marked not-a-match and rejected: '+candidate.path);
+        if(typeof visual.evidence!=='string'||visual.evidence.trim().length<10||typeof visual.reviewer!=='string'||visual.reviewer.trim().length<2||!isValidReviewDate(visual.reviewedAt)) errors.push(item.relative+': visual mismatch requires evidence, reviewer and valid date: '+candidate.path);
+      } else errors.push(item.relative+': candidate visual review state is missing or invalid: '+candidate.path);
+      if(candidate.reviewStatus==='approved' && visual.status!=='matched') errors.push(item.relative+': candidate cannot be approved before documented visual subject match: '+candidate.path);
       if(candidate.reviewStatus==='approved') {
         if(!['owner-confirmed','licensed'].includes(candidate.rightsStatus)) errors.push(item.relative+': candidate cannot be approved without owner-confirmed or licensed rights: '+candidate.path);
         if(!candidateTechnical.valid) errors.push(item.relative+': candidate cannot be approved while technical checks fail: '+candidate.path+' ('+candidateTechnical.errors.join('; ')+')');
@@ -323,7 +340,7 @@ function auditMedia(root=ROOT) {
       if (!approvedAsset || typeof approvedAsset !== 'object' || Array.isArray(approvedAsset)) { errors.push(item.relative+': malformed approved media record'); continue; }
       if(approvedRoles.has(approvedAsset.role)) errors.push(item.relative+': multiple approved assets for role '+approvedAsset.role);
       approvedRoles.add(approvedAsset.role);
-      const candidate=candidates.find(c=>c.path===approvedAsset.path&&c.role===approvedAsset.role&&c.reviewStatus==='approved'&&['owner-confirmed','licensed'].includes(c.rightsStatus));
+      const candidate=candidates.find(c=>c.path===approvedAsset.path&&c.role===approvedAsset.role&&c.reviewStatus==='approved'&&c.visualReview&&c.visualReview.status==='matched'&&['owner-confirmed','licensed'].includes(c.rightsStatus));
       if(!candidate) errors.push(item.relative+': approved asset must reference a reviewed, rights-resolved candidate: '+approvedAsset.path);
       if(!safeImagePath(root,approvedAsset.path)) errors.push(item.relative+': approved asset path missing or unsafe: '+approvedAsset.path);
       const info=assets.find(a=>a.path===approvedAsset.path);
@@ -404,6 +421,8 @@ function articleReport(root,item,assets,seenRefs,policy) {
     const check=validateForRole(info,candidate.role,policy);
     return [
       ...(candidate.reviewStatus==='unreviewed'?['candidate-unreviewed:'+candidate.path]:[]),
+      ...(candidate.visualReview && candidate.visualReview.status==='not_assessed'?['candidate-visual-review-not-assessed:'+candidate.path]:[]),
+      ...(candidate.visualReview && candidate.visualReview.status==='mismatch'?['candidate-visual-subject-mismatch:'+candidate.path]:[]),
       ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
       ...(!check.valid?['candidate-needs-technical-review:'+candidate.path+': '+check.errors.join('; ')]:[]),
     ];
@@ -434,7 +453,7 @@ function reportText(report) {
     }
     if(!article.candidates.length) lines.push('  Candidate gap: no context-supported local asset identified; source/proper asset needed.');
     for(const candidate of article.candidates) {
-      lines.push('  Candidate '+candidate.role+': '+candidate.path+' | fit='+candidate.fit+' | review='+candidate.reviewStatus+' | rights='+candidate.rightsStatus+' | role-check='+(candidate.technical?'PASS':'BLOCKED'));
+      lines.push('  Candidate '+candidate.role+': '+candidate.path+' | fit='+candidate.fit+' | visual-review='+(candidate.visualReview&&candidate.visualReview.status||'missing')+' | review='+candidate.reviewStatus+' | rights='+candidate.rightsStatus+' | role-check='+(candidate.technical?'PASS':'BLOCKED'));
       lines.push('    '+candidate.rationale);
       if(candidate.technicalErrors.length) lines.push('    Technical findings: '+candidate.technicalErrors.join('; '));
     }
