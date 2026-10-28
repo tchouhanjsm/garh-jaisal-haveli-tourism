@@ -1014,7 +1014,7 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 
 ### Implementation
 - Changed the date label to “Date of experience / arrival” and explained that departure is required for overnight stays and room-availability requests, but optional for day experiences.
-- Marked only “Sleep under the stars”, “Swiss tent overnight” and “Room availability” as departure-required choices, using the same markup contract on both pages.
+- Marked only “Sleep under the stars”, “Swiss tent overnight” and “Room availability” as departure-required choices, using the same markup contract across Experiences, Experience details and Dining.
 - Updated the shared form logic to recompute the required state when the selected interest changes. If departure is supplied, it must follow the requested date; blank optional departure is omitted from the WhatsApp draft.
 - Added static markup assertions, deterministic form-behavior tests and Chromium checks for both overnight date ranges and a single-date day enquiry. Browser tests intercept the draft-opening call and never send guest data.
 
