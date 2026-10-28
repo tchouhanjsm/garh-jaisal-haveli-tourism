@@ -90,7 +90,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
 }
 function validateForRole(info, role, policy) {
   if (!info || !info.exists || !info.safe) return { valid: false, errors: (info && info.errors) || ['asset is not a permitted local file'] };
-  const errors = [...(info.errors || [])];
+  const errors = [...(info.errors || [])].filter(error => !/width below |width above |file exceeds /.test(error));
   const limit = role === 'hero' ? policy.hero : policy.supporting;
   if (info.width == null || info.height == null) errors.push('image dimensions could not be verified');
   else {
