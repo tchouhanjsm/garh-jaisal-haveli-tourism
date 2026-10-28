@@ -192,6 +192,7 @@ function auditMedia(root=ROOT) {
     for(const f of findings) errors.push(item.relative+': schema '+f.path+' '+f.message);
     const candidates=(item.record.media&&item.record.media.candidates)||[];
     const approved=(item.record.media&&item.record.media.approvedAssets)||[];
+    if (!Array.isArray(candidates) || !Array.isArray(approved)) errors.push(item.relative+': media candidates and approvedAssets must be arrays');
     const candidatePaths=new Set();
     for(const candidate of candidates) {
       const absolute=safeImagePath(root,candidate.path);
@@ -230,6 +231,7 @@ function auditMedia(root=ROOT) {
       }
     }
     if(item.record.editorialReview.mediaStatus==='approved' && approvedRoles.size!==2) errors.push(item.relative+': mediaStatus approved without both approved roles');
+    if((item.record.status==='approved_for_release'||item.record.status==='live') && (item.record.editorialReview.mediaStatus!=='approved'||approvedRoles.size!==2)) errors.push(item.relative+': approved/live record requires approved hero and socialPreview assets');
     for(const ref of flattenRefs(item.record)) {
       const prior=seenRefs.get(ref.path)||[];
       prior.push(item.record.slug+':'+ref.location); seenRefs.set(ref.path,prior); allRefs.push(ref);
