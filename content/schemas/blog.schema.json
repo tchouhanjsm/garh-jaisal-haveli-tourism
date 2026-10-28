@@ -62,7 +62,7 @@
         },
         "candidates": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "role", "fit", "rationale", "provenance", "rightsStatus", "reviewStatus", "visualReview"],
           "properties": {
-            "path": {"type": "string", "pattern": "^assets/images/[a-z0-9._/-]+\\.(jpg|jpeg|png|webp|avif)$"},
+            "path": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
             "role": {"enum": ["hero", "socialPreview"]},
             "fit": {"enum": ["strong-contextual-match", "possible-contextual-match", "not-assessed", "not-a-match"]},
             "rationale": {"type": "string", "minLength": 10, "maxLength": 300},
