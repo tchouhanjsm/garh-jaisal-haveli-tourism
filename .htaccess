@@ -1,4 +1,31 @@
 # Apache/cPanel defaults for the static website.
+# The canonical host is configured in content/site-config.json. Any other host
+# is treated as staging: its robots/sitemap responses are replaced and pages
+# receive an X-Robots-Tag noindex header.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Normalize the legacy www host to the one approved HTTPS origin.
+  RewriteCond %{HTTP_HOST} ^www\\.hotelgarhjaisal\\.com(?::443)?$ [NC]
+  RewriteRule ^ https://hotelgarhjaisal.com%{REQUEST_URI} [R=301,L,NE]
+
+  # Enforce HTTPS for the canonical host and remove the index.html duplicate.
+  RewriteCond %{HTTP_HOST} ^hotelgarhjaisal\\.com(?::80)?$ [NC]
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://hotelgarhjaisal.com%{REQUEST_URI} [R=301,L,NE]
+  RewriteCond %{HTTP_HOST} ^hotelgarhjaisal\\.com(?::443)?$ [NC]
+  RewriteCond %{THE_REQUEST} \\s/+index\\.html[\\s?] [NC]
+  RewriteRule ^index\\.html$ https://hotelgarhjaisal.com/ [R=301,L,NE]
+
+  # Static hosting is also used for staging copies: block all non-canonical hosts.
+  RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\\.com(?::443)?$ [NC]
+  RewriteRule ^robots\\.txt$ robots-staging.txt [L]
+  RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\\.com(?::443)?$ [NC]
+  RewriteRule ^sitemap\\.xml$ sitemap-staging.xml [L]
+  RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\\.com(?::443)?$ [NC]
+  RewriteRule ^ - [E=NON_CANONICAL_HOST:1]
+</IfModule>
+
 ErrorDocument 404 /404.html
 
 <IfModule mod_expires.c>
@@ -19,4 +46,5 @@ ErrorDocument 404 /404.html
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set X-Robots-Tag "noindex, nofollow" env=NON_CANONICAL_HOST
 </IfModule>
