@@ -166,6 +166,7 @@ function walkAssetPaths(value, root, location) {
 
 function validateApprovedBlogMedia(record, sourcePath, root) {
   const media = record.media || {};
+  const sourceEvidenceIssues = require('./validate-content').mediaSourceEvidenceIssues;
   const candidates = Array.isArray(media.candidates) ? media.candidates.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
   const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
   if (approved.length !== 2) fail('Live article must have exactly two approved media-role records: ' + sourcePath);
@@ -191,7 +192,9 @@ function validateApprovedBlogMedia(record, sourcePath, root) {
         && typeof visual.evidence === 'string' && visual.evidence.trim().length >= 10
         && typeof visual.reviewer === 'string' && visual.reviewer.trim().length >= 2
         && isValidDate(visual.reviewedAt)
-        && ['owner-confirmed', 'licensed'].includes(item.rightsStatus);
+        && ['owner-confirmed', 'licensed'].includes(item.rightsStatus)
+        && sourceEvidenceIssues(item).length === 0
+        && item.sourceEvidence.evidenceReference === asset.rightsEvidence;
     });
     if (!candidate) fail('Live article ' + role + ' must reference a candidate with documented visual match and resolved rights: ' + sourcePath);
     const info = mediaAudit.imageInfo(root, asset.path, policy);
