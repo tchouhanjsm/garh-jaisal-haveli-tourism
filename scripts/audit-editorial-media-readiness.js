@@ -92,6 +92,8 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
 function validateForRole(info, role, policy) {
   if (!info || !info.exists || !info.safe) return { valid: false, errors: (info && info.errors) || ['asset is not a permitted local file'] };
   const errors = [...(info.errors || [])].filter(error => !/width below |width above |file exceeds /.test(error));
+  if (!policy.formats.has('.' + String(info.format || '').toLowerCase())) errors.push('publication image must use WebP or AVIF');
+  if ((info.warnings || []).some(warning => /pixel decode is unavailable|pixel decode unavailable/.test(warning))) errors.push('pixel decode is not verified by the dependency-free audit');
   const limit = role === 'hero' ? policy.hero : policy.supporting;
   if (info.width == null || info.height == null) errors.push('image dimensions could not be verified');
   else {
@@ -299,7 +301,7 @@ function auditMedia(root=ROOT) {
     summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,approvedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus!=='approved').length},
     policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
     inventory:assets.sort((a,b)=>a.path.localeCompare(b.path)),
-    duplicates,duplicateCandidates,errors,articles:catalogue.map(item=>articleReport(root,item,assets,seenRefs))
+    duplicates,duplicateCandidates,errors,articles:catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy))
   };
 }
 function flattenRefs(record) {
@@ -308,14 +310,14 @@ function flattenRefs(record) {
   for(const [i,s] of (record.sections||[]).entries()) if(s.image) refs.push({path:s.image,location:'sections['+i+'].image'});
   return refs;
 }
-function articleReport(root,item,assets,seenRefs) {
+function articleReport(root,item,assets,seenRefs,policy) {
   const r=item.record, media=r.media||{}, review=r.editorialReview||{};
   const roles=['hero','socialPreview'];
   return {slug:r.slug,title:r.title,primaryQuery:r.seo&&r.seo.primaryQuery,status:r.status,
     mediaStatus:review.mediaStatus||'missing',
     requirements:media.requirements||null,
     heroImage:r.heroImage||null,socialPreviewImage:r.seo&&r.seo.ogImage||null,
-    candidates:(media.candidates||[]).map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,imagePolicy(root));return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:media.approvedAssets||[],
+    candidates:(media.candidates||[]).map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,policy);return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:media.approvedAssets||[],
     missingRoles:roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)),
     duplicateAssetUsage:[...seenRefs.entries()].filter(([,owners])=>owners.some(owner=>owner.startsWith(r.slug+':'))&&owners.length>1).map(([asset,owners])=>({asset,owners})),
     blockers:[...(review.mediaStatus==='approved'?[]:['media-review-'+review.mediaStatus]),
@@ -324,12 +326,6 @@ function articleReport(root,item,assets,seenRefs) {
       ...(media.candidates||[]).filter(candidate=>candidate.rightsStatus==='unverified').map(candidate=>'candidate-rights-unverified:'+candidate.path),
       ...(media.candidates||[]).filter(candidate=>!(assets.find(a=>a.path===candidate.path)||{}).valid).map(candidate=>'candidate-technical-review-required:'+candidate.path)]
   };
-}
-function scoreCandidates(root, article, inventory) {
-  // No free-form semantic guessing: the audit suggests only from the explicitly reviewed
-  // candidate list in each article record, never from filenames alone.
-  return (article.media&&article.media.candidates||[]).filter(c=>c.reviewStatus==='unreviewed'&&safeImagePath(root,c.path))
-    .map(c=>({...c,technical:(inventory.find(a=>a.path===c.path)||{}).valid===true}));
 }
 function reportText(report) {
   const lines=['EDITORIAL MEDIA READINESS: '+report.state,
