@@ -17,6 +17,32 @@ SOURCE_PREFIX = (
 RESPONSIVE_WIDTHS = (480, 768, 1200, 1600)
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
+
+
+def _safe_directory(root: Path, relative: Path, *, create: bool = False) -> Path:
+    """Walk a repository-relative directory without following symlink components."""
+    root = Path(root).resolve()
+    relative = Path(relative)
+    if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        raise ValueError(f"Unsafe relative image directory: {relative}")
+
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError(f"Refusing symlinked image directory: {current}")
+        if current.exists():
+            if not current.is_dir():
+                raise ValueError(f"Image path component is not a directory: {current}")
+        elif create:
+            current.mkdir()
+        else:
+            raise FileNotFoundError(f"Missing image directory: {current}")
+
+        resolved = current.resolve()
+        if not resolved.is_relative_to(root):
+            raise ValueError(f"Image directory escapes site root: {current}")
+    return current
 IMG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
 LINK_PATTERN = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
 
@@ -47,8 +73,15 @@ def set_attribute(tag: str, name: str, value: str) -> str:
 
 def _save_webp(image: Image.Image, target: Path, icc_profile: bytes | None) -> None:
     """Write and decode-check a WebP output before replacing an existing file."""
-    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.parent.is_symlink():
+        raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
     temporary = target.with_name(target.name + ".tmp")
+    for candidate in (target, temporary):
+        if candidate.is_symlink():
+            raise ValueError(f"Refusing to replace a symlinked image output: {candidate}")
+        if candidate.exists() and not candidate.is_file():
+            raise ValueError(f"Image output is not a regular file: {candidate}")
+    target.parent.mkdir(parents=True, exist_ok=True)
     try:
         kwargs = {"quality": WEBP_QUALITY, "method": 6}
         if icc_profile:
@@ -83,7 +116,8 @@ def generate_responsive_variants(
     """Generate full-size and downscaled WebP files from approved local source paths."""
     root = Path(root).resolve()
     output: dict[str, dict] = {}
-    image_root = root / "assets" / "images"
+    image_root = _safe_directory(root, Path("assets/images"))
+    responsive_root = _safe_directory(root, Path("assets/images/responsive"), create=True)
     for filename in image_names:
         if filename not in IMAGE_NAMES:
             raise ValueError(f"Image is outside the responsive allowlist: {filename}")
@@ -111,7 +145,7 @@ def generate_responsive_variants(
                     (target_width, target_height),
                     Image.Resampling.LANCZOS,
                 )
-                target = image_root / "responsive" / f"{Path(filename).stem}-{target_width}.webp"
+                target = responsive_root / f"{Path(filename).stem}-{target_width}.webp"
                 _save_webp(resized, target, icc_profile)
                 generated.append(
                     {
@@ -140,7 +174,8 @@ def _responsive_sizes(tag: str) -> str:
 
 def _natural_dimensions(root: Path, stem: str) -> tuple[int, int]:
     """Read the EXIF-corrected intrinsic dimensions for a safe allowlisted JPEG."""
-    source = root / "assets" / "images" / f"{stem}.jpg"
+    image_root = _safe_directory(root, Path("assets/images"))
+    source = image_root / f"{stem}.jpg"
     if source.is_symlink() or not source.is_file() or source.stat().st_size <= 0:
         raise FileNotFoundError(f"Missing safe source image: {source}")
     with Image.open(source) as opened:
@@ -154,7 +189,12 @@ def _natural_dimensions(root: Path, stem: str) -> tuple[int, int]:
 
 
 def _srcset(root: Path, stem: str) -> str:
-    source = root / "assets" / "images" / f"{stem}.jpg"
+    root = Path(root).resolve()
+    image_root = _safe_directory(root, Path("assets/images"))
+    responsive_root = _safe_directory(root, Path("assets/images/responsive"))
+    source = image_root / f"{stem}.jpg"
+    if source.is_symlink() or not source.is_file():
+        raise FileNotFoundError(f"Missing safe source image: {source}")
     with Image.open(source) as image:
         _validate_source_image_header(image, source.name)
         image.load()
@@ -164,10 +204,11 @@ def _srcset(root: Path, stem: str) -> str:
         f"assets/images/responsive/{stem}-{width}.webp {width}w"
         for width in RESPONSIVE_WIDTHS
         if width < natural_width
-        and (root / "assets" / "images" / "responsive" / f"{stem}-{width}.webp").is_file()
+        and (responsive_root / f"{stem}-{width}.webp").is_file()
+        and not (responsive_root / f"{stem}-{width}.webp").is_symlink()
     ]
-    full_size = root / "assets" / "images" / f"{stem}.webp"
-    if not full_size.is_file():
+    full_size = image_root / f"{stem}.webp"
+    if full_size.is_symlink() or not full_size.is_file():
         raise FileNotFoundError(f"Missing full-size WebP source: {full_size}")
     paths.append(f"assets/images/{stem}.webp {natural_width}w")
     return ", ".join(paths)
