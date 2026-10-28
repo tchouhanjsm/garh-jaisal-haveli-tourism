@@ -144,6 +144,92 @@ def copy_runtime_files(files: list[Path], output: Path) -> list[dict]:
     return manifest_entries
 
 
+def inventory_package_files(output: Path) -> list[dict]:
+    """Hash every payload file after transformations, excluding the manifest itself."""
+    entries: list[dict] = []
+    for source in sorted(output.rglob("*")):
+        if source.is_dir():
+            continue
+        relative = source.relative_to(output).as_posix()
+        if relative == "RELEASE-MANIFEST.json":
+            continue
+        if source.is_symlink() or not source.is_file():
+            fail(f"Unsafe packaged file: {relative}")
+        payload = source.read_bytes()
+        entries.append({
+            "path": relative,
+            "bytes": len(payload),
+            "sha256": digest_bytes(payload),
+        })
+    return entries
+
+
+def apply_responsive_image_delivery(output: Path) -> dict:
+    """Generate and verify WebP variants against real source photos in the temporary package."""
+    generator_path = ROOT / "scripts" / "rewrite_image_refs.py"
+    spec = importlib.util.spec_from_file_location("staging_preview_image_generator", generator_path)
+    if spec is None or spec.loader is None:
+        fail("Could not load the existing responsive image generator.")
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+
+    rewritten = generator.rewrite_site(output, "responsive")
+    sources = ("rest3.jpg", "courtyard.jpg", "scarlet.jpg", "tent.jpg")
+    generated_files: list[dict] = []
+    image_sources: list[dict] = []
+    for filename in sources:
+        stem = Path(filename).stem
+        source = output / "assets" / "images" / filename
+        full_size = output / "assets" / "images" / f"{stem}.webp"
+        if source.is_symlink() or not source.is_file():
+            fail(f"Responsive source photo is missing or unsafe: {filename}")
+        if full_size.is_symlink() or not full_size.is_file():
+            fail(f"Generator did not create the full-size WebP output for {filename}.")
+        with generator.Image.open(source) as opened:
+            opened.load()
+            natural = generator.ImageOps.exif_transpose(opened)
+            width, height = natural.size
+        with generator.Image.open(full_size) as converted:
+            converted.load()
+            if converted.format != "WEBP" or converted.size != (width, height):
+                fail(f"Full-size WebP failed decoded format/dimension verification: {full_size.name}")
+        image_sources.append({
+            "sourceJpeg": f"assets/images/{filename}",
+            "naturalWidth": width,
+            "naturalHeight": height,
+            "fullSizeWebp": f"assets/images/{stem}.webp",
+        })
+        candidates = [full_size]
+        responsive_dir = output / "assets" / "images" / "responsive"
+        if responsive_dir.is_dir():
+            candidates.extend(sorted(responsive_dir.glob(f"{stem}-*.webp")))
+        for candidate in candidates:
+            with generator.Image.open(candidate) as converted:
+                converted.load()
+                if converted.format != "WEBP":
+                    fail(f"Responsive image candidate is not WebP: {candidate.relative_to(output)}")
+                candidate_width, candidate_height = converted.size
+            if candidate_width < 1 or candidate_height < 1 or candidate_width > width or candidate_height > height:
+                fail(f"Responsive image candidate has unsafe dimensions: {candidate.relative_to(output)}")
+            payload = candidate.read_bytes()
+            generated_files.append({
+                "path": candidate.relative_to(output).as_posix(),
+                "bytes": len(payload),
+                "sha256": digest_bytes(payload),
+                "width": candidate_width,
+                "height": candidate_height,
+            })
+
+    return {
+        "enabled": True,
+        "generationTarget": "isolated staging package; source checkout remains unchanged",
+        "sourceImages": image_sources,
+        "generatedWebpFileCount": len(generated_files),
+        "generatedWebpFiles": sorted(generated_files, key=lambda item: item["path"]),
+        "rewrittenHtmlRoutes": [path.relative_to(output).as_posix() for path in rewritten],
+    }
+
+
 def validate_packaged_routes(output: Path) -> dict:
     """Reuse the existing route-integrity checker against the package, not the checkout."""
     checker_path = ROOT / "scripts" / "check-site.py"
@@ -249,8 +335,10 @@ def main() -> int:
         (ROOT / "sitemap-empty.xml").read_text(encoding="utf-8"),
         (ROOT / "robots-staging.txt").read_text(encoding="utf-8"),
     )
-    entries = copy_runtime_files(files, output)
+    copy_runtime_files(files, output)
+    responsive_report = apply_responsive_image_delivery(output)
     route_report = validate_packaged_routes(output)
+    entries = inventory_package_files(output)
     manifest = {
         "schemaVersion": 1,
         "artifactType": "static-site-staging-preview",
@@ -263,6 +351,7 @@ def main() -> int:
         "sourceRouteCount": len(json.loads((ROOT / "content" / "staging-route-contract.json").read_text(encoding="utf-8"))["routes"]),
         "payloadFileCount": len(entries),
         "files": entries,
+        "responsiveImageDelivery": responsive_report,
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
         "canonicalHostApproved": False,
         "publicIndexingEnabled": False,
@@ -278,6 +367,7 @@ def main() -> int:
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
     print(f"Runtime files: {len(entries)}")
+    print(f"Verified responsive WebP files: {responsive_report['generatedWebpFileCount']}")
     print(f"Archive: {archive.name} ({archive_bytes} bytes)")
     print(f"SHA-256: {digest_bytes(archive.read_bytes())}")
     print("Release status: BLOCKED_PENDING_MANUAL_UAT (no deployment or indexing activation).")
