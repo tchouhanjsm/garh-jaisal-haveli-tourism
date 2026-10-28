@@ -111,11 +111,45 @@ function inspectPng(data) {
   if (data.length < 24 || data.subarray(0,8).toString('hex') !== '89504e470d0a1a0a' || data.toString('ascii',12,16) !== 'IHDR') return {width:null,height:null,errors:['corrupt or invalid PNG header']};
   const width=data.readUInt32BE(16), height=data.readUInt32BE(20);
   if (!width || !height) return {width:null,height:null,errors:['invalid PNG dimensions']};
-  // Verify that the image reaches a complete IEND chunk; full decoding is done where runtime libraries exist.
+  // Parse chunk boundaries and CRCs before attempting decompression.
+  try { validatePngChunks(data); } catch (_) { return {width,height,errors:['corrupt PNG chunk structure or CRC']}; }
   if (data.length < 45 || data.lastIndexOf(Buffer.from('IEND')) < 0) return {width,height,errors:['truncated PNG payload']};
   try { zlib.inflateSync(Buffer.concat(readPngIdat(data)), { maxOutputLength: 64 * 1024 * 1024 }); }
   catch (_) { return {width,height,errors:['PNG pixel stream failed integrity/decode check']}; }
   return {width,height,errors:[]};
+}
+function pngCrc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function validatePngChunks(data) {
+  let offset = 8, seenHeader = false, seenEnd = false, idatSeen = false;
+  while (offset + 12 <= data.length) {
+    const length = data.readUInt32BE(offset);
+    if (length > data.length - offset - 12) throw new Error('chunk overflow');
+    const type = data.toString('ascii', offset + 4, offset + 8);
+    const content = data.subarray(offset + 4, offset + 8 + length);
+    const crc = data.readUInt32BE(offset + 8 + length);
+    if (pngCrc32(content) !== crc) throw new Error('CRC mismatch');
+    if (!seenHeader && type !== 'IHDR') throw new Error('IHDR must be first');
+    if (type === 'IHDR') {
+      if (seenHeader || length !== 13) throw new Error('duplicate or invalid IHDR');
+      seenHeader = true;
+    }
+    if (type === 'IDAT') idatSeen = true;
+    if (type === 'IEND') {
+      if (length !== 0 || !idatSeen) throw new Error('invalid IEND or missing IDAT');
+      seenEnd = true;
+      offset += 12 + length;
+      break;
+    }
+    offset += 12 + length;
+  }
+  if (!seenHeader || !seenEnd || offset !== data.length) throw new Error('incomplete PNG');
 }
 function readPngIdat(data) {
   const chunks=[]; let offset=8;
@@ -141,7 +175,7 @@ function inspectJpeg(data) {
     if ([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker)) {
       if (length<7) break;
       const height=data.readUInt16BE(offset+3), width=data.readUInt16BE(offset+5);
-      return width&&height ? {width,height,errors:[]} : {width:null,height:null,errors:['invalid JPEG dimensions']};
+      return width&&height ? {width,height,errors:[],warnings:['JPEG structure and dimensions checked; full pixel decode is not available in the dependency-free audit']} : {width:null,height:null,errors:['invalid JPEG dimensions']};
     }
     offset+=length;
   }
@@ -157,7 +191,7 @@ function inspectWebp(data) {
   if(!width||!height) return {width:null,height:null,errors:['WebP dimensions unavailable or invalid; extended decode required']};
   const declared=data.readUInt32LE(4)+8;
   if(declared>data.length) return {width,height,errors:['truncated WebP RIFF size']};
-  return {width,height,errors:[]};
+  return {width,height,errors:[],warnings:['WebP container and dimensions checked; full pixel decode is not available in the dependency-free audit']};
 }
 function inspectAvif(data) {
   if (data.length<32 || data.toString('ascii',4,8)!=='ftyp' || !/^(avif|avis)$/.test(data.toString('ascii',8,12))) return {width:null,height:null,errors:['corrupt or invalid AVIF container']};
