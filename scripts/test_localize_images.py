@@ -92,7 +92,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '</head>'
                 '<section class="hero"><img class="hero__image" '
                 'src="assets/images/rest3.jpg" alt="Rooftop terrace at dusk" '
-                'fetchpriority="high" loading="eager"></section>'
+                'fetchpriority="high"></section>'
                 '<img src="assets/images/scarlet.jpg" alt="Scarlet room">'
             )
             result = rewrite_html_text(html, "responsive", root=root)
@@ -104,8 +104,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn('width="1200"', result)
             self.assertIn('height="800"', result)
             self.assertIn('decoding="async"', result)
+            self.assertIn('loading="eager"', result)
             self.assertIn('width="900"', result)
             self.assertIn('height="600"', result)
+            self.assertIn('loading="lazy"', result)
             self.assertIn('<meta property="og:image" content="assets/images/rest3.jpg">', result)
             self.assertIn('<meta property="og:image:type" content="image/jpeg">', result)
             self.assertNotIn('<meta property="og:image" content="assets/images/rest3.webp">', result)
