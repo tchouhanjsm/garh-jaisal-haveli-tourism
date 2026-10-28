@@ -230,3 +230,8 @@ The Directions page shows the owner-maintained legacy source distances for the l
 ### Guest-enquiry fallback and intent guidance
 
 The shared enquiry form updates the visible departure requirement and helper text when the guest switches between overnight/room enquiries and day experiences. A valid submit prepares the same guest-reviewed WhatsApp draft as before, and now reveals a read-only, copyable version beneath the form in case the browser blocks or fails to open the WhatsApp tab. Copying is an explicit guest action. The site never sends the message automatically and does not persist these details to a backend or browser storage. Deterministic tests and Chromium smoke cover the dynamic help, exact draft fallback, and clipboard path without navigating away from the site or sending guest data.
+
+
+## Research-led itinerary ideas
+
+The Experiences hub and detail page include six research-led destination themes: havelis and sandstone architecture, Jain temples and Fort architecture, photography viewpoints, Kuldhara heritage, nature/geology interests, and Longewala War Memorial history. These are **enquiry-only ideas, not confirmed packages**. The contextual WhatsApp draft asks the guest to review and send a question; it does not reserve a route, confirm access, promise a guide/vehicle, or store enquiry data. Official destination links provide research context only. Route feasibility, visitor rules, transport, timing, fees, inclusions and price must be confirmed for the requested date. Wildlife sightings and access to restricted border areas must never be promised.
