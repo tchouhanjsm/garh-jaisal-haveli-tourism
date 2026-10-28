@@ -190,7 +190,7 @@
     recovery.hidden = false;
     copyButton.disabled = false;
     status.dataset.state = 'ready';
-    status.textContent = 'Your table enquiry draft is ready to review. If WhatsApp did not open, copy the prepared message below. Nothing was sent automatically and your table is not reserved.';
+    status.textContent = 'Your table enquiry draft is ready. Review and send it yourself in WhatsApp. If the tab did not open, copy the prepared message below. Nothing was sent automatically and your table is not reserved.';
   });
 
   loadApprovedContact();
