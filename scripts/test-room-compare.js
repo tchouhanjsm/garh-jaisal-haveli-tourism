@@ -54,6 +54,10 @@ assert.match(script, /dataset\.roomCompareDraft/);
 assert.match(script, /dataset\.roomCompareCopy/);
 assert.match(script, /recovery\.hidden = true/);
 assert.match(siteScript, /configureRoomCompareEnquiry/);
+assert.ok(siteScript.includes("document.querySelectorAll('#room-card-grid [data-room-compare-toggle][aria-pressed=\"true\"]')"),
+  'selected room toggles live in the catalogue grid, outside the comparison panel');
+assert.ok(!siteScript.includes("panel.querySelectorAll('[data-room-compare-toggle][aria-pressed=\"true\"]')"),
+  'the enquiry handler must not search for selected room toggles inside the separate comparison panel');
 assert.match(siteScript, /\[data-room-compare-toggle\]\[aria-pressed="true"\]/);
 assert.match(siteScript, /whatsappBaseUrl \+ '\?text='/);
 assert.match(siteScript, /does not confirm a booking/);
