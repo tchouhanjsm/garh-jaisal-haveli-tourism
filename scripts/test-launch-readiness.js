@@ -27,8 +27,8 @@ assert.equal(config.verificationStatus, 'owner-authorized-source',
   'Source-derived contact endpoints must be marked source-authorized, not live-tested');
 assert.equal(config.contact.status, 'source-authorized');
 assert.equal(config.booking.status, 'source-authorized');
-assert.equal(config.site.canonicalHostApproved, false,
-  'Do not approve a canonical host as part of contact/content delivery');
+assert.equal(config.site.canonicalHostApproved, true,
+  'The explicit SEO-publication instruction authorizes the configured production canonical host');
 assert.match(config.contact.whatsappBaseUrl || '', /^https:\/\/wa\.me\/\d{8,15}$/);
 assert.match(config.contact.primaryPhoneE164 || '', /^\+[1-9]\d{7,14}$/);
 assert.match(config.contact.alternatePhoneE164 || '', /^\+[1-9]\d{7,14}$/);
@@ -62,8 +62,16 @@ for (const file of PAGE_NAMES) {
   }
   assert.doesNotMatch(html, /href="(?:tel:\+?\d+|mailto:[^"]+)|https:\/\/wa\.me\/\d{8,15}/i,
     file + ': direct contact endpoints must not be hard-coded into public HTML');
-  assert.doesNotMatch(html, /<link\b[^>]*\brel=["']canonical["']|property=["']og:url["']/i,
-    file + ': canonical URL remains gated until owner host approval');
+  const expectedCanonical = file === 'index.html'
+    ? 'https://hotelgarhjaisal.com/'
+    : 'https://hotelgarhjaisal.com/' + file;
+  const canonicalMatch = html.match(/<link rel="canonical" href="([^"]+)"/i);
+  assert.equal(canonicalMatch && canonicalMatch[1], expectedCanonical,
+    file + ': each public route must declare its exact canonical URL');
+  assert.ok(html.includes('<meta property="og:url" content="' + expectedCanonical + '">'),
+    file + ': social URL must match the canonical URL');
+  assert.match(html, /<meta name="robots" content="index,follow,/i,
+    file + ': public routes must explicitly allow indexing and link discovery');
 }
 
 const recoveryPage = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
@@ -95,8 +103,21 @@ assert.match(siteCss, /\.not-found-page__route:focus-visible|a:focus-visible/,
 const dining = fs.readFileSync(path.join(ROOT, 'dining.html'), 'utf8');
 assert.match(dining, /source menu record is still marked as awaiting owner confirmation/i,
   'Dining page must not imply that unconfirmed legacy menu items/prices are current');
-assert.doesNotMatch(sitemap, /<loc>\s*https?:\/\//i, 'Sitemap must stay URL-empty before canonical host approval');
-assert.doesNotMatch(robots, /^\s*Sitemap\s*:/im, 'Robots must not publish a sitemap URL before canonical host approval');
+const sitemapUrls = [...sitemap.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)].map(match => match[1].trim());
+assert.equal(new Set(sitemapUrls).size, sitemapUrls.length, 'Sitemap must not contain duplicate URLs');
+for (const file of PAGE_NAMES) {
+  const expected = file === 'index.html' ? 'https://hotelgarhjaisal.com/' : 'https://hotelgarhjaisal.com/' + file;
+  assert.ok(sitemapUrls.includes(expected), 'Sitemap must include canonical route ' + expected);
+}
+assert.doesNotMatch(sitemap, /<loc>\s*https?:\/\/[^<]*\/404\.html/i, 'Sitemap must exclude the 404 recovery route');
+assert.match(robots, /^User-agent:\s*\*\s*\nAllow:\s*\//im, 'Production robots must allow crawl discovery');
+assert.ok(robots.split(/\r?\n/).map(line => line.trim()).includes('Sitemap: https://hotelgarhjaisal.com/sitemap.xml'),
+  'Production robots must advertise the canonical sitemap');
+const stagingRobots = fs.readFileSync(path.join(ROOT, 'robots-staging.txt'), 'utf8');
+assert.match(stagingRobots, /^User-agent:\s*\*\s*\nDisallow:\s*\/$/m,
+  'Staging robots must block all crawling');
+assert.match(fs.readFileSync(path.join(ROOT, '.htaccess'), 'utf8'), /X-Robots-Tag "noindex, nofollow" env=NON_CANONICAL_HOST/,
+  'Non-canonical hosts must receive an HTTP noindex response');
 
 assert.match(launchDoc, /MANUAL RELEASE GATES/i, 'Launch checklist must distinguish manual release gates');
 assert.match(launchDoc, /HTTP 403/i, 'Launch checklist must record the external booking-provider probe result');
@@ -126,4 +147,4 @@ for (const row of stagingRows) {
   if (result === 'FAIL' || result === 'BLOCKED') assert.ok(followUpOwner, id + ' failures/blocks must identify a follow-up owner');
 }
 
-console.log('PASS: launch wiring, publication safeguards, keyboard/reduced-motion contracts and evidence-bearing staging UAT structure. MANUAL RELEASE GATES remain outstanding: real-browser booking, staffed contact channels, owner fact/menu approval, staging UAT and canonical-host approval.');
+console.log('PASS: launch wiring, publication safeguards, keyboard/reduced-motion contracts and evidence-bearing staging UAT structure. MANUAL RELEASE GATES remain outstanding: live DNS/HTTPS/redirect/header checks, Search Console submission, real-browser booking, staffed contact channels, owner fact/menu approval and staging UAT.');
