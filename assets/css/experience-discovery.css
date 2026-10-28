@@ -59,3 +59,6 @@
   .experience-research-ideas { padding-top: 32px; }
   .experience-research-idea__actions { flex-direction: column; }
 }
+
+.experience-detail-topic-list a { color: var(--ink); text-decoration-color: var(--gold-dark); text-underline-offset: 3px; }
+.experience-detail-topic-list a:focus-visible { outline: 3px solid var(--gold-dark); outline-offset: 3px; }
