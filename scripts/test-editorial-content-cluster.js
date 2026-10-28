@@ -47,6 +47,15 @@ const records = files.map(name => {
 });
 const bySlug = new Map(records.map(record => [record.slug, record]));
 assert.equal(bySlug.size, records.length, 'blog slugs must be unique');
+const primaryQueries = records.map(record => String(record.seo.primaryQuery || '').trim().toLowerCase().split(/\s+/).filter(Boolean).join(' '));
+assert.ok(primaryQueries.every(query => query.length >= 4), 'every article must declare a primary query');
+assert.equal(new Set(primaryQueries).size, records.length,
+  'primary queries must be unique across the cluster to reduce keyword cannibalization');
+const allowedIntents = new Set(['informational', 'commercial', 'transactional', 'local']);
+for (const record of records) {
+  assert.ok(allowedIntents.has(record.seo.searchIntent),
+    record.slug + ': search intent must use the controlled editorial vocabulary');
+}
 assert.equal(EXPECTED_CLUSTER.length, 11);
 for (const slug of EXPECTED_CLUSTER) {
   assert.ok(bySlug.has(slug), 'missing editorial-cluster record: ' + slug);

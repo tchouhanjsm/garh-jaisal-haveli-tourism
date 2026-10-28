@@ -386,3 +386,11 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Obtain editorial/owner approval before changing any record from draft to a publishable state.
 - [ ] Keep `content/site-config.json` canonical approval false, `robots.txt` blocking and `sitemap.xml` URL-empty until the separate canonical-host release decision is explicitly approved.
 - [ ] Do not describe the drafts as indexed, published or live. Automated content validation is not Search Console, live-host or human staging evidence.
+
+
+## Editorial query mapping — pre-publication
+
+- [ ] Confirm each draft's primary query reflects a distinct guest search need and the page satisfies that intent.
+- [ ] Resolve query collisions before promoting any draft to owner-approved release.
+- [ ] Treat `searchIntent` as editorial planning metadata, not ranking evidence or publication approval.
+- [ ] Keep all article records unpublished until content, images, facts, source links and canonical-host approval are separately cleared.
