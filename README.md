@@ -70,11 +70,11 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 ## Deploy to GoDaddy/cPanel
 
 1. Review the current site copy and property claims with the on-site team.
-2. Keep the pre-launch `robots.txt` blocking crawlers on staging; change it to `Allow: /` only after the owner approves the canonical production host.
+2. Production `robots.txt` now permits crawling for `https://hotelgarhjaisal.com`; alternate/staging hosts must receive deny-all robots/sitemap responses and an `X-Robots-Tag: noindex, nofollow` header.
 3. Run `./scripts/localize-images.sh` so photos are served from the new site, not hotlinked from the old repository.
 4. Check mobile layouts and links on a real phone; test WhatsApp on both Android and iOS.
 5. Upload the HTML files plus the `assets/` directory to a **staging subdomain** first.
-6. Update canonical URLs, Open Graph URLs and `sitemap.xml` to the final domain only after the owner approves the canonical host and verifies the production origin.
+6. Core canonical/OG URLs and `sitemap.xml` now use the configured apex domain. Before deployment, verify DNS/TLS, www-to-apex and HTTP-to-HTTPS redirects, host-specific robots/sitemap responses, and Search Console ownership.
 7. Verify HTTPS, image sizes, 404 behaviour, contact details, enquiry messages and all page routes.
 8. Switch production only after a rollback copy of the existing site has been saved.
 
@@ -101,7 +101,7 @@ Do not check passwords, API tokens, `.env` files or any private guest data into 
 The first architecture and marketing plan is in [Tour and Blog Content Strategy](docs/TOUR-BLOG-CONTENT-STRATEGY.md); the migration and Studio integration contract is in [Content Migration and Studio Plan](docs/CONTENT-MIGRATION-AND-STUDIO-PLAN.md).
 
 - `content/paths.json` is the planned single source of truth for allowed content types, output routes, image folders, SEO rules and sitemap behavior.
-- `content/site-config.json` centralizes the external booking-engine URL, WhatsApp, primary phone, alternate landline, email, restaurant source links and the source-authorized exact hotel map pin. These values are not live-tested; the map pin must be checked by an operator before release. They were migrated from the designated legacy repository under the owner's explicit instruction and are marked `owner-authorized-source` / `source-authorized`; they have not been independently smoke-tested. The JavaScript validates endpoint formats and fails closed if configuration cannot load. Canonical-host approval remains separate and false until the owner records the launch decision.
+- `content/site-config.json` centralizes the external booking-engine URL, WhatsApp, primary phone, alternate landline, email, restaurant source links and the source-authorized exact hotel map pin. These values are not live-tested; the map pin must be checked by an operator before release. They were migrated from the designated legacy repository under the owner's explicit instruction and are marked `owner-authorized-source` / `source-authorized`; they have not been independently smoke-tested. The JavaScript validates endpoint formats and fails closed if configuration cannot load. The configured SEO canonical origin is `https://hotelgarhjaisal.com`; source-derived booking/contact/map values remain source-authorized and have not been live-tested.
 - `content/schemas/` defines the initial tour, blog and curated-gallery record shapes.
 - `content/tours/sunset-camel-safari.json` and `content/blogs/jaisalmer-fort-guide.json` are draft-only migrations demonstrating the new record shapes. `assets/images/tours/<slug>/`, `assets/images/blogs/<slug>/` and `assets/images/gallery/<category>/` are the intended media destinations. Shared design stays in `assets/site.css`; page-specific CSS/JS can live in `assets/css/` and `assets/js/`.
 
@@ -127,8 +127,8 @@ The `Site quality gates` GitHub Actions workflow runs `scripts/check-pr-quality.
 - All six source-listed experience options have two distinct, locally hosted, source-reviewed photographs with manual next/previous controls. The Swiss-tent secondary image is tracked in `docs/MEDIA-MIGRATION-MANIFEST.json`. Galleries do not autoplay; captions are visual context, not guaranteed itinerary stops.
 - Dining uses a real rooftop table image and a distinct fort view. About and Directions are differentiated around the fort panorama and practical final-walk information, avoiding generic filler and duplicated hero images.
 - Run `node scripts/test-experience-carousel.js` for previous/next/wraparound behavior, live slide status and incomplete-markup fallback. The full quality runner invokes this test and the expanded static UX gates.
-- Current menu approval, booking-provider browser verification, live contact-channel reachability, canonical-host approval and staging UAT remain manual release gates.
-- `scripts/test-seo-publication-safeguards.js` audits root, `tours/` and `blogs/` HTML to keep canonical/`og:url` tags, sitemap URL entries and a sitemap directive in `robots.txt` unpublished while `canonicalHostApproved` is false. Its fixture contract test covers the pre-launch state and accidental publication regressions.
+- Current menu approval, booking-provider browser verification, live contact-channel reachability, staging UAT, DNS/TLS/redirect/header verification, Search Console submission and deployment approval remain manual release gates.
+- `scripts/test-seo-publication-safeguards.js` audits root and nested `tours/`/`blogs/` HTML for exact canonical/`og:url` parity, sitemap completeness, absolute social-image URLs, JSON-LD validity, and alternate-host crawl isolation.
 
 
 ### Real-browser guest-journey smoke coverage
@@ -237,3 +237,8 @@ The shared enquiry form updates the visible departure requirement and helper tex
 On Rooms, the guest can add up to three catalogue entries to the comparison shortlist and prepare one enquiry listing the selected room names. The action only becomes available after the selected room set is non-empty and the centralized, authorized WhatsApp configuration is ready. The draft asks the team to confirm room assignment, availability, inclusions, rates/taxes and terms; it does not imply live inventory or reserve a room. The exact message remains visible in a read-only copy fallback if the WhatsApp tab is blocked. Changing the shortlist clears that old draft so a guest cannot accidentally copy an outdated room selection.
 
 The Dining table enquiry now has the same recovery principle: after a valid explicit submit, the exact guest-reviewed draft is shown on-page with a copy control. Both clipboard routes are opt-in; failed clipboard access leaves the message selected for manual copy. No message is sent automatically, and these changes introduce no backend storage or production/staging configuration changes.
+
+
+## SEO publication phase — 28 October 2026
+
+This PR adds canonical URLs and explicit index/follow directives to all eight core routes, absolute Open Graph/Twitter image URLs, Hotel/WebSite/Restaurant/Breadcrumb JSON-LD, a populated sitemap, a production crawl policy and Apache rules to normalize www/HTTP aliases while blocking non-canonical hosts. This is a repository-source change only: no cPanel upload, Search Console submission, DNS/TLS/redirect/header verification or live booking/contact action has been performed. Current menu and owner fact approval remain separate release gates.

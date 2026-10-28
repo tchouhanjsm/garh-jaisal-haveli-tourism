@@ -66,6 +66,7 @@ for (const file of PAGE_NAMES) {
   assert.ok(html.includes('<link rel="canonical" href="' + expectedCanonical + '">'), file + ': canonical URL must match production route');
   assert.ok(html.includes('<meta property="og:url" content="' + expectedCanonical + '">'), file + ': og:url must match canonical URL');
   assert.match(html, /<meta name="robots" content="index,follow,/i, file + ': public route must permit indexing');
+}
 
 const recoveryPage = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
 assert.match(recoveryPage, /<meta name="robots" content="noindex,follow">/,
