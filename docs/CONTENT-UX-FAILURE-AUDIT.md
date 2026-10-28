@@ -1022,3 +1022,20 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Exact-head push and pull-request quality workflows must pass on the same final feature SHA before merge; post-merge main quality must then pass.
 - Current tour operations, routes, inclusions, prices and guide availability remain owner-confirmation items. A form submission only prepares a draft; it does not establish availability or confirm a booking.
 - Staging UAT, live contact checks, Lighthouse and formal accessibility testing remain NOT RUN. No canonical/sitemap activation, robots-policy change, production deployment or server-side enquiry collection is included.
+
+
+## 28 October 2026 — Guest-enquiry fallback and clearer intent state
+
+### Finding
+- A browser can block a newly opened WhatsApp tab, while the site previously announced the draft as ready without leaving a convenient on-page recovery path. The departure field also changed its native required state with the selected interest but kept generic explanatory copy, making the form state less obvious to guests and assistive technology users.
+
+### Implementation
+- Added a read-only draft panel and explicit copy button to Experiences, Experience details and Dining. The panel appears only after a valid, explicit submit and displays the exact message intended for WhatsApp.
+- Added clipboard copying with a selection-based fallback for insecure contexts or denied/unavailable clipboard APIs. Copying is never automatic; no form data is sent to a server or persisted.
+- Made the departure requirement label and helper text respond to the selected interest so overnight/room requests and day-only plans are explained differently.
+- Extended deterministic unit coverage and Chromium checks across all three forms, including the copied text and live status. Browser tests intercept window.open and do not open WhatsApp or send guest data.
+
+### Validation and release boundary
+- Both exact-head push and pull-request workflows must pass on the same final commit before merge.
+- Desktop/mobile clipboard behavior, pop-up recovery, live channel reachability and all manual staging UAT remain owner verification tasks; STG-01–STG-18 stay NOT RUN.
+- No production deployment, SEO publication change or server-side enquiry storage is included.

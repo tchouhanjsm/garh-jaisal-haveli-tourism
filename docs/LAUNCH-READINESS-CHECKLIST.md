@@ -331,3 +331,12 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [ ] On an owner-approved HTTPS staging origin, manually verify the labels, required-state announcement, date validation and WhatsApp draft preview on mobile and desktop. Automated CI is not human UAT.
 - [ ] Confirm actual tour operating status, routes, inclusions, prices, guide availability and current room inventory with the owner. The form does not imply any option is available or bookable.
 - [ ] STG-01–STG-18 remain NOT RUN until an operator records real browser/device evidence. No staging hostname may be guessed.
+
+
+## 28 October 2026 — Guest-enquiry recovery and intent clarity
+
+- [x] Change the visible departure label and helper text when the selected interest changes; keep stay/room requirements explicit and day-only departure optional.
+- [x] After explicit submit, reveal the exact WhatsApp draft text in a read-only textarea with an accessible copy control. Clipboard failure falls back to selecting the text for manual copy.
+- [x] Exercise copy/recovery in deterministic tests and Chromium while intercepting the external-tab request; automated tests send no message and create no reservation.
+- [ ] On the owner-approved HTTPS staging origin, test the copy action on iOS/Android and desktop browsers, including denied clipboard permission and pop-up blocking; manually verify focus visibility, status announcement and the textarea at narrow widths.
+- [ ] Manual staging UAT and STG-01–STG-18 remain NOT RUN. Do not infer live contact reachability from the static configuration or the browser mock.

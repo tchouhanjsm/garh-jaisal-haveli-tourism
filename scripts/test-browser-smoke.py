@@ -808,6 +808,13 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
     # a real external tab, sends a message, or submits guest data to a service.
     page.add_init_script(
         """window.__guestEnquiryOpenCalls = [];
+        window.__guestEnquiryClipboardWrites = [];
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: async function(text) {
+            window.__guestEnquiryClipboardWrites.push(String(text));
+          } }
+        });
         window.open = function(url, target, features) {
           window.__guestEnquiryOpenCalls.push({
             url: String(url), target: String(target || ''), features: String(features || '')
@@ -862,6 +869,10 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
         interest.select_option(label="Swiss tent overnight")
         check(departure.get_attribute("required") is not None,
               f"{page_name}: overnight and room enquiries must require a departure date")
+        check("required" in page.locator("[data-departure-requirement-label]").inner_text().lower(),
+              f"{page_name}: stay intent must update the visible departure requirement")
+        check("overnight" in page.locator("[data-departure-hint]").inner_text().lower(),
+              f"{page_name}: stay intent must explain why departure is required")
 
         # A past arrival is rejected by native min-date validation. The
         # departure minimum must stay at today rather than following a past
@@ -932,6 +943,21 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
               f"{page_name}: status must describe a draft for guest review, not a confirmed booking")
         check(same_origin(draft["currentUrl"], base_url),
               f"{page_name}: browser smoke must not navigate to WhatsApp or send the draft")
+        recovery = page.locator("[data-guest-enquiry-recovery]")
+        check(recovery.is_visible(),
+              f"{page_name}: copyable draft fallback must appear after an explicit submit")
+        fallback_text = page.locator("[data-guest-enquiry-draft]").input_value()
+        check(fallback_text == draft["text"],
+              f"{page_name}: fallback must expose the exact encoded WhatsApp draft text")
+        page.locator("[data-guest-enquiry-copy]").click()
+        page.wait_for_function(
+            "() => Array.isArray(window.__guestEnquiryClipboardWrites) && window.__guestEnquiryClipboardWrites.length === 1",
+            timeout=5000,
+        )
+        check(page.evaluate("window.__guestEnquiryClipboardWrites[0]") == draft["text"],
+              f"{page_name}: copy action must copy the prepared message without sending it")
+        check("copied" in page.locator("[data-guest-enquiry-status]").inner_text().lower(),
+              f"{page_name}: copy result must be announced through the live status")
         check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 1,
               f"{page_name}: one user submission must prepare exactly one draft")
 
@@ -942,6 +968,10 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
         arrival.fill(dates["day3"])
         check(departure.get_attribute("required") is None,
               f"{page_name}: day experiences must not require a departure date")
+        check("optional" in page.locator("[data-departure-requirement-label]").inner_text().lower(),
+              f"{page_name}: day intent must show that departure is optional")
+        check("leave this blank" in page.locator("[data-departure-hint]").inner_text().lower(),
+              f"{page_name}: day intent must explain the single-date flow")
         check(form.evaluate("(element) => element.checkValidity()"),
               f"{page_name}: a single future date must validate for a day experience")
         submit.click()

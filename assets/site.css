@@ -319,3 +319,16 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 .guest-enquiry-panel__copy{max-width:520px}.guest-enquiry-panel__copy .display-title{margin:0 0 18px}.guest-enquiry-panel__copy>p:not(.eyebrow){max-width:480px;color:var(--muted);font-size:13px;line-height:1.9}
 .guest-enquiry-form{display:grid;gap:16px;min-width:0}.guest-enquiry-form__row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.guest-enquiry-form__field{display:grid;gap:7px;min-width:0}.guest-enquiry-form__field label{font-size:11px;font-weight:700;letter-spacing:.035em}.guest-enquiry-form__field label span,.guest-enquiry-form__field small{color:var(--muted);font-size:10px;font-weight:400}.guest-enquiry-form__field input,.guest-enquiry-form__field select,.guest-enquiry-form__field textarea{width:100%;min-height:48px;padding:11px 12px;border:1px solid var(--line);border-radius:0;background:var(--paper);color:var(--ink)}.guest-enquiry-form__field textarea{min-height:94px;resize:vertical}.guest-enquiry-form__field input:focus-visible,.guest-enquiry-form__field select:focus-visible,.guest-enquiry-form__field textarea:focus-visible{outline:3px solid var(--gold-dark);outline-offset:2px}.guest-enquiry-form__submit{justify-self:start;cursor:pointer}.guest-enquiry-form__submit:disabled{opacity:.55;cursor:not-allowed;transform:none}.guest-enquiry-form__status{margin:0;color:var(--muted);font-size:11px;line-height:1.7}.guest-enquiry-form__status[data-state="error"]{color:#8c352d}.guest-enquiry-form__status[data-state="ready"]{color:var(--ink-soft)}
 @media(max-width:800px){.guest-enquiry-panel{grid-template-columns:minmax(0,1fr);gap:24px}.guest-enquiry-form__submit{width:100%}}@media(max-width:480px){.guest-enquiry-form__row{grid-template-columns:minmax(0,1fr)}.guest-enquiry-panel{padding:22px}}
+
+
+/* Resilient recovery when the guest's browser blocks a WhatsApp tab. */
+.guest-enquiry-recovery{display:grid;gap:10px;min-width:0;padding:16px;border:1px solid var(--line);background:var(--paper)}
+.guest-enquiry-recovery[hidden]{display:none!important}
+.guest-enquiry-recovery h3{margin:0;font-family:var(--serif);font-size:clamp(20px,2.4vw,26px);font-weight:400;line-height:1.2}
+.guest-enquiry-recovery p{margin:0;color:var(--muted);font-size:12px;line-height:1.8}
+.guest-enquiry-recovery label{font-size:11px;font-weight:700;letter-spacing:.035em}
+.guest-enquiry-recovery textarea{display:block;width:100%;min-height:170px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:0;background:var(--white);color:var(--ink);font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.guest-enquiry-recovery textarea:focus-visible,.guest-enquiry-recovery button:focus-visible{outline:3px solid var(--gold-dark);outline-offset:3px}
+.guest-enquiry-recovery button{justify-self:start;cursor:pointer}
+.guest-enquiry-recovery button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:800px){.guest-enquiry-recovery button{width:100%}}

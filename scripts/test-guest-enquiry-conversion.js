@@ -19,7 +19,7 @@ function element(attrs = {}, text = '') {
     addEventListener(type, fn){if(!listeners.has(type))listeners.set(type,[]);listeners.get(type).push(fn);},
     dispatch(type,event={}){const ev={...event,preventDefault(){ev.defaultPrevented=true;}};for(const fn of listeners.get(type)||[])fn(ev);return ev;},
     querySelector(sel){return this.children?.[sel]||null;}, querySelectorAll(){return [];},
-    reportValidity(){return true;}, setCustomValidity(message){this.validationMessage=String(message);}, appendChild(){}, focus(){},
+    reportValidity(){return true;}, setCustomValidity(message){this.validationMessage=String(message);}, appendChild(){}, focus(){}, select(){this.selected=true;},
   };
   return el;
 }
@@ -41,6 +41,11 @@ function makeForm() {
   const form=element({'data-guest-enquiry-form':''});
   const submit=element({'data-guest-enquiry-submit':''},'Prepare WhatsApp enquiry');
   const status=element({'data-guest-enquiry-status':''},'Loading');
+  const departureHint=element({'data-departure-hint':''},'For day experiences, departure is optional.');
+  const departureRequirementLabel=element({'data-departure-requirement-label':''},'(optional)');
+  const recovery=element({'data-guest-enquiry-recovery':''}); recovery.hidden=true;
+  const draftField=element({'data-guest-enquiry-draft':''}); draftField.value='';
+  const copyButton=element({'data-guest-enquiry-copy':''},'Copy prepared message'); copyButton.disabled=true;
   const values={experience:'Swiss tent overnight',arrival:testDates.day3,departure:testDates.day5,guests:'2',notes:'Vegetarian meal request'};
   const experienceField=element({name:'experience'});
   experienceField.value=values.experience;
@@ -49,10 +54,10 @@ function makeForm() {
   const departure=element({name:'departure'});
   arrival.value=values.arrival; arrival.min='';
   departure.value=values.departure; departure.min='';
-  form.children={'[data-guest-enquiry-submit]':submit,'[data-guest-enquiry-status]':status,'[name="experience"]':experienceField,'[name="arrival"]':arrival,'[name="departure"]':departure};
+  form.children={'[data-guest-enquiry-submit]':submit,'[data-guest-enquiry-status]':status,'[name="experience"]':experienceField,'[name="arrival"]':arrival,'[name="departure"]':departure,'[data-departure-hint]':departureHint,'[data-departure-requirement-label]':departureRequirementLabel,'[data-guest-enquiry-recovery]':recovery,'[data-guest-enquiry-draft]':draftField,'[data-guest-enquiry-copy]':copyButton};
   form.reportValidity=()=>!arrival.validationMessage&&!departure.validationMessage&&(!departure.required||Boolean(departure.value));
   form.dispatch=function(type,event={}){const ev={...event,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};for(const fn of this.listeners.get(type)||[])fn(ev);return ev;};
-  return {form,submit,status,experienceField,arrival,departure,values};
+  return {form,submit,status,experienceField,arrival,departure,departureHint,departureRequirementLabel,recovery,draftField,copyButton,values};
 }
 async function boot({config,fetchFails=false,arrival=testDates.day3,departure=testDates.day5,experience='Swiss tent overnight'}={}) {
   const enquiry=element({'data-enquiry-link':'','href':'#contact-status','aria-disabled':'true','data-enquiry-message':'Please share details.'});
@@ -92,10 +97,11 @@ async function boot({config,fetchFails=false,arrival=testDates.day3,departure=te
     createElement:()=>element({}),addEventListener(){},
   };
   const opened=[];
-  const context={document,window:{location:{href:'https://example.test/experiences.html'},scrollY:0,addEventListener(){},clearTimeout(){},setTimeout(){return 1;},open:(...args)=>opened.push(args)},URL,URLSearchParams,FormData:class{constructor(){this.get=k=>guest.values[k]??'';}},console,encodeURIComponent,fetch:async()=>{if(fetchFails)throw new Error('offline');return{ok:true,json:async()=>config};}};
+  const clipboardWrites=[];
+  const context={document,window:{location:{href:'https://example.test/experiences.html'},scrollY:0,isSecureContext:true,addEventListener(){},clearTimeout(){},setTimeout(){return 1;},open:(...args)=>{opened.push(args);return null;}},URL,URLSearchParams,FormData:class{constructor(){this.get=k=>guest.values[k]??'';}},navigator:{clipboard:{writeText:async text=>{clipboardWrites.push(String(text));}}},console,encodeURIComponent,fetch:async()=>{if(fetchFails)throw new Error('offline');return{ok:true,json:async()=>config};}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..','assets/site.js'),'utf8'),context);
   await new Promise(resolve=>setImmediate(resolve));
-  return {guest,enquiry,phone,alt,email,booking,bookingSubmit,bookingNote,contactStatus,opened,context};
+  return {guest,enquiry,phone,alt,email,booking,bookingSubmit,bookingNote,contactStatus,opened,clipboardWrites,context};
 }
 const valid={verificationStatus:'owner-authorized-source',contact:{status:'source-authorized',whatsappBaseUrl:'https://wa.me/917727047567',primaryPhoneE164:'+917727047567',primaryPhoneDisplay:'+91 77270 47567',alternatePhoneE164:'+912992253836',alternatePhoneDisplay:'+91 2992 253836',email:'info@example.com'},booking:{status:'source-authorized',legacyBookingEngineUrl:'https://asiatech.in/booking_engine/index3?token=test'}};
 (async()=>{
@@ -106,6 +112,8 @@ const valid={verificationStatus:'owner-authorized-source',contact:{status:'sourc
   assert.equal(good.guest.arrival.min,localToday);
   assert.equal(good.guest.departure.min,good.guest.arrival.value);
   assert.equal(good.guest.departure.required,true,'overnight stays require a departure date');
+  assert.match(good.guest.departureHint.textContent,/overnight/i,'stay intent must explain the required departure');
+  assert.match(good.guest.departureRequirementLabel.textContent,/required/i,'stay intent must update the visible required-state label');
   const event=good.guest.form.dispatch('submit');
   assert.equal(event.defaultPrevented,true);
   assert.equal(good.opened.length,1);
@@ -119,6 +127,13 @@ const valid={verificationStatus:'owner-authorized-source',contact:{status:'sourc
   assert.match(bodyText,/Vegetarian meal request/);
   assert.match(bodyText,/does not confirm a booking/);
   assert.equal(good.guest.status.dataset.state,'ready');
+  assert.equal(good.guest.recovery.hidden,false,'the message fallback must be visible after submit even when window.open returns null');
+  assert.equal(good.guest.draftField.value,bodyText,'the fallback must display the exact WhatsApp draft text');
+  assert.equal(good.guest.copyButton.disabled,false,'copy action becomes available only after a draft exists');
+  good.guest.copyButton.dispatch('click');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(good.clipboardWrites,[bodyText],'copy action must copy the exact prepared draft');
+  assert.match(good.guest.status.textContent,/copied/i,'copy action must announce its result');
   const badDate=await boot({config:valid,departure:testDates.day3});
   badDate.guest.form.dispatch('submit');
   assert.equal(badDate.opened.length,0);
@@ -143,6 +158,8 @@ const valid={verificationStatus:'owner-authorized-source',contact:{status:'sourc
 
   const dayEnquiry=await boot({config:valid,experience:'Sunset camel safari',departure:''});
   assert.equal(dayEnquiry.guest.departure.required,false,'day experiences do not require a departure date');
+  assert.match(dayEnquiry.guest.departureHint.textContent,/optional/i,'day intent must explain that departure can be left blank');
+  assert.match(dayEnquiry.guest.departureRequirementLabel.textContent,/optional/i,'day intent must update the visible optional-state label');
   dayEnquiry.guest.form.dispatch('submit');
   assert.equal(dayEnquiry.opened.length,1,'day experience may prepare a single-date enquiry');
   const dayText=new URL(dayEnquiry.opened[0][0]).searchParams.get('text');
@@ -175,7 +192,11 @@ const valid={verificationStatus:'owner-authorized-source',contact:{status:'sourc
     const departureTag=(formHtml.match(/<input[^>]*name="departure"[^>]*>/)||[])[0]||'';
     assert.ok(departureTag,pageName + ' must expose a departure date field');
     assert.ok(!departureTag.includes(' required'),pageName + ' departure is optional in static markup');
-    assert.ok(formHtml.includes('id="guest-enquiry-departure-hint"'),pageName + ' departure must explain when it is required');
+    assert.ok(formHtml.includes('id="guest-enquiry-departure-hint" data-departure-hint'),pageName + ' departure must explain its current intent requirement');
+    assert.ok(formHtml.includes('data-departure-requirement-label'),pageName + ' visible requirement label must update with the selected intent');
+    assert.ok(formHtml.includes('data-guest-enquiry-recovery') && formHtml.includes('hidden'),pageName + ' must hide the draft fallback until a submission is prepared');
+    assert.ok(formHtml.includes('data-guest-enquiry-draft') && formHtml.includes('readonly'),pageName + ' fallback must expose a read-only draft');
+    assert.ok(formHtml.includes('data-guest-enquiry-copy'),pageName + ' must expose a copy fallback control');
     for (const option of ['Sleep under the stars','Swiss tent overnight','Room availability']) {
       assert.ok(formHtml.includes('<option data-requires-departure="true">' + option + '</option>'),pageName + ' must mark ' + option + ' as stay-like');
     }
