@@ -48,8 +48,14 @@
     guestEnquiryForms.forEach(form => {
       const submit = form.querySelector('[data-guest-enquiry-submit]');
       const status = form.querySelector('[data-guest-enquiry-status]');
+      const experienceField = form.querySelector('[name="experience"]');
       const arrivalField = form.querySelector('[name="arrival"]');
       const departureField = form.querySelector('[name="departure"]');
+      const departureHint = form.querySelector('[data-departure-hint]');
+      const departureRequirementLabel = form.querySelector('[data-departure-requirement-label]');
+      const recovery = form.querySelector('[data-guest-enquiry-recovery]');
+      const draftField = form.querySelector('[data-guest-enquiry-draft]');
+      const copyButton = form.querySelector('[data-guest-enquiry-copy]');
       const contact = config && config.contact ? config.contact : {};
       const authorized = channelIsAuthorized(config, contact);
       let whatsappBase = '';
@@ -65,7 +71,8 @@
           whatsappBase = '';
         }
       }
-      if (!submit || !status || !arrivalField || !departureField || !whatsappBase) {
+      if (!submit || !status || !experienceField || !arrivalField || !departureField
+          || !departureHint || !departureRequirementLabel || !recovery || !draftField || !copyButton || !whatsappBase) {
         if (submit) submit.disabled = true;
         if (status) {
           status.dataset.state = 'error';
@@ -73,6 +80,11 @@
         }
         return;
       }
+
+      const selectedExperienceRequiresDeparture = () => {
+        const selected = experienceField.selectedOptions && experienceField.selectedOptions[0];
+        return Boolean(selected && selected.getAttribute('data-requires-departure') === 'true');
+      };
 
       const localDateString = date => {
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -84,9 +96,16 @@
         const today = localDateString(new Date());
         const arrival = String(arrivalField.value || '');
         const departure = String(departureField.value || '');
+        const departureRequired = selectedExperienceRequiresDeparture();
         arrivalField.min = today;
+        departureField.required = departureRequired;
+        departureRequirementLabel.textContent = departureRequired ? '(required for this enquiry)' : '(optional)';
+        departureHint.textContent = departureRequired
+          ? 'A departure date is required for overnight stays and room-availability enquiries. It must be after arrival.'
+          : 'Departure is optional for day experiences or planning questions. Leave this blank for a single-date enquiry; if supplied, it must be after the requested date.';
         // Never allow a departure date before today, even while an invalid
-        // past arrival is being corrected.
+        // past arrival is being corrected. When supplied, departure must be
+        // later than the requested date even for an otherwise day-only enquiry.
         departureField.min = arrival > today ? arrival : today;
         departureField.setCustomValidity(
           arrival && departure && departure <= arrival
@@ -98,33 +117,75 @@
         arrivalField.addEventListener(type, updateDateConstraints);
         departureField.addEventListener(type, updateDateConstraints);
       });
+      experienceField.addEventListener('change', updateDateConstraints);
       updateDateConstraints();
 
+      recovery.hidden = true;
+      draftField.value = '';
+      copyButton.disabled = true;
       submit.disabled = false;
       status.dataset.state = 'ready';
       status.textContent = 'Ready. Review the details, then prepare a WhatsApp draft. Nothing is sent automatically.';
+
+      copyButton.addEventListener('click', async () => {
+        const text = String(draftField.value || '');
+        if (!text) return;
+        try {
+          if (window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+            status.dataset.state = 'ready';
+            status.textContent = 'Enquiry text copied. Open the hotel WhatsApp chat and paste it. Nothing was sent by this website.';
+            return;
+          }
+        } catch (_) {
+          // Clipboard access may be unavailable or permission may be denied.
+        }
+        try {
+          draftField.focus();
+          draftField.select();
+        } catch (_) {
+          // Keep the message available even if selection is unsupported.
+        }
+        let copied = false;
+        try {
+          copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+        } catch (_) {
+          // Manual selection remains available below.
+        }
+        status.dataset.state = copied ? 'ready' : 'error';
+        status.textContent = copied
+          ? 'Enquiry text copied. Open the hotel WhatsApp chat and paste it. Nothing was sent by this website.'
+          : 'The prepared message is selected below. Use your device’s Copy command, then paste it into the hotel WhatsApp chat. Nothing was sent.';
+      });
+
       form.addEventListener('submit', event => {
         event.preventDefault();
         updateDateConstraints();
         if (!form.reportValidity()) return;
         const data = new FormData(form);
+        const experience = String(data.get('experience') || '').trim();
         const arrival = String(data.get('arrival') || '');
         const departure = String(data.get('departure') || '');
-        if (!arrival || !departure || departure <= arrival) return;
+        const departureRequired = selectedExperienceRequiresDeparture();
+        if (!experience || !arrival || (departureRequired && !departure) || (departure && departure <= arrival)) return;
         const lines = [
-          'Namaste Garh Jaisal Haveli, I would like to enquire about a stay/experience.',
-          'Interest: ' + String(data.get('experience') || 'Not specified'),
-          'Arrival: ' + arrival,
-          'Departure: ' + departure,
+          'Namaste Garh Jaisal Haveli, I would like to enquire about a stay or experience.',
+          'Interest: ' + experience,
+          'Requested date / arrival: ' + arrival,
+          ...(departure ? ['Departure: ' + departure] : []),
           'Guests: ' + String(data.get('guests') || 'Not specified')
         ];
         const notes = String(data.get('notes') || '').trim();
         if (notes) lines.push('Additional details: ' + notes.slice(0, 500));
         lines.push('Please confirm current availability, arrangements, inclusions and total price. I understand this enquiry does not confirm a booking.');
-        const target = whatsappBase + '?text=' + encodeURIComponent(lines.join('\n'));
+        const draftText = lines.join('\n');
+        const target = whatsappBase + '?text=' + encodeURIComponent(draftText);
         window.open(target, '_blank', 'noopener,noreferrer');
+        draftField.value = draftText;
+        recovery.hidden = false;
+        copyButton.disabled = false;
         status.dataset.state = 'ready';
-        status.textContent = 'Your WhatsApp draft is ready to review in the new tab. If it did not open, check your browser’s pop-up settings. No reservation is confirmed by this website.';
+        status.textContent = 'Your draft is ready to review in WhatsApp. If the tab did not open, copy the prepared text below and paste it into the hotel chat. Nothing was sent automatically.';
       });
     });
   }

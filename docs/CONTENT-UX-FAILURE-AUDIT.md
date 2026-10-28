@@ -1005,3 +1005,37 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Removed the inherited `max="20"` form ceiling because no owner-confirmed restaurant capacity was identified in the reviewed source menu record.
 - Retained a minimum of one guest and whole-number input. Larger groups can ask; the restaurant must confirm capacity and availability.
 - Updated static and Chromium regression checks to reject an arbitrary maximum while still rejecting zero and fractional party sizes.
+
+
+## 28 October 2026 — Experience enquiry dates match the guest's intent
+
+### Finding
+- The shared Experiences / Experience details enquiry required both arrival and departure for every request, including a same-day camel safari, cultural evening, guided city tour or Fort walk. This forced guests to provide a second date that did not necessarily apply to their plan and made the date range feel like a stay booking.
+
+### Implementation
+- Changed the date label to “Date of experience / arrival” and explained that departure is required for overnight stays and room-availability requests, but optional for day experiences.
+- Marked only “Sleep under the stars”, “Swiss tent overnight” and “Room availability” as departure-required choices, using the same markup contract across Experiences, Experience details and Dining.
+- Updated the shared form logic to recompute the required state when the selected interest changes. If departure is supplied, it must follow the requested date; blank optional departure is omitted from the WhatsApp draft.
+- Added static markup assertions, deterministic form-behavior tests and Chromium checks for both overnight date ranges and a single-date day enquiry. Browser tests intercept the draft-opening call and never send guest data.
+
+### Validation and release boundary
+- Exact-head push and pull-request quality workflows must pass on the same final feature SHA before merge; post-merge main quality must then pass.
+- Current tour operations, routes, inclusions, prices and guide availability remain owner-confirmation items. A form submission only prepares a draft; it does not establish availability or confirm a booking.
+- Staging UAT, live contact checks, Lighthouse and formal accessibility testing remain NOT RUN. No canonical/sitemap activation, robots-policy change, production deployment or server-side enquiry collection is included.
+
+
+## 28 October 2026 — Guest-enquiry fallback and clearer intent state
+
+### Finding
+- A browser can block a newly opened WhatsApp tab, while the site previously announced the draft as ready without leaving a convenient on-page recovery path. The departure field also changed its native required state with the selected interest but kept generic explanatory copy, making the form state less obvious to guests and assistive technology users.
+
+### Implementation
+- Added a read-only draft panel and explicit copy button to Experiences, Experience details and Dining. The panel appears only after a valid, explicit submit and displays the exact message intended for WhatsApp.
+- Added clipboard copying with a selection-based fallback for insecure contexts or denied/unavailable clipboard APIs. Copying is never automatic; no form data is sent to a server or persisted.
+- Made the departure requirement label and helper text respond to the selected interest so overnight/room requests and day-only plans are explained differently.
+- Extended deterministic unit coverage and Chromium checks across all three forms, including the copied text and live status. Browser tests intercept window.open and do not open WhatsApp or send guest data.
+
+### Validation and release boundary
+- Both exact-head push and pull-request workflows must pass on the same final commit before merge.
+- Desktop/mobile clipboard behavior, pop-up recovery, live channel reachability and all manual staging UAT remain owner verification tasks; STG-01–STG-18 stay NOT RUN.
+- No production deployment, SEO publication change or server-side enquiry storage is included.
