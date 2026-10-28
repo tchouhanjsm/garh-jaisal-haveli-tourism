@@ -100,8 +100,8 @@
         "path": "assets/images/legacy/fort-temple-spires.jpg",
         "role": "hero",
         "fit": "possible-contextual-match",
-        "rationale": "Filename suggests temple spires near the fort; verify that the image actually depicts the Jain temples and that photography/use rights are cleared.",
-        "provenance": "Target repository legacy asset path; source/creator record not yet verified.",
+        "rationale": "Filename suggests temple spires; verify that it depicts the relevant Jain temples and clear usage rights.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
         "reviewStatus": "unreviewed"
       }
