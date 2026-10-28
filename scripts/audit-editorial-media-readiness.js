@@ -195,6 +195,7 @@ function auditMedia(root=ROOT) {
     if (!Array.isArray(candidates) || !Array.isArray(approved)) errors.push(item.relative+': media candidates and approvedAssets must be arrays');
     const candidatePaths=new Set();
     for(const candidate of candidates) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) { errors.push(item.relative+': malformed media candidate record'); continue; }
       const absolute=safeImagePath(root,candidate.path);
       if(!absolute) errors.push(item.relative+': candidate path missing or unsafe: '+candidate.path);
       if(candidatePaths.has(candidate.path)) errors.push(item.relative+': duplicate candidate path '+candidate.path);
@@ -209,6 +210,7 @@ function auditMedia(root=ROOT) {
     }
     const approvedRoles=new Set();
     for(const approvedAsset of approved) {
+      if (!approvedAsset || typeof approvedAsset !== 'object' || Array.isArray(approvedAsset)) { errors.push(item.relative+': malformed approved media record'); continue; }
       if(approvedRoles.has(approvedAsset.role)) errors.push(item.relative+': multiple approved assets for role '+approvedAsset.role);
       approvedRoles.add(approvedAsset.role);
       const candidate=candidates.find(c=>c.path===approvedAsset.path&&c.role===approvedAsset.role&&c.reviewStatus==='approved'&&['owner-confirmed','licensed'].includes(c.rightsStatus));
@@ -216,10 +218,10 @@ function auditMedia(root=ROOT) {
       if(!safeImagePath(root,approvedAsset.path)) errors.push(item.relative+': approved asset path missing or unsafe: '+approvedAsset.path);
       const info=assets.find(a=>a.path===approvedAsset.path);
       if(!info||!info.valid) errors.push(item.relative+': approved asset failed technical checks: '+approvedAsset.path);
-      if(/^(image|photo|picture|image of|photo of|jaisalmer)$/i.test(approvedAsset.alt.trim())) errors.push(item.relative+': generic alt text is not allowed for '+approvedAsset.path);
+      if(/^(image|photo|picture|image of|photo of|jaisalmer)$/i.test(String(approvedAsset.alt || '').trim())) errors.push(item.relative+': generic alt text is not allowed for '+approvedAsset.path);
     }
     for(const role of ['hero','socialPreview']) {
-      if(!approved.some(a=>a.role===role) && item.record.editorialReview.mediaStatus==='approved') errors.push(item.relative+': '+role+' media approval missing while mediaStatus is approved');
+      if(!approved.some(a=>a && a.role===role) && item.record.editorialReview.mediaStatus==='approved') errors.push(item.relative+': '+role+' media approval missing while mediaStatus is approved');
     }
     if(item.record.editorialReview.mediaStatus==='approved') {
       for(const role of ['hero','socialPreview']) {
