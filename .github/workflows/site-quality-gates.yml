@@ -60,6 +60,12 @@ jobs:
             --event-name "$GITHUB_EVENT_NAME" \
             --quality-passed
 
+      - name: Validate packaged responsive image delivery
+        run: |
+          MEDIA_PERFORMANCE_ROOT="${RUNNER_TEMP}/garh-jaisal-preview" \
+          MEDIA_PERFORMANCE_CONTRACT_ROOT="${GITHUB_WORKSPACE}" \
+            node scripts/test-page-media-performance.js
+
       - name: Upload guarded staging preview artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

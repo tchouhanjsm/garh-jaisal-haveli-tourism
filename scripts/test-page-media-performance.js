@@ -4,10 +4,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(process.env.MEDIA_PERFORMANCE_ROOT || path.join(__dirname, '..'));
+const CONTRACT_ROOT = path.resolve(process.env.MEDIA_PERFORMANCE_CONTRACT_ROOT || ROOT);
 const KIB = 1024;
 const DEFAULT_MAX_BYTES = 650 * KIB;
-const routeContract = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
+const routeContract = JSON.parse(fs.readFileSync(path.join(CONTRACT_ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
 const PAGES = routeContract.routes.map(route => route.file);
 const HERO_BUDGETS = new Map([
   ['index.html', 150 * KIB],
