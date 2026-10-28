@@ -68,6 +68,18 @@ function makeBlogLive(root) {
   blog.heroImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
   blog.heroAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
   copyFixtureImage(root, blog.heroImage);
+  blog.seo.ogImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
+  blog.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  copyFixtureImage(root, blog.seo.ogImage);
+  blog.editorialReview = {
+    editorialStatus: 'approved',
+    sourceStatus: 'approved',
+    factStatus: 'approved',
+    mediaStatus: 'approved',
+    ownerFactApproved: true,
+    reviewedAt: '2026-10-25',
+    reviewer: 'fixture-editor',
+  };
   blog.enquiryCta = { label: 'Email the hotel with a question', mode: 'contact' };
   writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', blog);
 }
