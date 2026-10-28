@@ -1099,3 +1099,11 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Every new record stays `status: "draft"`, with `lastReviewed` and `publishedAt` unset. They are content preparation, not published pages.
 - The renderer test must confirm no output files and no generated sitemap URLs while the records remain drafts.
 - Owner fact review, editorial approval, canonical-host approval, Search Console work, staging UAT and deployment remain separate release gates.
+
+
+## 28 October 2026 — Editorial query-intent contract
+
+- Added required `primaryQuery` and controlled `searchIntent` values to the blog SEO schema.
+- Assigned one query and intent to the existing Fort pillar and each of eleven supporting Jaisalmer guides; queries are checked for collisions across all records.
+- Extended the synthetic content-contract fixture and editorial cluster regression to enforce the new schema.
+- This is authoring/QA metadata, not a claim about search demand, rankings or indexing. All posts remain drafts and the canonical/robots/sitemap publication gate remains closed.

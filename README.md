@@ -273,3 +273,8 @@ Selecting **Prepare enquiry** opens a prefilled WhatsApp draft for the visitor t
 A source-backed editorial cluster is being prepared from the existing Jaisalmer Fort pillar guide and eleven related draft records in `content/blogs/`. The articles cover inside-fort stays and arrival, flexible itineraries, seasonal planning, Jain temples, Gadisar Lake, Bada Bagh/Vyas Chhatri, Kuldhara, desert-experience questions, respectful photography and heritage-hotel booking questions. Each draft includes search-title/description fields, structured sections, named sources and related-blog links.
 
 All new records intentionally remain `status: "draft"`, with no review or publication date. `scripts/test-editorial-content-cluster.js` checks schema validity, unique slugs, official HTTPS source hosts, cross-link integrity, article metadata and the no-publication rule. The renderer must emit no blog pages and the root sitemap must remain URL-empty while the site's publication gate is closed. Editorial preparation does not approve property facts or change `site.canonicalHostApproved=false`, `robots.txt`, the public sitemap, canonical tags or deployment.
+
+
+## Editorial primary queries and search intent
+
+Every blog record now declares a single `seo.primaryQuery` and controlled `seo.searchIntent` (`informational`, `commercial`, `transactional` or `local`). This makes the intended query explicit for editorial review and helps prevent closely related pages from competing for the same search need. The contract checks uniqueness across the complete editorial set; it does not claim search rankings or validate live search demand. Query mapping is editorial metadata only and does not publish any article.

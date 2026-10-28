@@ -38,7 +38,7 @@ const validBlog = {
   schemaVersion: 1,
   slug: 'jaisalmer-fort-guide',
   title: 'A Practical Guide to Jaisalmer Fort',
-  seo: { title: 'Jaisalmer Fort Visitor Guide', description },
+  seo: { title: 'Jaisalmer Fort Visitor Guide', description, primaryQuery: 'Jaisalmer Fort guide', searchIntent: 'informational' },
   status: 'draft',
   lede: 'A practical guide to exploring the fort and planning arrival, with advice to verify before travel.',
   sections: [
