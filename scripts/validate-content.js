@@ -194,7 +194,8 @@ function blogMediaPolicyFindings(record, root, sourcePath) {
         const mediaAudit = require('./audit-editorial-media-readiness');
         sharedImagePolicy = sharedImagePolicy || mediaAudit.imagePolicy(root);
         const image = mediaAudit.imageInfo(root, asset.path, sharedImagePolicy);
-        const technical = mediaAudit.validateForRole(image, asset.role, sharedImagePolicy);
+        const decoded = mediaAudit.verifyImageDecode(root, [image]).get(asset.path);
+        const technical = mediaAudit.validateForRole({ ...image, decodeStatus: decoded && decoded.status }, asset.role, sharedImagePolicy);
         if (!technical.valid) findings.push({path: sourcePath + '.media.approvedAssets', message: 'approved asset fails publication media checks: ' + asset.path + ' (' + technical.errors.join('; ') + ')'});
       } catch (error) {
         findings.push({path: sourcePath + '.media.approvedAssets', message: 'could not validate approved image safely: ' + asset.path + ' (' + error.message + ')'});
