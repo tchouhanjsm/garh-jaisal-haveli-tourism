@@ -47,7 +47,7 @@ function listBlogRecords(root) {
       record: readJson(root, 'content/blogs/' + name) }));
 }
 function safeImagePath(root, relative) {
-  if (!safeRelativePath(relative) || !relative.startsWith('assets/images/')) return null;
+  if (!safeRelativePath(relative) || !relative.startsWith('assets/images/') || !INSPECTABLE_SOURCE_FORMATS.has(path.extname(relative).toLowerCase())) return null;
   const absolute = path.resolve(root, relative);
   const rel = path.relative(path.resolve(root), absolute);
   if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
@@ -299,13 +299,19 @@ function auditMedia(root=ROOT) {
   for(const item of catalogue) for(const candidate of (item.record.media&&Array.isArray(item.record.media.candidates)?item.record.media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate))) {
     const owners=candidateOwners.get(candidate.path)||[]; owners.push(item.record.slug+':'+candidate.role); candidateOwners.set(candidate.path,owners);
   }
+  const duplicateFilesMap=new Map();
+  for(const asset of assets) if(asset.sha256) {
+    const files=duplicateFilesMap.get(asset.sha256)||[];
+    files.push(asset.path); duplicateFilesMap.set(asset.sha256,files);
+  }
+  const duplicateFiles=[...duplicateFilesMap.entries()].filter(([,files])=>files.length>1).map(([sha256,files])=>({sha256,files:files.sort()}));
   const duplicateCandidates=[...candidateOwners.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   const duplicates=[...seenRefs.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   return {schemaVersion:1,state:errors.length?'ERROR':catalogue.length>0&&catalogue.every(i=>i.record.editorialReview.mediaStatus==='approved'&&(i.record.media.approvedAssets||[]).length===2)?'READY':'BLOCKED',
-    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,approvedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus!=='approved').length},
+    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus!=='approved').length},
     policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
     inventory:assets.sort((a,b)=>a.path.localeCompare(b.path)),
-    duplicates,duplicateCandidates,errors,articles:catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy))
+    duplicates,duplicateCandidates,duplicateFiles,errors,articles:catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy))
   };
 }
 function flattenRefs(record) {
@@ -317,7 +323,9 @@ function flattenRefs(record) {
 function articleReport(root,item,assets,seenRefs,policy) {
   const r=item.record, media=r.media||{}, review=r.editorialReview||{};
   const roles=['hero','socialPreview'];
-  const candidateWarnings=(Array.isArray(media.candidates)?media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate)).flatMap(candidate=>[
+  const candidateRecords=(Array.isArray(media.candidates)?media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate));
+  const approvedRecords=(Array.isArray(media.approvedAssets)?media.approvedAssets:[]).filter(asset=>asset&&typeof asset==='object'&&!Array.isArray(asset));
+  const candidateWarnings=candidateRecords.flatMap(candidate=>[
     ...(candidate.reviewStatus==='unreviewed'?['candidate-unreviewed:'+candidate.path]:[]),
     ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
     ...(!(assets.find(a=>a.path===candidate.path)||{}).valid?['candidate-needs-technical-review:'+candidate.path]:[]),
@@ -327,18 +335,18 @@ function articleReport(root,item,assets,seenRefs,policy) {
     requirements:media.requirements||null,
     heroImage:r.heroImage||null,socialPreviewImage:r.seo&&r.seo.ogImage||null,
     candidateWarnings,
-    candidates:(Array.isArray(media.candidates)?media.candidates:[]).filter(candidate=>candidate&&typeof candidate==='object'&&!Array.isArray(candidate)).map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,policy);return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:(Array.isArray(media.approvedAssets)?media.approvedAssets:[]).filter(asset=>asset&&typeof asset==='object'&&!Array.isArray(asset)),
-    missingRoles:roles.filter(role=>!((Array.isArray(media.approvedAssets)?media.approvedAssets:[]).filter(a=>a&&typeof a==='object'&&!Array.isArray(a))).some(a=>a.role===role)),
+    candidates:candidateRecords.map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,policy);return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:approvedRecords,
+    missingRoles:roles.filter(role=>!approvedRecords.some(a=>a.role===role)),
     duplicateAssetUsage:[...seenRefs.entries()].filter(([,owners])=>owners.some(owner=>owner.startsWith(r.slug+':'))&&owners.length>1).map(([asset,owners])=>({asset,owners})),
     blockers:[...(review.mediaStatus==='approved'?[]:['media-review-'+review.mediaStatus]),
-      ...roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)).map(role=>role+'-approval-missing'),
-      ]
+      ...roles.filter(role=>!approvedRecords.some(a=>a.role===role)).map(role=>role+'-approval-missing')
+    ]
   };
 }
 function reportText(report) {
   const lines=['EDITORIAL MEDIA READINESS: '+report.state,
     'Articles: '+report.summary.articleCount+' | inventoried assets: '+report.summary.assetCount+' | technical pass: '+report.summary.technicallyValidAssetCount+' | approved articles: '+report.summary.approvedArticleCount+' | blocked: '+report.summary.blockedArticleCount,
-    'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | read-only: yes'];
+    'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | duplicate files: '+report.summary.duplicateFileCount+' | read-only: yes'];
   for(const article of report.articles) lines.push((article.blockers.length?'BLOCK ':'READY ')+article.slug+' — '+article.blockers.join(', '));
   if(report.errors.length) lines.push('Integrity errors:',...report.errors.map(e=>' - '+e));
   return lines.join('\n');
