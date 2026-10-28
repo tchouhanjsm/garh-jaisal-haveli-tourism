@@ -102,7 +102,7 @@
         departureRequirementLabel.textContent = departureRequired ? '(required for this enquiry)' : '(optional)';
         departureHint.textContent = departureRequired
           ? 'A departure date is required for overnight stays and room-availability enquiries. It must be after arrival.'
-          : 'For day experiences or planning questions, leave this blank for a single-date enquiry. If supplied, departure must be after the requested date.';
+          : 'Departure is optional for day experiences or planning questions. Leave this blank for a single-date enquiry; if supplied, it must be after the requested date.';
         // Never allow a departure date before today, even while an invalid
         // past arrival is being corrected. When supplied, departure must be
         // later than the requested date even for an otherwise day-only enquiry.
