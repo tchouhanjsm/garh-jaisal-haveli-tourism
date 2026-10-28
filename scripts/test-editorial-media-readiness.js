@@ -16,6 +16,7 @@ assert.equal(report.state, 'BLOCKED', 'draft media cannot be release-ready');
 assert.equal(report.summary.approvedArticleCount, 0, 'asset inventory must not infer approval');
 assert.equal(report.summary.declaredApprovedArticleCount, 0, 'no draft record may claim media approval');
 assert.ok(report.articles.every(article => article.requirements.hero.subject && article.requirements.socialPreview.subject), 'human report must expose role-specific requirements');
+assert.ok(report.articles.flatMap(article => article.candidates).every(candidate => candidate.fit === 'not-assessed' && candidate.visualReview.status === 'not_assessed'), 'unreviewed candidates must not claim contextual fit');
 assert.equal(report.summary.blockedArticleCount, 12);
 assert.ok(report.summary.verifiedPixelDecodeAssetCount > 0, 'real local image assets must receive a complete Chromium pixel decode');
 assert.ok(report.summary.assetCount > 0, 'inventory should include existing non-blog media');
@@ -68,6 +69,7 @@ try {
     rationale: 'Synthetic corrupt asset used only by this negative regression fixture.',
     provenance: 'Synthetic test fixture; not image provenance.',
     rightsStatus: 'unverified', reviewStatus: 'unreviewed',
+    visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in negative fixture.', reviewer: null, reviewedAt: null },
   });
   fs.writeFileSync(badCandidatePath, JSON.stringify(badCandidateRecord, null, 2) + '\n');
   const corruptReport = auditMedia(temp);
@@ -81,6 +83,7 @@ try {
     rationale: 'Synthetic missing asset used only by this negative regression fixture.',
     provenance: 'Synthetic test fixture; not image provenance.',
     rightsStatus: 'unverified', reviewStatus: 'unreviewed',
+    visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in negative fixture.', reviewer: null, reviewedAt: null },
   });
   fs.writeFileSync(badCandidatePath, JSON.stringify(badCandidateRecord, null, 2) + '\n');
   const missingReport = auditMedia(temp);
@@ -97,16 +100,19 @@ try {
   }];
   invalidApproval.media.candidates = [{
     path: 'assets/images/gallery/hotel/fort-from-roof.webp',
-    role: 'hero', fit: 'possible-contextual-match',
+    role: 'hero', fit: 'not-assessed',
     rationale: 'Candidate fixture demonstrates that path presence is not approval.',
     provenance: 'Fixture only; not an evidence claim.',
     rightsStatus: 'unverified', reviewStatus: 'approved',
+    visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in negative fixture.', reviewer: null, reviewedAt: null },
   }];
   validateRecordPolicy('blog', invalidApproval, ROOT,
     { contentTypes: { blog: { outputDirectory: 'blogs', outputExtension: '.html' } } },
     { site: { canonicalHostApproved: false } }, validatorFindings, 'content/blogs/jaisalmer-fort-guide.json');
   assert.ok(validatorFindings.some(finding => /owner-confirmed or licensed rights evidence/.test(finding.message)),
     'unverified rights must invalidate candidate approval');
+  assert.ok(validatorFindings.some(finding => /documented visual subject match/.test(finding.message)),
+    'candidate approval must require recorded visual subject review');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
