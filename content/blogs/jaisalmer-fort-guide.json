@@ -191,7 +191,7 @@
       "socialPreview": {
         "required": true,
         "minWidth": 1200,
-        "maxBytes": 204800,
+        "maxBytes": 81920,
         "subject": "Wide view of Jaisalmer Fort and its sandstone settlement"
       }
     },
