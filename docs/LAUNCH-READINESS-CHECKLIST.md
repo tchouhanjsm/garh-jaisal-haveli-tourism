@@ -47,6 +47,19 @@ The test also requires a single high-priority non-lazy image in pages with a vis
 - `robots-staging.txt`, `sitemap-empty.xml` and the non-canonical-host `X-Robots-Tag` rule protect staging/preview hosts. `.htaccess` does not add an unverified hostname, redirect, or claim to have verified DNS/TLS.
 - Follow `docs/SEO-PUBLICATION-RUNBOOK.md`; a passing static suite is not production publication approval or live-host evidence.
 
+## Premium guest-journey design review
+
+The premium visual layer and four-step journey are now source-controlled. The homepage uses its existing planning panel; the other seven core routes have the shared Stay / Explore / Dine / Arrive rail. Automated consistency and browser checks are required, but the following must be completed separately by a human reviewer after deployment to an approved staging URL:
+
+- [ ] Review each core route at narrow mobile (320 px), mobile (360/390 px), tablet (768 px), laptop (1280 px) and desktop (1440 px).
+- [ ] Confirm hero text remains readable against each existing image or plain hero treatment; confirm no image subject is obscured by the new overlap.
+- [ ] Check the journey rail does not collide with route-specific navigation, forms, room comparison tables, or tab panels.
+- [ ] Keyboard through every rail link and all page actions; confirm visible focus and sensible reading order.
+- [ ] Verify reduced-motion settings do not trigger unexpected movement and that mobile navigation remains operable.
+- [ ] Capture visual evidence and record operator, date/time, URL, browser/device and follow-up items before marking the review complete.
+
+Automated CI does not mark these manual items complete. This design work does not approve the canonical host or permit production SEO publication.
+
 ## MANUAL RELEASE GATES
 
 Complete and record these checks against the intended staging site first. Do not complete a real reservation or payment simply to test the link.
