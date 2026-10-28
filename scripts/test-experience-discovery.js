@@ -43,7 +43,7 @@ assert.doesNotMatch(details, /Compare the six options/i, 'Detail CTA must not fr
 const navMatch = experiences.match(/<nav class="experience-discovery-nav__links" aria-label="Browse by experience type">([\s\S]*?)<\/nav>/);
 assert.ok(navMatch, 'Accessible experience-type navigation must be present');
 const navLinks = [...navMatch[1].matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
-assert.deepEqual(navLinks.map(match => match[1]), ['#desert', '#open-sky', '#city-tours', '#experience-more-title'],
+assert.deepEqual(navLinks.map(match => match[1]), ['#desert', '#open-sky', '#city-tours', '#experience-research-ideas-title'],
   'The four navigation links target real, useful page sections');
 for (const [, href] of navLinks) {
   const target = href.slice(1);
@@ -116,5 +116,6 @@ for (const [key, optionLabel, detailId] of expectedResearchIdeas) {
 assert.match(researchSection[0], /aria-labelledby="experience-research-ideas-title"/, 'The route idea section has an accessible heading association');
 assert.match(css, /\.experience-research-ideas__grid/, 'Research idea cards have scoped layout styling');
 assert.match(css, /\.experience-research-idea__actions a:focus-visible/, 'Research idea actions retain visible keyboard focus');
+assert.match(css, /\.experience-detail-topic-list a:focus-visible/, 'Research theme jump links retain visible keyboard focus');
 
 console.log('PASS: experience discovery navigation, package/detail separation, extra route paths, editorial headline and enquiry-only route guardrails.');
