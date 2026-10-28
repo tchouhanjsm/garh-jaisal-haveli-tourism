@@ -78,6 +78,46 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 self.assertGreater(item["bytes"], 0)
                 self.assertLess(item["bytes"], entry["fullSizeBytes"])
 
+    def test_symlinked_image_paths_are_rejected_before_any_write(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "site"
+            outside = base / "outside"
+            (root / "assets").mkdir(parents=True)
+            outside.mkdir()
+            (root / "assets" / "images").symlink_to(outside, target_is_directory=True)
+
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                generate_responsive_variants(root, ("rest3.jpg",))
+            self.assertEqual(list(outside.iterdir()), [])
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "site"
+            create_jpeg(root, "rest3.jpg", (1200, 800))
+            outside = base / "outside"
+            outside.mkdir()
+            (root / "assets" / "images" / "responsive").symlink_to(
+                outside, target_is_directory=True
+            )
+
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                generate_responsive_variants(root, ("rest3.jpg",))
+            self.assertFalse((root / "assets" / "images" / "rest3.webp").exists())
+            self.assertEqual(list(outside.iterdir()), [])
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "site"
+            create_jpeg(root, "rest3.jpg", (1200, 800))
+            protected = base / "protected.webp"
+            protected.write_bytes(b"keep-this-file-unchanged")
+            (root / "assets" / "images" / "rest3.webp").symlink_to(protected)
+
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                generate_responsive_variants(root, ("rest3.jpg",))
+            self.assertEqual(protected.read_bytes(), b"keep-this-file-unchanged")
+
     def test_oversized_jpeg_headers_are_rejected_before_decode(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
