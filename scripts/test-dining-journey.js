@@ -67,9 +67,13 @@ assert.match(form, /id="restaurant-table-note-help"/, 'Optional note has a stabl
 assert.match(form, /aria-describedby="restaurant-table-note-help"/, 'Optional note help is associated for assistive technology');
 assert.match(form, /Avoid payment details or sensitive personal information/i, 'Optional note warns against sensitive data');
 assert.equal((form.match(/name="guests"/g) || []).length, 1, 'Dining table form has exactly one party-size field');
-assert.doesNotMatch(form, /guest-enquiry-|data-guest-enquiry/, 'Table form must not contain stay-enquiry fields');
+assert.doesNotMatch(form, /data-guest-enquiry|id="guest-enquiry-/, 'Table form must not contain stay-enquiry fields; shared recovery styling is allowed');
 assert.match(form, /data-restaurant-table-submit/, 'Table form includes its own submit control');
 assert.match(form, /data-restaurant-table-status/, 'Table form includes its own status message');
+assert.match(form, /data-restaurant-table-recovery[^>]*hidden/, 'The fallback panel stays hidden until an explicit valid submit');
+assert.match(form, /data-restaurant-table-draft/, 'The fallback exposes the prepared message');
+assert.match(form, /readonly/, 'The prepared message is read-only');
+assert.match(form, /data-restaurant-table-copy[^>]*disabled/, 'Copy remains disabled until a draft is prepared');
 assert.ok(!js.includes('allowedSlot') && !js.includes('7 * 60') && !js.includes('22 * 60 + 30') && !js.includes('Guests: 2'),
   'Runtime must not invent restaurant hours or hard-code a party size');
 assert.ok(js.includes("'Guests: ' + guests"), 'The draft must use the guest-selected party size');
@@ -99,6 +103,11 @@ assert.match(js, /dateField\.min = today/);
 assert.doesNotMatch(js, /digits\.length < 8 \|\| digits\.length > 15/, 'No mobile-number collection or validation remains');
 assert.match(js, /window\.open\(draftUrl, '_blank', 'noopener,noreferrer'\)/,
   'Only explicit form submission opens a draft, in a protected new tab');
+assert.match(js, /draftField\.value = message/, 'The exact message is exposed in the recovery panel');
+assert.match(js, /recovery\.hidden = false/, 'The fallback appears only after a valid enquiry');
+assert.match(js, /navigator\.clipboard\.writeText/, 'Copy uses the browser clipboard when permitted');
+assert.match(js, /document\.execCommand\('copy'\)/, 'Clipboard failure has a selection-based recovery path');
+assert.match(js, /Nothing was sent/, 'Recovery copy continues to state that nothing is sent automatically');
 assert.match(js, /loadApprovedContact\(\)/);
 assert.match(js, /owner-authorized-source/);
 assert.match(js, /owner-verified/);
@@ -108,4 +117,4 @@ assert.doesNotMatch(js, /localStorage|sessionStorage|fetch\s*\([^)]*POST|method:
 assert.doesNotMatch(js, /\+917727047567|77270\s*47567/,
   'The WhatsApp destination stays centralized in site-config.json');
 
-console.log('PASS: Dining tabs, menu-approval guard, minimized table-enquiry fields, accessible date/time preferences, contact authorization, and no-reservation/no-storage safeguards.');
+console.log('PASS: Dining tabs and menu guard; minimized table enquiry includes a copyable recovery draft, accessible preferences, authorized contact and no-reservation/no-storage safeguards.');

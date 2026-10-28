@@ -56,7 +56,14 @@
   clearButton.type = 'button';
   clearButton.dataset.roomCompareClear = '';
   clearButton.disabled = true;
-  header.append(intro, clearButton);
+  const enquiryButton = element('button', 'room-compare__enquire', 'Ask about selected rooms');
+  enquiryButton.type = 'button';
+  enquiryButton.dataset.roomCompareEnquiry = '';
+  enquiryButton.dataset.roomCompareContactState = 'pending';
+  enquiryButton.disabled = true;
+  const actions = element('div', 'room-compare__actions');
+  actions.append(clearButton, enquiryButton);
+  header.append(intro, actions);
 
   const status = element('p', 'room-compare__status',
     'Choose two or three rooms from the catalogue to compare them.');
@@ -75,7 +82,31 @@
   const table = element('table', 'room-compare__table');
   table.dataset.roomCompareTable = '';
   tableWrap.appendChild(table);
-  panel.append(header, status, tableWrap);
+
+  const recovery = element('section', 'guest-enquiry-recovery');
+  recovery.dataset.roomCompareRecovery = '';
+  recovery.hidden = true;
+  recovery.setAttribute('aria-labelledby', 'room-compare-recovery-heading');
+  const recoveryHeading = element('h4', '', 'Message text fallback');
+  recoveryHeading.id = 'room-compare-recovery-heading';
+  recovery.appendChild(recoveryHeading);
+  recovery.appendChild(element('p', '', 'If WhatsApp does not open, copy this prepared message and paste it into the hotel chat. Nothing is sent automatically.'));
+  const draftLabel = element('label', '', 'Prepared message');
+  draftLabel.setAttribute('for', 'room-compare-draft');
+  recovery.appendChild(draftLabel);
+  const draftField = element('textarea');
+  draftField.id = 'room-compare-draft';
+  draftField.dataset.roomCompareDraft = '';
+  draftField.rows = 7;
+  draftField.readOnly = true;
+  draftField.setAttribute('spellcheck', 'false');
+  recovery.appendChild(draftField);
+  const copyButton = element('button', 'button button--light', 'Copy prepared message');
+  copyButton.type = 'button';
+  copyButton.dataset.roomCompareCopy = '';
+  copyButton.disabled = true;
+  recovery.appendChild(copyButton);
+  panel.append(header, status, tableWrap, recovery);
   grid.parentNode.insertBefore(panel, grid);
 
   function recordFor(card) {
@@ -213,6 +244,12 @@
     panel.hidden = false;
     syncToggles();
     clearButton.disabled = selected.size === 0;
+    enquiryButton.disabled = selected.size === 0 || enquiryButton.dataset.roomCompareContactState !== 'ready';
+    enquiryButton.textContent = selected.size === 1 ? 'Ask about this room' : 'Ask about selected rooms';
+    // A changed shortlist invalidates any previously prepared message.
+    recovery.hidden = true;
+    draftField.value = '';
+    copyButton.disabled = true;
     renderTable();
     renderStatus(message);
   }
@@ -234,7 +271,7 @@
     const record = records.get(card.id);
     const button = element('button', 'room-compare__toggle', 'Add to compare');
     button.type = 'button';
-    button.dataset.roomCompareToggle = '';
+    button.dataset.roomCompareToggle = record.id;
     button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', 'Add ' + record.name + ' to the comparison shortlist');
     button.addEventListener('click', () => toggleSelection(record.id));
@@ -247,6 +284,11 @@
     selected.clear();
     syncToggles();
     clearButton.disabled = true;
+    enquiryButton.disabled = true;
+    enquiryButton.textContent = 'Ask about selected rooms';
+    recovery.hidden = true;
+    draftField.value = '';
+    copyButton.disabled = true;
     renderTable();
     panel.hidden = false;
     renderStatus('Shortlist cleared. Choose two or three rooms to compare them side by side.');

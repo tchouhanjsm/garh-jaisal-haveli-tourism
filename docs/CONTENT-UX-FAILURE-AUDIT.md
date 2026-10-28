@@ -47,7 +47,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 6. Confirm whether the family hospitality start date may be published.
 7. Family ownership/story and the hospitality start year remain owner-confirmation gates; no public claim should be restored until the owner approves the wording and evidence.
 8. Only six selected legacy images were localized after retrieval and visual review; no full-library import was attempted. Any additional image requires the same byte-level retrieval, visual review, local hosting, meaningful alt text and geometry validation.
-9. The Journal/blog archive remains deferred until at least one article passes source review, fact/date checks, local-link validation and the publication/canonical gates.
+9. The Journal/blog archive remains gated: the sample article stays draft until source/date review, internal-link validation, confirmed content facts and verified enquiry endpoint requirements pass. Future core-page SEO publication would not authorize draft content.
 
 ## Validation evidence for this checkpoint
 
@@ -1039,3 +1039,31 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Both exact-head push and pull-request workflows must pass on the same final commit before merge.
 - Desktop/mobile clipboard behavior, pop-up recovery, live channel reachability and all manual staging UAT remain owner verification tasks; STG-01–STG-18 stay NOT RUN.
 - No production deployment, SEO publication change or server-side enquiry storage is included.
+
+
+## 28 October 2026 — Room shortlist conversion and table-enquiry recovery
+
+### Finding
+- The room comparison helped guests compare catalogue features but stopped short of preserving their chosen room names when contacting the hotel. Guests had to remember or retype the shortlist manually.
+- Dining table enquiries, like the general guest enquiries, depended on a newly opened WhatsApp tab. If pop-ups were blocked, the current page did not provide the exact draft text for recovery.
+
+### Implementation
+- Added a contextual enquiry action to the room-comparison panel. It reads the currently selected one-to-three catalogue names and prepares one draft through the validated, centrally configured WhatsApp destination; it never invents room availability or rates.
+- Added a read-only fallback and explicit copy action to both the room shortlist and Dining table flow. Clipboard failure/denial falls back to selecting the exact text for manual copy.
+- Reset the room draft when the selection changes, preventing a previously prepared message from silently representing an outdated shortlist.
+- Extended deterministic room/dining tests and Chromium coverage for selection handoff, exact draft text, clipboard action and same-origin behavior. Tests intercept the external-tab request and never send an enquiry.
+
+### Validation and release boundary
+- Push and pull-request quality workflows must pass on the same final head; the post-merge main quality run must then pass.
+- Owner-approved staging UAT, real-device clipboard behavior, actual WhatsApp reachability, room inventory and restaurant service/menu checks remain open. STG-01–STG-18 remain NOT RUN until manual evidence exists.
+- No production deployment, canonical/sitemap publication, robots-policy change, or server-side guest-data collection is included.
+
+
+## Bulk guest-conversion improvements — 28 October 2026
+
+- Added a room-shortlist enquiry for one to three selected catalogue rooms; the draft names only the selected rooms and asks the hotel to confirm current availability, rates/taxes and terms.
+- Added a guest-reviewed, copyable Dining enquiry fallback when WhatsApp does not open. The guest remains responsible for reviewing and sending the message.
+- These enquiries remain client-side and non-persistent; neither action creates a reservation or sends a message automatically.
+- Canonical/OG URL publication, absolute production-host social image URLs, sitemap URL entries and a permissive robots policy remain withheld until the owner explicitly approves the canonical host.
+- [ ] Keep `canonicalHostApproved=false`, `robots.txt` at `Disallow: /`, and `sitemap.xml` without public URL entries until that decision is recorded.
+

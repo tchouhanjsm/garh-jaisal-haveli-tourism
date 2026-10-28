@@ -51,9 +51,11 @@ function stripMarkup(value) {
 
 function attributes(tag) {
   const result = {};
-  const pattern = /([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+  // Start at the opening tag name so "<link" / "<meta" are not mistaken for attributes.
+  const source = tag.replace(/^\s*<[^\s/>]+\s*/i, '').replace(/\s*\/?\s*>\s*$/, '');
+  const pattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
   let match;
-  while ((match = pattern.exec(tag))) {
+  while ((match = pattern.exec(source))) {
     const key = match[1].toLowerCase();
     result[key] = match[2] ?? match[3] ?? match[4] ?? '';
   }
@@ -233,17 +235,17 @@ for (const rule of PAGE_RULES) {
   const twitterImage = readMeta(html, /<meta\b[^>]*\bname=["']twitter:image["'][^>]*>/i);
   const ogAlt = readMeta(html, /<meta\b[^>]*\bproperty=["']og:image:alt["'][^>]*>/i);
   const twitterAlt = readMeta(html, /<meta\b[^>]*\bname=["']twitter:image:alt["'][^>]*>/i);
-  if (!ogImage || !ogImage.content) fail(`${rule.file}: missing Open Graph image`);
-  else if (/^https?:\/\//i.test(ogImage.content)) fail(`${rule.file}: OG image must use a local asset until the canonical host is approved`);
+  if (!ogImage || !ogImage.content) fail(rule.file + ': missing Open Graph image');
+  else if (/^https?:\/\//i.test(ogImage.content)) fail(rule.file + ': OG image must use a local asset until the canonical host is approved');
   else localFile(ogImage.content, rule.file, 'Open Graph image');
-  if (!ogAlt || !ogAlt.content.trim()) fail(`${rule.file}: missing Open Graph image alt text`);
-  if (!twitterImage || !twitterImage.content) fail(`${rule.file}: missing explicit Twitter image`);
-  else if (!ogImage || twitterImage.content !== ogImage.content) fail(`${rule.file}: Twitter image must match the Open Graph image`);
-  else if (/^https?:\/\//i.test(twitterImage.content)) fail(`${rule.file}: Twitter image must stay local until canonical host approval`);
+  if (!ogAlt || !ogAlt.content.trim()) fail(rule.file + ': missing Open Graph image alt text');
+  if (!twitterImage || !twitterImage.content) fail(rule.file + ': missing explicit Twitter image');
+  else if (!ogImage || twitterImage.content !== ogImage.content) fail(rule.file + ': Twitter image must match the Open Graph image');
+  else if (/^https?:\/\//i.test(twitterImage.content)) fail(rule.file + ': Twitter image must stay local until canonical host approval');
   else localFile(twitterImage.content, rule.file, 'Twitter image');
-  if (!twitterAlt || !twitterAlt.content.trim()) fail(`${rule.file}: missing Twitter image alt text`);
+  if (!twitterAlt || !twitterAlt.content.trim()) fail(rule.file + ': missing Twitter image alt text');
   else if (!ogAlt || decodeEntities(twitterAlt.content).trim() !== decodeEntities(ogAlt.content).trim()) {
-    fail(`${rule.file}: Twitter image alt text must match Open Graph image alt text`);
+    fail(rule.file + ': Twitter image alt text must match Open Graph image alt text');
   }
 
   if (/raw\.githubusercontent\.com/i.test(html)) fail(`${rule.file}: public page still references a raw GitHub asset host`);
@@ -684,9 +686,9 @@ for (const rule of PAGE_RULES) {
     if (inbound.has(target) && target !== rule.file) inbound.set(target, inbound.get(target) + 1);
   }
 
-  if (/<link\b[^>]*\brel=["']canonical["']/i.test(html)) fail(`${rule.file}: canonical URL must remain unset until the host is approved`);
-  if (/<meta\b[^>]*\bproperty=["']og:url["']/i.test(html)) fail(`${rule.file}: OG URL must remain unset until the host is approved`);
-  if (/https:\/\/hotelgarhjaisal\.com/i.test(html)) fail(`${rule.file}: unapproved canonical host appears in public HTML`);
+  if (/<link\b[^>]*\brel=["']canonical["']/i.test(html)) fail(rule.file + ': canonical URL must remain unset until the host is approved');
+  if (/<meta\b[^>]*\bproperty=["']og:url["']/i.test(html)) fail(rule.file + ': OG URL must remain unset until the host is approved');
+  if (/https:\/\/hotelgarhjaisal\.com/i.test(html)) fail(rule.file + ': unapproved canonical host appears in public HTML');
 }
 
 for (const [file, count] of inbound) {

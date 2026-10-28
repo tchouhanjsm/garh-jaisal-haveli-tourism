@@ -1,6 +1,6 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 27 October 2026: automated implementation checks pass on main; production release remains blocked pending manual owner/UAT gates.**
+**Status as of 28 October 2026: room-shortlist enquiry and Dining draft recovery are in PR source; canonical-host approval remains false, SEO publication remains blocked, and production deployment/manual owner-UAT gates remain outstanding.**
 
 Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
@@ -10,9 +10,10 @@ Baseline main at the start of the current staging-preflight phase: 22f40dd1f0700
 - Contact and booking destinations are centrally configured in content/site-config.json, marked owner-authorized-source / source-authorized, and pass format/host validation in the client runtime.
 - If the central config cannot load, or a channel is malformed, the JavaScript keeps that action disabled instead of guessing a destination.
 - The shared guest-enquiry form on Experiences, Experience details and Dining enforces a non-past arrival date and a departure after arrival. Chromium smoke tests cover date-error recovery, encoded draft content, and the authorized WhatsApp host while intercepting `window.open`; no external message is sent and no booking is created.
+- Room comparison supports an enquiry for up to three selected catalogue rooms; Dining retains a guest-reviewed, copyable draft. Both remain enquiry-only and non-persistent; neither confirms a reservation.
 - The named-room gallery uses locally hosted assets mapped to the legacy room catalogue, and the media manifest checks source/target blob SHA, bytes, dimensions, page-specific alt text and content role.
 - The dining page explicitly withholds current menu items/prices while the legacy menu file still says owner_confirmed=false.
-- Canonical URL/OG URL publication and sitemap URL publishing remain gated until the owner approves the actual production hostname.
+- Canonical/OG metadata and public sitemap URLs remain withheld while the canonical host is unapproved. `robots.txt` must continue to block crawlers until an explicit owner-approved production launch.
 
 - The branded 404 recovery page is included in static link/anchor integrity checks, uses `noindex,follow`, and hydrates booking/contact actions from `content/site-config.json` rather than hard-coded endpoints.
 
@@ -84,10 +85,10 @@ Complete and record these checks against the intended staging site first. Do not
 
 ### P0 — Domain, hosting and production routing
 
-- [ ] Confirm whether the approved public hostname is https://www.hotelgarhjaisal.com, the apex hostname or another intended host. The repository’s candidate canonical host is still explicitly unapproved.
+- [ ] Canonical origin approval and any host redirects require explicit owner authorization; no production redirect policy is enabled in this branch.
 - [ ] Verify DNS resolution, SSL certificate/chain, HTTP-to-HTTPS redirect, www/apex preference, no redirect loops, and GoDaddy/cPanel document root for the intended site.
 - [ ] Confirm all referenced image assets and the central JSON config return successfully on the staging hostname; use a browser network panel to verify no 404s or mixed-content errors.
-- [ ] Only after owner approval, implement the canonical host consistently in canonical/OG metadata, sitemap and robots directives; then rerun crawler/link integrity checks.
+- [ ] Keep canonical/`og:url` metadata and sitemap URL entries unpublished; retain `robots.txt` `Disallow: /` until the owner approves production SEO publication.
 - [ ] Take a known-good website backup and document rollback steps before production deployment.
 
 ### P1 — Final release/SEO smoke test
@@ -130,7 +131,7 @@ Allowed results: `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`. Record the reason and 
 
 The automated responsive audit checks each of the eight core routes at **320, 360, 390, 768, 1280 and 1440 CSS pixels** for same-origin HTTP 200 responses and horizontal overflow. The branded unknown-route recovery page must return a genuine HTTP 404 and pass its recovery/contact-hydration checks at all six widths. The retained visual bundle intentionally stays at 24 full-page screenshots (eight routes at 360, 768 and 1440 CSS pixels) so screenshot evidence stays useful and bounded; successful layout automation does not replace human crop/typography review.
 
-Before canonical-host approval, staging must remain non-indexable: robots.txt must include User-agent: * and Disallow: /, must not advertise a sitemap, sitemap.xml must not publish absolute public URL locations, and content/site-config.json must keep site.canonicalHostApproved set to false. Page-level title/description and Open Graph/Twitter preview consistency are covered by the browser quality suite. Do not activate canonical URLs, og:url, public sitemap locations or a less restrictive robots policy until the owner records the canonical-host decision. All these checks are automated safety evidence; STG-01–STG-18 remain human-operated and must not be auto-marked complete.
+Pre-launch publication remains blocked. `robots.txt` must retain `Disallow: /`, and `sitemap.xml` must contain no public URL entries. No staging-specific host policy is assumed without an owner-approved HTTPS origin. Automated source checks do not prove deployed server behavior. STG-01–STG-18 remain human-operated and must not be auto-marked complete.
 
 ## Owner decisions required before production launch
 
@@ -340,3 +341,4 @@ This does **not** detect visually similar photographs encoded or cropped differe
 - [x] Exercise copy/recovery in deterministic tests and Chromium while intercepting the external-tab request; automated tests send no message and create no reservation.
 - [ ] On the owner-approved HTTPS staging origin, test the copy action on iOS/Android and desktop browsers, including denied clipboard permission and pop-up blocking; manually verify focus visibility, status announcement and the textarea at narrow widths.
 - [ ] Manual staging UAT and STG-01–STG-18 remain NOT RUN. Do not infer live contact reachability from the static configuration or the browser mock.
+

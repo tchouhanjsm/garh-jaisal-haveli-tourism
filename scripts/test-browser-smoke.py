@@ -562,9 +562,15 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
     check(bool(og_alt and og_alt.strip()) and og_alt == twitter_alt,
           f"{page_name}: Twitter and Open Graph image alt text must match")
     check(page.locator('link[rel="canonical"]').count() == 0,
-          f"{page_name}: canonical must remain gated pending host approval")
+          f"{page_name}: canonical must remain gated pending explicit owner host approval")
     check(page.locator('meta[property="og:url"]').count() == 0,
-          f"{page_name}: og:url must remain gated pending host approval")
+          f"{page_name}: og:url must remain gated pending explicit owner host approval")
+    check("https://hotelgarhjaisal.com" not in page.content(),
+          f"{page_name}: unapproved canonical origin must not appear in public HTML")
+    for label, value in (("Open Graph", og_image), ("Twitter", twitter_image)):
+        parsed = urlparse(value or "")
+        check(bool(value) and not parsed.scheme and not parsed.netloc and value.startswith("assets/images/"),
+              f"{page_name}: {label} image must remain a local relative asset until canonical approval")
 
 
 def check_404_recovery(page, base_url: str) -> dict:
@@ -1009,6 +1015,13 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     page.evaluate(
         """() => {
           window.__tableEnquiryOpenCalls = [];
+          window.__tableEnquiryClipboardWrites = [];
+          Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async function(text) {
+              window.__tableEnquiryClipboardWrites.push(String(text));
+            } }
+          });
           window.open = function(url, target, features) {
             window.__tableEnquiryOpenCalls.push({
               url: String(url), target: String(target || ''), features: String(features || '')
@@ -1157,6 +1170,21 @@ def check_dining_table_enquiry(page, base_url: str) -> None:
     status = page.locator("[data-restaurant-table-status]").inner_text().lower()
     check("table is not reserved" in status and "review and send it yourself" in status,
           "Dining table status must clearly say the request is unconfirmed and guest-controlled")
+    table_recovery = page.locator("[data-restaurant-table-recovery]")
+    check(table_recovery.is_visible(),
+          "Dining: table draft fallback must appear after explicit submission")
+    table_fallback = page.locator("[data-restaurant-table-draft]").input_value()
+    check(table_fallback == draft["text"],
+          "Dining: table fallback must preserve the exact WhatsApp draft text")
+    page.locator("[data-restaurant-table-copy]").click()
+    page.wait_for_function(
+        "() => Array.isArray(window.__tableEnquiryClipboardWrites) && window.__tableEnquiryClipboardWrites.length === 1",
+        timeout=5000,
+    )
+    check(page.evaluate("window.__tableEnquiryClipboardWrites[0]") == draft["text"],
+          "Dining: copy action must copy the prepared table message without sending it")
+    check("copied" in page.locator("[data-restaurant-table-status]").inner_text().lower(),
+          "Dining: copy result must be announced through the live status")
     check(same_origin(draft["currentUrl"], base_url),
           "Browser smoke must not navigate to WhatsApp or send the draft")
     check(page.evaluate("window.__tableEnquiryOpenCalls.length") == 1,
@@ -1177,12 +1205,12 @@ def check_staging_publication_guards(page, base_url: str) -> None:
     config_text = fetch_text("content/site-config.json")
 
     check(bool(re.search(r"(?im)^\s*User-agent:\s*\*\s*$", robots)),
-          "robots.txt must explicitly identify all crawlers while staging")
+          "robots.txt must explicitly identify all crawlers")
     check(bool(re.search(r"(?im)^\s*Disallow:\s*/\s*$", robots)),
-          "robots.txt must continue blocking indexing on the pre-launch staging site")
+          "robots.txt must keep crawling blocked until owner approval")
     check(not re.search(r"(?im)^\s*Sitemap\s*:", robots),
           "robots.txt must not advertise a sitemap before canonical-host approval")
-    check(bool(re.search(r"<urlset\b", sitemap, re.I)), "sitemap.xml must return a valid URL-set document")
+    check(bool(re.search(r"<urlset\b", sitemap, re.I)), "sitemap.xml must be a valid URL-set document")
     check(not re.search(r"<loc>\s*https?://", sitemap, re.I),
           "sitemap.xml must not publish public URLs before canonical-host approval")
     try:
@@ -1460,6 +1488,24 @@ def check_room_finder(page, base_url: str, browser) -> None:
     """Exercise progressive room filters and verify the all-rooms no-JavaScript fallback."""
     page.set_viewport_size({"width": 360, "height": 800})
     page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
+    page.evaluate(
+        """() => {
+          window.__roomCompareOpenCalls = [];
+          window.__roomCompareClipboardWrites = [];
+          Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async function(text) {
+              window.__roomCompareClipboardWrites.push(String(text));
+            } }
+          });
+          window.open = function(url, target, features) {
+            window.__roomCompareOpenCalls.push({
+              url: String(url), target: String(target || ''), features: String(features || '')
+            });
+            return null;
+          };
+        }"""
+    )
     finder = page.locator("[data-room-finder]")
     cards = page.locator("#room-card-grid .room-card--named")
     check(finder.count() == 1 and finder.is_visible(),
@@ -1550,6 +1596,55 @@ def check_room_finder(page, base_url: str, browser) -> None:
     compare_names = compare_table.locator("thead [data-room-compare-card-link]").all_text_contents()
     check(compare_names == ["Sweet Purple Room", "Green Room"],
           "Rooms: comparison columns must preserve the selected room names and selection order")
+    enquiry_button = compare_panel.locator("[data-room-compare-enquiry]")
+    page.wait_for_function(
+        """() => {
+          const button = document.querySelector('[data-room-compare-enquiry]');
+          return Boolean(button && button.dataset.roomCompareContactState === 'ready');
+        }""",
+        timeout=7000,
+    )
+    check(not enquiry_button.is_disabled(),
+          "Rooms: authorized contact hydration must enable the selected-room enquiry")
+    check("selected rooms" in enquiry_button.inner_text().lower(),
+          "Rooms: shortlist action must clearly describe the selected room set")
+    enquiry_button.click()
+    page.wait_for_function(
+        "() => Array.isArray(window.__roomCompareOpenCalls) && window.__roomCompareOpenCalls.length === 1",
+        timeout=5000,
+    )
+    room_draft = page.evaluate(
+        """() => {
+          const call = window.__roomCompareOpenCalls[0];
+          const url = new URL(call.url);
+          return {host:url.hostname,path:url.pathname,text:url.searchParams.get('text') || '',
+                  target:call.target,features:call.features,currentUrl:window.location.href};
+        }"""
+    )
+    check(room_draft["host"] == "wa.me" and room_draft["path"] == "/917727047567",
+          "Rooms: selected-room enquiry must use the authorized centralized WhatsApp destination")
+    check("Sweet Purple Room" in room_draft["text"] and "Green Room" in room_draft["text"],
+          "Rooms: enquiry draft must include exactly the selected room names")
+    check("does not confirm a booking" in room_draft["text"].lower(),
+          "Rooms: shortlist draft must state that an enquiry does not confirm a booking")
+    check(room_draft["target"] == "_blank"
+          and {"noopener","noreferrer"}.issubset(set(room_draft["features"].split(","))),
+          "Rooms: selected-room draft must use a protected new tab")
+    check(same_origin(room_draft["currentUrl"], base_url),
+          "Rooms: smoke test must not navigate to WhatsApp or transmit guest data")
+    room_recovery = compare_panel.locator("[data-room-compare-recovery]")
+    check(room_recovery.is_visible(),
+          "Rooms: a visible draft fallback must remain when WhatsApp does not open")
+    room_fallback_text = compare_panel.locator("[data-room-compare-draft]").input_value()
+    check(room_fallback_text == room_draft["text"],
+          "Rooms: fallback must contain the exact selected-room WhatsApp draft")
+    compare_panel.locator("[data-room-compare-copy]").click()
+    page.wait_for_function(
+        "() => Array.isArray(window.__roomCompareClipboardWrites) && window.__roomCompareClipboardWrites.length === 1",
+        timeout=5000,
+    )
+    check(page.evaluate("window.__roomCompareClipboardWrites[0]") == room_draft["text"],
+          "Rooms: copy control must copy the prepared selected-room message without sending it")
     check(compare_table.locator("thead th[scope='col']").count() == 3,
           "Rooms: every comparison column, including the detail label, must render a scoped column header")
     row_headers = compare_table.locator("tbody th[scope='row']")

@@ -62,6 +62,9 @@
   if (!form) return;
   const submit = form.querySelector('[data-restaurant-table-submit]');
   const status = form.querySelector('[data-restaurant-table-status]');
+  const recovery = form.querySelector('[data-restaurant-table-recovery]');
+  const draftField = form.querySelector('[data-restaurant-table-draft]');
+  const copyButton = form.querySelector('[data-restaurant-table-copy]');
   const noteField = form.elements.namedItem('note');
   const guestField = form.elements.namedItem('guests');
   const dateField = form.elements.namedItem('date');
@@ -75,7 +78,7 @@
       status.textContent = message;
     }
   };
-  if (!submit || !status || !guestField || !dateField || !timeField || !noteField) {
+  if (!submit || !status || !recovery || !draftField || !copyButton || !guestField || !dateField || !timeField || !noteField) {
     disable('Table enquiries are unavailable because a required field is missing. No details have been sent.');
     return;
   }
@@ -126,6 +129,40 @@
     }
   }
 
+  recovery.hidden = true;
+  copyButton.disabled = true;
+
+  copyButton.addEventListener('click', async () => {
+    const text = String(draftField.value || '');
+    if (!text) return;
+    try {
+      if (window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+        status.dataset.state = 'ready';
+        status.textContent = 'Table enquiry text copied. Paste it into the hotel WhatsApp chat when ready. Nothing was sent and no table is reserved.';
+        return;
+      }
+    } catch (_) {
+      // Clipboard permission may be denied; allow selection-based recovery.
+    }
+    try {
+      draftField.focus();
+      draftField.select();
+    } catch (_) {
+      // Leave the prepared text visible if selection is unavailable.
+    }
+    let copied = false;
+    try {
+      copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+    } catch (_) {
+      // Manual selection remains available.
+    }
+    status.dataset.state = copied ? 'ready' : 'error';
+    status.textContent = copied
+      ? 'Table enquiry text copied. Paste it into the hotel WhatsApp chat when ready. Nothing was sent and no table is reserved.'
+      : 'The table enquiry is selected below. Use your device’s Copy command, then paste it into the hotel WhatsApp chat. Nothing was sent and no table is reserved.';
+  });
+
   form.addEventListener('submit', event => {
     event.preventDefault();
     updateDateConstraint();
@@ -149,8 +186,11 @@
     ].join('\n');
     const draftUrl = approvedWhatsAppBase + '?text=' + encodeURIComponent(message);
     window.open(draftUrl, '_blank', 'noopener,noreferrer');
+    draftField.value = message;
+    recovery.hidden = false;
+    copyButton.disabled = false;
     status.dataset.state = 'ready';
-    status.textContent = 'Your details have been prepared for a WhatsApp draft. Review and send it yourself; the restaurant has not received a message and your table is not reserved. If no new tab opened, allow pop-ups and try again.';
+    status.textContent = 'Your table enquiry draft is ready. Review and send it yourself in WhatsApp. If the tab did not open, copy the prepared message below. Nothing was sent automatically and your table is not reserved.';
   });
 
   loadApprovedContact();

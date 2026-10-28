@@ -219,7 +219,16 @@ function renderSitemap(original, urls, origin) {
   }
   const existingSet = new Set(existing);
   const uniqueUrls = [...new Set(urls)].filter(url => !existingSet.has(url)).sort();
-  if (!uniqueUrls.length) return xml;
+  if (!uniqueUrls.length) {
+    // An already-empty owned block is the canonical pre-launch representation.
+    // Returning it unchanged keeps --check idempotent and avoids duplicate markers.
+    const begin = original.indexOf(SITEMAP_BEGIN);
+    const end = original.indexOf(SITEMAP_END);
+    if (begin >= 0 && end > begin && !/<loc\b/i.test(original.slice(begin, end))) return original;
+    // Remove any prior generated URLs and leave one empty owned block.
+    const emptyBlock = ['  ' + SITEMAP_BEGIN, '  ' + SITEMAP_END].join('\n');
+    return xml.replace(/\s*<\/urlset>/, '\n' + emptyBlock + '\n</urlset>');
+  }
   const block = [
     '  ' + SITEMAP_BEGIN,
     ...uniqueUrls.map(url => '  <url><loc>' + xmlEscape(url) + '</loc></url>'),

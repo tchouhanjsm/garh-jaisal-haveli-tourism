@@ -12,6 +12,7 @@
   const propertyMapLinks = Array.from(document.querySelectorAll('[data-property-map-link]'));
   const bookingForms = Array.from(document.querySelectorAll('[data-booking-form]'));
   const guestEnquiryForms = Array.from(document.querySelectorAll('[data-guest-enquiry-form]'));
+  const roomCompareEnquiryButtons = Array.from(document.querySelectorAll('[data-room-compare-enquiry]'));
   let activeWhatsAppBaseUrl = '';
 
   function disableContactLink(link, fallbackText) {
@@ -190,10 +191,86 @@
     });
   }
 
+  function configureRoomCompareEnquiry(whatsappBaseUrl) {
+    roomCompareEnquiryButtons.forEach(button => {
+      const panel = button.closest('[data-room-compare-panel]');
+      const status = panel && panel.querySelector('[data-room-compare-status]');
+      const recovery = panel && panel.querySelector('[data-room-compare-recovery]');
+      const draftField = panel && panel.querySelector('[data-room-compare-draft]');
+      const copyButton = panel && panel.querySelector('[data-room-compare-copy]');
+      if (!panel || !status || !recovery || !draftField || !copyButton || !whatsappBaseUrl) {
+        button.dataset.roomCompareContactState = 'unavailable';
+        button.disabled = true;
+        button.setAttribute('aria-describedby', 'contact-status');
+        return;
+      }
+
+      button.dataset.roomCompareContactState = 'ready';
+      button.disabled = document.querySelectorAll('#room-card-grid [data-room-compare-toggle][aria-pressed="true"]').length === 0;
+      button.removeAttribute('aria-describedby');
+      recovery.hidden = true;
+      copyButton.disabled = true;
+      button.addEventListener('click', () => {
+        const names = Array.from(document.querySelectorAll('#room-card-grid [data-room-compare-toggle][aria-pressed="true"]'))
+          .map(toggle => {
+            const card = document.getElementById(toggle.dataset.roomCompareToggle);
+            const heading = card && card.querySelector('h3');
+            return heading ? heading.textContent.trim() : '';
+          })
+          .filter(Boolean)
+          .slice(0, 3);
+        if (!names.length) {
+          status.textContent = 'Choose at least one room before preparing an enquiry.';
+          return;
+        }
+        const message = [
+          'Namaste Garh Jaisal Haveli, I would like to enquire about these room options:',
+          ...names.map(name => '- ' + name),
+          'Please confirm current availability, exact room assignment, inclusions, total rate including taxes, and applicable terms for my dates.',
+          'I understand this is an enquiry only and does not confirm a booking. Please ask me for any details needed to check availability.'
+        ].join('\n');
+        window.open(whatsappBaseUrl + '?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
+        draftField.value = message;
+        recovery.hidden = false;
+        copyButton.disabled = false;
+        status.textContent = 'Your room enquiry draft is ready to review. If WhatsApp did not open, copy the prepared message below. Nothing was sent automatically and no room is reserved.';
+      });
+
+      copyButton.addEventListener('click', async () => {
+        const text = String(draftField.value || '');
+        if (!text) return;
+        try {
+          if (window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+            status.textContent = 'Room enquiry text copied. Paste it into the hotel WhatsApp chat when ready. Nothing was sent.';
+            return;
+          }
+        } catch (_) {
+          // Fall through to selection-based copying when clipboard access is denied.
+        }
+        try {
+          draftField.focus();
+          draftField.select();
+        } catch (_) {
+          // Keep the message visible if selection is unsupported.
+        }
+        let copied = false;
+        try {
+          copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+        } catch (_) {
+          // Manual selection remains available.
+        }
+        status.textContent = copied
+          ? 'Room enquiry text copied. Paste it into the hotel WhatsApp chat when ready. Nothing was sent.'
+          : 'The room enquiry is selected below. Use your device’s Copy command, then paste it into the hotel WhatsApp chat. Nothing was sent.';
+      });
+    });
+  }
+
   async function configureContactChannels() {
     if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
         && !emailLinks.length && !bookingLinks.length && !propertyMapLinks.length
-        && !bookingForms.length && !guestEnquiryForms.length) return;
+        && !bookingForms.length && !guestEnquiryForms.length && !roomCompareEnquiryButtons.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
       const scriptUrl = document.currentScript && document.currentScript.src;
@@ -223,6 +300,7 @@
         }
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
+      configureRoomCompareEnquiry(whatsappBaseUrl);
 
       const phoneE164 = contactAuthorized && typeof contact.primaryPhoneE164 === 'string'
         && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
