@@ -1768,7 +1768,7 @@ def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
           "Arrival enquiry: luggage request must remain a question, never a guarantee")
     check("steps and uneven surfaces" in call["text"],
           "Arrival enquiry: optional route/access request must not claim assistance is available")
-    check("does not confirm a reservation" in call["text"],
+    check("not a transfer booking or reservation" in call["text"],
           "Arrival enquiry: draft must explicitly avoid implying a booking")
     check(form.locator('[data-arrival-enquiry-recovery]').is_visible(),
           "Arrival enquiry: copyable draft must remain visible after submit")
