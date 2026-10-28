@@ -91,5 +91,42 @@
     "ownerFactApproved": false,
     "reviewedAt": null,
     "reviewer": null
+  },
+  "media": {
+    "requirements": {
+      "hero": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "A truthful property exterior or room image that supports heritage-stay comparison without claiming availability"
+      },
+      "socialPreview": {
+        "required": true,
+        "minWidth": 1200,
+        "maxBytes": 204800,
+        "subject": "Property or room context for a heritage-hotel comparison guide"
+      }
+    },
+    "candidates": [
+      {
+        "path": "assets/images/directions/haveli-facade.webp",
+        "role": "hero",
+        "fit": "possible-contextual-match",
+        "rationale": "Facade relates to property identity but does not establish room facilities, rates or availability.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      },
+      {
+        "path": "assets/images/rooms/haveli-sitting-room.webp",
+        "role": "socialPreview",
+        "fit": "possible-contextual-match",
+        "rationale": "Room image may support a checklist; verify room identity and current relevance.",
+        "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
+        "rightsStatus": "unverified",
+        "reviewStatus": "unreviewed"
+      }
+    ],
+    "approvedAssets": []
   }
 }
