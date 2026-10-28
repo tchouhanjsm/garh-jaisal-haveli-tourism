@@ -81,7 +81,7 @@ for (const route of ROUTES) {
     assert.ok(homePanel, 'index.html: expected the primary home planning panel');
     const homeLinks = [...homePanel[1].matchAll(/<a class="home-plan-path" href="([^"]+)"/g)];
     assert.equal(homeLinks.length, 4, 'index.html: home planning panel must expose four decision paths');
-    assert.deepEqual(homeLinks.map(match => match[1]), ['rooms.html', 'experiences.html', 'dining.html', 'directions.html'],
+    assert.deepEqual(homeLinks.map(match => match[1]), ['rooms.html', 'experiences.html', 'dining.html', 'directions.html#arrival-planning'],
       'index.html: home decision paths must use the same predictable Stay / Explore / Dine / Arrive order');
     continue;
   }
@@ -92,7 +92,7 @@ for (const route of ROUTES) {
     route.file + ': decision links must be grouped in a labelled navigation landmark');
   const links = [...journey.matchAll(/<a class="guest-journey__step" href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)];
   assert.equal(links.length, 4, route.file + ': journey must present four clear next steps');
-  assert.deepEqual(links.map(m => m[1]), ['rooms.html', 'experiences.html', 'dining.html', 'directions.html'],
+  assert.deepEqual(links.map(m => m[1]), ['rooms.html', 'experiences.html', 'dining.html', 'directions.html#arrival-planning'],
     route.file + ': the journey route order must stay predictable');
   for (const link of links) {
     assert.match(link[3], /<strong>/, route.file + ': every step needs a visible action label');

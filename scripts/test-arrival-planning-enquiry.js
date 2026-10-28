@@ -17,6 +17,20 @@ const form = formStart >= 0 && formEnd >= 0
   ? directions.slice(formStart, formEnd + '</form>'.length)
   : '';
 assert.ok(form, 'Directions must include one progressively enhanced arrival enquiry form');
+
+assert.match(directions, /<section id="arrival-planning" class="section wrap arrival-enquiry"/,
+  'Directions must expose a stable fragment target for arrival planning');
+for (const route of ['rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'gallery.html']) {
+  const html = fs.readFileSync(path.join(ROOT, route), 'utf8');
+  const journey = html.match(/<section class="guest-journey" aria-label="Plan your stay">([\s\S]*?)<\/section>/);
+  assert.ok(journey, route + ': shared guest journey must remain present');
+  assert.match(journey ? journey[1] : '', /href="directions\.html#arrival-planning"/,
+    route + ': Arrive step must go directly to the date-specific planner');
+}
+const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const homePanel = home.match(/<section id="plan-stay"[^>]*>([\s\S]*?)<\/section>/);
+assert.match(homePanel ? homePanel[1] : '', /href="directions\.html#arrival-planning"/,
+  'Home Arrive decision must deep-link to the date-specific planner');
 assert.match(directions, /data-arrival-enquiry-fallback/,
   'Visitors without JavaScript or authorized contact configuration must retain a static fallback');
 assert.match(form, /type="date" name="arrival-date" required/,

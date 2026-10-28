@@ -1127,3 +1127,11 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - The current meeting point, route, vehicle access and any luggage/mobility assistance remain date-specific owner confirmation items. The draft must not guarantee service availability.
 - Human staging UAT, live contact reachability, Lighthouse and formal accessibility audits remain NOT RUN. STG-01–STG-18 stay open until a human operator records evidence on an owner-approved HTTPS origin.
 - Canonical-host approval, robots policy, public sitemap, deployment and server-side guest-data collection remain unchanged.
+
+
+## 28 October 2026 — Direct route-to-form arrival handoff
+
+- Repointed the Home planning tile and the Arrive step on the seven shared guest-planning rails to the stable `#arrival-planning` target instead of the top of Directions.
+- Added an explicit fragment ID to the enquiry section and static contract checks to prevent link drift.
+- Extended Chromium smoke to click the Arrive entry from each of the eight core pages, confirm same-origin navigation, and verify the planner heading/section enters the viewport.
+- No new arrival form is duplicated on other pages; all routes share the existing centralized validation and guest-reviewed WhatsApp draft.

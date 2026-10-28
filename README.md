@@ -285,3 +285,10 @@ Every blog record now declares a single `seo.primaryQuery` and controlled `seo.s
 The Directions page includes an optional arrival enquiry builder for guests who want to confirm the current meeting point, final walking route and route conditions for a chosen date. It asks only for the travel date, a bounded optional arrival window, the expected approach and optional questions about luggage or route/step information. It does not collect a name, phone, email, open-ended note or medical details.
 
 The form stays hidden until the existing centralized contact configuration validates the owner-authorized WhatsApp destination. A valid explicit submit prepares a draft and opens the external chat for guest review; the same text remains in a read-only on-page fallback if the tab is blocked. Changing any field invalidates the old draft. No details are stored in browser storage or sent to a site backend. The message asks whether assistance can be arranged and never guarantees it; it is an enquiry, not a transfer booking or reservation. Chromium smoke intercepts the external tab and tests date validation, draft content, copy recovery, responsive fit and the no-JavaScript fallback without contacting the hotel.
+
+
+### Direct link into arrival planning
+
+The Home planning panel and every shared Stay / Explore / Dine / Arrive rail now send the Arrive step directly to `directions.html#arrival-planning`, the date-specific arrival enquiry section. The Chromium smoke suite follows every one of the eight same-site planning entry points and verifies the destination heading is visible. This avoids duplicating an arrival form on every page.
+
+The form still asks the hotel to confirm current meeting/drop-off and walking-route information; it does not book a transfer, save guest details or guarantee assistance. External contact links are not followed by the browser test.

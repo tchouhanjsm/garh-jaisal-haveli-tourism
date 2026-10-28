@@ -574,12 +574,12 @@ def check_page_contract(page, page_name: str, titles: dict[str, str]) -> None:
 
 
 
-PREMIUM_JOURNEY_HREFS = ["rooms.html", "experiences.html", "dining.html", "directions.html"]
+PREMIUM_JOURNEY_HREFS = ["rooms.html", "experiences.html", "dining.html", "directions.html#arrival-planning"]
 PREMIUM_JOURNEY_CURRENT = {
     "rooms.html": "rooms.html",
     "experiences.html": "experiences.html",
     "dining.html": "dining.html",
-    "directions.html": "directions.html",
+    "directions.html": "directions.html#arrival-planning",
 }
 
 
@@ -632,7 +632,12 @@ def check_premium_guest_journey(page, page_name: str, viewport_width: int) -> No
     for link in links.all():
         check(link.is_visible(), f"{page_name}: journey link must be visible at {viewport_width}px")
         href = link.get_attribute("href") or ""
-        check(href in PAGES, f"{page_name}: journey link must resolve to a listed same-site route ({href})")
+        parsed_href = urlparse(href)
+        check(parsed_href.path in PAGES and not parsed_href.scheme and not parsed_href.netloc,
+              f"{page_name}: journey link must resolve to a listed same-site route ({href})")
+        if parsed_href.path == "directions.html":
+            check(parsed_href.fragment == "arrival-planning",
+                  f"{page_name}: Arrive link must target the planner, not the top of Directions ({href})")
         box = link.bounding_box()
         if box:
             check(box["width"] >= 44 and box["height"] >= 44,
@@ -1667,6 +1672,39 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance heading must remain available at {width}px")
 
 
+def check_arrival_planning_deep_links(page, base_url: str) -> None:
+    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
+    for page_name in PAGES:
+        response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"{page_name}: arrival deep-link source must return HTTP 200")
+        if page_name == "index.html":
+            link = page.locator('.home-plan-panel a.home-plan-path[href="directions.html#arrival-planning"]')
+        else:
+            link = page.locator('.guest-journey a.guest-journey__step[href="directions.html#arrival-planning"]')
+        check(link.count() == 1, f"{page_name}: expected exactly one Arrive deep link to the planner")
+        if link.count() != 1:
+            continue
+        link.click()
+        try:
+            page.wait_for_url("**/directions.html#arrival-planning", timeout=7000)
+        except Exception as error:
+            check(False, f"{page_name}: Arrive link must land at Directions#arrival-planning ({error})")
+            continue
+        target = page.locator("#arrival-planning")
+        check(target.count() == 1, "Directions must provide one arrival-planning fragment target")
+        if target.count() == 1:
+            bounds = target.bounding_box()
+            viewport_height = page.evaluate("() => window.innerHeight")
+            check(bounds is not None and bounds["y"] < viewport_height
+                  and bounds["y"] + bounds["height"] > 0,
+                  f"{page_name}: deep-linked arrival planner must be within the viewport ({bounds})")
+        check(page.locator("#arrival-enquiry-title").is_visible(),
+              f"{page_name}: deep link must expose the date-specific arrival planner heading")
+        check(same_origin(page.url, base_url),
+              f"{page_name}: arrival planning deep link must remain same-origin")
+
+
 def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
     """Exercise the date-specific arrival draft without opening WhatsApp or sending data."""
     page.add_init_script(
@@ -2276,6 +2314,7 @@ def main(argv: list[str] | None = None) -> int:
             check_room_finder(page, base_url, browser)
             check_arrival_wayfinding_journey(page, base_url)
             check_arrival_planning_enquiry(page, base_url, browser)
+            check_arrival_planning_deep_links(page, base_url)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)

@@ -406,3 +406,10 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Human UAT remains NOT RUN: on an owner-approved HTTPS staging origin, verify the arrival form and draft/copy recovery on desktop, iOS and Android, including pop-up blocking and denied clipboard permission.
 - [ ] Owner must still confirm the current meeting point, route, transport arrangements and whether any assistance can be arranged. The form is an enquiry only and does not confirm a transfer or reservation.
 - [ ] STG-01–STG-18 remain NOT RUN until real operator evidence is recorded. Do not guess a staging hostname or treat Chromium screenshots as human UAT.
+
+
+## Arrival planner route coverage — automated gate
+
+- [ ] Confirm the Home Arrive tile and every Stay / Explore / Dine / Arrive navigation rail link to `directions.html#arrival-planning`; do not regress to the top-of-page URL.
+- [ ] Verify the date-specific planner section and heading resolve after navigation from all eight core routes at desktop and mobile viewports.
+- [ ] Continue to treat this as a draft enquiry only; actual meeting point, route conditions, luggage support and contact responsiveness require owner/staging confirmation.
