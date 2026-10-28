@@ -694,8 +694,6 @@ for (const rule of PAGE_RULES) {
     if (inbound.has(target) && target !== rule.file) inbound.set(target, inbound.get(target) + 1);
   }
 
-  if (/<link\b[^>]*\brel=["']canonical["']/i.test(html)) fail(`${rule.file}: canonical URL must remain unset until the host is approved`);
-  if (/<meta\b[^>]*\bproperty=["']og:url["']/i.test(html)) fail(`${rule.file}: OG URL must remain unset until the host is approved`);
   const expectedCanonicalRoute = {
     'index.html': '/', 'rooms.html': '/rooms.html', 'experiences.html': '/experiences.html',
     'experience-details.html': '/experience-details.html', 'dining.html': '/dining.html',
@@ -703,7 +701,7 @@ for (const rule of PAGE_RULES) {
   }[rule.file];
   const expectedCanonical = 'https://hotelgarhjaisal.com' + expectedCanonicalRoute;
   const canonicalTag = html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/i);
-  const canonicalAttrs = canonicalTag ? attributes(canonicalTag[0]) : {};
+  const canonicalAttrs = canonicalTag ? readTagAttributes(canonicalTag[0]) : {};
   const ogUrl = readMeta(html, /<meta\b[^>]*\bproperty=["']og:url["'][^>]*>/i);
   if (!canonicalTag || canonicalAttrs.href !== expectedCanonical) fail(`${rule.file}: canonical URL does not match the candidate route`);
   if (!ogUrl || ogUrl.content !== expectedCanonical) fail(`${rule.file}: og:url does not match canonical`);
