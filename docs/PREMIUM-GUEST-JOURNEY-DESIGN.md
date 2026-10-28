@@ -33,6 +33,12 @@ Route-specific stylesheets continue to load before the shared premium layer. Exi
 - Canonical host approval remains a separate release decision; this PR does not change the canonical, robots, sitemap or deployment gate.
 - No staging hostname is assumed and no live HTTP/DNS/TLS or contact verification is claimed.
 
+## Automated Chromium contract
+
+The CI browser smoke now checks the actual rendered journey and home planning panel at every configured responsive audit breakpoint: 320, 360, 390, 768, 1280 and 1440 CSS pixels. It verifies the four destinations in order, exact-current-route semantics, visible tap targets of at least 44 by 44 CSS pixels, viewport bounds, rail-internal overflow and the homepage's non-duplicated planning panel. A keyboard path also verifies that Tab advances from Stay to Explore and that the focused step receives a visible outline.
+
+These are automated local-browser checks of the repository build. They do not establish visual acceptance on a live owner-approved staging host and do not mark STG-01–STG-18 complete.
+
 ## Manual visual acceptance — NOT RUN
 
 Complete only against an owner-approved staging URL and attach evidence.

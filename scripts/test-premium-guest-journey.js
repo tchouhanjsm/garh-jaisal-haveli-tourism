@@ -31,6 +31,10 @@ assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/,
   'respect reduced-motion preferences');
 assert.match(css, /\.guest-journey__step:focus-visible/,
   'journey links must expose keyboard focus styling');
+assert.match(css, /@media\s*\(max-width:\s*1080px\)[\s\S]*?\.guest-journey\s*\{[\s\S]*?grid-template-columns:\s*1fr/,
+  'tablet layout must stack the journey introduction above its link grid');
+assert.match(css, /@media\s*\(max-width:\s*420px\)[\s\S]*?\.guest-journey__number\s*\{[\s\S]*?display:\s*none/,
+  'very narrow phones must prioritize action labels over decorative step numbers');
 assert.match(css, /\.room-card:hover[\s\S]*?transform:\s*translateY\(-3px\)/,
   'interactive catalogue cards must use a restrained hover affordance');
 assert.match(css, /\.guest-enquiry-panel,[\s\S]*?\.guest-enquiry-recovery/,
@@ -44,7 +48,17 @@ for (const route of ROUTES) {
   assert.ok(allStyles.length, route.file + ': expected linked stylesheets');
   assert.ok(allStyles[allStyles.length - 1][0].includes('assets/css/premium-guest-journey.css'),
     route.file + ': premium visual layer must load after route-specific styles');
-  if (!route.journey) continue;
+  if (!route.journey) {
+    assert.doesNotMatch(html, /<section class="guest-journey"/,
+      route.file + ': homepage must retain its own planning panel instead of duplicating the shared rail');
+    const homePanel = html.match(/<section id="plan-stay"[^>]*>([\s\S]*?)<\/section>/);
+    assert.ok(homePanel, 'index.html: expected the primary home planning panel');
+    const homeLinks = [...homePanel[1].matchAll(/<a class="home-plan-path" href="([^"]+)"/g)];
+    assert.equal(homeLinks.length, 4, 'index.html: home planning panel must expose four decision paths');
+    assert.deepEqual(homeLinks.map(match => match[1]), ['rooms.html', 'experiences.html', 'dining.html', 'directions.html'],
+      'index.html: home decision paths must use the same predictable Stay / Explore / Dine / Arrive order');
+    continue;
+  }
   const journeyMatch = html.match(/<section class="guest-journey" aria-label="Plan your stay">([\s\S]*?)<\/section>/);
   assert.ok(journeyMatch, route.file + ': missing shared guest decision path');
   const journey = journeyMatch[1];

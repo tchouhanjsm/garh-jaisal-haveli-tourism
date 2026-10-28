@@ -1,6 +1,6 @@
 # Garh Jaisal Haveli — Launch Readiness Checklist
 
-**Status as of 28 October 2026: PR #53 is merged. The owner-gated SEO publication bundle is now being prepared separately; canonical-host approval remains false, robots.txt blocks crawling, the sitemap is URL-empty and deployment/manual owner-UAT gates remain outstanding.**
+**Status as of 28 October 2026: PR #55 is merged. The follow-on Chromium contract strengthens the premium journey's responsive and keyboard checks; owner-approved staging UAT and live SEO release gates remain outstanding.**
 
 Baseline main at the start of the current staging-preflight phase: 22f40dd1f070077057856cab7db9e8b54c28314a. Post-merge Site quality gates run [#40437441543](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40437441543) passed after PR #29 merged. The site is a static HTML/CSS/vanilla-JavaScript deployment intended for GoDaddy/cPanel. This checklist distinguishes repository/automation checks from live operating checks.
 
@@ -48,6 +48,10 @@ The test also requires a single high-priority non-lazy image in pages with a vis
 - Follow `docs/SEO-PUBLICATION-RUNBOOK.md`; a passing static suite is not production publication approval or live-host evidence.
 
 ## Premium guest-journey design review
+
+Automated CI verifies the rendered home planning panel and the shared inner-page journey at 320, 360, 390, 768, 1280 and 1440 CSS pixels. It checks route order, exact current-page state, 44px minimum target dimensions, viewport/rail overflow and keyboard focus order. These checks do not replace the manual evidence rows below; all STG-01–STG-18 remain NOT RUN until an operator records actual staging evidence.
+
+
 
 The premium visual layer and four-step journey are now source-controlled. The homepage uses its existing planning panel; the other seven core routes have the shared Stay / Explore / Dine / Arrive rail. Automated consistency and browser checks are required, but the following must be completed separately by a human reviewer after deployment to an approved staging URL:
 
