@@ -81,17 +81,7 @@ try {
   // Core URLs live outside the renderer-owned block and must survive registry renders.
   const generatedBlock = initialSitemap.split(SITEMAP_BEGIN)[1].split(SITEMAP_END)[0];
   assert.doesNotMatch(generatedBlock, /<loc>\s*https?:\/\//i, 'draft generated block starts URL-empty');
-  const requiredCoreUrls = [
-    'https://hotelgarhjaisal.com/',
-    'https://hotelgarhjaisal.com/rooms.html',
-    'https://hotelgarhjaisal.com/experiences.html',
-    'https://hotelgarhjaisal.com/experience-details.html',
-    'https://hotelgarhjaisal.com/dining.html',
-    'https://hotelgarhjaisal.com/about.html',
-    'https://hotelgarhjaisal.com/directions.html',
-    'https://hotelgarhjaisal.com/gallery.html',
-  ];
-  for (const url of requiredCoreUrls) assert.ok(initialSitemap.includes('<loc>' + url + '</loc>'), 'core route missing from sitemap: ' + url);
+  assert.doesNotMatch(initialSitemap, /<loc>\s*https?:\/\//i, 'pre-launch sitemap must not publish core or generated URLs before host approval');
   const draftResult = buildContentPages(root, { write: true });
   assert.equal(draftResult.publishedTours, 0);
   assert.equal(draftResult.publishedBlogs, 0);
@@ -190,7 +180,7 @@ try {
   assert.equal((clean.match(new RegExp(SITEMAP_BEGIN, 'g')) || []).length, 1);
   assert.equal((clean.match(new RegExp(SITEMAP_END, 'g')) || []).length, 1);
   assert.doesNotMatch(clean, /https:\/\/hotelgarhjaisal\.com\/(?:tours\/sunset-camel-safari\.html|blogs\/jaisalmer-fort-guide\.html)/);
-  for (const url of requiredCoreUrls) assert.ok(clean.includes('<loc>' + url + '</loc>'), 'draft cleanup removed core route from sitemap: ' + url);
+  assert.doesNotMatch(clean, /<loc>\s*https?:\/\//i, 'draft cleanup must leave the pre-launch sitemap without public URLs');
   buildContentPages(root, { write: false });
   console.log('PASS: renderer draft exclusion, factual/contact/canonical gates, marker-preserving sitemap, deterministic output and safe cleanup.');
 } finally {
