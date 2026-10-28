@@ -39,7 +39,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 
 ## Open owner / publication blockers
 
-1. Approve the final canonical host and production URL policy. Until then, canonical/OG URL tags and sitemap URLs remain withheld and robots remains blocked.
+1. Verify the configured canonical host `https://hotelgarhjaisal.com` against live DNS/TLS, production document root and redirect/header behavior after deployment. The publication files are now configured in PR #53, but no production host has been contacted or deployed.
 2. Verify the exact staffed booking/contact channels before populating `content/site-config.json` or enabling any enquiry CTA.
 3. Confirm room names/details, inventory, bed arrangements, amenities, rates, taxes, cancellation terms and check-in/out policy.
 4. Confirm current dining menu, prices, service hours, dietary handling and candlelit setup/availability.
@@ -47,7 +47,7 @@ These observations came from the checked-in HTML/configuration and legacy `docs/
 6. Confirm whether the family hospitality start date may be published.
 7. Family ownership/story and the hospitality start year remain owner-confirmation gates; no public claim should be restored until the owner approves the wording and evidence.
 8. Only six selected legacy images were localized after retrieval and visual review; no full-library import was attempted. Any additional image requires the same byte-level retrieval, visual review, local hosting, meaningful alt text and geometry validation.
-9. The Journal/blog archive remains deferred until at least one article passes source review, fact/date checks, local-link validation and the publication/canonical gates.
+9. The Journal/blog archive remains gated: the sample article stays draft until source/date review, internal-link validation, confirmed content facts and verified enquiry endpoint requirements pass. Core-page SEO publication does not authorize draft content.
 
 ## Validation evidence for this checkpoint
 
@@ -1057,3 +1057,24 @@ This is a guest-recovery and contact-source-of-truth fix. It does not alter the 
 - Push and pull-request quality workflows must pass on the same final head; the post-merge main quality run must then pass.
 - Owner-approved staging UAT, real-device clipboard behavior, actual WhatsApp reachability, room inventory and restaurant service/menu checks remain open. STG-01–STG-18 remain NOT RUN until manual evidence exists.
 - No production deployment, canonical/sitemap publication, robots-policy change, or server-side guest-data collection is included.
+
+
+## Bulk SEO publication and cross-journey improvements — 28 October 2026
+
+**Implementation status: added to PR #53; automated checks must pass on the exact final head. Production deployment has not occurred.**
+
+### Production-facing SEO delivery
+
+- Published exact canonical URLs and matching Open Graph URLs for the eight core routes on `https://hotelgarhjaisal.com`, including `index,follow` directives, absolute HTTPS Open Graph/Twitter images and descriptive image-alt metadata.
+- Added/updated JSON-LD for Hotel/WebSite, Restaurant and BreadcrumbList page context. The restaurant schema does not duplicate the map link; the map target remains centrally configured. Existing claims about room availability, current restaurant menu/prices and operating services remain explicitly unconfirmed.
+- Populated `sitemap.xml` with the eight public routes. The existing generated-content marker remains ready for tours/blogs only after each source record independently passes the fact/date/contact gates; the sample tour and article remain drafts.
+- Made production `robots.txt` crawlable with the canonical sitemap directive. Added `robots-staging.txt` and `sitemap-staging.xml`; the `.htaccess` plan normalizes www→apex, HTTP→HTTPS and `/index.html`→`/`, and keeps non-canonical hosts blocked with a noindex response header.
+- Updated publication guard contracts, the content/UX audit, launch readiness checks and Chromium smoke checks to assert the production-vs-staging policy instead of the retired pre-launch “all canonicals blocked” state.
+
+### Remaining release checks
+
+- [ ] Verify live DNS, HTTPS certificate/chain, redirects, Apache rewrite behavior, response headers, social image fetches, canonical URLs and sitemap response from the actual GoDaddy/cPanel production document root.
+- [ ] Verify the non-canonical/staging host serves `Disallow: /`, an empty sitemap and `X-Robots-Tag: noindex, nofollow`; do not rely on repository files alone to prove server behavior.
+- [ ] Submit `https://hotelgarhjaisal.com/sitemap.xml` in the owner’s search-console account and inspect fetch/crawl/index coverage after deployment.
+- [ ] Exact-head GitHub Actions must pass. Manual STG-01–STG-18, booking-provider browser verification, live contact channels, owner facts/menu approval, Lighthouse/formal accessibility and visual review remain NOT RUN until evidence exists.
+- [ ] Back up current production files and confirm rollback before a production upload. No production deployment, payment, reservation or guest-data action was performed by this PR.
