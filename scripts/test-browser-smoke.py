@@ -994,8 +994,46 @@ def check_guest_enquiry_forms(page, base_url: str) -> None:
               f"{page_name}: blank optional departure must be omitted from the draft")
         check(same_origin(day_draft["currentUrl"], base_url),
               f"{page_name}: day draft test must remain on the site and must not send the message")
-        check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 2,
-              f"{page_name}: each explicit submission must prepare exactly one draft")
+        if page_name in ("experiences.html", "experience-details.html"):
+            # Research-led themes can be selected for an enquiry, but the draft
+            # must keep the theme explicitly unconfirmed and must not invent a stay date range.
+            interest.select_option(label="Kuldhara heritage & desert landscape — enquiry only")
+            departure.fill("")
+            arrival.fill(dates["day3"])
+            notes.fill("")
+            check(departure.get_attribute("required") is None,
+                  f"{page_name}: research-led route ideas must remain single-date enquiries by default")
+            check(form.evaluate("(element) => element.checkValidity()"),
+                  f"{page_name}: a research-led route idea must accept one requested date")
+            submit.click()
+            page.wait_for_function(
+                "() => Array.isArray(window.__guestEnquiryOpenCalls) && window.__guestEnquiryOpenCalls.length === 3",
+                timeout=5000,
+            )
+            route_draft = page.evaluate(
+                """() => {
+                  const call = window.__guestEnquiryOpenCalls[2];
+                  const url = new URL(call.url);
+                  return { host: url.hostname, text: url.searchParams.get('text') || '', currentUrl: window.location.href };
+                }"""
+            )
+            check(route_draft["host"] == "wa.me",
+                  f"{page_name}: route idea must use the configured WhatsApp destination")
+            check("Interest: Kuldhara heritage & desert landscape — enquiry only" in route_draft["text"],
+                  f"{page_name}: route draft must identify the selected research idea as enquiry-only")
+            check("Requested date / arrival: " + dates["day3"] in route_draft["text"],
+                  f"{page_name}: route draft must retain the requested date")
+            check(not re.search(r"^Departure:", route_draft["text"], re.M),
+                  f"{page_name}: route idea must not invent a departure date")
+            check("This enquiry does not confirm a booking." in route_draft["text"],
+                  f"{page_name}: route draft must not imply an accepted tour or reservation")
+            check(same_origin(route_draft["currentUrl"], base_url),
+                  f"{page_name}: route draft test must not navigate to WhatsApp or send the message")
+            check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 3,
+                  f"{page_name}: route idea submission must prepare exactly one additional draft")
+        else:
+            check(page.evaluate("window.__guestEnquiryOpenCalls.length") == 2,
+                  f"{page_name}: each explicit submission must prepare exactly one draft")
 
 
 
