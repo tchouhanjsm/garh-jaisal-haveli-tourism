@@ -84,8 +84,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             generate_responsive_variants(root, ("rest3.jpg",))
             html = (
                 '<head><meta property="og:image" content="assets/images/rest3.jpg">'
+                '<meta property="og:image:type" content="image/jpeg">'
                 '<link rel="preload" as="image" href="assets/images/rest3.jpg" '
-                'fetchpriority="high"></head>'
+                'type="image/jpeg" fetchpriority="high"></head>'
                 '<section class="hero"><img class="hero__image" '
                 'src="assets/images/rest3.jpg" alt="Rooftop terrace at dusk" '
                 'fetchpriority="high" loading="eager" width="1200" height="800"></section>'
@@ -96,7 +97,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn("assets/images/responsive/rest3-480.webp 480w", result)
             self.assertIn("assets/images/responsive/rest3-768.webp 768w", result)
             self.assertIn('src="assets/images/rest3.jpg"', result)
-            self.assertIn('content="assets/images/rest3.webp"', result)
+            self.assertIn('<meta property="og:image" content="assets/images/rest3.jpg">', result)
+            self.assertIn('<meta property="og:image:type" content="image/jpeg">', result)
+            self.assertNotIn('<meta property="og:image" content="assets/images/rest3.webp">', result)
+            self.assertIn('href="assets/images/rest3.webp"', result)
+            self.assertIn('type="image/webp"', result)
             self.assertIn('imagesrcset="assets/images/responsive/rest3-480.webp 480w', result)
             self.assertIn('imagesizes="100vw"', result)
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)

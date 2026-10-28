@@ -5,13 +5,30 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, verifyImageDecode } = require('./audit-editorial-media-readiness');
+const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, roleEligibilitySummary, verifyImageDecode } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
 assert.equal(imagePolicy(ROOT).supporting.maxBytes, 81920, 'production social/supporting image budget must remain strict');
 assert.equal(report.summary.articleCount, 12, 'media audit must cover all 12 articles');
+assert.equal(report.summary.headerValidAssetCount, report.inventory.filter(asset => asset.headerValid).length,
+  'header validation must be reported separately from full pixel decoding');
+assert.equal(report.summary.technicallyValidAssetCount, report.inventory.filter(asset => asset.headerValid && asset.decodeStatus === 'verified').length,
+  'technical validity requires successful full pixel decoding');
+const policy = imagePolicy(ROOT);
+const roleProbe = {
+  path: 'assets/images/editorial/custom-name.webp', exists: true, safe: true, bytes: 180 * 1024,
+  format: 'webp', width: 1500, height: 1000, sha256: 'fixture-only', headerValid: true,
+  valid: true, errors: [], warnings: [], decodeStatus: 'verified',
+};
+assert.deepEqual(roleEligibilitySummary([roleProbe], policy), {
+  roleEligibleAssetCount: 1, heroRoleEligibleAssetCount: 1, socialPreviewRoleEligibleAssetCount: 0,
+}, 'role eligibility must use declared role budgets rather than filename patterns');
+const roleNeutralInventory = imageInfo(ROOT, 'assets/images/gallery/hotel/fort-from-roof.webp', policy);
+assert.equal(roleNeutralInventory.headerValid, true, 'inventory header checks must not impose an inferred supporting-image budget');
+assert.ok(!roleNeutralInventory.errors.some(message => /width below |width above |file exceeds /.test(message)),
+  'role-specific width/byte checks belong only in validateForRole');
 assert.equal(report.state, 'BLOCKED', 'draft media cannot be release-ready');
 assert.equal(report.summary.approvedArticleCount, 0, 'asset inventory must not infer approval');
 assert.equal(report.summary.declaredApprovedArticleCount, 0, 'no draft record may claim media approval');

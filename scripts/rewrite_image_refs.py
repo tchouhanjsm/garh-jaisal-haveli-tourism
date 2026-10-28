@@ -156,7 +156,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
 
     for name in IMAGE_NAMES:
         stem = Path(name).stem
-        destination = f"assets/images/{stem}.{('jpg' if extension == 'jpg' else 'webp')}"
+        destination = f"assets/images/{stem}.{'jpg' if extension in {'jpg', 'responsive'} else 'webp'}"
         remote_pattern = re.escape(SOURCE_PREFIX + name) + r"""(?:\?[^"'\s>]*)?"""
         text = re.sub(remote_pattern, destination, text)
         local_pattern = (
@@ -173,7 +173,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         src = get_attribute(tag, "src") or ""
         filename = Path(src.split("?", 1)[0]).name
         stem = Path(filename).stem
-        if filename not in {f"{name[:-4]}.webp" for name in IMAGE_NAMES}:
+        if filename not in {f"{name[:-4]}.{suffix}" for name in IMAGE_NAMES for suffix in ("jpg", "webp")}:
             return tag
         fallback = f"assets/images/{stem}.jpg"
         tag = set_attribute(tag, "src", fallback)
@@ -206,8 +206,9 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         href = get_attribute(tag, "href") or ""
         filename = Path(href.split("?", 1)[0]).name
         stem = Path(filename).stem
-        if filename not in {f"{name[:-4]}.webp" for name in IMAGE_NAMES}:
+        if filename not in {f"{name[:-4]}.{suffix}" for name in IMAGE_NAMES for suffix in ("jpg", "webp")}:
             return tag
+        tag = set_attribute(tag, "href", f"assets/images/{stem}.webp")
         return set_attribute(
             set_attribute(
                 set_attribute(tag, "imagesrcset", _srcset(root, stem)),
