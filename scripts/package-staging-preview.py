@@ -220,12 +220,19 @@ def main() -> int:
     if not args.source_ref.strip() or "\n" in args.source_ref or "\r" in args.source_ref:
         fail("--source-ref must be a single non-empty ref string.")
 
+    if args.output.exists() and args.output.is_symlink():
+        fail("The package output path must not be a symlink.")
+    if args.archive.exists() and args.archive.is_symlink():
+        fail("The archive output path must not be a symlink.")
     output = args.output.resolve()
     archive = args.archive.resolve()
-    if is_within(output, ROOT) or is_within(archive, ROOT):
-        fail("Package output and archive must be placed outside the repository checkout.")
-    if output == archive or is_within(archive, output):
-        fail("The archive path must be separate from the package webroot.")
+    if (
+        is_within(output, ROOT) or is_within(ROOT, output)
+        or is_within(archive, ROOT) or is_within(ROOT, archive)
+    ):
+        fail("Package output and archive must be outside, and must not contain, the repository checkout.")
+    if output == archive or is_within(archive, output) or is_within(output, archive):
+        fail("The archive path must be separate from and not contain the package webroot.")
     if output.exists():
         shutil.rmtree(output)
     if archive.exists():
