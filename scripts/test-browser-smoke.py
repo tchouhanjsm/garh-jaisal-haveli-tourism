@@ -25,8 +25,10 @@ from zoneinfo import ZoneInfo
 
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[1]
-ROUTE_CONTRACT_PATH = ROOT / "content" / "staging-route-contract.json"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(os.environ.get("BROWSER_SMOKE_ROOT", str(REPOSITORY_ROOT))).resolve()
+CONTRACT_ROOT = Path(os.environ.get("BROWSER_SMOKE_CONTRACT_ROOT", str(ROOT))).resolve()
+ROUTE_CONTRACT_PATH = CONTRACT_ROOT / "content" / "staging-route-contract.json"
 with ROUTE_CONTRACT_PATH.open("r", encoding="utf-8") as route_contract_file:
     ROUTE_CONTRACT = json.load(route_contract_file)
 PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]
@@ -470,7 +472,7 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
     server = subprocess.Popen(
         [
             sys.executable,
-            str(ROOT / "scripts" / "test-static-server.py"),
+            str(REPOSITORY_ROOT / "scripts" / "test-static-server.py"),
             "--port",
             str(port),
             "--bind",
@@ -492,6 +494,235 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
             time.sleep(0.1)
     server.terminate()
     raise RuntimeError("Temporary static HTTP server did not become ready within 10 seconds")
+
+
+def run_responsive_image_preview_smoke() -> int:
+    """Exercise generated responsive WebP markup in Chromium at mobile and desktop widths."""
+    failures: list[str] = []
+    checked_pictures = 0
+    routes_with_responsive_images: set[str] = set()
+    server = None
+    browser = None
+
+    def check_preview(condition: bool, message: str) -> None:
+        if not condition:
+            failures.append(message)
+
+    try:
+        server, base_url = start_server()
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            for width, height in ((390, 844), (1440, 900)):
+                for page_name in PAGES:
+                    context = browser.new_context(
+                        viewport={"width": width, "height": height},
+                        device_scale_factor=1,
+                    )
+                    install_navigation_guard(context, base_url)
+                    page = context.new_page()
+                    request_counts: dict[str, int] = {}
+
+                    def record_request(request) -> None:
+                        if same_origin(request.url, base_url):
+                            request_counts[request.url] = request_counts.get(request.url, 0) + 1
+
+                    page.on("request", record_request)
+                    try:
+                        response = page.goto(
+                            base_url + page_name,
+                            wait_until="domcontentloaded",
+                            timeout=15000,
+                        )
+                        if response is None or response.status != 200:
+                            failures.append(
+                                f"{page_name} at {width}px: expected HTTP 200 for packaged preview"
+                            )
+                            continue
+
+                        pictures = page.locator(
+                            'picture:has(source[data-responsive-image="true"])'
+                        )
+                        picture_count = pictures.count()
+                        if picture_count:
+                            routes_with_responsive_images.add(page_name)
+
+                        for index in range(picture_count):
+                            picture = pictures.nth(index)
+                            source = picture.locator('source[data-responsive-image="true"]').first
+                            image = picture.locator("img").first
+                            label = f"{page_name} at {width}px picture {index + 1}"
+                            checked_pictures += 1
+                            try:
+                                image.scroll_into_view_if_needed(timeout=3000)
+                                details = image.evaluate(
+                                    """async (img) => {
+                                      await img.decode();
+                                      const classes = Array.from(img.classList);
+                                      return {
+                                        currentSrc: img.currentSrc,
+                                        fallbackSrc: img.getAttribute('src') || '',
+                                        width: img.naturalWidth,
+                                        height: img.naturalHeight,
+                                        declaredWidth: img.getAttribute('width') || '',
+                                        declaredHeight: img.getAttribute('height') || '',
+                                        loading: img.getAttribute('loading') || '',
+                                        decoding: img.getAttribute('decoding') || '',
+                                        fetchpriority: img.getAttribute('fetchpriority') || '',
+                                        classes,
+                                        alt: img.getAttribute('alt')
+                                      };
+                                    }"""
+                                )
+                                source_details = source.evaluate(
+                                    """(element) => ({
+                                      type: element.getAttribute('type') || '',
+                                      srcset: element.getAttribute('srcset') || '',
+                                      sizes: element.getAttribute('sizes') || ''
+                                    })"""
+                                )
+                            except Exception as error:
+                                failures.append(
+                                    f"{label}: responsive image failed to decode or inspect: "
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                )
+                                continue
+
+                            check_preview(
+                                source_details["type"].lower() == "image/webp",
+                                f"{label}: responsive source must declare image/webp",
+                            )
+                            check_preview(
+                                bool(source_details["sizes"].strip()),
+                                f"{label}: responsive source must declare sizes",
+                            )
+                            candidates = [
+                                candidate.strip().split()[0]
+                                for candidate in source_details["srcset"].split(",")
+                                if candidate.strip()
+                            ]
+                            check_preview(
+                                len(candidates) >= 2,
+                                f"{label}: responsive source must expose multiple width candidates",
+                            )
+                            selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
+                            candidate_paths = [
+                                candidate.split("?", 1)[0].lstrip("/")
+                                for candidate in candidates
+                            ]
+                            check_preview(
+                                selected_path.endswith(".webp") and selected_path in candidate_paths,
+                                f"{label}: Chromium selected a WebP candidate declared by srcset; "
+                                f"selected {selected_path or '<empty>'}",
+                            )
+                            check_preview(
+                                details["fallbackSrc"].lower().endswith(".jpg"),
+                                f"{label}: JPEG fallback must remain available",
+                            )
+                            check_preview(
+                                details["width"] > 0 and details["height"] > 0,
+                                f"{label}: selected image must have positive natural dimensions",
+                            )
+                            check_preview(
+                                details["declaredWidth"].isdigit()
+                                and int(details["declaredWidth"]) > 0
+                                and details["declaredHeight"].isdigit()
+                                and int(details["declaredHeight"]) > 0,
+                                f"{label}: intrinsic width/height must reserve layout space",
+                            )
+                            check_preview(
+                                details["decoding"].lower() == "async",
+                                f"{label}: responsive image must decode asynchronously",
+                            )
+                            check_preview(
+                                details["alt"] is not None,
+                                f"{label}: image must retain an alt attribute",
+                            )
+                            is_hero = (
+                                details["fetchpriority"].lower() == "high"
+                                or "hero__image" in details["classes"]
+                            )
+                            expected_loading = "eager" if is_hero else "lazy"
+                            check_preview(
+                                details["loading"].lower() == expected_loading,
+                                f"{label}: expected loading={expected_loading}",
+                            )
+
+                            if is_hero:
+                                preload_count = page.locator(
+                                    'link[rel="preload"][as="image"][imagesrcset]'
+                                ).count()
+                                matching_preload = False
+                                for preload_index in range(preload_count):
+                                    preload = page.locator(
+                                        'link[rel="preload"][as="image"][imagesrcset]'
+                                    ).nth(preload_index)
+                                    matching_preload = matching_preload or (
+                                        preload.get_attribute("imagesrcset") == source_details["srcset"]
+                                        and preload.get_attribute("imagesizes") == source_details["sizes"]
+                                        and (preload.get_attribute("type") or "").lower() == "image/webp"
+                                    )
+                                check_preview(
+                                    matching_preload,
+                                    f"{label}: hero responsive preload must match source srcset and sizes",
+                                )
+
+                            selected_request_count = request_counts.get(details["currentSrc"], 0)
+                            check_preview(
+                                selected_request_count == 1,
+                                f"{label}: selected WebP candidate should be requested once, "
+                                f"observed {selected_request_count}",
+                            )
+
+                        page.wait_for_timeout(50)
+                        for request_url, request_count in request_counts.items():
+                            request_path = urlsplit(request_url).path.lower()
+                            if request_path.endswith(".webp") and request_count > 1:
+                                failures.append(
+                                    f"{page_name} at {width}px: duplicate WebP request "
+                                    f"({request_count}): {safe_url_label(request_url)}"
+                                )
+                    finally:
+                        context.close()
+
+            browser.close()
+            browser = None
+    except Exception as error:
+        failures.append(
+            f"Packaged responsive-image browser smoke could not complete: "
+            f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+        )
+    finally:
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        if server is not None:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
+
+    if not routes_with_responsive_images:
+        failures.append("Packaged preview did not expose responsive image markup on any core route")
+    if not checked_pictures:
+        failures.append("Packaged preview did not exercise any responsive picture")
+
+    if failures:
+        print(f"FAIL: packaged responsive-image browser smoke found {len(failures)} issue(s)")
+        for failure in failures:
+            print(f" - {failure}")
+        return 1
+
+    print(
+        "PASS: packaged responsive-image browser smoke checked "
+        f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
+        "at 390px and 1440px; Chromium selected declared WebP candidates, retained JPEG fallbacks, "
+        "matched hero responsive preloads, and issued no duplicate WebP requests."
+    )
+    return 0
 
 
 def load_visible_images(page, page_name: str, base_url: str) -> None:
@@ -2234,7 +2465,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--operator", help="Human operator name recorded in a staging evidence report")
     parser.add_argument("--report", help="Local JSON evidence-report path (required with --base-url)")
     parser.add_argument("--screenshots-dir", help=f"Empty local directory outside the checkout for {len(expected_screenshot_names())} visual evidence PNGs (required with --base-url)")
+    parser.add_argument(
+        "--responsive-image-preview",
+        action="store_true",
+        help="Run focused Chromium checks against a generated local preview package.",
+    )
     args = parser.parse_args(argv)
+    if args.responsive_image_preview:
+        if args.base_url or args.operator or args.report or args.screenshots_dir:
+            parser.error("--responsive-image-preview cannot be combined with staging or screenshot evidence options")
+        return run_responsive_image_preview_smoke()
     staging_mode = bool(args.base_url)
 
     if staging_mode:
