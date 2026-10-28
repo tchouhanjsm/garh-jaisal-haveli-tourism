@@ -53,4 +53,4 @@ All current records remain drafts while editorial, source, factual and owner rev
 
 ## Current inventory outcome
 
-The target repository does not currently contain a ready-to-publish image inside each article's blog-specific asset directory. Candidate paths from shared site assets are only possible contextual matches until an editor verifies their visual subject and provenance. Gadisar Lake, Bada Bagh/Vyas Chhatri, and Kuldhara currently have no suitable context-supported local candidate and need a suitable, sourced image before media approval.
+The target repository does not currently contain a ready-to-publish image inside each article's blog-specific asset directory. Candidate paths from shared site assets are unassessed search leads, not contextual matches, until an editor verifies the actual visible subject and records the evidence, reviewer and date. Gadisar Lake, Bada Bagh/Vyas Chhatri, and Kuldhara currently have no suitable context-supported local candidate and need a suitable, sourced image before media approval.
