@@ -1,29 +1,4 @@
-# Apache/cPanel release rules for the static website.
-# Canonical origin: https://hotelgarhjaisal.com.
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-
-  # Collapse the duplicate www host to the canonical HTTPS apex host.
-  RewriteCond %{HTTP_HOST} ^www\.hotelgarhjaisal\.com(?::(?:80|443))?$ [NC]
-  RewriteRule ^ https://hotelgarhjaisal.com%{REQUEST_URI} [R=301,L,NE]
-
-  # Force HTTPS and remove the duplicate /index.html homepage URL.
-  RewriteCond %{HTTP_HOST} ^hotelgarhjaisal\.com(?::80)?$ [NC]
-  RewriteCond %{HTTPS} !=on
-  RewriteRule ^ https://hotelgarhjaisal.com%{REQUEST_URI} [R=301,L,NE]
-  RewriteCond %{HTTP_HOST} ^hotelgarhjaisal\.com(?::443)?$ [NC]
-  RewriteCond %{THE_REQUEST} \s/+index\.html(?:[?\s]) [NC]
-  RewriteRule ^index\.html$ https://hotelgarhjaisal.com/ [R=301,L,NE]
-
-  # Non-canonical hosts receive blocked robots/sitemap files and noindex headers.
-  RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\.com(?::443)?$ [NC]
-  RewriteRule ^robots\.txt$ robots-staging.txt [L]
-  RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\.com(?::443)?$ [NC]
-  RewriteRule ^sitemap\.xml$ sitemap-staging.xml [L]
-  RewriteCond %{HTTP_HOST} !^hotelgarhjaisal\.com(?::443)?$ [NC]
-  RewriteRule ^ - [E=NON_CANONICAL_HOST:1]
-</IfModule>
-
+# Apache/cPanel defaults for the static website.
 ErrorDocument 404 /404.html
 
 <IfModule mod_expires.c>
@@ -44,5 +19,4 @@ ErrorDocument 404 /404.html
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
-  Header always set X-Robots-Tag "noindex, nofollow" env=NON_CANONICAL_HOST
 </IfModule>
