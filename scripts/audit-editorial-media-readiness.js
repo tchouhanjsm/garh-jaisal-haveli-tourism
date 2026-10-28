@@ -88,6 +88,18 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   result.valid = result.errors.length === 0;
   return result;
 }
+function validateForRole(info, role, policy) {
+  if (!info || !info.exists || !info.safe) return { valid: false, errors: (info && info.errors) || ['asset is not a permitted local file'] };
+  const errors = [...(info.errors || [])];
+  const limit = role === 'hero' ? policy.hero : policy.supporting;
+  if (info.width == null || info.height == null) errors.push('image dimensions could not be verified');
+  else {
+    if (info.width < limit.minWidth) errors.push('width below ' + limit.minWidth + 'px requirement');
+    if (info.width > limit.maxWidth) errors.push('width above ' + limit.maxWidth + 'px policy');
+  }
+  if (info.bytes > limit.maxBytes) errors.push('file exceeds ' + limit.maxBytes + '-byte policy');
+  return { valid: errors.length === 0, errors: [...new Set(errors)] };
+}
 function inspectImage(data, extension) {
   if (extension === '.png') return inspectPng(data);
   if (extension === '.jpg' || extension === '.jpeg') return inspectJpeg(data);
@@ -202,9 +214,10 @@ function auditMedia(root=ROOT) {
       candidatePaths.add(candidate.path);
       const inventory=assets.find(a=>a.path===candidate.path);
       if(!inventory) errors.push(item.relative+': candidate is not present in inventory: '+candidate.path);
+      const candidateTechnical = validateForRole(inventory, candidate.role, policy);
       if(candidate.reviewStatus==='approved') {
         if(!['owner-confirmed','licensed'].includes(candidate.rightsStatus)) errors.push(item.relative+': candidate cannot be approved without owner-confirmed or licensed rights: '+candidate.path);
-        if(!inventory||!inventory.valid) errors.push(item.relative+': candidate cannot be approved while technical checks fail: '+candidate.path);
+        if(!candidateTechnical.valid) errors.push(item.relative+': candidate cannot be approved while technical checks fail: '+candidate.path+' ('+candidateTechnical.errors.join('; ')+')');
       }
       if(candidate.rightsStatus==='rejected' && candidate.reviewStatus==='approved') errors.push(item.relative+': rejected-rights candidate cannot be approved: '+candidate.path);
     }
@@ -217,7 +230,8 @@ function auditMedia(root=ROOT) {
       if(!candidate) errors.push(item.relative+': approved asset must reference a reviewed, rights-resolved candidate: '+approvedAsset.path);
       if(!safeImagePath(root,approvedAsset.path)) errors.push(item.relative+': approved asset path missing or unsafe: '+approvedAsset.path);
       const info=assets.find(a=>a.path===approvedAsset.path);
-      if(!info||!info.valid) errors.push(item.relative+': approved asset failed technical checks: '+approvedAsset.path);
+      const approvedTechnical = validateForRole(info, approvedAsset.role, policy);
+      if(!approvedTechnical.valid) errors.push(item.relative+': approved asset failed technical checks: '+approvedAsset.path+' ('+approvedTechnical.errors.join('; ')+')');
       if(/^(image|photo|picture|image of|photo of|jaisalmer)$/i.test(String(approvedAsset.alt || '').trim())) errors.push(item.relative+': generic alt text is not allowed for '+approvedAsset.path);
     }
     for(const role of ['hero','socialPreview']) {
@@ -266,7 +280,7 @@ function articleReport(root,item,assets,seenRefs) {
     mediaStatus:review.mediaStatus||'missing',
     requirements:media.requirements||null,
     heroImage:r.heroImage||null,socialPreviewImage:r.seo&&r.seo.ogImage||null,
-    candidates:(media.candidates||[]).map(candidate=>({...candidate,technical:(assets.find(a=>a.path===candidate.path)||{}).valid===true,technicalErrors:(assets.find(a=>a.path===candidate.path)||{}).errors||['not in local inventory']})),approvedAssets:media.approvedAssets||[],
+    candidates:(media.candidates||[]).map(candidate=>{const info=assets.find(a=>a.path===candidate.path);const check=validateForRole(info,candidate.role,imagePolicy(root));return {...candidate,technical:check.valid,technicalErrors:check.errors};}),approvedAssets:media.approvedAssets||[],
     missingRoles:roles.filter(role=>!(media.approvedAssets||[]).some(a=>a.role===role)),
     duplicateAssetUsage:[...seenRefs.entries()].filter(([,owners])=>owners.some(owner=>owner.startsWith(r.slug+':'))&&owners.length>1).map(([asset,owners])=>({asset,owners})),
     blockers:[...(review.mediaStatus==='approved'?[]:['media-review-'+review.mediaStatus]),
@@ -300,4 +314,4 @@ if(require.main===module) {
     }catch(error){console.error('FAIL: media audit could not complete safely: '+error.message);process.exitCode=1;}
   }
 }
-module.exports={auditMedia,imageInfo,inspectImage,safeImagePath,imagePolicy};
+module.exports={auditMedia,imageInfo,inspectImage,safeImagePath,imagePolicy,validateForRole};
