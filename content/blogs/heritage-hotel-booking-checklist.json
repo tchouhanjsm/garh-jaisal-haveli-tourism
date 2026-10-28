@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "slug": "heritage-hotel-booking-checklist",
+  "title": "Heritage Hotel Booking Checklist for Jaisalmer Fort",
+  "seo": {
+    "title": "Heritage Hotel Booking Checklist: Jaisalmer Fort",
+    "description": "Compare a heritage stay inside Jaisalmer Fort by confirming the room, total price, arrival route, access needs, cancellation terms and current services."
+  },
+  "status": "draft",
+  "lede": "A heritage hotel's setting can be a major part of a Jaisalmer trip, but the right choice depends on current room details and practical arrangements as much as photographs. Use this checklist to ask clear questions and compare written answers without assuming that catalogue information equals live availability.",
+  "tableOfContents": [
+    {
+      "id": "confirm-the-room",
+      "label": "Confirm the exact room offered"
+    },
+    {
+      "id": "price-and-terms",
+      "label": "Compare the full price and terms"
+    },
+    {
+      "id": "access-and-services",
+      "label": "Check arrival and current services"
+    },
+    {
+      "id": "keep-confirmations",
+      "label": "Keep the confirmed details together"
+    }
+  ],
+  "sections": [
+    {
+      "id": "confirm-the-room",
+      "heading": "Confirm the exact room offered",
+      "body": [
+        "Ask which room is available for your dates, its bed arrangement, occupancy, facilities, inclusions and full rate. Request confirmation for the specific room rather than assuming all rooms in the property are identical.",
+        "Use the room catalogue as a comparison aid, not a live inventory system. If a facility is essential to your trip, ask explicitly and wait for confirmation before committing."
+      ]
+    },
+    {
+      "id": "price-and-terms",
+      "heading": "Compare the full price and terms",
+      "body": [
+        "Ask for the complete total for your travel dates, including applicable taxes, meals or other inclusions, and confirm cancellation, amendment and payment terms in writing. Do not rely on a general offer if it does not identify the relevant dates and conditions.",
+        "Clarify which provider manages any amendment or refund. Opening an external booking link or preparing an enquiry does not itself confirm a reservation."
+      ]
+    },
+    {
+      "id": "access-and-services",
+      "heading": "Check arrival and current services",
+      "body": [
+        "Accommodation inside Jaisalmer Fort can require a final walk through narrow lanes because cars do not reach every property door. Confirm the drop-off point, walking route, surface, steps and any luggage arrangements for your date.",
+        "If dining, a special arrangement, guided walk or desert outing affects your decision, ask whether it is operating, what it includes and the full price. Menu photographs and broad descriptions are not proof of current hours or availability."
+      ]
+    },
+    {
+      "id": "keep-confirmations",
+      "heading": "Keep the confirmed details together",
+      "body": [
+        "Keep the confirmed room name, dates, total price, cancellation terms, key inclusions and arrival instructions in one place. If any important item remains unclear, ask a follow-up question before treating the arrangements as final.",
+        "A clear answer is more useful than an assumption. This checklist supports an informed choice; it is not a guarantee of availability or a substitute for a confirmed booking."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    },
+    {
+      "label": "Garh Jaisal Haveli — owner facts and verification notes",
+      "url": "https://github.com/tchouhanjsm/garh-jaisal-website/blob/main/docs/OWNER-FACTS.md"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "staying-inside-jaisalmer-fort",
+    "jaisalmer-fort-arrival-checklist",
+    "jaisalmer-fort-guide"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "slug": "staying-inside-jaisalmer-fort",
+  "title": "Staying Inside Jaisalmer Fort: What to Know",
+  "seo": {
+    "title": "Staying Inside Jaisalmer Fort: What to Know",
+    "description": "Plan a stay inside Jaisalmer Fort: understand the living heritage setting, confirm the final walk, compare room details and verify arrangements before booking."
+  },
+  "status": "draft",
+  "lede": "A stay inside Jaisalmer Fort is as much about understanding the neighbourhood as choosing a room. This guide explains the character of the living fort, the practical questions to settle before arrival, and how to compare a heritage stay without assuming that a photograph or enquiry confirms availability.",
+  "tableOfContents": [
+    {
+      "id": "living-neighbourhood",
+      "label": "A fort that remains a neighbourhood"
+    },
+    {
+      "id": "plan-the-final-walk",
+      "label": "Plan the last part of the journey"
+    },
+    {
+      "id": "compare-and-confirm",
+      "label": "Compare the specific room and confirm services"
+    }
+  ],
+  "sections": [
+    {
+      "id": "living-neighbourhood",
+      "heading": "A fort that remains a neighbourhood",
+      "body": [
+        "Rajasthan Tourism describes Jaisalmer Fort as a place where shops, hotels and historic havelis sit among homes where generations continue to live. UNESCO also identifies the inhabited township and Jain temples as central to the fort's distinctive character. The setting is not a sealed attraction designed only for visitors; everyday life continues in the same lanes.",
+        "Keep lanes clear, respect homes and places of worship, follow local instructions, and avoid treating residents or their routines as props for photographs. This neighbourhood context is part of the stay, not a detail to discover only after arrival."
+      ]
+    },
+    {
+      "id": "plan-the-final-walk",
+      "heading": "Plan the last part of the journey",
+      "body": [
+        "Garh Jaisal Haveli's source guidance says vehicles do not reach the hotel door through the narrow lanes, so guests should confirm the current drop-off or parking point and the walk from there. A map pin does not by itself guarantee vehicle access to the entrance.",
+        "Ask about uneven paving, stairs, luggage, the agreed meeting point and any assistance you may need. Do not assume step-free access or that luggage assistance is available unless the hotel confirms it for your dates."
+      ]
+    },
+    {
+      "id": "compare-and-confirm",
+      "heading": "Compare the specific room and confirm services",
+      "body": [
+        "Ask which room is available, its bed arrangement, occupancy, facilities, inclusions, cancellation terms and the full rate for your dates. A static room page describes listed information; it is not live inventory or a guarantee that a particular room is open.",
+        "If rooftop dining or a desert experience matters to your trip, ask whether the service is operating on your dates and what the current terms are. Menu items, prices, special table settings, tours and availability should not be inferred from imagery or broad promotional wording."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "Garh Jaisal Haveli — owner facts and verification notes",
+      "url": "https://github.com/tchouhanjsm/garh-jaisal-website/blob/main/docs/OWNER-FACTS.md"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-fort-guide",
+    "jaisalmer-fort-arrival-checklist",
+    "heritage-hotel-booking-checklist"
+  ]
+}

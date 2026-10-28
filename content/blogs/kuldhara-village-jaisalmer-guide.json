@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "slug": "kuldhara-village-jaisalmer-guide",
+  "title": "Kuldhara Village Near Jaisalmer: A Visitor Guide",
+  "seo": {
+    "title": "Kuldhara Village Near Jaisalmer: Visitor Guide",
+    "description": "Plan a considered visit to Kuldhara using official destination context, with current access, transport, fees and site conditions confirmed before departure."
+  },
+  "status": "draft",
+  "lede": "Kuldhara is one of the heritage destinations discussed in Rajasthan Tourism's Jaisalmer material. Its story includes local legend, while the site itself is a historic settlement and protected place. This guide separates destination context from storytelling and recommends checking current access and travel logistics before setting out.",
+  "tableOfContents": [
+    {
+      "id": "place-and-story",
+      "label": "Understand the place and its stories"
+    },
+    {
+      "id": "visit-logistics",
+      "label": "Confirm the current visit details"
+    },
+    {
+      "id": "respect-and-combine",
+      "label": "Respect the site and plan a flexible day"
+    }
+  ],
+  "sections": [
+    {
+      "id": "place-and-story",
+      "heading": "Understand the place and its stories",
+      "body": [
+        "Rajasthan Tourism describes Kuldhara as an abandoned village near Jaisalmer and recounts a traditional story associated with its departure. The legend is part of the destination's popular narrative, but it should be presented as a story rather than proof of supernatural events or a complete historical explanation.",
+        "Approach the remains as a heritage place. The physical settlement, its layout and the surrounding region deserve attention beyond the most dramatic version of the legend."
+      ]
+    },
+    {
+      "id": "visit-logistics",
+      "heading": "Confirm the current visit details",
+      "body": [
+        "Before leaving Jaisalmer, verify the route, transport, access conditions, current entry arrangements and any charges. Official background information does not replace date-specific details from the relevant site authority or your operator.",
+        "Ask what transport is included in a packaged outing, how long the stop is expected to last and how return transport works. Do not assume a route or access arrangement is unchanged because an older itinerary describes it."
+      ]
+    },
+    {
+      "id": "respect-and-combine",
+      "heading": "Respect the site and plan a flexible day",
+      "body": [
+        "Keep to areas open to visitors, follow signage and local instructions, avoid climbing on walls or taking material from the site, and leave the place as you found it. Historic remains can be fragile even when a structure looks abandoned.",
+        "Some travellers combine Kuldhara with other Jaisalmer-area interests or a desert outing. Confirm the sequence and total price before committing, and leave room for weather, transport changes and site access conditions."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Rajasthan Tourism — Kuldhara",
+      "url": "https://www.tourism.rajasthan.gov.in/kuldhara.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-two-day-itinerary",
+    "thar-desert-experience-planning",
+    "bada-bagh-vyas-chhatri-guide"
+  ]
+}

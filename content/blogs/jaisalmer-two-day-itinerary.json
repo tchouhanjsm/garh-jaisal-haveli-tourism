@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "slug": "jaisalmer-two-day-itinerary",
+  "title": "Jaisalmer Two-Day Itinerary: Fort, Lake and Desert",
+  "seo": {
+    "title": "Jaisalmer 2-Day Itinerary: Fort, Lake and Desert",
+    "description": "Build a flexible Jaisalmer itinerary around the living fort, Jain temples, Gadisar Lake and desert options; verify access and services for your travel dates."
+  },
+  "status": "draft",
+  "lede": "Two days in Jaisalmer can balance heritage, the city's historic water landscape and a possible desert outing. Rather than promising fixed opening times or travel durations, this guide offers a practical sequence you can adapt after checking current access, transport and service availability.",
+  "tableOfContents": [
+    {
+      "id": "day-one-fort",
+      "label": "Day one: start with the living fort"
+    },
+    {
+      "id": "heritage-and-lake",
+      "label": "Add sacred architecture and Gadisar Lake"
+    },
+    {
+      "id": "desert-and-beyond",
+      "label": "Choose an off-site outing only after confirmation"
+    }
+  ],
+  "sections": [
+    {
+      "id": "day-one-fort",
+      "heading": "Day one: start with the living fort",
+      "body": [
+        "Begin by allowing enough time to reach your accommodation or meeting point, particularly if you are staying inside Jaisalmer Fort. The final route may include a walk through narrow lanes, so confirm the drop-off point and walking conditions before arrival rather than assuming a vehicle can reach every doorway.",
+        "Explore the fort at a pace that leaves room for its residential lanes, sandstone architecture, shops and sacred spaces. UNESCO recognises Jaisalmer as an inhabited fort adapted to desert terrain; take care not to block passages, enter private areas or treat places of worship as ordinary photo stops."
+      ]
+    },
+    {
+      "id": "heritage-and-lake",
+      "heading": "Add sacred architecture and Gadisar Lake",
+      "body": [
+        "Rajasthan Tourism describes the Jain temples within the fort complex and identifies Gadisar Lake as a historically important water feature. Confirm the temples' current visiting arrangements and the lake's current access locally; hours, entry conditions and activity availability are date-sensitive.",
+        "Leave space for a meal or rest rather than packing every stop into a strict schedule. If you want a guided walk or a specific activity, confirm the guide, language, route, access and price before making it part of the plan."
+      ]
+    },
+    {
+      "id": "desert-and-beyond",
+      "heading": "Choose an off-site outing only after confirmation",
+      "body": [
+        "Consider Bada Bagh or a desert outing if it fits your interests, transport and group pace. Rajasthan Tourism lists camel safaris and other desert activities around Jaisalmer, but the operator, route, timing and inclusions vary. Ask about departure, return, transport, meals and cancellation terms.",
+        "Keep the itinerary flexible until the actual service is confirmed. A desert outing should not be assumed to include a particular performance, meal, transfer, accommodation type or wildlife sighting unless that offer explicitly states so."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Jain Temples of Jaisalmer",
+      "url": "https://www.tourism.rajasthan.gov.in/jain-temples-of-jaisalmer.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Lakes and Rivers to Visit",
+      "url": "https://www.tourism.rajasthan.gov.in/lakes-rivers-to-visit.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Other destinations including Vyas Chhatri",
+      "url": "https://www.tourism.rajasthan.gov.in/others.html"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-fort-guide",
+    "best-time-to-visit-jaisalmer",
+    "jain-temples-jaisalmer-guide",
+    "gadisar-lake-jaisalmer-guide",
+    "bada-bagh-vyas-chhatri-guide",
+    "thar-desert-experience-planning"
+  ]
+}

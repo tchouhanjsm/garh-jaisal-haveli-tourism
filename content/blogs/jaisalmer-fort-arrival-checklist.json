@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "slug": "jaisalmer-fort-arrival-checklist",
+  "title": "How to Reach a Stay Inside Jaisalmer Fort: Checklist",
+  "seo": {
+    "title": "How to Reach a Stay Inside Jaisalmer Fort",
+    "description": "Prepare for a stay inside Jaisalmer Fort by confirming the drop-off point, walking route, luggage, mobility needs and arrival contact in advance."
+  },
+  "status": "draft",
+  "lede": "Reaching a property inside Jaisalmer Fort can involve a different final step from reaching a hotel beside an ordinary road. This checklist helps travellers confirm the last part of the journey before departure, without making unsupported promises about vehicle access, assistance or step-free routes.",
+  "tableOfContents": [
+    {
+      "id": "destination-and-meeting-point",
+      "label": "Confirm the exact destination and meeting point"
+    },
+    {
+      "id": "the-final-walk",
+      "label": "Ask what the final walk involves"
+    },
+    {
+      "id": "luggage-and-arrival",
+      "label": "Confirm luggage help and the arrival plan"
+    }
+  ],
+  "sections": [
+    {
+      "id": "destination-and-meeting-point",
+      "heading": "Confirm the exact destination and meeting point",
+      "body": [
+        "Save the property's confirmed map pin, but ask where a driver should actually stop on your arrival date. An address or online map marker does not guarantee that a vehicle can reach the door through the narrow fort lanes.",
+        "Ask the property to confirm the meeting point, the recommended route and which contact method to use if you cannot find the entrance. Reconfirm if your transport time changes."
+      ]
+    },
+    {
+      "id": "the-final-walk",
+      "heading": "Ask what the final walk involves",
+      "body": [
+        "Garh Jaisal Haveli's source guidance says cars cannot reach the hotel door inside the fort, so guests should plan for a final walk from an accessible drop-off or parking point. Confirm the exact route and walking conditions rather than relying on approximate distances.",
+        "Ask about the surface, stairs, slopes and route length, especially if someone in your party has mobility constraints or is travelling with small children. This guide does not claim step-free access."
+      ]
+    },
+    {
+      "id": "luggage-and-arrival",
+      "heading": "Confirm luggage help and the arrival plan",
+      "body": [
+        "Tell the property if you have heavy luggage or a specific access need and ask what assistance, if any, can be arranged for your date and arrival time. Do not assume staff are available at every hour or that a porter service is included.",
+        "Before departure, reconfirm the property name, the drop-off point, the contact person, the expected final walk and check-in arrangements. Allow a buffer for orientation and keep essentials easy to carry."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Garh Jaisal Haveli — owner facts and verification notes",
+      "url": "https://github.com/tchouhanjsm/garh-jaisal-website/blob/main/docs/OWNER-FACTS.md"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-fort-guide",
+    "staying-inside-jaisalmer-fort",
+    "heritage-hotel-booking-checklist"
+  ]
+}

@@ -152,7 +152,19 @@
   "relatedTours": [
     "sunset-camel-safari"
   ],
-  "relatedBlogs": [],
+  "relatedBlogs": [
+    "staying-inside-jaisalmer-fort",
+    "jaisalmer-two-day-itinerary",
+    "best-time-to-visit-jaisalmer",
+    "jain-temples-jaisalmer-guide",
+    "gadisar-lake-jaisalmer-guide",
+    "bada-bagh-vyas-chhatri-guide",
+    "kuldhara-village-jaisalmer-guide",
+    "thar-desert-experience-planning",
+    "jaisalmer-photography-guide",
+    "jaisalmer-fort-arrival-checklist",
+    "heritage-hotel-booking-checklist"
+  ],
   "enquiryCta": {
     "label": "Ask about planning your stay",
     "mode": "whatsapp"

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "slug": "thar-desert-experience-planning",
+  "title": "Jaisalmer Desert Safari: What to Confirm Before Booking",
+  "seo": {
+    "title": "Jaisalmer Desert Safari: Booking Checklist",
+    "description": "Compare desert outing options around Jaisalmer and ask about the operator, route, transport, timing, inclusions and weather plan before you book."
+  },
+  "status": "draft",
+  "lede": "Jaisalmer's desert setting offers several possible outing styles, but a label such as camel safari, jeep outing or overnight camp does not tell you everything that is included. Rajasthan Tourism lists desert activities in the region; this checklist helps you compare an actual offer without assuming every activity operates every day.",
+  "tableOfContents": [
+    {
+      "id": "choose-the-experience",
+      "label": "Start with the kind of experience"
+    },
+    {
+      "id": "confirm-provider-and-inclusions",
+      "label": "Confirm the provider and written itinerary"
+    },
+    {
+      "id": "overnight-conditions",
+      "label": "For overnight or camp options"
+    },
+    {
+      "id": "conditions-and-cost",
+      "label": "Check conditions, total cost and cancellation terms"
+    }
+  ],
+  "sections": [
+    {
+      "id": "choose-the-experience",
+      "heading": "Start with the kind of experience",
+      "body": [
+        "Rajasthan Tourism describes camel safaris at Sam and Khuri and mentions other desert activities at different locations around Jaisalmer. These are destination-level examples, not proof that a specific provider or route is operating on your chosen date.",
+        "Decide whether you are enquiring about a short outing, an evening experience or an overnight concept. Each has different transport and time implications, so compare offers by actual inclusions rather than their headline names."
+      ]
+    },
+    {
+      "id": "confirm-provider-and-inclusions",
+      "heading": "Confirm the provider and written itinerary",
+      "body": [
+        "Ask for the operator's name, departure point, route, estimated duration, return plan and transport arrangement. Confirm whether transfers are private or shared and whether a guide is included, including language if that matters to your group.",
+        "Request a written list of inclusions and exclusions: meals, water, activity equipment, local fees and additional costs. Do not infer details from a generic package image or an old social post."
+      ]
+    },
+    {
+      "id": "overnight-conditions",
+      "heading": "For overnight or camp options",
+      "body": [
+        "Confirm the actual accommodation type, sleeping arrangement, bathroom facilities, bedding, meals and return transport. Words such as “camp”, “tent” or “under the stars” are not precise descriptions of facilities.",
+        "Ask what happens if weather or access conditions change the outing. Do not assume a performance, a particular campsite or a wildlife sighting is included unless the written offer explicitly confirms it."
+      ]
+    },
+    {
+      "id": "conditions-and-cost",
+      "heading": "Check conditions, total cost and cancellation terms",
+      "body": [
+        "Check the forecast near departure and ask the operator how a change in weather or route is handled. Clarify physical demands, recommended items, animal welfare and environmental practices that matter to your group.",
+        "Ask for the complete price, advance payment, cancellation and rescheduling terms. Garh Jaisal Haveli's Experiences page lists concepts for enquiry; it does not establish live availability for a third-party activity. An enquiry is not a confirmed reservation."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "India Meteorological Department",
+      "url": "https://mausam.imd.gov.in/"
+    },
+    {
+      "label": "Garh Jaisal Haveli — owner facts and verification notes",
+      "url": "https://github.com/tchouhanjsm/garh-jaisal-website/blob/main/docs/OWNER-FACTS.md"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-two-day-itinerary",
+    "best-time-to-visit-jaisalmer",
+    "kuldhara-village-jaisalmer-guide"
+  ]
+}

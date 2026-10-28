@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "slug": "bada-bagh-vyas-chhatri-guide",
+  "title": "Bada Bagh and Vyas Chhatri: Jaisalmer Heritage Guide",
+  "seo": {
+    "title": "Bada Bagh & Vyas Chhatri: Jaisalmer Guide",
+    "description": "Understand the cenotaph architecture associated with Bada Bagh and Vyas Chhatri, then confirm current access and travel arrangements before visiting."
+  },
+  "status": "draft",
+  "lede": "Bada Bagh and Vyas Chhatri are associated with Jaisalmer's memorial architecture and offer a different perspective from the lanes inside the fort. Rajasthan Tourism identifies Vyas Chhatri within Bada Bagh and describes the cenotaph setting. This guide offers context and planning questions rather than promising current entry conditions or particular sunset access.",
+  "tableOfContents": [
+    {
+      "id": "memorial-landscape",
+      "label": "Understand the memorial landscape"
+    },
+    {
+      "id": "confirm-before-going",
+      "label": "Confirm access before setting out"
+    },
+    {
+      "id": "photography-and-itinerary",
+      "label": "Photograph carefully and fit it into your day"
+    }
+  ],
+  "sections": [
+    {
+      "id": "memorial-landscape",
+      "heading": "Understand the memorial landscape",
+      "body": [
+        "Rajasthan Tourism describes Vyas Chhatri as an example of Rajasthani architecture located in Bada Bagh and notes the area's series of royal cenotaphs. These memorial structures are part of the region's built heritage and should be approached with the same care as other historic places.",
+        "Read the setting as architecture and memory rather than only a backdrop. Avoid climbing on fragile structures, crossing barriers or treating a restricted area as an accessible photo platform."
+      ]
+    },
+    {
+      "id": "confirm-before-going",
+      "heading": "Confirm access before setting out",
+      "body": [
+        "Check current directions, transport arrangements, access conditions and any applicable fees with a reliable local or official source before leaving the city. Opening hours and access rules are not stated here because they should be confirmed for the intended date.",
+        "If you hope to arrive at a particular time for the light, ask whether the site is accessible at that time and arrange a confirmed return transfer. Do not assume that a location visible in photographs can be accessed at every hour."
+      ]
+    },
+    {
+      "id": "photography-and-itinerary",
+      "heading": "Photograph carefully and fit it into your day",
+      "body": [
+        "Use permitted areas, respect other visitors, do not leave litter, and avoid touching carvings or climbing on memorial structures. Ask before making other people the subject of an image and follow local directions around protected or fragile remains.",
+        "Consider Bada Bagh alongside Gadisar Lake or a fort-focused day only after checking travel time and current access. This guide does not promise a particular photography condition, open gate, guide or transport operator."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "Rajasthan Tourism — Other destinations including Vyas Chhatri",
+      "url": "https://www.tourism.rajasthan.gov.in/others.html"
+    },
+    {
+      "label": "Rajasthan Tourism — Jaisalmer destination guide",
+      "url": "https://www.tourism.rajasthan.gov.in/jaisalmer.html"
+    },
+    {
+      "label": "UNESCO World Heritage Centre — Hill Forts of Rajasthan",
+      "url": "https://whc.unesco.org/en/list/247/"
+    }
+  ],
+  "lastReviewed": null,
+  "publishedAt": null,
+  "relatedBlogs": [
+    "jaisalmer-two-day-itinerary",
+    "gadisar-lake-jaisalmer-guide",
+    "jaisalmer-photography-guide"
+  ]
+}
