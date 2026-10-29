@@ -203,21 +203,27 @@ class RewriteImageReferencesTests(unittest.TestCase):
     def test_nested_photo_paths_preserve_identity_and_packaged_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            source = create_jpeg(root, "rooms/opium.jpg", (1200, 800))
-            generated = generate_responsive_variants(root, ("rooms/opium.jpg",))
-            entry = generated["rooms/opium.jpg"]
-            self.assertEqual(entry["fullSizePath"], "assets/images/rooms/opium.webp")
-            self.assertEqual(entry["variants"][0]["path"], "assets/images/responsive/rooms/opium-480.webp")
+            source = create_jpeg(root, "gallery/desert/camp-evening.jpeg", (1200, 800))
+            generated = generate_responsive_variants(root, ("gallery/desert/camp-evening.jpeg",))
+            entry = generated["gallery/desert/camp-evening.jpeg"]
+            self.assertEqual(entry["fullSizePath"], "assets/images/gallery/desert/camp-evening.webp")
+            self.assertEqual(
+                entry["variants"][0]["path"],
+                "assets/images/responsive/gallery/desert/camp-evening-480.webp",
+            )
             self.assertEqual(entry["sourceBytes"], source.stat().st_size)
 
             html = (
-                '<link rel="preload" as="image" href="assets/images/rooms/opium.jpg">'
-                '<img src="assets/images/rooms/opium.jpg" alt="Opium heritage room">'
+                '<link rel="preload" as="image" href="assets/images/gallery/desert/camp-evening.jpeg">'
+                '<img src="assets/images/gallery/desert/camp-evening.jpeg" alt="Camp evening in the Thar desert">'
             )
             rewritten = rewrite_html_text(html, "responsive", root=root)
-            self.assertIn("assets/images/responsive/rooms/opium-480.webp 480w", rewritten)
-            self.assertIn('href="assets/images/rooms/opium.webp"', rewritten)
-            self.assertIn('src="assets/images/rooms/opium.jpg"', rewritten)
+            self.assertIn(
+                "assets/images/responsive/gallery/desert/camp-evening-480.webp 480w",
+                rewritten,
+            )
+            self.assertIn('href="assets/images/gallery/desert/camp-evening.webp"', rewritten)
+            self.assertIn('src="assets/images/gallery/desert/camp-evening.jpeg"', rewritten)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
             page = root / "rooms.html"

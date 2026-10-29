@@ -700,7 +700,7 @@ def run_responsive_image_preview_smoke() -> int:
                                 f"selected {selected_path or '<empty>'}",
                             )
                             check_preview(
-                                details["fallbackSrc"].lower().endswith(".jpg"),
+                                details["fallbackSrc"].lower().endswith((".jpg", ".jpeg")),
                                 f"{label}: JPEG fallback must remain available",
                             )
                             check_preview(
