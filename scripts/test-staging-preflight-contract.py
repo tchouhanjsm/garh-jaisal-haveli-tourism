@@ -254,7 +254,7 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 4
+assert incomplete_report["schemaVersion"] == 5
 assert incomplete_report["automatedResult"] == "FAIL"
 assert incomplete_report["automatedFailureCount"] == 5
 assert incomplete_report["evidenceCoverage"] == {
@@ -266,6 +266,9 @@ assert incomplete_report["evidenceCoverage"] == {
 }
 assert incomplete_report["unknownRouteEvidence"]["complete"] is False
 assert incomplete_report["visualEvidence"]["complete"] is False
+assert incomplete_report["visualEvidence"]["required"] is True
+assert incomplete_report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
+assert incomplete_report["visualEvidence"]["ownerApproved"] is False
 assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 24
 assert incomplete_report["pagesAttempted"] == []
 assert incomplete_report["pagesWithHttp200OnTargetOrigin"] == []
@@ -297,6 +300,9 @@ assert report["evidenceCoverage"] == {
 }
 assert report["unknownRouteEvidence"]["complete"] is True
 assert report["visualEvidence"]["complete"] is True
+assert report["visualEvidence"]["required"] is True
+assert report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
+assert report["visualEvidence"]["ownerApproved"] is False
 assert report["visualEvidence"]["capturedScreenshotCount"] == 24
 assert report["visualEvidence"]["capturedFiles"] == complete_screenshots
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
@@ -334,6 +340,9 @@ missing_visual_evidence = browser_smoke.build_report(
     unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert missing_visual_evidence["automatedResult"] == "FAIL"
+assert missing_visual_evidence["visualEvidence"]["required"] is True
+assert missing_visual_evidence["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
+assert missing_visual_evidence["visualEvidence"]["ownerApproved"] is False
 assert missing_visual_evidence["automatedFailureCount"] == 1
 assert missing_visual_evidence["evidenceCoverage"]["complete"] is False
 
