@@ -323,6 +323,14 @@
   background: var(--white);
   color: var(--ink);
 }
+.arrival-section-nav a[aria-current="location"] {
+  border-color: var(--line);
+  background: var(--white);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
 #arrival-overview-title,
 #travel-options-title,
 #walking-access-title,
