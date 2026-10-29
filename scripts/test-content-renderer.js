@@ -175,7 +175,7 @@ try {
   writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', captionlessBlog);
   assert.throws(
     () => buildContentPages(root, { write: false }),
-    /approved\/live blog requires a reviewed hero caption between 20 and 180 characters/,
+    /Live article requires a reviewed hero caption between 20 and 180 characters/,
     'approved/live articles must fail closed when the reviewed hero caption is missing',
   );
   makeBlogLive(root);

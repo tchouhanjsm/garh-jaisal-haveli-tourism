@@ -2559,11 +2559,50 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
 
 
 
-def check_journal_preview(page, base_url: str) -> None:
-    """Exercise the local Journal prototype without exposing draft article routes."""
+def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
+    """Exercise the local Journal prototype and capture preview-only design evidence."""
+    before_runtime_errors = len(RUNTIME_ERRORS)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    screenshots: list[dict] = []
+    archive_widths: list[int] = []
+    article_widths: list[int] = []
+    interactions = [
+        "draft record loading and count",
+        "search no-match state and clear recovery",
+        "topic and text filters intersect",
+        "keyboard open and keyboard back with focus restoration",
+        "table-of-contents target and navigation",
+        "safe source-link attributes",
+        "related draft navigation without route change",
+        "archive/article overflow at six viewport widths",
+    ]
+
+    def check_no_horizontal_overflow(view: str, width: int) -> None:
+        dims = page.evaluate("() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})")
+        check(dims["document"] <= dims["viewport"] + 1,
+              f"Journal preview {view} at {width}px: document must not overflow horizontally ({dims})")
+
+    def capture(filename: str, view: str, width: int, height: int) -> None:
+        destination = evidence_dir / filename
+        try:
+            page.evaluate("() => window.scrollTo(0, 0)")
+            page.screenshot(path=str(destination), full_page=True, animations="disabled", caret="hide")
+            image_width, image_height = read_png_dimensions(destination)
+            payload = destination.read_bytes()
+            screenshots.append({
+                "filename": filename, "view": view, "route": "preview/journal.html",
+                "viewportWidthCssPixels": width, "viewportHeightCssPixels": height,
+                "imageWidthPixels": image_width, "imageHeightPixels": image_height,
+                "fullPage": True, "bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            })
+            check(image_width == width and len(payload) > 0,
+                  f"Journal preview {view} at {width}px: invalid screenshot geometry/bytes ({image_width}x{image_height}, {len(payload)} bytes)")
+        except Exception as error:
+            check(False, f"Journal preview {view} at {width}px: screenshot failed ({type(error).__name__}: {error})")
+
     response = page.goto(base_url + "preview/journal.html", wait_until="domcontentloaded", timeout=15000)
-    check(response is not None and response.status == 200,
-          "Journal preview: local prototype must load successfully")
+    check(response is not None and response.status == 200, "Journal preview: local prototype must load successfully")
     if response is None or response.status != 200:
         return
     check(page.locator('meta[name="robots"][content="noindex,nofollow"]').count() == 1,
@@ -2572,47 +2611,136 @@ def check_journal_preview(page, base_url: str) -> None:
           "Journal preview: must not claim a canonical URL")
     check(page.locator("[data-preview-only]").is_visible(),
           "Journal preview: draft-only disclosure must be visible")
+    check(page.locator("h1#journal-masthead-title").is_visible(),
+          "Journal preview: masthead must expose a visible H1")
+    check(page.locator(".journal-masthead__image img[alt]").count() == 1,
+          "Journal preview: masthead photo must keep descriptive alternative text")
     try:
         page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
     except Exception as error:
         check(False, f"Journal preview: all 12 draft cards should render from JSON ({error})")
         return
+
     check(page.locator("[data-journal-card]").count() == 12,
           "Journal preview: exactly 12 current draft records should render")
     check("12 draft guides" in page.locator("[data-journal-results]").inner_text().lower(),
           "Journal preview: result count must announce all drafts")
     check(page.locator("a[href*='/blogs/'], a[href^='../blogs/']").count() == 0,
           "Journal preview: draft cards must not link to unpublished article URLs")
-    page.locator("[data-journal-topic]").select_option("fort-and-heritage")
-    check(page.locator("[data-journal-card]:visible").count() == 3,
-          "Journal preview: Fort & heritage should filter to its three assigned drafts")
-    page.locator("[data-journal-search]").fill("Jaisalmer Fort Guide")
-    check(page.locator("[data-journal-card]:visible").count() == 1,
-          "Journal preview: search must intersect with the selected topic")
-    page.locator("[data-journal-clear]").click()
-    check(page.locator("[data-journal-card]:visible").count() == 12,
-          "Journal preview: clear filters must restore all draft cards")
-    page.locator('[data-journal-open="jaisalmer-fort-guide"]').first.click()
-    article = page.locator("[data-journal-article]")
-    check(article.is_visible(), "Journal preview: a draft card should open its article presentation")
-    check(article.locator("#journal-article-title").inner_text() == "Jaisalmer Fort Guide: Plan a Better Visit",
-          "Journal preview: heading must come from the article record")
-    toc = article.locator("[data-journal-toc] a")
-    check(toc.count() > 0, "Journal preview: table of contents must be populated")
-    check(article.locator("[data-journal-sources] a").count() >= 2,
-          "Journal preview: sources must remain visible")
-    check(article.locator("[data-journal-related] button").count() > 0,
-          "Journal preview: related drafts must be discoverable")
-    if toc.count() > 0:
-        target = toc.first.get_attribute("href")
-        check(bool(target) and article.locator(target).count() == 1,
-              "Journal preview: contents links must target a real section")
-    page.locator("[data-journal-back]").first.click()
-    check(page.locator("[data-journal-card]:visible").count() == 12,
-          "Journal preview: back action must restore the archive")
-    check(page.url.endswith("/preview/journal.html"),
-          "Journal preview: browsing must stay within the local prototype")
+    page.locator(".journal-masthead__image img").evaluate("(img) => img.decode().catch(() => null)")
 
+    for width, height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
+        page.set_viewport_size({"width":width,"height":height})
+        check_no_horizontal_overflow("archive", width)
+        archive_widths.append(width)
+        if width == 390:
+            capture("journal-archive-390px.png","archive",width,height)
+        elif width == 1280:
+            capture("journal-archive-1280px.png","archive",width,height)
+
+    search=page.locator("[data-journal-search]")
+    topic=page.locator("[data-journal-topic]")
+    clear=page.locator("[data-journal-clear]")
+    results=page.locator("[data-journal-results]")
+    empty=page.locator("[data-journal-empty]")
+    search.fill("zz-no-journal-match-20261029")
+    check(empty.is_visible(),"Journal preview: a query with no matches must show a clear empty state")
+    check("0 draft guides" in results.inner_text().lower(),"Journal preview: no-match state must announce zero results")
+    check(page.locator("[data-journal-card]:visible").count()==0,"Journal preview: no-match state must hide all cards")
+    clear.click()
+    check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear must restore all cards")
+    topic.select_option("fort-and-heritage")
+    check(page.locator("[data-journal-card]:visible").count()==3,"Journal preview: Fort & heritage must show its three assigned drafts")
+    search.fill("Jaisalmer Fort Guide")
+    check(page.locator("[data-journal-card]:visible").count()==1,"Journal preview: text search must intersect with the selected topic")
+    clear.click()
+    check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear filters must restore all drafts")
+
+    page.locator('[data-journal-open="jaisalmer-fort-guide"]').first.focus()
+    page.keyboard.press("Enter")
+    article=page.locator("[data-journal-article]")
+    check(article.is_visible(),"Journal preview: keyboard activation must open an article")
+    check(article.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
+          "Journal preview: heading must come from the article record")
+    check("draft — not published" in article.locator("[data-review-record-status]").inner_text().lower(),
+          "Journal preview: article must expose draft-only status")
+    check("not approved" in article.locator("[data-review-owner-facts]").inner_text().lower(),
+          "Journal preview: owner-fact approval must remain pending")
+    check("none recorded" in article.locator("[data-review-approved-media]").inner_text().lower(),
+          "Journal preview: no article media may appear approved without review evidence")
+
+    toc=article.locator("[data-journal-toc] a")
+    check(toc.count()>0,"Journal preview: table of contents must be populated")
+    check(article.locator("[data-journal-sources] a").count()>=2,"Journal preview: sources must remain visible")
+    safe_sources=article.locator("[data-journal-sources] a").evaluate_all(
+        """links => links.length >= 2 && links.every(link =>
+          link.protocol === 'https:' && link.target === '_blank' &&
+          link.rel.includes('noopener') && link.rel.includes('noreferrer'))"""
+    )
+    check(safe_sources,"Journal preview: source links must use HTTPS and safe external-link attributes")
+    if toc.count()>0:
+        target=toc.first.get_attribute("href") or ""
+        check(bool(target) and article.locator(target).count()==1,"Journal preview: contents must target a real section")
+        if target:
+            toc.first.click()
+            try:
+                page.wait_for_function("(hash) => window.location.hash === hash",target,timeout=5000)
+            except Exception as error:
+                check(False,f"Journal preview: contents navigation must reach the selected section ({error})")
+            check(article.locator(target).is_visible(),"Journal preview: selected contents target must remain visible")
+
+    related=article.locator("[data-journal-related] button").first
+    check(related.count()>0,"Journal preview: related drafts must be discoverable")
+    if related.count():
+        related_title=related.inner_text()
+        related.click()
+        check(article.locator("#journal-article-title").inner_text()==related_title,
+              "Journal preview: related-draft navigation must open the selected record")
+        check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
+              "Journal preview: related navigation must not create a public article route")
+
+    for width,height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
+        page.set_viewport_size({"width":width,"height":height})
+        check_no_horizontal_overflow("article",width)
+        article_widths.append(width)
+        if width==390:
+            capture("journal-article-390px.png","article",width,height)
+        elif width==1280:
+            capture("journal-article-1280px.png","article",width,height)
+
+    back=article.locator("[data-journal-back]").first
+    back.focus()
+    page.keyboard.press("Enter")
+    check(article.is_hidden(),"Journal preview: keyboard Back must return to the archive")
+    check(page.locator(".journal-archive").is_visible(),"Journal preview: archive must be visible after Back")
+    check(page.evaluate("() => document.activeElement && document.activeElement.id === 'journal-query'"),
+          "Journal preview: Back must restore focus to the search field")
+    check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
+          "Journal preview: interactions must remain on the local preview route")
+
+    evidence={
+        "schemaVersion":1,"scope":"local-only-editorial-preview","route":"preview/journal.html",
+        "indexability":"noindex,nofollow","articleRecordsLoaded":page.locator("[data-journal-card]").count(),
+        "publicArticleRoutesGenerated":0,"publicSitemapChanged":False,"canonicalHostApproved":False,
+        "archiveViewportWidthsCssPixels":archive_widths,"articleViewportWidthsCssPixels":article_widths,
+        "checksPerformed":interactions,"screenshots":screenshots,
+        "complete":len(screenshots)==4 and archive_widths==[320,360,390,768,1280,1440]
+            and article_widths==[320,360,390,768,1280,1440],
+    }
+    try:
+        destination=evidence_dir/"journal-preview-evidence.json"
+        destination.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
+        check(evidence["complete"],
+              "Journal preview: four screenshots and both complete responsive-width matrices must be recorded")
+        print(f"Journal preview visual evidence captured locally: {destination}")
+    except Exception as error:
+        check(False,f"Journal preview: could not write evidence report ({type(error).__name__}: {error})")
+    check(len(RUNTIME_ERRORS)==before_runtime_errors,
+          f"Journal preview: browser JavaScript exception(s): {RUNTIME_ERRORS[before_runtime_errors:]}")
+
+
+def check_arrival_planning_deep_links(page, base_url: str) -> None:
+    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
 
 def check_arrival_planning_deep_links(page, base_url: str) -> None:
     """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
@@ -3184,15 +3312,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     local_screenshots_raw = os.environ.get("BROWSER_SMOKE_SCREENSHOTS_DIR")
     local_report_raw = os.environ.get("BROWSER_SMOKE_REPORT_PATH")
+    journal_screenshots_raw = os.environ.get("BROWSER_SMOKE_JOURNAL_EVIDENCE_DIR")
     if args.responsive_image_preview:
-        if args.base_url or args.operator or args.report or args.screenshots_dir or local_screenshots_raw or local_report_raw:
-            parser.error("--responsive-image-preview cannot be combined with staging or screenshot evidence options")
+        if (args.base_url or args.operator or args.report or args.screenshots_dir
+                or local_screenshots_raw or local_report_raw or journal_screenshots_raw):
+            parser.error("Preview-image mode cannot be combined with staging or screenshot evidence options")
         return run_responsive_image_preview_smoke()
     if bool(local_screenshots_raw) != bool(local_report_raw):
         parser.error("BROWSER_SMOKE_SCREENSHOTS_DIR and BROWSER_SMOKE_REPORT_PATH must be set together")
     staging_mode = bool(args.base_url)
+    journal_screenshots_dir = None
+    journal_screenshot_tempdir = None
 
     if staging_mode:
+        if journal_screenshots_raw:
+            parser.error("Journal preview screenshots are local-only and cannot be captured in staging mode")
         if not args.operator or not args.report or not args.screenshots_dir:
             parser.error("--operator, --report and --screenshots-dir are required with --base-url")
         try:
@@ -3221,6 +3355,12 @@ def main(argv: list[str] | None = None) -> int:
                 local_report_path = validate_local_report_path(local_report_raw or "")
             except ValueError as error:
                 parser.error(f"local visual-evidence paths rejected before browser launch: {error}")
+        if journal_screenshots_raw:
+            try:
+                journal_screenshots_dir = validate_screenshot_directory(journal_screenshots_raw)
+                journal_screenshots_dir.mkdir(parents=True, exist_ok=True)
+            except ValueError as error:
+                parser.error(f"local Journal preview evidence path rejected before browser launch: {error}")
 
     unknown_route_evidence = None
     server = None
@@ -3236,6 +3376,9 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
                 screenshots_dir = Path(screenshot_tempdir.name)
+            if journal_screenshots_dir is None:
+                journal_screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-journal-preview-")
+                journal_screenshots_dir = Path(journal_screenshot_tempdir.name)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             browser_version = browser.version
@@ -3293,8 +3436,8 @@ def main(argv: list[str] | None = None) -> int:
             check_arrival_wayfinding_journey(page, base_url)
             check_arrival_planning_enquiry(page, base_url, browser)
             check_arrival_planning_deep_links(page, base_url)
-            if not staging_mode:
-                check_journal_preview(page, base_url)
+            if not staging_mode and journal_screenshots_dir is not None:
+                check_journal_preview(page, base_url, journal_screenshots_dir)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
@@ -3343,6 +3486,8 @@ def main(argv: list[str] | None = None) -> int:
                 server.wait(timeout=5)
         if screenshot_tempdir is not None:
             screenshot_tempdir.cleanup()
+        if journal_screenshot_tempdir is not None:
+            journal_screenshot_tempdir.cleanup()
 
     if not staging_mode:
         local_visual_report = build_report(

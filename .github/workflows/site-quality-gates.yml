@@ -50,6 +50,7 @@ jobs:
         env:
           BROWSER_SMOKE_SCREENSHOTS_DIR: ${{ runner.temp }}/garh-jaisal-visual-evidence
           BROWSER_SMOKE_REPORT_PATH: ${{ runner.temp }}/garh-jaisal-visual-evidence/report.json
+          BROWSER_SMOKE_JOURNAL_EVIDENCE_DIR: ${{ runner.temp }}/garh-jaisal-journal-preview-evidence
         run: bash scripts/check-pr-quality.sh
 
       - name: Upload responsive visual baseline evidence
@@ -58,6 +59,16 @@ jobs:
         with:
           name: garh-jaisal-visual-baseline-${{ github.run_id }}
           path: ${{ runner.temp }}/garh-jaisal-visual-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload local-only Journal preview evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-journal-preview-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-journal-preview-evidence/
           if-no-files-found: ignore
           retention-days: 7
           compression-level: 0

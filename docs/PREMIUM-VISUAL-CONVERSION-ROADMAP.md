@@ -14,6 +14,9 @@
 - **M0 visual evidence capture:** the standard browser smoke now preserves its existing 24 full-page PNG captures (eight core routes at 390, 1280 and 1440 CSS px) plus a JSON integrity/evidence report as a short-lived GitHub Actions artifact. Responsive behavior remains exercised at 320, 360, 390, 768, 1280 and 1440 px. Human review of the artifact and owner-approved staging UAT are still required before assigning the final visual score or marking the release ready.
 - **M4 — contextual conversion hierarchy:** the homepage retains its four-path planning panel instead of repeating the generic planner; Experiences and Experience Details use their purpose-built date/guest enquiry; Dining keeps its table-request form and a separate stay/experience enquiry; Directions keeps its arrival-specific planner. The generic multi-topic planner remains only on Rooms, About and Gallery, where it adds a useful general path. Unused planner CSS/JS are not loaded on the other routes.
 - **M4 regression coverage:** the Node conversion contract, premium route contract and Chromium smoke assert planner placement, route-specific forms, honest “enquiry not reservation” copy, and absence of unused planner assets. Chromium continues to exercise date validation, editable drafts, safe WhatsApp handoff, copy recovery and no-JavaScript privacy on retained planner routes.
+- **M3 — Journal preview Chromium QA:** the local-only prototype is exercised for 12-record loading, no-match/clear recovery, topic/text filter intersection, keyboard opening/back with focus restoration, live TOC navigation, safe HTTPS source links, related-draft navigation and horizontal-overflow checks across 320/360/390/768/1280/1440px. Full-page archive and article screenshots at 390 and 1280px plus a JSON integrity manifest are uploaded as a separate short-lived CI artifact; they are not committed into the repository.
+- **M3 publication isolation:** preview evidence is captured only in the local CI path. The staging/production route contract, guarded archive and public sitemap do not include the preview or draft records; all 12 article records remain drafts.
+- **CI regression repair:** the live-article hero-caption guard remains fail-closed; its test contract now matches the renderer's current error message rather than a stale string.
 - No blog content is published and canonical/robots/sitemap release gates remain unchanged.
 
 ## 1. Objective and bar
@@ -273,14 +276,9 @@ A milestone does not count as complete because code was pushed.
 
 ## 6. Immediate next execution batch
 
-**M4 — cross-page conversion hierarchy — is now implemented as a complete code/test slice in this PR. Next: M3 — Journal preview visual QA and article-experience refinement.** The prototype already provides all 12 draft records, topic search/filter, article view, contents, sources and related drafts. Continue with:
-- add a dedicated preview screenshot set for the local-only Journal archive and article view without including it in the public route/sitemap/staging-package contract;
-- review the archive and article at 390 and 1280 px for title scale, text measure, card rhythm, filter/focus states, TOC readability and source/related-link behavior;
-- extend browser regression coverage for keyboard open/back, TOC navigation, no-match results and filter clearing;
-- keep text-only editorial card art until real article-specific media has passed subject, rights, crop and owner review;
-- retain draft status for all 12 records and keep canonical approval false, robots blocking and sitemap empty.
+**M3 — local Journal preview QA — now has browser interaction coverage and four dedicated screenshot captures in CI. Next: M1 — screenshot-driven premium design-system refinement.** Use the uploaded archive/article evidence at 390 and 1280px to review title hierarchy, text measure, card rhythm, filter/focus states, TOC readability, image framing and source/related-link behavior. Keep text-only editorial card art until real article-specific media has passed subject, rights, crop and owner review.
 
-The M0 screenshot artifact exists, but final human visual scoring and owner-approved staging UAT are still outstanding. Do not merge or deploy automatically, and do not change canonical host/robots/sitemap in this phase.
+The M0 screenshot artifact exists, but final human visual scoring and owner-approved staging UAT are still outstanding. The separate Journal artifact is for human review only; it does not authorize publication or change the public route/package. Keep all 12 records as drafts, canonical approval false, robots blocking and sitemap empty. Do not merge or deploy automatically.
 
 ## 7. Source references
 
