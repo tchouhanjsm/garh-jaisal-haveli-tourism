@@ -498,5 +498,20 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn('src="assets/images/scarlet.jpg"', first_contents[1])
 
 
+
+    def test_browser_smoke_contract_exercises_hidden_responsive_images(self) -> None:
+        smoke_path = Path(__file__).with_name("test-browser-smoke.py")
+        source = smoke_path.read_text(encoding="utf-8")
+        start = source.index("def run_responsive_image_preview_smoke")
+        end = source.index("\\ndef load_visible_images", start)
+        browser_check = source[start:end]
+
+        # The packaged smoke must not silently skip hidden carousel/gallery pictures.
+        self.assertNotIn("if not image.is_visible():", browser_check)
+        self.assertIn("img.loading = 'eager'", browser_check)
+        self.assertIn('details["loading"].lower() == expected_loading', browser_check)
+        self.assertIn('endswith((".jpg", ".jpeg"))', browser_check)
+        self.assertIn("responsive source must declare sizes", browser_check)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
