@@ -39,14 +39,15 @@ const entrance = directions.match(/<article class="arrival-distance-card">[\s\S]
 const rickshaw = directions.match(/<article class="arrival-distance-card arrival-distance-card--access">[\s\S]*?<\/article>/)?.[0] || '';
 
 assert.match(parking, /Fort Parking[\s\S]*?300 metres[\s\S]*?5–6 minutes/i,
-  'Fort Parking estimatassert.match(entrance, /fort entrance[\s\S]*?Confirm the route[\s\S]*?source-backed arrival guidance gives an estimate from Fort Parking only/i,
+  'Fort Parking estimate must match the source-listed approximate 300 m / 5–6 minute walk');
+assert.match(entrance, /fort entrance[\s\S]*?Confirm the route[\s\S]*?source-backed arrival guidance gives an estimate from Fort Parking only/i,
   'Fort entrance guidance must not publish an unverified distance or walking time and must direct guests to confirm the route');
 assert.doesNotMatch(directions + about, /(?:200\s*metres|3[–-]4\s*minutes)/i,
   'Guest-facing arrival pages must not publish the unverified fort-entrance distance/time estimate');
 assert.match(about, /From Fort Parking, allow about 300 metres \(around 5–6 minutes on foot\)/,
   'About page must preserve the source-backed Fort Parking estimate');
 assert.match(about, /confirm the route and meeting point for any other approach before travelling/i,
-  'About page must direct guests to confirm routes that are not supported by the current source page');anning estimate remains provisional and requires owner confirmation');
+  'About page must direct guests to confirm routes that are not supported by the current source page');
 assert.match(rickshaw, /Rickshaw access rules and drop-off points can vary/i,
   'Rickshaw access must direct guests to confirm current local rules');
 assert.doesNotMatch(directions, /8:00 AM|Outside those times/i,
