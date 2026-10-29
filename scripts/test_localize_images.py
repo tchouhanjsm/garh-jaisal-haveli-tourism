@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import importlib.util
+import json
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -246,6 +247,56 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 _PACKAGE_PREVIEW.validate_responsive_markup(
                     root, generated_files, image_sources, (480, 768, 1200, 1600)
                 )
+
+    def test_release_archive_manifest_covers_every_safe_payload_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            output = base / "preview"
+            output.mkdir()
+            archive = base / "preview.zip"
+            payload = b"<html>guarded preview</html>"
+            (output / "index.html").write_bytes(payload)
+            manifest = {
+                "deploymentPerformed": False,
+                "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
+                "qualityGate": "PASS",
+                "files": [{
+                    "path": "index.html",
+                    "bytes": len(payload),
+                    "sha256": _PACKAGE_PREVIEW.digest_bytes(payload),
+                }],
+            }
+            manifest_path = output / "RELEASE-MANIFEST.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            # A complete manifest and matching payload must remain packageable.
+            _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+            (output / "unmanifested.txt").write_text("not represented in release evidence", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "not listed in RELEASE-MANIFEST.json"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+            (output / "unmanifested.txt").unlink()
+            manifest["files"] = [{
+                "path": "../escape.txt",
+                "bytes": 0,
+                "sha256": "0" * 64,
+            }]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "unsafe archive member path"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+    def test_package_inventory_rejects_symlinked_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            output = base / "preview"
+            output.mkdir()
+            outside = base / "outside"
+            outside.mkdir()
+            (outside / "unpackaged.txt").write_text("outside package", encoding="utf-8")
+            (output / "linked-directory").symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError, "Unsafe packaged file: linked-directory"):
+                _PACKAGE_PREVIEW.inventory_package_files(output)
 
     def test_rewrite_site_rejects_symlinked_root_and_pages_before_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

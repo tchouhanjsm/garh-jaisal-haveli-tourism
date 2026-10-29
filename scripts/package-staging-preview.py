@@ -12,7 +12,7 @@ import shutil
 from html.parser import HTMLParser
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -330,13 +330,15 @@ def inventory_package_files(output: Path) -> list[dict]:
     """Hash every payload file after transformations, excluding the manifest itself."""
     entries: list[dict] = []
     for source in sorted(output.rglob("*")):
+        relative = source.relative_to(output).as_posix()
+        if source.is_symlink():
+            fail(f"Unsafe packaged file: {relative}")
         if source.is_dir():
             continue
-        relative = source.relative_to(output).as_posix()
+        if not source.is_file():
+            fail(f"Unsafe packaged file: {relative}")
         if relative == "RELEASE-MANIFEST.json":
             continue
-        if source.is_symlink() or not source.is_file():
-            fail(f"Unsafe packaged file: {relative}")
         payload = source.read_bytes()
         entries.append({
             "path": relative,
@@ -437,13 +439,39 @@ def validate_packaged_routes(output: Path) -> dict:
     }
 
 
+def _validate_archive_member_path(path: object, label: str) -> str:
+    """Require a normalized, relative POSIX path with no traversal or platform separators."""
+    if (
+        not isinstance(path, str)
+        or not path
+        or "\\" in path
+        or "\x00" in path
+        or ":" in path
+    ):
+        fail(f"{label} contains an unsafe archive member path: {path!r}")
+    normalized = PurePosixPath(path)
+    if (
+        normalized.is_absolute()
+        or str(normalized) != path
+        or any(part in {"", ".", ".."} for part in path.split("/"))
+    ):
+        fail(f"{label} contains an unsafe archive member path: {path!r}")
+    return path
+
+
 def deterministic_archive(output: Path, archive: Path) -> None:
+    """Create a reproducible ZIP and verify its exact payload against the release manifest."""
     archive.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as package:
         for source in sorted(output.rglob("*")):
+            relative = source.relative_to(output).as_posix()
+            if source.is_symlink():
+                fail(f"Unsafe packaged file: {relative}")
             if source.is_dir():
                 continue
-            relative = source.relative_to(output).as_posix()
+            if not source.is_file():
+                fail(f"Unsafe packaged file: {relative}")
+            _validate_archive_member_path(relative, "Package")
             info = zipfile.ZipInfo(relative, date_time=(1980, 1, 1, 0, 0, 0))
             info.create_system = 3
             info.external_attr = (0o100644 & 0xFFFF) << 16
@@ -454,23 +482,59 @@ def deterministic_archive(output: Path, archive: Path) -> None:
         bad_member = package.testzip()
         if bad_member is not None:
             fail(f"Staging archive failed integrity validation at {bad_member}.")
-        names = set(package.namelist())
+
+        member_names = [info.filename for info in package.infolist()]
+        if len(member_names) != len(set(member_names)):
+            fail("Staging archive contains duplicate member paths.")
+        for name in member_names:
+            _validate_archive_member_path(name, "Archive")
+
+        names = set(member_names)
         if "RELEASE-MANIFEST.json" not in names:
             fail("The staging archive does not contain RELEASE-MANIFEST.json.")
-        manifest = json.loads(package.read("RELEASE-MANIFEST.json").decode("utf-8"))
+        try:
+            manifest = json.loads(package.read("RELEASE-MANIFEST.json").decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            fail(f"Release manifest is not valid UTF-8 JSON: {error}")
+        if not isinstance(manifest, dict):
+            fail("Release manifest must be a JSON object.")
         if manifest.get("deploymentPerformed") is not False:
             fail("The staging archive must explicitly state that no deployment was performed.")
         if manifest.get("releaseStatus") != "BLOCKED_PENDING_MANUAL_UAT":
             fail("The staging archive release status must remain blocked pending manual UAT.")
         if manifest.get("qualityGate") != "PASS":
             fail("The staging archive must include successful quality-gate provenance.")
-        for entry in manifest.get("files", []):
-            path = entry["path"]
+
+        entries = manifest.get("files")
+        if not isinstance(entries, list):
+            fail("Release manifest files must be an array.")
+        manifest_paths: set[str] = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                fail("Release manifest contains a malformed file entry.")
+            path = _validate_archive_member_path(entry.get("path"), "Manifest")
+            if path == "RELEASE-MANIFEST.json":
+                fail("Release manifest must not list itself as a payload file.")
+            if path in manifest_paths:
+                fail(f"Release manifest contains a duplicate file path: {path}")
             if path not in names:
                 fail(f"Manifest file is missing from archive: {path}")
+            byte_count = entry.get("bytes")
+            if not isinstance(byte_count, int) or isinstance(byte_count, bool) or byte_count < 0:
+                fail(f"Manifest byte count is invalid for packaged file: {path}")
+            expected_sha = entry.get("sha256")
+            if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+                fail(f"Manifest SHA-256 is invalid for packaged file: {path}")
             data = package.read(path)
-            if len(data) != entry["bytes"] or digest_bytes(data) != entry["sha256"]:
+            if len(data) != byte_count or digest_bytes(data) != expected_sha:
                 fail(f"Manifest digest mismatch for packaged file: {path}")
+            manifest_paths.add(path)
+
+        payload_names = names - {"RELEASE-MANIFEST.json"}
+        unlisted = sorted(payload_names - manifest_paths)
+        if unlisted:
+            preview = ", ".join(unlisted[:10])
+            fail(f"Archive contains payload files not listed in RELEASE-MANIFEST.json: {preview}")
 
 
 def main() -> int:
