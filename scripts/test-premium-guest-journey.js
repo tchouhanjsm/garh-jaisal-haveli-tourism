@@ -111,7 +111,7 @@ for (const route of ROUTES) {
   if (route.planner === false) {
     assert.equal((html.match(/data-stay-planner/g) || []).length, 0,
       route.file + ': a purpose-built arrival form must not be duplicated by the generic multi-topic stay planner');
-    assert.doesNotMatch(html, /assets\\/css\\/stay-planner\\.css|assets\\/stay-planner\\.js/,
+    assert.doesNotMatch(html, /assets\/css\/stay-planner\.css|assets\/stay-planner\.js/,
       route.file + ': do not load generic planner assets when the component is intentionally absent');
     assert.match(html, /data-arrival-planning-form/,
       route.file + ': dedicated arrival enquiry remains the conversion path');

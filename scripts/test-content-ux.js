@@ -738,16 +738,16 @@ const STAY_PLANNER_ROUTES = [
 ];
 for (const file of STAY_PLANNER_ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-  if (rule.file === 'directions.html') {
+  if (file === 'directions.html') {
   if (html.includes('data-stay-planner') ||
       html.includes('assets/css/stay-planner.css') ||
       html.includes('assets/stay-planner.js')) {
-    fail(rule.file + ': dedicated arrival enquiry must replace the duplicated generic stay planner');
+    fail(file + ': dedicated arrival enquiry must replace the duplicated generic stay planner');
   }
   if (!html.includes('data-arrival-planning-form') ||
       !html.includes('arrival-next-step__panel') ||
       !html.includes('does not save your details, book a transfer or confirm a reservation')) {
-    fail(rule.file + ': Directions must retain its privacy-minimized, contextual arrival enquiry and terminal action');
+    fail(file + ': Directions must retain its privacy-minimized, contextual arrival enquiry and terminal action');
   }
 } else {
 if (!html.includes('data-stay-planner') ||

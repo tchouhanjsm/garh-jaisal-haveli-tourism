@@ -145,7 +145,7 @@ assert.match(stylesheet, /\.arrival-map__route-stop:not\(\:last-child\)::after/,
   'The orientation diagram must connect its numbered steps visually');
 assert.match(directions, /class="arrival-next-step__panel"/,
   'Directions must end with one concise, contextual arrival CTA');
-assert.match(directions, /Prepare arrival enquiry[\s\S]*?href="#arrival-planning"/,
+assert.match(directions, /href="#arrival-planning"[^>]*>Prepare arrival enquiry/,
   'The terminal CTA must lead back to the dedicated arrival planner');
 assert.doesNotMatch(directions, /data-stay-planner|assets\/stay-planner\.js|assets\/css\/stay-planner\.css/,
   'Directions must not duplicate the dedicated arrival form with the generic stay enquiry builder');
