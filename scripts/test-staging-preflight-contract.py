@@ -382,7 +382,58 @@ assert failed_report["automatedFailures"] == [
 ]
 assert "qa-password" not in str(failed_report) and "secret" not in str(failed_report)
 
+# Staging release artifact must exclude the 46 MB legacy image archive unless a
+# reviewed runtime asset migration deliberately moves an image into assets/.
+PACKAGE_SPEC = importlib.util.spec_from_file_location(
+    "staging_preview_packager", ROOT / "scripts" / "package-staging-preview.py"
+)
+if PACKAGE_SPEC is None or PACKAGE_SPEC.loader is None:
+    raise RuntimeError("Could not load the staging preview packager")
+staging_packager = importlib.util.module_from_spec(PACKAGE_SPEC)
+PACKAGE_SPEC.loader.exec_module(staging_packager)
+assert "img" not in staging_packager.RUNTIME_DIRECTORIES
+
+with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_directory:
+    package_root = Path(temporary_directory)
+    (package_root / "assets").mkdir()
+    (package_root / "index.html").write_text(
+        '<!doctype html><html><body><img src="assets/images/room.jpg" alt="Room"></body></html>',
+        encoding="utf-8",
+    )
+    clean_closure = staging_packager.validate_no_legacy_image_tree_references(package_root)
+    assert clean_closure["status"] == "PASS"
+    assert clean_closure["legacyImageReferences"] == 0
+
+    stylesheet = package_root / "assets" / "site.css"
+    stylesheet.write_text(".legacy { background: url('../img/unused-large.jpg'); }", encoding="utf-8")
+    try:
+        staging_packager.validate_no_legacy_image_tree_references(package_root)
+    except RuntimeError as error:
+        assert "site.css" in str(error) and "img/" in str(error)
+    else:
+        raise AssertionError("Package must fail closed if runtime CSS references the excluded img/ library")
+
+metrics = staging_packager.package_size_metrics(
+    [{"path": "index.html", "bytes": 4, "sha256": "0" * 64}],
+    {"path": "img/", "fileCount": 164, "bytesExcluded": 46127863},
+    budget_bytes=4,
+)
+assert metrics["uncompressedPayloadBytes"] == 4
+assert metrics["sizeBudgetPassed"] is True
+assert metrics["sourceOnlyImageLibraryExcluded"]["bytesExcluded"] == 46127863
+try:
+    staging_packager.package_size_metrics(
+        [{"path": "oversized.bin", "bytes": 5, "sha256": "0" * 64}],
+        {"path": "img/", "fileCount": 164, "bytesExcluded": 46127863},
+        budget_bytes=4,
+    )
+except RuntimeError as error:
+    assert "exceeds" in str(error) and "budget" in str(error)
+else:
+    raise AssertionError("Package-size regression must fail when the payload crosses its budget")
+
 print(
     "PASS: staging preflight refuses HTTP, credentials, path/query/fragment, local/IP and configured "
-    "production targets; evidence reports preserve manual release checks as NOT RUN."
+    "production targets; artifact packaging excludes unused legacy images, fails closed on broken "
+    "references and enforces the release payload budget."
 )
