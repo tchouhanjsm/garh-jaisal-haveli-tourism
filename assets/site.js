@@ -66,8 +66,15 @@
       // Match the 160px heading scroll margin, with a buffer below the sticky rail.
       const activationLine = Math.max(168, sectionNav.getBoundingClientRect().bottom + 32);
       let currentItem = items[0];
+      let currentTop = Number.NEGATIVE_INFINITY;
+      // Navigation order is editorial, not necessarily document order. Select
+      // the closest target above the reading line by geometry instead of array order.
       items.forEach(item => {
-        if (item.target.getBoundingClientRect().top <= activationLine) currentItem = item;
+        const targetTop = item.target.getBoundingClientRect().top;
+        if (targetTop <= activationLine && targetTop > currentTop) {
+          currentItem = item;
+          currentTop = targetTop;
+        }
       });
       setCurrent(currentItem);
     };
