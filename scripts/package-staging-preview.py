@@ -16,7 +16,12 @@ from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_DIRECTORIES = ("assets", "img", "blogs", "tours", "gallery")
+# The legacy `img/` tree is retained in Git as a source/asset archive, not
+# used by the static runtime. Keep it out of staging artifacts unless the site
+# deliberately migrates those assets into the supported `assets/` tree.
+RUNTIME_DIRECTORIES = ("assets", "blogs", "tours", "gallery")
+MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
+LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
     ".htaccess",
     "favicon.svg",
@@ -219,6 +224,81 @@ def validate_responsive_markup(
         "validatedSrcsetCandidateCount": candidate_count,
         "widthDescriptorsMatchDecodedPixels": True,
         "jpegFallbackDimensionsMatchSource": True,
+    }
+
+
+def validate_no_legacy_image_tree_references(output: Path) -> dict:
+    """Fail closed if a runtime file references the excluded legacy /img asset library."""
+    output = Path(output).resolve(strict=True)
+    text_suffixes = {".html", ".css", ".js", ".json", ".svg", ".xml", ".txt", ".map"}
+    checked = 0
+    for candidate in sorted(output.rglob("*")):
+        if candidate.is_symlink():
+            fail(f"Unsafe package symlink while auditing legacy image references: {candidate.relative_to(output)}")
+        if not candidate.is_file():
+            continue
+        if candidate.suffix.lower() not in text_suffixes and candidate.name != ".htaccess":
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            fail(f"Runtime text asset is not valid UTF-8: {candidate.relative_to(output)}")
+        match = LEGACY_IMG_REFERENCE.search(text)
+        if match:
+            line_number = text.count("\\n", 0, match.start()) + 1
+            fail(
+                f"Runtime file references the source-only img/ library, which is not packaged: "
+                f"{candidate.relative_to(output)}:{line_number}. Move the asset into assets/ "
+                "or explicitly design a reviewed runtime asset migration."
+            )
+        checked += 1
+    if (output / "img").exists():
+        fail("The source-only img/ library must not be copied into the runtime package.")
+    return {"status": "PASS", "textFilesChecked": checked, "legacyImageReferences": 0}
+
+
+def legacy_source_image_inventory() -> dict:
+    """Measure the Git-retained legacy image library without copying it into the website package."""
+    root = ROOT / "img"
+    if not root.exists():
+        return {"path": "img/", "fileCount": 0, "bytesExcluded": 0}
+    if root.is_symlink() or not root.is_dir():
+        fail("The legacy source image path must be a real directory.")
+    count = 0
+    total_bytes = 0
+    for candidate in sorted(root.rglob("*")):
+        if candidate.is_symlink():
+            fail(f"Symlink in legacy source image library: {candidate.relative_to(ROOT)}")
+        if candidate.is_dir() or not candidate.is_file() or candidate.name == ".gitkeep":
+            continue
+        count += 1
+        total_bytes += candidate.stat().st_size
+    return {"path": "img/", "fileCount": count, "bytesExcluded": total_bytes}
+
+
+def package_size_metrics(entries: list[dict], legacy_inventory: dict,
+                         budget_bytes: int = MAX_UNCOMPRESSED_PACKAGE_BYTES) -> dict:
+    """Enforce a deterministic uncompressed payload budget and report archive-scope savings."""
+    if not isinstance(budget_bytes, int) or isinstance(budget_bytes, bool) or budget_bytes <= 0:
+        fail("Package size budget must be a positive integer.")
+    total = 0
+    for entry in entries:
+        amount = entry.get("bytes")
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
+            fail("Package inventory contains an invalid byte count.")
+        total += amount
+    if total > budget_bytes:
+        fail(
+            f"Uncompressed staging payload exceeds its {budget_bytes}-byte budget: "
+            f"{total} bytes. Review runtime assets; do not raise the budget without a measured reason."
+        )
+    utilization = round((total / budget_bytes) * 100, 2)
+    return {
+        "uncompressedPayloadBytes": total,
+        "uncompressedBudgetBytes": budget_bytes,
+        "budgetUtilizationPercent": utilization,
+        "sizeBudgetPassed": True,
+        "sourceOnlyImageLibraryExcluded": legacy_inventory,
     }
 
 
@@ -498,6 +578,13 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             fail(f"Release manifest is not valid UTF-8 JSON: {error}")
         if not isinstance(manifest, dict):
             fail("Release manifest must be a JSON object.")
+        metrics = manifest.get("packageMetrics")
+        if not isinstance(metrics, dict) or metrics.get("sizeBudgetPassed") is not True:
+            fail("The release manifest must record a passing package-size budget.")
+        if metrics.get("uncompressedPayloadBytes", MAX_UNCOMPRESSED_PACKAGE_BYTES + 1) > metrics.get("uncompressedBudgetBytes", 0):
+            fail("The package payload exceeds its declared uncompressed-size budget.")
+        if any(name.startswith("img/") for name in names):
+            fail("The staging archive must not contain the source-only img/ asset library.")
         if manifest.get("deploymentPerformed") is not False:
             fail("The staging archive must explicitly state that no deployment was performed.")
         if manifest.get("releaseStatus") != "BLOCKED_PENDING_MANUAL_UAT":
@@ -586,9 +673,12 @@ def main() -> int:
         (ROOT / "robots-staging.txt").read_text(encoding="utf-8"),
     )
     copy_runtime_files(files, output)
+    legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
     route_report = validate_packaged_routes(output)
     entries = inventory_package_files(output)
+    legacy_inventory = legacy_source_image_inventory()
+    package_metrics = package_size_metrics(entries, legacy_inventory)
     manifest = {
         "schemaVersion": 1,
         "artifactType": "static-site-staging-preview",
@@ -601,6 +691,8 @@ def main() -> int:
         "sourceRouteCount": len(json.loads((ROOT / "content" / "staging-route-contract.json").read_text(encoding="utf-8"))["routes"]),
         "payloadFileCount": len(entries),
         "files": entries,
+        "packageMetrics": package_metrics,
+        "runtimeAssetClosure": legacy_reference_report,
         "responsiveImageDelivery": responsive_report,
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
         "canonicalHostApproved": False,
@@ -617,6 +709,8 @@ def main() -> int:
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
     print(f"Runtime files: {len(entries)}")
+    print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
+    print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
     print(f"Verified responsive WebP files: {responsive_report['generatedWebpFileCount']}")
     print(f"Archive: {archive.name} ({archive_bytes} bytes)")
     print(f"SHA-256: {digest_bytes(archive.read_bytes())}")
