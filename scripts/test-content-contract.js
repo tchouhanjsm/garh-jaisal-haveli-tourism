@@ -163,6 +163,25 @@ assert.ok(captionReviewFindings.some(f => f.path.endsWith('.heroCaptionReview')
   && f.message.includes('approved hero-caption review metadata')),
 'approved/live blog policy must reject a caption string without explicit review evidence');
 
+for (const [label, heroCaptionReview] of [
+  ['missing reviewer', { status: 'approved', reviewedAt: '2026-10-29', evidenceReference: 'fixture-caption-review' }],
+  ['invalid review date', { status: 'approved', reviewer: 'fixture-editor', reviewedAt: '2026-02-30', evidenceReference: 'fixture-caption-review' }],
+  ['short evidence reference', { status: 'approved', reviewer: 'fixture-editor', reviewedAt: '2026-10-29', evidenceReference: 'short' }],
+]) {
+  const incompleteReviewFindings = [];
+  validateRecordPolicy('blog', {
+    ...liveBlogWithoutCaptionReview,
+    heroCaptionReview,
+  }, root, {
+    contentTypes: { blog: { outputDirectory: 'blogs', outputExtension: '.html' } },
+  }, {
+    site: { canonicalHostApproved: false, newStaticSiteCanonicalHost: 'https://example.test' },
+  }, incompleteReviewFindings, 'content/blogs/fixture.json');
+  assert.ok(incompleteReviewFindings.some(f => f.path.endsWith('.heroCaptionReview')
+    && f.message.includes('approved hero-caption review metadata')),
+  'approved/live blog must reject caption review with ' + label);
+}
+
 const missingOgAltFindings = [];
 validateRecordPolicy('tour', {
   ...validTour,
