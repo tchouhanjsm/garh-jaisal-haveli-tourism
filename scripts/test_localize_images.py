@@ -248,6 +248,73 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     root, generated_files, image_sources, (480, 768, 1200, 1600)
                 )
 
+    def test_packaged_runtime_asset_closure_checks_html_css_srcset_and_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "preview"
+            (root / "assets" / "images").mkdir(parents=True)
+            (root / "assets" / "css").mkdir(parents=True)
+            (root / "assets" / "js").mkdir(parents=True)
+
+            files = {
+                "index.html": (
+                    '<link rel="stylesheet" href="/assets/css/site.css">'
+                    '<meta property="og:image" content="assets/images/room.jpg">'
+                    '<script type="module" src="assets/js/site.js"></script>'
+                    '<img src="assets/images/room.jpg" '
+                    'srcset="assets/images/room-480.webp 480w, assets/images/room.webp 1200w" alt="Room">'
+                    '<a href="/rooms.html">Rooms</a>'
+                    '<img src="https://cdn.example.test/remote.jpg" alt="External">'
+                ),
+                "rooms.html": '<a href="/index.html">Home</a>',
+                "assets/css/site.css": (
+                    '@import "./theme.css"; '
+                    '.hero{background-image:url("../images/background.webp");'
+                    'mask-image:url("../images/mask.svg#shape")}'
+                ),
+                "assets/css/theme.css": (
+                    '@import url("./tokens.css"); '
+                    'body{background-image:url("../images/pattern.svg")}'
+                ),
+                "assets/css/tokens.css": ":root{--asset-closure-test:1}",
+                "assets/js/site.js": (
+                    'import("./module.js"); '
+                    'const icon = new URL("./icons.svg", import.meta.url);'
+                ),
+                "assets/js/module.js": "export const ready = true;",
+                "assets/js/icons.svg": '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+                "assets/images/room.jpg": "jpeg",
+                "assets/images/room-480.webp": "webp-480",
+                "assets/images/room.webp": "webp-full",
+                "assets/images/background.webp": "background",
+                "assets/images/mask.svg": '<svg xmlns="http://www.w3.org/2000/svg"><path id="shape"/></svg>',
+                "assets/images/pattern.svg": '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+            }
+            for relative, content in files.items():
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+
+            report = _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["missingLocalReferences"], 0)
+            self.assertGreaterEqual(report["localReferencesChecked"], 12)
+            self.assertIn("css-url", report["referencesByKind"])
+            self.assertIn("srcset", report["referencesByKind"])
+            self.assertIn("js-module", report["referencesByKind"])
+
+            css_path = root / "assets" / "css" / "site.css"
+            css_path.write_text('.hero{background:url("../images/missing.webp")}', encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing.webp"):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
+            css_path.write_text(files["assets/css/site.css"], encoding="utf-8")
+            index_path = root / "index.html"
+            index_path.write_text(files["index.html"].replace(
+                'href="/rooms.html"', 'href="../escape.html"'
+            ), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "escapes package root"):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
     def test_release_archive_manifest_covers_every_safe_payload_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
