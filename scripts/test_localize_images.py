@@ -470,6 +470,49 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "root must not be a symlink"):
                         audit(linked_root)
 
+    def test_hosting_delivery_contract_requires_safe_headers_bounded_caches_and_compression(self) -> None:
+        htaccess = (ROOT / ".htaccess").read_text(encoding="utf-8")
+        report = _PACKAGE_PREVIEW.validate_hosting_delivery_contract(htaccess)
+        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["htmlCachePolicy"], "NO_CACHE_MUST_REVALIDATE")
+        self.assertTrue(report["nonCanonicalHostNoIndex"])
+        self.assertEqual(report["cacheLifetimesSeconds"]["text/html"], 0)
+        self.assertEqual(report["cacheLifetimesSeconds"]["image/webp"], 30 * 24 * 60 * 60)
+        self.assertEqual(len(report["securityHeaders"]), 3)
+        self.assertIn("application/javascript", report["compressionMimeTypes"])
+
+        invalid_policies = (
+            (
+                htaccess.replace('  Header always set X-Content-Type-Options "nosniff"\n', ""),
+                "Hosting security header is missing or unsafe: X-Content-Type-Options.",
+            ),
+            (
+                htaccess.replace(
+                    'Header always set Cache-Control "no-cache, must-revalidate"',
+                    'Header always set Cache-Control "public, max-age=31536000"',
+                ),
+                "HTML responses must use no-cache, must-revalidate",
+            ),
+            (
+                htaccess.replace(
+                    'ExpiresByType image/webp "access plus 30 days"',
+                    'ExpiresByType image/webp "access plus 1 year"',
+                ),
+                "Hosting cache lifetime for image/webp must be 30 days",
+            ),
+            (
+                htaccess.replace(
+                    "AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml application/xml",
+                    "AddOutputFilterByType DEFLATE text/html text/plain text/css application/json image/svg+xml application/xml",
+                ),
+                "Hosting compression directive is missing required MIME types: application/javascript",
+            ),
+        )
+        for invalid_htaccess, expected_error in invalid_policies:
+            with self.subTest(expected_error=expected_error):
+                with self.assertRaisesRegex(RuntimeError, expected_error):
+                    _PACKAGE_PREVIEW.validate_hosting_delivery_contract(invalid_htaccess)
+
     def test_release_archive_manifest_covers_every_safe_payload_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -487,6 +530,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "uncompressedBudgetBytes": 18 * 1024 * 1024,
                     "sizeBudgetPassed": True,
                 },
+                "hostingDelivery": _PACKAGE_PREVIEW.validate_hosting_delivery_contract(
+                    (ROOT / ".htaccess").read_text(encoding="utf-8")
+                ),
                 "runtimeAssetClosure": {
                     "status": "PASS",
                     "filesScanned": 1,
@@ -547,6 +593,19 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 _PACKAGE_PREVIEW.deterministic_archive(output, archive)
             manifest["runtimeAssetClosure"]["status"] = "PASS"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            manifest["hostingDelivery"]["status"] = "FAIL"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "passing hosting security, caching and compression contract"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["hostingDelivery"]["status"] = "PASS"
+            manifest["hostingDelivery"]["securityHeaders"]["X-Content-Type-Options"] = "unsafe"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "hosting security header is invalid: X-Content-Type-Options"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["hostingDelivery"]["securityHeaders"]["X-Content-Type-Options"] = "nosniff"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
 
             (output / "unmanifested.txt").write_text("not represented in release evidence", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "not listed in RELEASE-MANIFEST.json"):
