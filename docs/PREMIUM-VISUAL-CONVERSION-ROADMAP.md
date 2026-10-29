@@ -289,6 +289,12 @@ Keep the Journal implementation as the next slice after M0 confirms shared visua
 - The baseline was manually inspected for Directions. It exposed the travel section's nested grid being rendered in a narrow right-hand track at desktop/tablet widths despite the static tests passing.
 - The evidence artifact is a local Chromium baseline, not live-staging proof or a human acceptance claim for every route.
 
+### M1 — design-token contract correction
+
+- The first exact-head run correctly caught two older tests that required a literal `outline:3px solid` declaration. The implementation now uses the equivalent centralized `var(--focus-ring)` token.
+- Updated both the carousel and launch-readiness contracts to assert the tokenized focus-ring behavior instead of depending on an inline literal. No focus treatment was removed or weakened.
+- Re-run the full site/content suite on the exact corrected head before M1 is marked accepted.
+
 ### M1 — design-token ownership and content-rail alignment
 
 - A single canonical `:root` in `assets/site.css` now owns the active premium palette, typography families, 1280px content rail, shared shadow/easing, button-height/radius and focus-ring tokens.

@@ -102,7 +102,7 @@ assert.match(launchDoc, /MANUAL RELEASE GATES/i, 'Launch checklist must distingu
 assert.match(launchDoc, /HTTP 403/i, 'Launch checklist must record the external booking-provider probe result');
 assert.match(launchDoc, /not proof that the hotel’s live phone is answered/i,
   'Launch checklist must state that live integrations are not automatically verified');
-assert.match(siteCss, /a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible\{outline:3px solid/,
+assert.match(siteCss, /a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible\{outline:var\(--focus-ring\)/,
   'Keyboard focus must remain visible for links, buttons, inputs, selects and summaries');
 assert.match(siteCss, /@media\(prefers-reduced-motion:reduce\)\{\*,\*::before,\*::after\{scroll-behavior:auto!important;animation-duration:\.01ms!important;animation-iteration-count:1!important;transition-duration:\.01ms!important\}\}/,
   'Reduced-motion preferences must disable smooth scrolling and reduce animation/transition duration');
