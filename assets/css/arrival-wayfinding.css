@@ -629,7 +629,7 @@
   backdrop-filter: blur(12px);
 }
 #arrival-overview-title, #travel-options-title, #walking-access-title,
-#arrival-map-title, #arrival-faq-title { scroll-margin-top: 160px; }
+#arrival-map-title, #arrival-faq-title { scroll-margin-top: 168px; }
 .arrival-overview { display: block; padding-top: clamp(54px, 6vw, 86px); }
 .arrival-overview__copy {
   display: grid;
