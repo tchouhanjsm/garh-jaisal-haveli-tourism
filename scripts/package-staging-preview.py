@@ -245,6 +245,333 @@ def validate_responsive_markup(
 
 
 
+
+class DocumentContractParser(HTMLParser):
+    """Collect route-level SEO metadata and accessible-name relationships."""
+
+    VOID_TAGS = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+        "meta", "param", "source", "track", "wbr",
+    }
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[dict] = []
+        self.html_languages: list[str] = []
+        self.title_nodes: list[dict] = []
+        self.h1_nodes: list[dict] = []
+        self.descriptions: list[str] = []
+        self.viewports: list[str] = []
+        self.open_graph: dict[str, list[str]] = {}
+        self.main_count = 0
+        self.skip_link_hrefs: list[str] = []
+        self.images: list[dict] = []
+        self.links: list[dict] = []
+        self.buttons: list[dict] = []
+        self.controls: list[dict] = []
+        self.labels: list[dict] = []
+        self.nodes_by_id: dict[str, list[dict]] = {}
+        self.aria_labelledby_nodes: list[dict] = []
+        self._seen_ids: set[str] = set()
+        self.duplicate_ids: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        name = tag.lower()
+        values = {key.lower(): value or "" for key, value in attrs}
+        node = {
+            "tag": name,
+            "attrs": values,
+            "text": "",
+            "imageAltText": [],
+            "ancestorLabels": [entry for entry in self.stack if entry["tag"] == "label"],
+        }
+
+        identifier = values.get("id", "").strip()
+        if identifier:
+            if identifier in self._seen_ids:
+                self.duplicate_ids.add(identifier)
+            self._seen_ids.add(identifier)
+            self.nodes_by_id.setdefault(identifier, []).append(node)
+
+        if name == "html":
+            self.html_languages.append(values.get("lang", "").strip())
+        elif name == "title":
+            self.title_nodes.append(node)
+        elif name == "h1":
+            self.h1_nodes.append(node)
+        elif name == "main":
+            self.main_count += 1
+        elif name == "meta":
+            meta_name = values.get("name", "").strip().lower()
+            property_name = values.get("property", "").strip().lower()
+            content = values.get("content", "").strip()
+            if meta_name == "description":
+                self.descriptions.append(content)
+            elif meta_name == "viewport":
+                self.viewports.append(content)
+            if property_name in {"og:title", "og:description", "og:image"}:
+                self.open_graph.setdefault(property_name, []).append(content)
+
+        if name == "a" and "href" in values:
+            self.links.append(node)
+            if "skip-link" in values.get("class", "").split():
+                self.skip_link_hrefs.append(values.get("href", "").strip())
+        elif name == "button":
+            self.buttons.append(node)
+        elif name == "img":
+            self.images.append(node)
+            if (
+                "alt" in values
+                and values.get("alt", "").strip()
+                and values.get("aria-hidden", "").lower() != "true"
+                and not any(entry["attrs"].get("aria-hidden", "").lower() == "true" for entry in self.stack)
+            ):
+                for ancestor in self.stack:
+                    if ancestor["tag"] in {"a", "button"}:
+                        ancestor["imageAltText"].append(values["alt"].strip())
+        elif name == "label":
+            self.labels.append(node)
+        elif name in {"input", "select", "textarea"}:
+            self.controls.append(node)
+
+        if values.get("aria-labelledby", "").strip():
+            self.aria_labelledby_nodes.append(node)
+
+        if name not in self.VOID_TAGS:
+            self.stack.append(node)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
+        if tag.lower() not in self.VOID_TAGS:
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        name = tag.lower()
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index]["tag"] == name:
+                self.stack = self.stack[:index]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if any(entry["attrs"].get("aria-hidden", "").lower() == "true" for entry in self.stack):
+            return
+        for entry in self.stack:
+            entry["text"] += data
+
+    @staticmethod
+    def normalized_text(value: str) -> str:
+        return re.sub(r"\s+", " ", value).strip()
+
+    def labelledby_text(self, node: dict) -> str:
+        tokens = node["attrs"].get("aria-labelledby", "").split()
+        if not tokens:
+            return ""
+        parts: list[str] = []
+        for token in tokens:
+            matches = self.nodes_by_id.get(token, [])
+            if not matches:
+                return ""
+            target = matches[0]
+            value = (
+                target.get("text", "")
+                or target["attrs"].get("aria-label", "")
+                or target["attrs"].get("title", "")
+            )
+            value = self.normalized_text(value)
+            if not value:
+                return ""
+            parts.append(value)
+        return " ".join(parts)
+
+    def has_accessible_name(self, node: dict) -> bool:
+        attrs = node["attrs"]
+        return bool(
+            attrs.get("aria-label", "").strip()
+            or self.labelledby_text(node)
+            or self.normalized_text(node.get("text", ""))
+            or any(self.normalized_text(value) for value in node.get("imageAltText", []))
+            or attrs.get("title", "").strip()
+        )
+
+    def control_has_label(self, node: dict) -> bool:
+        attrs = node["attrs"]
+        if attrs.get("type", "").lower() == "hidden":
+            return True
+        if (
+            attrs.get("aria-label", "").strip()
+            or self.labelledby_text(node)
+            or attrs.get("title", "").strip()
+        ):
+            return True
+        identifier = attrs.get("id", "").strip()
+        associated = [
+            label for label in self.labels
+            if identifier and label["attrs"].get("for", "").strip() == identifier
+        ]
+        wrapped = node.get("ancestorLabels", [])
+        if any(self.normalized_text(label.get("text", "")) or label["attrs"].get("aria-label", "").strip()
+               for label in associated + wrapped):
+            return True
+        if attrs.get("type", "").lower() in {"button", "submit", "reset"}:
+            return bool(attrs.get("value", "").strip())
+        if attrs.get("type", "").lower() == "image":
+            return bool(attrs.get("alt", "").strip())
+        return False
+
+
+def validate_document_contract(output: Path) -> dict:
+    """Fail closed when packaged routes regress core SEO or accessible-name contracts."""
+    raw_root = Path(output)
+    if raw_root.is_symlink():
+        fail("Document-contract root must not be a symlink.")
+    root = raw_root.resolve(strict=True)
+    if not root.is_dir():
+        fail("Document-contract root must be a directory.")
+
+    pages = sorted(root.glob("*.html"))
+    if not pages:
+        fail("Document-contract audit found no root HTML routes.")
+
+    counters = {
+        "routesScanned": len(pages),
+        "imagesChecked": 0,
+        "imagesMissingAlt": 0,
+        "linksChecked": 0,
+        "unnamedLinks": 0,
+        "buttonsChecked": 0,
+        "unnamedButtons": 0,
+        "formControlsChecked": 0,
+        "unlabelledFormControls": 0,
+        "missingLanguage": 0,
+        "missingTitle": 0,
+        "missingDescription": 0,
+        "missingViewport": 0,
+        "missingH1": 0,
+        "missingMain": 0,
+        "missingSkipLink": 0,
+        "missingOpenGraph": 0,
+        "brokenAriaLabelledbyReferences": 0,
+        "duplicateIds": 0,
+        "duplicateTitles": 0,
+        "duplicateDescriptions": 0,
+    }
+    errors: list[str] = []
+    titles: list[str] = []
+    descriptions: list[str] = []
+
+    for page in pages:
+        if page.is_symlink() or not page.is_file():
+            fail(f"Document-contract route is unsafe: {page.name}")
+        parser = DocumentContractParser()
+        try:
+            parser.feed(page.read_text(encoding="utf-8"))
+            parser.close()
+        except (UnicodeDecodeError, ValueError) as error:
+            fail(f"Document-contract markup could not be parsed in {page.name}: {error}")
+
+        route = page.name
+        title_values = [parser.normalized_text(node["text"]) for node in parser.title_nodes]
+        title_value = title_values[0] if len(title_values) == 1 else ""
+        description_value = parser.descriptions[0] if len(parser.descriptions) == 1 else ""
+        if len(parser.html_languages) != 1 or not parser.html_languages[0]:
+            counters["missingLanguage"] += 1
+            errors.append(f"{route}: html element must declare one non-empty lang attribute.")
+        if len(parser.title_nodes) != 1 or not title_value:
+            counters["missingTitle"] += 1
+            errors.append(f"{route}: exactly one non-empty document title is required.")
+        else:
+            titles.append(title_value)
+        if len(parser.descriptions) != 1 or not description_value:
+            counters["missingDescription"] += 1
+            errors.append(f"{route}: exactly one non-empty meta description is required.")
+        else:
+            descriptions.append(description_value)
+        if len(parser.viewports) != 1 or not parser.viewports[0]:
+            counters["missingViewport"] += 1
+            errors.append(f"{route}: exactly one non-empty viewport meta tag is required.")
+        if len(parser.h1_nodes) != 1 or not parser.normalized_text(parser.h1_nodes[0]["text"] if parser.h1_nodes else ""):
+            counters["missingH1"] += 1
+            errors.append(f"{route}: exactly one non-empty h1 is required.")
+        if parser.main_count != 1:
+            counters["missingMain"] += 1
+            errors.append(f"{route}: exactly one main landmark is required.")
+
+        if (
+            len(parser.skip_link_hrefs) != 1
+            or not parser.skip_link_hrefs[0].startswith("#")
+            or parser.skip_link_hrefs[0][1:] not in parser.nodes_by_id
+        ):
+            counters["missingSkipLink"] += 1
+            errors.append(f"{route}: one skip link must target an existing element ID.")
+
+        for image in parser.images:
+            counters["imagesChecked"] += 1
+            if "alt" not in image["attrs"]:
+                counters["imagesMissingAlt"] += 1
+                errors.append(f"{route}: image missing alt attribute: {image['attrs'].get('src', '<no src>')}.")
+
+        for link in parser.links:
+            counters["linksChecked"] += 1
+            if not parser.has_accessible_name(link):
+                counters["unnamedLinks"] += 1
+                errors.append(f"{route}: link has no accessible name: {link['attrs'].get('href', '<no href>')}.")
+
+        for button in parser.buttons:
+            counters["buttonsChecked"] += 1
+            if not parser.has_accessible_name(button):
+                counters["unnamedButtons"] += 1
+                errors.append(f"{route}: button has no accessible name.")
+
+        for control in parser.controls:
+            if control["attrs"].get("type", "").lower() == "hidden":
+                continue
+            counters["formControlsChecked"] += 1
+            if not parser.control_has_label(control):
+                counters["unlabelledFormControls"] += 1
+                errors.append(
+                    f"{route}: form control has no associated label: "
+                    f"{control['attrs'].get('name') or control['attrs'].get('id') or control['tag']}."
+                )
+
+        for node in parser.aria_labelledby_nodes:
+            for token in node["attrs"].get("aria-labelledby", "").split():
+                if token not in parser.nodes_by_id:
+                    counters["brokenAriaLabelledbyReferences"] += 1
+                    errors.append(f"{route}: aria-labelledby references missing ID {token!r}.")
+
+        counters["duplicateIds"] += len(parser.duplicate_ids)
+        if parser.duplicate_ids:
+            errors.append(f"{route}: duplicate element IDs: {', '.join(sorted(parser.duplicate_ids)[:8])}.")
+
+        if route != "404.html":
+            required_open_graph = ("og:title", "og:description", "og:image")
+            missing = [
+                key for key in required_open_graph
+                if len(parser.open_graph.get(key, [])) != 1 or not parser.open_graph[key][0]
+            ]
+            if missing:
+                counters["missingOpenGraph"] += 1
+                errors.append(f"{route}: required Open Graph metadata missing or duplicated: {', '.join(missing)}.")
+
+    title_counts: dict[str, int] = {}
+    for value in titles:
+        title_counts[value] = title_counts.get(value, 0) + 1
+    counters["duplicateTitles"] = sum(count - 1 for count in title_counts.values() if count > 1)
+    if counters["duplicateTitles"]:
+        errors.append("Root routes contain duplicate document titles.")
+
+    description_counts: dict[str, int] = {}
+    for value in descriptions:
+        description_counts[value] = description_counts.get(value, 0) + 1
+    counters["duplicateDescriptions"] = sum(count - 1 for count in description_counts.values() if count > 1)
+    if counters["duplicateDescriptions"]:
+        errors.append("Root routes contain duplicate meta descriptions.")
+
+    if errors:
+        fail("Packaged document accessibility/SEO contract failed:\n" + "\n".join(errors[:40]))
+    return {"status": "PASS", **counters}
+
+
 CSS_URL_PATTERN = re.compile(
     r"""url\(\s*(?:(?P<quote>["'])(?P<quoted>.*?)(?P=quote)|(?P<bare>[^)]*?))\s*\)""",
     re.IGNORECASE | re.DOTALL,
@@ -393,7 +720,12 @@ def resolve_runtime_reference(root: Path, source: Path, kind: str, reference: st
 
 def validate_runtime_asset_closure(output: Path) -> dict:
     """Fail closed on missing HTML/CSS/SVG/module assets after package transformations."""
-    root = Path(output).resolve(strict=True)
+    raw_root = Path(output)
+    if raw_root.is_symlink():
+        fail("Runtime asset-closure root must not be a symlink.")
+    root = raw_root.resolve(strict=True)
+    if not root.is_dir():
+        fail("Runtime asset-closure root must be a directory.")
     text_suffixes = {".html", ".css", ".js", ".svg"}
     files = sorted(
         path for path in root.rglob("*")
@@ -444,7 +776,12 @@ def validate_runtime_asset_closure(output: Path) -> dict:
 
 def validate_no_legacy_image_tree_references(output: Path) -> dict:
     """Fail closed if a runtime file references the excluded legacy /img asset library."""
-    output = Path(output).resolve(strict=True)
+    raw_output = Path(output)
+    if raw_output.is_symlink():
+        fail("Legacy-reference audit root must not be a symlink.")
+    output = raw_output.resolve(strict=True)
+    if not output.is_dir():
+        fail("Legacy-reference audit root must be a directory.")
     text_suffixes = {".html", ".css", ".js", ".json", ".svg", ".xml", ".txt", ".map"}
     checked = 0
     for candidate in sorted(output.rglob("*")):
@@ -851,6 +1188,26 @@ def deterministic_archive(output: Path, archive: Path) -> None:
                 fail(f"Runtime asset-closure metric is invalid: {field}.")
         if closure_files == 0 or closure_missing != 0:
             fail("The release manifest must record a completed asset-closure audit with zero missing local references.")
+
+        document_contract = manifest.get("documentContract")
+        if not isinstance(document_contract, dict) or document_contract.get("status") != "PASS":
+            fail("The release manifest must record a passing document accessibility/SEO contract.")
+        contract_fields = (
+            "routesScanned", "imagesChecked", "imagesMissingAlt", "linksChecked", "unnamedLinks",
+            "buttonsChecked", "unnamedButtons", "formControlsChecked", "unlabelledFormControls",
+            "missingLanguage", "missingTitle", "missingDescription", "missingViewport", "missingH1",
+            "missingMain", "missingSkipLink", "missingOpenGraph", "brokenAriaLabelledbyReferences",
+            "duplicateIds", "duplicateTitles", "duplicateDescriptions",
+        )
+        for field in contract_fields:
+            value = document_contract.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                fail(f"Document accessibility/SEO metric is invalid: {field}.")
+            if field != "routesScanned" and field not in {"imagesChecked", "linksChecked", "buttonsChecked", "formControlsChecked"} and value != 0:
+                fail(f"Document accessibility/SEO metric must be zero: {field}.")
+        if document_contract["routesScanned"] == 0:
+            fail("The release manifest must record a completed document accessibility/SEO audit.")
+
         if any(name.startswith("img/") for name in names):
             fail("The staging archive must not contain the source-only img/ asset library.")
         if manifest.get("deploymentPerformed") is not False:
@@ -946,6 +1303,7 @@ def main() -> int:
     asset_closure_report = validate_runtime_asset_closure(output)
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
+    document_contract_report = validate_document_contract(output)
     entries = inventory_package_files(output)
     legacy_inventory = legacy_source_image_inventory()
     package_metrics = package_size_metrics(entries, legacy_inventory)
@@ -963,6 +1321,7 @@ def main() -> int:
         "files": entries,
         "packageMetrics": package_metrics,
         "runtimeAssetClosure": runtime_asset_report,
+        "documentContract": document_contract_report,
         "responsiveImageDelivery": responsive_report,
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
         "canonicalHostApproved": False,
