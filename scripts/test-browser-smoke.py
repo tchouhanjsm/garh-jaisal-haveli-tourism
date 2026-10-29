@@ -2435,7 +2435,6 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         link = section_nav.get_by_role("link", name=label, exact=True)
         check(link.count() == 1 and link.get_attribute("href") == fragment,
               f"Directions: {label} navigation must point to its real section heading")
-    travel_heading = page.locator("#travel-options-title")
     page.evaluate(
         """() => {
           const heading = document.querySelector('#travel-options-title');
@@ -2480,7 +2479,8 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                 timeout=5000,
             )
             heading_top = page.locator("#travel-options-title").bounding_box()["y"]
-            header_bottom = page.locator(".site-header").bounding_box()["y"] + page.locator(".site-header").bounding_box()["height"]
+            header_box = page.locator(".site-header").bounding_box()
+            header_bottom = header_box["y"] + header_box["height"]
             check(heading_top >= header_bottom + 8,
                   "Directions: section navigation must leave clear space below the sticky site header")
         except Exception as error:
