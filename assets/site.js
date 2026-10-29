@@ -38,6 +38,61 @@
   window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
   focusArrivalPlannerFromFragment();
 
+  // Keep the Directions section rail oriented to the heading nearest its reading line.
+  // Native fragment links remain usable when this enhancement is unavailable.
+  function initArrivalSectionNavigation() {
+    const sectionNav = document.querySelector('.arrival-section-nav');
+    if (!sectionNav) return;
+
+    const links = Array.from(sectionNav.querySelectorAll('a[href^="#"]'));
+    const items = links.map(link => {
+      const target = document.getElementById(link.getAttribute('href').slice(1));
+      return target ? { link, target } : null;
+    });
+
+    // Do not advertise a partial scrollspy if any navigation target is missing.
+    if (!links.length || items.some(item => !item)) return;
+
+    let framePending = false;
+    const setCurrent = currentItem => {
+      items.forEach(item => {
+        if (item === currentItem) item.link.setAttribute('aria-current', 'location');
+        else item.link.removeAttribute('aria-current');
+      });
+    };
+
+    const updateCurrent = () => {
+      framePending = false;
+      const activationLine = Math.max(120, sectionNav.getBoundingClientRect().bottom + 16);
+      let currentItem = items[0];
+      items.forEach(item => {
+        if (item.target.getBoundingClientRect().top <= activationLine) currentItem = item;
+      });
+      setCurrent(currentItem);
+    };
+
+    const scheduleUpdate = () => {
+      if (framePending) return;
+      framePending = true;
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(updateCurrent);
+      } else {
+        updateCurrent();
+      }
+    };
+
+    sectionNav.addEventListener('click', event => {
+      const link = event.target.closest('a[href^="#"]');
+      const item = items.find(candidate => candidate.link === link);
+      if (item) setCurrent(item);
+    });
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate, { passive: true });
+    updateCurrent();
+  }
+
+  initArrivalSectionNavigation();
+
   function disableContactLink(link, fallbackText) {
     link.setAttribute('href', '#contact-status');
     link.setAttribute('aria-disabled', 'true');
