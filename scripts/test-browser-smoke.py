@@ -497,10 +497,11 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
 
 
 def run_responsive_image_preview_smoke() -> int:
-    """Exercise generated responsive WebP markup in Chromium at mobile and desktop widths."""
+    """Audit packaged responsive image selection at six breakpoints and DPR 1/2."""
     failures: list[str] = []
     checked_pictures = 0
     routes_with_responsive_images: set[str] = set()
+    max_selected_to_required_ratio = 0.0
     server = None
     browser = None
 
@@ -512,292 +513,327 @@ def run_responsive_image_preview_smoke() -> int:
         server, base_url = start_server()
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
-            for width, height in ((390, 844), (1440, 900)):
-                for page_name in PAGES:
-                    context = browser.new_context(
-                        viewport={"width": width, "height": height},
-                        device_scale_factor=1,
-                    )
-                    install_navigation_guard(context, base_url)
-                    page = context.new_page()
-                    request_counts: dict[str, int] = {}
-                    image_responses: dict[str, int] = {}
-                    image_request_failures: dict[str, str] = {}
-
-                    def record_request(request) -> None:
-                        if same_origin(request.url, base_url):
-                            request_counts[request.url] = request_counts.get(request.url, 0) + 1
-
-                    def record_image_response(response) -> None:
-                        image_path = urlsplit(response.url).path.lower()
-                        if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
-                            image_responses[response.url] = response.status
-
-                    def record_image_request_failed(request) -> None:
-                        image_path = urlsplit(request.url).path.lower()
-                        if same_origin(request.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
-                            image_request_failures[request.url] = request.failure or "request failed"
-
-                    page.on("request", record_request)
-                    page.on("response", record_image_response)
-                    page.on("requestfailed", record_image_request_failed)
-                    try:
-                        response = page.goto(
-                            base_url + page_name,
-                            wait_until="domcontentloaded",
-                            timeout=15000,
+            for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
+                for device_scale_factor in (1, 2):
+                    for page_name in PAGES:
+                        context = browser.new_context(
+                            viewport={"width": width, "height": height},
+                            device_scale_factor=device_scale_factor,
                         )
-                        if response is None or response.status != 200:
-                            failures.append(
-                                f"{page_name} at {width}px: expected HTTP 200 for packaged preview"
+                        install_navigation_guard(context, base_url)
+                        page = context.new_page()
+                        request_counts: dict[str, int] = {}
+                        image_responses: dict[str, int] = {}
+                        image_request_failures: dict[str, str] = {}
+
+                        def record_request(request) -> None:
+                            if same_origin(request.url, base_url):
+                                request_counts[request.url] = request_counts.get(request.url, 0) + 1
+
+                        def record_image_response(response) -> None:
+                            image_path = urlsplit(response.url).path.lower()
+                            if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
+                                image_responses[response.url] = response.status
+
+                        def record_image_request_failed(request) -> None:
+                            image_path = urlsplit(request.url).path.lower()
+                            if same_origin(request.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
+                                image_request_failures[request.url] = request.failure or "request failed"
+
+                        page.on("request", record_request)
+                        page.on("response", record_image_response)
+                        page.on("requestfailed", record_image_request_failed)
+                        try:
+                            response = page.goto(
+                                base_url + page_name,
+                                wait_until="domcontentloaded",
+                                timeout=15000,
                             )
-                            continue
-
-                        # The preview is an automated rendering check, not an animation test.
-                        # Disable transitions and smooth scrolling so layout motion cannot make
-                        # Playwright's stability heuristic time out while inspecting lazy images.
-                        page.emulate_media(reduced_motion="reduce")
-                        page.add_style_tag(content="""
-                            *, *::before, *::after {
-                                animation-delay: 0s !important;
-                                animation-duration: 0s !important;
-                                animation-iteration-count: 1 !important;
-                                scroll-behavior: auto !important;
-                                transition-delay: 0s !important;
-                                transition-duration: 0s !important;
-                            }
-                        """)
-
-                        pictures = page.locator(
-                            'picture:has(source[data-responsive-image="true"])'
-                        )
-                        picture_count = pictures.count()
-
-                        for index in range(picture_count):
-                            picture = pictures.nth(index)
-                            source = picture.locator('source[data-responsive-image="true"]').first
-                            image = picture.locator("img").first
-                            label = f"{page_name} at {width}px picture {index + 1}"
-                            # Exercise every responsive picture in the real package, including
-                            # offscreen and inactive carousel/gallery slides. Force eager loading
-                            # only in this isolated test context; production loading policy is
-                            # checked below and remains unchanged in the artifact.
-                            production_loading = image.get_attribute("loading") or ""
-                            image.evaluate("(img) => { img.loading = 'eager'; img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'}); }")
-                            image.wait_for(state="attached")
-                            try:
-                                image.evaluate(
-                                    """async (img) => {
-                                      if (!img.complete) {
-                                        await new Promise((resolve, reject) => {
-                                          const timeout = setTimeout(() => {
-                                            cleanup();
-                                            reject(new Error('timed out waiting for offscreen image: ' + (img.currentSrc || img.src)));
-                                          }, 8000);
-                                          const cleanup = () => {
-                                            clearTimeout(timeout);
-                                            img.removeEventListener('load', onLoad);
-                                            img.removeEventListener('error', onError);
-                                          };
-                                          const onLoad = () => { cleanup(); resolve(); };
-                                          const onError = () => { cleanup(); reject(new Error('offscreen image request failed: ' + (img.currentSrc || img.src))); };
-                                          img.addEventListener('load', onLoad, {once: true});
-                                          img.addEventListener('error', onError, {once: true});
-                                        });
-                                      }
-                                    }"""
-                                )
-                            except Exception as error:
+                            if response is None or response.status != 200:
                                 failures.append(
-                                    f"{label}: could not load image after activating the test-only eager path: "
-                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                    f"{page_name} at {width}px: expected HTTP 200 for packaged preview"
                                 )
                                 continue
-                            routes_with_responsive_images.add(page_name)
-                            checked_pictures += 1
-                            try:
-                                image.evaluate(
-                                    "(img) => img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
-                                )
-                                details = image.evaluate(
-                                    """async (img) => {
-                                      const waitForImageLoad = () => new Promise((resolve, reject) => {
-                                        const cleanup = () => {
-                                          clearTimeout(timer);
-                                          img.removeEventListener('load', onLoad);
-                                          img.removeEventListener('error', onError);
-                                        };
-                                        const onLoad = () => { cleanup(); resolve(); };
-                                        const onError = () => {
-                                          cleanup();
-                                          reject(new Error('image request failed for ' + (img.currentSrc || img.src)));
-                                        };
-                                        const timer = setTimeout(() => {
-                                          cleanup();
-                                          reject(new Error('timed out waiting for image load: ' + (img.currentSrc || img.src)));
-                                        }, 8000);
-                                        img.addEventListener('load', onLoad, {once: true});
-                                        img.addEventListener('error', onError, {once: true});
-                                      });
-                                      if (!img.complete) await waitForImageLoad();
-                                      if (!img.naturalWidth || !img.naturalHeight) {
-                                        throw new Error('image completed without decodable pixels: currentSrc='
-                                          + (img.currentSrc || '<empty>') + '; fallback='
-                                          + (img.getAttribute('src') || '<empty>'));
-                                      }
-                                      const selectedBeforeDecode = img.currentSrc;
-                                      try {
-                                        await img.decode();
-                                      } catch (error) {
-                                        const selectedAfterDecode = img.currentSrc;
-                                        if (selectedAfterDecode && selectedAfterDecode !== selectedBeforeDecode
-                                            && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
-                                          await img.decode();
-                                        } else {
-                                          throw new Error('decode failed for '
-                                            + (selectedAfterDecode || selectedBeforeDecode || '<empty>')
-                                            + '; fallback=' + (img.getAttribute('src') || '<empty>')
-                                            + '; natural=' + img.naturalWidth + 'x' + img.naturalHeight
-                                            + '; cause=' + error.message);
-                                        }
-                                      }
-                                      const classes = Array.from(img.classList);
-                                      return {
-                                        currentSrc: img.currentSrc,
-                                        fallbackSrc: img.getAttribute('src') || '',
-                                        width: img.naturalWidth,
-                                        height: img.naturalHeight,
-                                        declaredWidth: img.getAttribute('width') || '',
-                                        declaredHeight: img.getAttribute('height') || '',
-                                        loading: img.getAttribute('loading') || '',
-                                        decoding: img.getAttribute('decoding') || '',
-                                        fetchpriority: img.getAttribute('fetchpriority') || '',
-                                        classes,
-                                        alt: img.getAttribute('alt')
-                                      };
-                                    }"""
-                                )
-                                source_details = source.evaluate(
-                                    """(element) => ({
-                                      type: element.getAttribute('type') || '',
-                                      srcset: element.getAttribute('srcset') || '',
-                                      sizes: element.getAttribute('sizes') || ''
-                                    })"""
-                                )
-                            except Exception as error:
+
+                            # The preview is an automated rendering check, not an animation test.
+                            # Disable transitions and smooth scrolling so layout motion cannot make
+                            # Playwright's stability heuristic time out while inspecting lazy images.
+                            page.emulate_media(reduced_motion="reduce")
+                            page.add_style_tag(content="""
+                                *, *::before, *::after {
+                                    animation-delay: 0s !important;
+                                    animation-duration: 0s !important;
+                                    animation-iteration-count: 1 !important;
+                                    scroll-behavior: auto !important;
+                                    transition-delay: 0s !important;
+                                    transition-duration: 0s !important;
+                                }
+                            """)
+
+                            pictures = page.locator(
+                                'picture:has(source[data-responsive-image="true"])'
+                            )
+                            picture_count = pictures.count()
+
+                            for index in range(picture_count):
+                                picture = pictures.nth(index)
+                                source = picture.locator('source[data-responsive-image="true"]').first
+                                image = picture.locator("img").first
+                                label = f"{page_name} at {width}px @{device_scale_factor}x picture {index + 1}"
+                                # Exercise every responsive picture in the real package, including
+                                # offscreen and inactive carousel/gallery slides. Force eager loading
+                                # only in this isolated test context; production loading policy is
+                                # checked below and remains unchanged in the artifact.
+                                production_loading = image.get_attribute("loading") or ""
+                                image.evaluate("(img) => { img.loading = 'eager'; img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'}); }")
+                                image.wait_for(state="attached")
                                 try:
-                                    selected_url = image.evaluate("(img) => img.currentSrc")
-                                    fallback_url = image.get_attribute("src") or "<empty>"
-                                    source_srcset = source.get_attribute("srcset") or "<empty>"
-                                except Exception:
-                                    selected_url, fallback_url, source_srcset = "", "<unavailable>", "<unavailable>"
-                                selected_status = image_responses.get(selected_url, "not observed")
-                                selected_failure = image_request_failures.get(selected_url, "none recorded")
-                                failures.append(
-                                    f"{label}: responsive image failed to decode or inspect: "
-                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}; "
-                                    f"selected={safe_url_label(selected_url) if selected_url else '<empty>'}; "
-                                    f"http={selected_status}; requestFailure={sanitize_diagnostic_text(selected_failure)}; "
-                                    f"fallback={fallback_url}; srcset={source_srcset}"
+                                    image.evaluate(
+                                        """async (img) => {
+                                          if (!img.complete) {
+                                            await new Promise((resolve, reject) => {
+                                              const timeout = setTimeout(() => {
+                                                cleanup();
+                                                reject(new Error('timed out waiting for offscreen image: ' + (img.currentSrc || img.src)));
+                                              }, 8000);
+                                              const cleanup = () => {
+                                                clearTimeout(timeout);
+                                                img.removeEventListener('load', onLoad);
+                                                img.removeEventListener('error', onError);
+                                              };
+                                              const onLoad = () => { cleanup(); resolve(); };
+                                              const onError = () => { cleanup(); reject(new Error('offscreen image request failed: ' + (img.currentSrc || img.src))); };
+                                              img.addEventListener('load', onLoad, {once: true});
+                                              img.addEventListener('error', onError, {once: true});
+                                            });
+                                          }
+                                        }"""
+                                    )
+                                except Exception as error:
+                                    failures.append(
+                                        f"{label}: could not load image after activating the test-only eager path: "
+                                        f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                    )
+                                    continue
+                                routes_with_responsive_images.add(page_name)
+                                checked_pictures += 1
+                                try:
+                                    image.evaluate(
+                                        "(img) => img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+                                    )
+                                    details = image.evaluate(
+                                        """async (img) => {
+                                          const waitForImageLoad = () => new Promise((resolve, reject) => {
+                                            const cleanup = () => {
+                                              clearTimeout(timer);
+                                              img.removeEventListener('load', onLoad);
+                                              img.removeEventListener('error', onError);
+                                            };
+                                            const onLoad = () => { cleanup(); resolve(); };
+                                            const onError = () => {
+                                              cleanup();
+                                              reject(new Error('image request failed for ' + (img.currentSrc || img.src)));
+                                            };
+                                            const timer = setTimeout(() => {
+                                              cleanup();
+                                              reject(new Error('timed out waiting for image load: ' + (img.currentSrc || img.src)));
+                                            }, 8000);
+                                            img.addEventListener('load', onLoad, {once: true});
+                                            img.addEventListener('error', onError, {once: true});
+                                          });
+                                          if (!img.complete) await waitForImageLoad();
+                                          if (!img.naturalWidth || !img.naturalHeight) {
+                                            throw new Error('image completed without decodable pixels: currentSrc='
+                                              + (img.currentSrc || '<empty>') + '; fallback='
+                                              + (img.getAttribute('src') || '<empty>'));
+                                          }
+                                          const selectedBeforeDecode = img.currentSrc;
+                                          try {
+                                            await img.decode();
+                                          } catch (error) {
+                                            const selectedAfterDecode = img.currentSrc;
+                                            if (selectedAfterDecode && selectedAfterDecode !== selectedBeforeDecode
+                                                && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                              await img.decode();
+                                            } else {
+                                              throw new Error('decode failed for '
+                                                + (selectedAfterDecode || selectedBeforeDecode || '<empty>')
+                                                + '; fallback=' + (img.getAttribute('src') || '<empty>')
+                                                + '; natural=' + img.naturalWidth + 'x' + img.naturalHeight
+                                                + '; cause=' + error.message);
+                                            }
+                                          }
+                                          const box = img.getBoundingClientRect();
+                                          const carouselViewport = img.closest('.experience-carousel__viewport');
+                                          const renderedWidth = box.width || (carouselViewport
+                                            ? carouselViewport.getBoundingClientRect().width : 0);
+                                          const classes = Array.from(img.classList);
+                                          return {
+                                            currentSrc: img.currentSrc,
+                                            fallbackSrc: img.getAttribute('src') || '',
+                                            width: img.naturalWidth,
+                                            height: img.naturalHeight,
+                                            renderedWidth,
+                                            devicePixelRatio: window.devicePixelRatio,
+                                            declaredWidth: img.getAttribute('width') || '',
+                                            declaredHeight: img.getAttribute('height') || '',
+                                            loading: img.getAttribute('loading') || '',
+                                            decoding: img.getAttribute('decoding') || '',
+                                            fetchpriority: img.getAttribute('fetchpriority') || '',
+                                            classes,
+                                            alt: img.getAttribute('alt')
+                                          };
+                                        }"""
+                                    )
+                                    source_details = source.evaluate(
+                                        """(element) => ({
+                                          type: element.getAttribute('type') || '',
+                                          srcset: element.getAttribute('srcset') || '',
+                                          sizes: element.getAttribute('sizes') || ''
+                                        })"""
+                                    )
+                                except Exception as error:
+                                    try:
+                                        selected_url = image.evaluate("(img) => img.currentSrc")
+                                        fallback_url = image.get_attribute("src") or "<empty>"
+                                        source_srcset = source.get_attribute("srcset") or "<empty>"
+                                    except Exception:
+                                        selected_url, fallback_url, source_srcset = "", "<unavailable>", "<unavailable>"
+                                    selected_status = image_responses.get(selected_url, "not observed")
+                                    selected_failure = image_request_failures.get(selected_url, "none recorded")
+                                    failures.append(
+                                        f"{label}: responsive image failed to decode or inspect: "
+                                        f"{type(error).__name__}: {sanitize_diagnostic_text(error)}; "
+                                        f"selected={safe_url_label(selected_url) if selected_url else '<empty>'}; "
+                                        f"http={selected_status}; requestFailure={sanitize_diagnostic_text(selected_failure)}; "
+                                        f"fallback={fallback_url}; srcset={source_srcset}"
+                                    )
+                                    continue
+
+                                check_preview(
+                                    source_details["type"].lower() == "image/webp",
+                                    f"{label}: responsive source must declare image/webp",
                                 )
-                                continue
-
-                            check_preview(
-                                source_details["type"].lower() == "image/webp",
-                                f"{label}: responsive source must declare image/webp",
-                            )
-                            check_preview(
-                                bool(source_details["sizes"].strip()),
-                                f"{label}: responsive source must declare sizes",
-                            )
-                            candidates = [
-                                candidate.strip().split()[0]
-                                for candidate in source_details["srcset"].split(",")
-                                if candidate.strip()
-                            ]
-                            check_preview(
-                                len(candidates) >= 2,
-                                f"{label}: responsive source must expose multiple width candidates",
-                            )
-                            selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
-                            candidate_paths = [
-                                candidate.split("?", 1)[0].lstrip("/")
-                                for candidate in candidates
-                            ]
-                            check_preview(
-                                selected_path.endswith(".webp") and selected_path in candidate_paths,
-                                f"{label}: Chromium selected a WebP candidate declared by srcset; "
-                                f"selected {selected_path or '<empty>'}",
-                            )
-                            check_preview(
-                                details["fallbackSrc"].lower().endswith((".jpg", ".jpeg")),
-                                f"{label}: JPEG fallback must remain available",
-                            )
-                            check_preview(
-                                details["width"] > 0 and details["height"] > 0,
-                                f"{label}: selected image must have positive natural dimensions",
-                            )
-                            check_preview(
-                                details["declaredWidth"].isdigit()
-                                and int(details["declaredWidth"]) > 0
-                                and details["declaredHeight"].isdigit()
-                                and int(details["declaredHeight"]) > 0,
-                                f"{label}: intrinsic width/height must reserve layout space",
-                            )
-                            check_preview(
-                                details["decoding"].lower() == "async",
-                                f"{label}: responsive image must decode asynchronously",
-                            )
-                            check_preview(
-                                details["alt"] is not None,
-                                f"{label}: image must retain an alt attribute",
-                            )
-                            is_hero = (
-                                details["fetchpriority"].lower() == "high"
-                                or "hero__image" in details["classes"]
-                            )
-                            expected_loading = "eager" if is_hero else "lazy"
-                            check_preview(
-                                production_loading.lower() == expected_loading,
-                                f"{label}: expected loading={expected_loading}",
-                            )
-
-                            if is_hero:
-                                preload_count = page.locator(
-                                    'link[rel="preload"][as="image"][imagesrcset]'
-                                ).count()
-                                matching_preload = False
-                                for preload_index in range(preload_count):
-                                    preload = page.locator(
-                                        'link[rel="preload"][as="image"][imagesrcset]'
-                                    ).nth(preload_index)
-                                    matching_preload = matching_preload or (
-                                        preload.get_attribute("imagesrcset") == source_details["srcset"]
-                                        and preload.get_attribute("imagesizes") == source_details["sizes"]
-                                        and (preload.get_attribute("type") or "").lower() == "image/webp"
+                                check_preview(
+                                    bool(source_details["sizes"].strip()),
+                                    f"{label}: responsive source must declare sizes",
+                                )
+                                candidate_pairs: list[tuple[str, int]] = []
+                                for raw_candidate in source_details["srcset"].split(","):
+                                    pieces = raw_candidate.strip().rsplit(None, 1)
+                                    if len(pieces) != 2:
+                                        continue
+                                    width_match = re.fullmatch(r"([1-9][0-9]*)w", pieces[1])
+                                    if width_match:
+                                        candidate_pairs.append((
+                                            pieces[0].split("?", 1)[0].lstrip("/"),
+                                            int(width_match.group(1)),
+                                        ))
+                                candidates = [path for path, _width in candidate_pairs]
+                                check_preview(
+                                    len(candidates) >= 2,
+                                    f"{label}: responsive source must expose multiple width candidates",
+                                )
+                                selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
+                                candidate_paths = [
+                                    candidate.split("?", 1)[0].lstrip("/")
+                                    for candidate in candidates
+                                ]
+                                check_preview(
+                                    selected_path.endswith(".webp") and selected_path in candidate_paths,
+                                    f"{label}: Chromium selected a WebP candidate declared by srcset; "
+                                    f"selected {selected_path or '<empty>'}",
+                                )
+                                selected_width = next(
+                                    (width for candidate_path, width in candidate_pairs if candidate_path == selected_path),
+                                    None,
+                                )
+                                check_preview(
+                                    selected_width is not None,
+                                    f"{label}: selected WebP width descriptor must be recoverable from srcset",
+                                )
+                                check_preview(
+                                    details["renderedWidth"] > 0,
+                                    f"{label}: responsive image slot must have a measurable rendered width",
+                                )
+                                if selected_width is not None and details["renderedWidth"] > 0:
+                                    required_pixels = float(details["renderedWidth"]) * device_scale_factor
+                                    ratio = selected_width / required_pixels
+                                    max_selected_to_required_ratio = max(max_selected_to_required_ratio, ratio)
+                                    check_preview(
+                                        selected_width <= required_pixels * 1.8,
+                                        f"{label}: selected WebP {selected_width}px exceeds 1.8x "
+                                        f"rendered slot demand ({required_pixels:.1f}px); verify sizes",
                                     )
                                 check_preview(
-                                    matching_preload,
-                                    f"{label}: hero responsive preload must match source srcset and sizes",
+                                    details["fallbackSrc"].lower().endswith((".jpg", ".jpeg")),
+                                    f"{label}: JPEG fallback must remain available",
+                                )
+                                check_preview(
+                                    details["width"] > 0 and details["height"] > 0,
+                                    f"{label}: selected image must have positive natural dimensions",
+                                )
+                                check_preview(
+                                    details["declaredWidth"].isdigit()
+                                    and int(details["declaredWidth"]) > 0
+                                    and details["declaredHeight"].isdigit()
+                                    and int(details["declaredHeight"]) > 0,
+                                    f"{label}: intrinsic width/height must reserve layout space",
+                                )
+                                check_preview(
+                                    details["decoding"].lower() == "async",
+                                    f"{label}: responsive image must decode asynchronously",
+                                )
+                                check_preview(
+                                    details["alt"] is not None,
+                                    f"{label}: image must retain an alt attribute",
+                                )
+                                is_hero = (
+                                    details["fetchpriority"].lower() == "high"
+                                    or "hero__image" in details["classes"]
+                                )
+                                expected_loading = "eager" if is_hero else "lazy"
+                                check_preview(
+                                    production_loading.lower() == expected_loading,
+                                    f"{label}: expected loading={expected_loading}",
                                 )
 
-                            selected_request_count = request_counts.get(details["currentSrc"], 0)
-                            check_preview(
-                                selected_request_count == 1,
-                                f"{label}: selected WebP candidate should be requested once, "
-                                f"observed {selected_request_count}",
-                            )
+                                if is_hero:
+                                    preload_count = page.locator(
+                                        'link[rel="preload"][as="image"][imagesrcset]'
+                                    ).count()
+                                    matching_preload = False
+                                    for preload_index in range(preload_count):
+                                        preload = page.locator(
+                                            'link[rel="preload"][as="image"][imagesrcset]'
+                                        ).nth(preload_index)
+                                        matching_preload = matching_preload or (
+                                            preload.get_attribute("imagesrcset") == source_details["srcset"]
+                                            and preload.get_attribute("imagesizes") == source_details["sizes"]
+                                            and (preload.get_attribute("type") or "").lower() == "image/webp"
+                                        )
+                                    check_preview(
+                                        matching_preload,
+                                        f"{label}: hero responsive preload must match source srcset and sizes",
+                                    )
 
-                        page.wait_for_timeout(50)
-                        for request_url, request_count in request_counts.items():
-                            request_path = urlsplit(request_url).path.lower()
-                            if request_path.endswith(".webp") and request_count > 1:
-                                failures.append(
-                                    f"{page_name} at {width}px: duplicate WebP request "
-                                    f"({request_count}): {safe_url_label(request_url)}"
+                                selected_request_count = request_counts.get(details["currentSrc"], 0)
+                                check_preview(
+                                    selected_request_count == 1,
+                                    f"{label}: selected WebP candidate should be requested once, "
+                                    f"observed {selected_request_count}",
                                 )
-                    finally:
-                        context.close()
+
+                            page.wait_for_timeout(50)
+                            for request_url, request_count in request_counts.items():
+                                request_path = urlsplit(request_url).path.lower()
+                                if request_path.endswith(".webp") and request_count > 1:
+                                    failures.append(
+                                        f"{page_name} at {width}px: duplicate WebP request "
+                                        f"({request_count}): {safe_url_label(request_url)}"
+                                    )
+                        finally:
+                            context.close()
 
             browser.close()
             browser = None
@@ -831,11 +867,13 @@ def run_responsive_image_preview_smoke() -> int:
             print(f" - {failure}")
         return 1
 
+    viewport_widths = ", ".join(str(width) for width, _height in RESPONSIVE_AUDIT_VIEWPORTS)
     print(
         "PASS: packaged responsive-image browser smoke checked "
         f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
-        "at 390px and 1440px; Chromium selected declared WebP candidates, retained JPEG fallbacks, "
-        "matched hero responsive preloads, and issued no duplicate WebP requests."
+        f"at {viewport_widths}px and DPR 1x/2x; maximum selected/required pixel ratio "
+        f"{max_selected_to_required_ratio:.2f}x. Chromium selected declared WebP candidates, "
+        "retained JPEG fallbacks, matched hero responsive preloads, and issued no duplicate WebP requests."
     )
     return 0
 

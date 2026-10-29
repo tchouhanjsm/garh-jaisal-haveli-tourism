@@ -614,6 +614,60 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
 
 
+    def test_responsive_sizes_follow_verified_layout_contexts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_names = (
+                "rest3.jpg",
+                "experiences/swiss-tent-detail.jpeg",
+                "rooms/sweet-purple.jpg",
+                "tent.jpg",
+            )
+            for name in source_names:
+                create_jpeg(root, name, (1200, 800))
+            generate_responsive_variants(root, source_names)
+
+            html = (
+                '<script>const fakeMarkup = \'<div class="gallery-grid">\';</script>'
+                '<section class="page-hero"><picture class="page-hero__picture">'
+                '<img src="assets/images/rest3.jpg" alt="Rooftop">'
+                '</picture></section>'
+                '<head><link rel="preload" as="image" '
+                'href="assets/images/experiences/swiss-tent-detail.jpeg"></head>'
+                '<section><div class="experience-option-grid"><article>'
+                '<figure class="experience-option__media">'
+                '<img src="assets/images/experiences/swiss-tent-detail.jpeg" alt="Desert tent">'
+                '</figure></article></div></section>'
+                '<section><div class="room-card-grid room-card-grid--catalog"><article>'
+                '<div class="room-card__image"><img src="assets/images/rooms/sweet-purple.jpg" '
+                'alt="Purple room"></div></article></div></section>'
+                '<section><div class="gallery-grid"><figure class="gallery-card">'
+                '<div class="gallery-card__media"><img src="assets/images/tent.jpg" '
+                'alt="Desert sleeping setup"></div></figure></div></section>'
+            )
+            result = rewrite_html_text(html, "responsive", root=root)
+
+            experience_sizes = (
+                '(max-width: 760px) calc(100vw - 36px), '
+                '(max-width: 900px) calc((100vw - 84px) / 2), '
+                'calc((min(100vw, 1304px) - 104px) / 3)'
+            )
+            room_sizes = (
+                '(max-width: 760px) calc(100vw - 36px), '
+                '(max-width: 1050px) calc((100vw - 82px) / 2), '
+                'calc((min(100vw, 1304px) - 100px) / 3)'
+            )
+            gallery_sizes = (
+                '(max-width: 760px) calc(100vw - 36px), '
+                'calc((min(100vw, 1304px) - 88px) / 2)'
+            )
+            self.assertIn('sizes="100vw"', result)
+            self.assertIn(f'sizes="{experience_sizes}"', result)
+            self.assertIn(f'imagesizes="{experience_sizes}"', result)
+            self.assertIn(f'sizes="{room_sizes}"', result)
+            self.assertIn(f'sizes="{gallery_sizes}"', result)
+            self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
+
     def test_browser_smoke_contract_exercises_hidden_responsive_images(self) -> None:
         smoke_path = Path(__file__).with_name("test-browser-smoke.py")
         source = smoke_path.read_text(encoding="utf-8")
@@ -627,6 +681,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
         self.assertIn('production_loading.lower() == expected_loading', browser_check)
         self.assertIn('endswith((".jpg", ".jpeg"))', browser_check)
         self.assertIn("responsive source must declare sizes", browser_check)
+        self.assertIn("for width, height in RESPONSIVE_AUDIT_VIEWPORTS:", browser_check)
+        self.assertIn("for device_scale_factor in (1, 2):", browser_check)
+        self.assertIn("selected_width <= required_pixels * 1.8", browser_check)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -264,10 +264,117 @@ def generate_responsive_variants(
     return output
 
 
-def _responsive_sizes(tag: str) -> str:
-    classes = (get_attribute(tag, "class") or "").split()
-    if "hero__image" in classes or (get_attribute(tag, "fetchpriority") or "").lower() == "high":
+_VOID_HTML_CONTEXT_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+})
+_HTML_CONTEXT_TOKEN_PATTERN = re.compile(
+    r"<!--[\s\S]*?-->|<script\b[^>]*>[\s\S]*?</script\s*>|"
+    r"<style\b[^>]*>[\s\S]*?</style\s*>|</?[a-z][^>]*>",
+    re.IGNORECASE,
+)
+
+
+def _ancestor_classes_before(text: str, offset: int) -> set[str]:
+    """Collect real HTML ancestor classes, ignoring markup-like script/style text."""
+    stack: list[tuple[str, set[str]]] = []
+    for match in _HTML_CONTEXT_TOKEN_PATTERN.finditer(text, 0, offset):
+        token = match.group(0)
+        if token.startswith("<!--") or re.match(r"<(?:script|style)\b", token, re.IGNORECASE):
+            continue
+        tag_match = re.match(r"</?([a-z][\w:-]*)\b", token, re.IGNORECASE)
+        if tag_match is None:
+            continue
+        name = tag_match.group(1).lower()
+        if token.startswith("</"):
+            for index in range(len(stack) - 1, -1, -1):
+                if stack[index][0] == name:
+                    del stack[index:]
+                    break
+            continue
+        classes = set((get_attribute(token, "class") or "").split())
+        if name not in _VOID_HTML_CONTEXT_TAGS and not token.rstrip().endswith("/>"):
+            stack.append((name, classes))
+    return {class_name for _tag, classes in stack for class_name in classes}
+
+
+def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str:
+    """Describe the rendered image slot from the verified layout contract."""
+    classes = set((get_attribute(tag, "class") or "").split())
+    ancestors = ancestor_classes or set()
+    if (
+        "hero__image" in classes
+        or (get_attribute(tag, "fetchpriority") or "").lower() == "high"
+        or bool(ancestors & {"page-hero", "page-hero__picture"})
+    ):
         return "100vw"
+
+    if "experience-option-grid" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "(max-width: 900px) calc((100vw - 84px) / 2), "
+            "calc((min(100vw, 1304px) - 104px) / 3)"
+        )
+    if "room-card-grid--catalog" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "(max-width: 1050px) calc((100vw - 82px) / 2), "
+            "calc((min(100vw, 1304px) - 100px) / 3)"
+        )
+    if ancestors & {"room-gallery-grid", "room-reference-grid"}:
+        return (
+            "(max-width: 600px) calc(100vw - 36px), "
+            "(max-width: 900px) calc((100vw - 84px) / 2), "
+            "calc((min(100vw, 1304px) - 104px) / 3)"
+        )
+    if "gallery-grid" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "calc((min(100vw, 1304px) - 88px) / 2)"
+        )
+    if "content-depth__grid" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "calc((min(100vw, 1304px) - 82px) / 2)"
+        )
+    if "experience-grid" in ancestors:
+        if "experience-card--large" in ancestors:
+            return (
+                "(max-width: 760px) calc(100vw - 36px), "
+                "(max-width: 1050px) calc((100vw - 82px) / 2), "
+                "min(445px, 34vw)"
+            )
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "(max-width: 1050px) calc((100vw - 82px) / 2), "
+            "min(380px, 30vw)"
+        )
+    if "feature-photo" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 72px), "
+            "(max-width: 900px) calc(100vw - 100px), "
+            "min(610px, 44vw)"
+        )
+    if "story-image" in ancestors:
+        return "(max-width: 760px) calc(100vw - 36px), min(600px, 43vw)"
+    if "arrival-visual__media" in ancestors:
+        return (
+            "(max-width: 760px) min(380px, calc(100vw - 36px)), "
+            "min(420px, 40vw)"
+        )
+    if "room-feature__image" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "(max-width: 1050px) 48vw, 510px"
+        )
+    if "intro__image" in ancestors:
+        return (
+            "(max-width: 760px) calc(100vw - 36px), "
+            "(max-width: 1050px) 40vw, min(432px, 33vw)"
+        )
+
+    # Retain the conservative fallback for unclassified markup; core public
+    # photo layouts above are aligned to their actual CSS grid breakpoints.
     return "(max-width: 760px) 100vw, (max-width: 1200px) 50vw, 50vw"
 
 
@@ -376,7 +483,8 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if get_attribute(tag, "data-responsive-image-fallback") == "true":
             return tag
         srcset = _srcset(root, image_name)
-        sizes = _responsive_sizes(tag)
+        ancestor_classes = _ancestor_classes_before(text, match.start())
+        sizes = _responsive_sizes(tag, ancestor_classes)
         source = (
             '<source data-responsive-image="true" type="image/webp" srcset="'
             + srcset
@@ -403,9 +511,9 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if image_name is None:
             return tag
         tag = set_attribute(tag, "href", _full_size_webp_url(image_name))
-        matching_image = next(
+        matching_image_match = next(
             (
-                image_match.group(0)
+                image_match
                 for image_match in IMG_PATTERN.finditer(text)
                 if _image_name_for_reference(
                     get_attribute(image_match.group(0), "src") or ""
@@ -413,7 +521,14 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             ),
             None,
         )
-        sizes = _responsive_sizes(matching_image) if matching_image else "100vw"
+        sizes = (
+            _responsive_sizes(
+                matching_image_match.group(0),
+                _ancestor_classes_before(text, matching_image_match.start()),
+            )
+            if matching_image_match
+            else "100vw"
+        )
         return set_attribute(
             set_attribute(
                 set_attribute(tag, "imagesrcset", _srcset(root, image_name)),
