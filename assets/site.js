@@ -63,7 +63,7 @@
 
     const updateCurrent = () => {
       framePending = false;
-      // Keep the reading line below the sticky header; target headings use a 112px scroll margin.
+      // Keep the reading line below the sticky header and sticky section rail; global scroll padding plus route-specific margin places targets around 162px.
       const activationLine = Math.max(168, sectionNav.getBoundingClientRect().bottom + 32);
       let currentItem = items[0];
       let currentTop = Number.NEGATIVE_INFINITY;
