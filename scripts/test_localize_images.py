@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import importlib.util
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -15,6 +16,14 @@ from rewrite_image_refs import (
     rewrite_html_text,
     rewrite_site,
 )
+
+_PACKAGE_SPEC = importlib.util.spec_from_file_location(
+    "package_staging_preview", Path(__file__).with_name("package-staging-preview.py")
+)
+if _PACKAGE_SPEC is None or _PACKAGE_SPEC.loader is None:
+    raise RuntimeError("could not load responsive preview package validator")
+_PACKAGE_PREVIEW = importlib.util.module_from_spec(_PACKAGE_SPEC)
+_PACKAGE_SPEC.loader.exec_module(_PACKAGE_PREVIEW)
 
 SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
@@ -188,6 +197,55 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 result,
             )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
+
+    def test_packaged_srcset_width_descriptors_match_decoded_webp_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_jpeg(root, "rest3.jpg", (1200, 800))
+            generated = generate_responsive_variants(root, ("rest3.jpg",))
+            html = (
+                '<section class="hero"><img class="hero__image" '
+                'src="assets/images/rest3.jpg" alt="Rooftop terrace" fetchpriority="high"></section>'
+            )
+            page = root / "index.html"
+            page.write_text(rewrite_html_text(html, "responsive", root=root), encoding="utf-8")
+
+            entry = generated["rest3.jpg"]
+            candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+            generated_files = []
+            for relative in candidate_paths:
+                target = root / relative
+                with Image.open(target) as decoded:
+                    decoded.load()
+                    generated_files.append({
+                        "path": relative,
+                        "bytes": target.stat().st_size,
+                        "sha256": "0" * 64,
+                        "width": decoded.width,
+                        "height": decoded.height,
+                    })
+            image_sources = [{
+                "sourceJpeg": "assets/images/rest3.jpg",
+                "naturalWidth": entry["width"],
+                "naturalHeight": entry["height"],
+                "fullSizeWebp": entry["fullSizePath"],
+            }]
+
+            result = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root, generated_files, image_sources, (480, 768, 1200, 1600)
+            )
+            self.assertEqual(result["status"], "PASS")
+            self.assertEqual(result["responsivePictureCount"], 1)
+            self.assertTrue(result["widthDescriptorsMatchDecodedPixels"])
+
+            page.write_text(
+                page.read_text(encoding="utf-8").replace("rest3-480.webp 480w", "rest3-480.webp 481w"),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "descriptor width 481w does not match decoded asset width 480px"):
+                _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root, generated_files, image_sources, (480, 768, 1200, 1600)
+                )
 
     def test_rewrite_site_rejects_symlinked_root_and_pages_before_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

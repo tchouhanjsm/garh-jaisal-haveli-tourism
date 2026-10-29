@@ -9,6 +9,7 @@ import importlib.util
 import json
 import re
 import shutil
+from html.parser import HTMLParser
 import sys
 import zipfile
 from pathlib import Path
@@ -38,6 +39,187 @@ def digest_bytes(data: bytes) -> str:
 
 def is_within(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
+
+
+class ResponsivePictureParser(HTMLParser):
+    """Collect generated responsive picture/source/fallback contracts from HTML."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.pictures: list[dict] = []
+        self.orphan_responsive_sources = 0
+        self.orphan_responsive_fallbacks = 0
+        self._current: dict | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        name = tag.lower()
+        values = {key.lower(): value or "" for key, value in attrs}
+        if name == "picture":
+            if self._current is not None:
+                raise ValueError("nested picture elements are not supported in packaged markup")
+            self._current = {"sources": [], "fallbacks": []}
+            return
+        if name == "source" and values.get("data-responsive-image", "").lower() == "true":
+            if self._current is None:
+                self.orphan_responsive_sources += 1
+            else:
+                self._current["sources"].append(values)
+        elif name == "img" and values.get("data-responsive-image-fallback", "").lower() == "true":
+            if self._current is None:
+                self.orphan_responsive_fallbacks += 1
+            else:
+                self._current["fallbacks"].append(values)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "picture" or self._current is None:
+            return
+        if self._current["sources"] or self._current["fallbacks"]:
+            self.pictures.append(self._current)
+        self._current = None
+
+    def close(self) -> None:
+        super().close()
+        if self._current is not None:
+            raise ValueError("responsive picture element was not closed")
+
+
+def validate_responsive_markup(
+    output: Path,
+    generated_files: list[dict],
+    image_sources: list[dict],
+    responsive_widths: tuple[int, ...],
+) -> dict:
+    """Match every generated srcset descriptor to decoded output bytes and JPEG fallback."""
+    output = output.resolve(strict=True)
+    candidate_by_path = {entry["path"]: entry for entry in generated_files}
+    if len(candidate_by_path) != len(generated_files):
+        fail("Responsive package contains duplicate generated asset paths.")
+    source_by_stem = {Path(entry["sourceJpeg"]).stem: entry for entry in image_sources}
+    if len(source_by_stem) != len(image_sources):
+        fail("Responsive package contains duplicate source-image records.")
+
+    picture_count = 0
+    candidate_count = 0
+    for page in sorted(output.glob("*.html")):
+        if page.is_symlink() or not page.is_file():
+            fail(f"Responsive markup route is unsafe: {page.name}")
+        parser = ResponsivePictureParser()
+        try:
+            parser.feed(page.read_text(encoding="utf-8"))
+            parser.close()
+        except (UnicodeDecodeError, ValueError) as error:
+            fail(f"Responsive markup could not be parsed in {page.name}: {error}")
+        if parser.orphan_responsive_sources or parser.orphan_responsive_fallbacks:
+            fail(f"Responsive source/fallback must be inside a picture element: {page.name}")
+
+        for picture in parser.pictures:
+            picture_count += 1
+            sources = picture["sources"]
+            fallbacks = picture["fallbacks"]
+            if len(sources) != 1 or len(fallbacks) != 1:
+                fail(
+                    f"{page.name}: responsive picture must contain exactly one WebP source "
+                    "and one marked JPEG fallback."
+                )
+            source = sources[0]
+            fallback = fallbacks[0]
+            if source.get("type", "").lower() != "image/webp":
+                fail(f"{page.name}: responsive picture source must declare type=image/webp.")
+            if not source.get("sizes", "").strip():
+                fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
+
+            fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
+            stem = Path(fallback_path).stem
+            source_record = source_by_stem.get(stem)
+            if (
+                source_record is None
+                or fallback_path != source_record["sourceJpeg"]
+                or not fallback_path.lower().endswith((".jpg", ".jpeg"))
+            ):
+                fail(f"{page.name}: responsive picture has an unapproved or mismatched JPEG fallback.")
+            natural_width = int(source_record["naturalWidth"])
+            natural_height = int(source_record["naturalHeight"])
+            if (
+                fallback.get("width") != str(natural_width)
+                or fallback.get("height") != str(natural_height)
+            ):
+                fail(f"{page.name}: JPEG fallback dimensions do not match decoded source dimensions.")
+            if fallback.get("decoding", "").lower() != "async":
+                fail(f"{page.name}: responsive JPEG fallback must use decoding=async.")
+            classes = fallback.get("class", "").split()
+            is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
+            expected_loading = "eager" if is_hero else "lazy"
+            if fallback.get("loading", "").lower() != expected_loading:
+                fail(f"{page.name}: responsive image loading policy does not match its hero/supporting role.")
+
+            raw_srcset = source.get("srcset", "").strip()
+            if not raw_srcset:
+                fail(f"{page.name}: responsive picture source has an empty srcset.")
+            candidates: list[tuple[str, int]] = []
+            seen_paths: set[str] = set()
+            seen_widths: set[int] = set()
+            previous_width = 0
+            for raw_candidate in raw_srcset.split(","):
+                pieces = raw_candidate.strip().rsplit(None, 1)
+                if len(pieces) != 2:
+                    fail(f"{page.name}: malformed responsive srcset candidate: {raw_candidate.strip()}")
+                relative, descriptor = pieces
+                match = re.fullmatch(r"([1-9][0-9]*)w", descriptor)
+                if not match:
+                    fail(f"{page.name}: srcset candidate must use a positive width descriptor: {descriptor}")
+                declared_width = int(match.group(1))
+                metadata = candidate_by_path.get(relative)
+                if metadata is None:
+                    fail(f"{page.name}: srcset references an unverified WebP candidate: {relative}")
+                if relative in seen_paths or declared_width in seen_widths:
+                    fail(f"{page.name}: srcset contains a duplicate path or width descriptor.")
+                if declared_width <= previous_width:
+                    fail(f"{page.name}: srcset width descriptors must be strictly increasing.")
+                if declared_width != int(metadata["width"]):
+                    fail(
+                        f"{page.name}: srcset descriptor width {declared_width}w does not match "
+                        f"decoded asset width {metadata['width']}px for {relative}."
+                    )
+                expected_relative = (
+                    f"assets/images/{stem}.webp"
+                    if declared_width == natural_width
+                    else f"assets/images/responsive/{stem}-{declared_width}.webp"
+                )
+                if relative != expected_relative:
+                    fail(f"{page.name}: srcset candidate path does not match its source stem/width: {relative}")
+                absolute = output / relative
+                if absolute.is_symlink() or not absolute.is_file() or not is_within(absolute.resolve(), output):
+                    fail(f"{page.name}: srcset candidate is missing or unsafe: {relative}")
+                expected_height = max(1, round(natural_height * declared_width / natural_width))
+                if int(metadata["height"]) != expected_height:
+                    fail(f"{page.name}: responsive candidate aspect ratio does not match source: {relative}")
+                candidates.append((relative, declared_width))
+                seen_paths.add(relative)
+                seen_widths.add(declared_width)
+                previous_width = declared_width
+
+            expected_candidates = [
+                (f"assets/images/responsive/{stem}-{width}.webp", width)
+                for width in responsive_widths
+                if width < natural_width
+            ]
+            expected_candidates.append((f"assets/images/{stem}.webp", natural_width))
+            if candidates != expected_candidates:
+                fail(
+                    f"{page.name}: srcset candidates must include the verified responsive widths "
+                    "in ascending order and the full-size WebP candidate last."
+                )
+            candidate_count += len(candidates)
+
+    if picture_count == 0:
+        fail("No responsive picture markup was found in the generated preview package.")
+    return {
+        "status": "PASS",
+        "responsivePictureCount": picture_count,
+        "validatedSrcsetCandidateCount": candidate_count,
+        "widthDescriptorsMatchDecodedPixels": True,
+        "jpegFallbackDimensionsMatchSource": True,
+    }
 
 
 def checked_paths() -> list[Path]:
@@ -220,12 +402,16 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                 "height": candidate_height,
             })
 
+    markup_validation = validate_responsive_markup(
+        output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS)
+    )
     return {
         "enabled": True,
         "generationTarget": "isolated staging package; source checkout remains unchanged",
         "sourceImages": image_sources,
         "generatedWebpFileCount": len(generated_files),
         "generatedWebpFiles": sorted(generated_files, key=lambda item: item["path"]),
+        "responsiveMarkupValidation": markup_validation,
         "rewrittenHtmlRoutes": [path.relative_to(output).as_posix() for path in rewritten],
     }
 
