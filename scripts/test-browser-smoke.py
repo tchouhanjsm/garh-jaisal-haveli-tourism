@@ -497,10 +497,11 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
 
 
 def run_responsive_image_preview_smoke() -> int:
-    """Exercise generated responsive WebP markup in Chromium at mobile and desktop widths."""
+    """Audit packaged responsive image selection at six breakpoints and DPR 1/2."""
     failures: list[str] = []
     checked_pictures = 0
     routes_with_responsive_images: set[str] = set()
+    max_selected_to_required_ratio = 0.0
     server = None
     browser = None
 
@@ -512,262 +513,327 @@ def run_responsive_image_preview_smoke() -> int:
         server, base_url = start_server()
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
-            for width, height in ((390, 844), (1440, 900)):
-                for page_name in PAGES:
-                    context = browser.new_context(
-                        viewport={"width": width, "height": height},
-                        device_scale_factor=1,
-                    )
-                    install_navigation_guard(context, base_url)
-                    page = context.new_page()
-                    request_counts: dict[str, int] = {}
-                    image_responses: dict[str, int] = {}
-                    image_request_failures: dict[str, str] = {}
-
-                    def record_request(request) -> None:
-                        if same_origin(request.url, base_url):
-                            request_counts[request.url] = request_counts.get(request.url, 0) + 1
-
-                    def record_image_response(response) -> None:
-                        image_path = urlsplit(response.url).path.lower()
-                        if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
-                            image_responses[response.url] = response.status
-
-                    def record_image_request_failed(request) -> None:
-                        image_path = urlsplit(request.url).path.lower()
-                        if same_origin(request.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
-                            image_request_failures[request.url] = request.failure or "request failed"
-
-                    page.on("request", record_request)
-                    page.on("response", record_image_response)
-                    page.on("requestfailed", record_image_request_failed)
-                    try:
-                        response = page.goto(
-                            base_url + page_name,
-                            wait_until="domcontentloaded",
-                            timeout=15000,
+            for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
+                for device_scale_factor in (1, 2):
+                    for page_name in PAGES:
+                        context = browser.new_context(
+                            viewport={"width": width, "height": height},
+                            device_scale_factor=device_scale_factor,
                         )
-                        if response is None or response.status != 200:
-                            failures.append(
-                                f"{page_name} at {width}px: expected HTTP 200 for packaged preview"
+                        install_navigation_guard(context, base_url)
+                        page = context.new_page()
+                        request_counts: dict[str, int] = {}
+                        image_responses: dict[str, int] = {}
+                        image_request_failures: dict[str, str] = {}
+
+                        def record_request(request) -> None:
+                            if same_origin(request.url, base_url):
+                                request_counts[request.url] = request_counts.get(request.url, 0) + 1
+
+                        def record_image_response(response) -> None:
+                            image_path = urlsplit(response.url).path.lower()
+                            if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
+                                image_responses[response.url] = response.status
+
+                        def record_image_request_failed(request) -> None:
+                            image_path = urlsplit(request.url).path.lower()
+                            if same_origin(request.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
+                                image_request_failures[request.url] = request.failure or "request failed"
+
+                        page.on("request", record_request)
+                        page.on("response", record_image_response)
+                        page.on("requestfailed", record_image_request_failed)
+                        try:
+                            response = page.goto(
+                                base_url + page_name,
+                                wait_until="domcontentloaded",
+                                timeout=15000,
                             )
-                            continue
-
-                        # The preview is an automated rendering check, not an animation test.
-                        # Disable transitions and smooth scrolling so layout motion cannot make
-                        # Playwright's stability heuristic time out while inspecting lazy images.
-                        page.emulate_media(reduced_motion="reduce")
-                        page.add_style_tag(content="""
-                            *, *::before, *::after {
-                                animation-delay: 0s !important;
-                                animation-duration: 0s !important;
-                                animation-iteration-count: 1 !important;
-                                scroll-behavior: auto !important;
-                                transition-delay: 0s !important;
-                                transition-duration: 0s !important;
-                            }
-                        """)
-
-                        pictures = page.locator(
-                            'picture:has(source[data-responsive-image="true"])'
-                        )
-                        picture_count = pictures.count()
-
-                        for index in range(picture_count):
-                            picture = pictures.nth(index)
-                            source = picture.locator('source[data-responsive-image="true"]').first
-                            image = picture.locator("img").first
-                            label = f"{page_name} at {width}px picture {index + 1}"
-                            # Inactive carousel slides intentionally remain hidden. Their
-                            # static srcset is covered by the media gate; browser selection
-                            # is checked only for images a guest can currently see.
-                            if not image.is_visible():
-                                continue
-                            routes_with_responsive_images.add(page_name)
-                            checked_pictures += 1
-                            try:
-                                image.evaluate(
-                                    "(img) => img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
-                                )
-                                details = image.evaluate(
-                                    """async (img) => {
-                                      const waitForImageLoad = () => new Promise((resolve, reject) => {
-                                        const cleanup = () => {
-                                          clearTimeout(timer);
-                                          img.removeEventListener('load', onLoad);
-                                          img.removeEventListener('error', onError);
-                                        };
-                                        const onLoad = () => { cleanup(); resolve(); };
-                                        const onError = () => {
-                                          cleanup();
-                                          reject(new Error('image request failed for ' + (img.currentSrc || img.src)));
-                                        };
-                                        const timer = setTimeout(() => {
-                                          cleanup();
-                                          reject(new Error('timed out waiting for image load: ' + (img.currentSrc || img.src)));
-                                        }, 8000);
-                                        img.addEventListener('load', onLoad, {once: true});
-                                        img.addEventListener('error', onError, {once: true});
-                                      });
-                                      if (!img.complete) await waitForImageLoad();
-                                      if (!img.naturalWidth || !img.naturalHeight) {
-                                        throw new Error('image completed without decodable pixels: currentSrc='
-                                          + (img.currentSrc || '<empty>') + '; fallback='
-                                          + (img.getAttribute('src') || '<empty>'));
-                                      }
-                                      const selectedBeforeDecode = img.currentSrc;
-                                      try {
-                                        await img.decode();
-                                      } catch (error) {
-                                        const selectedAfterDecode = img.currentSrc;
-                                        if (selectedAfterDecode && selectedAfterDecode !== selectedBeforeDecode
-                                            && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
-                                          await img.decode();
-                                        } else {
-                                          throw new Error('decode failed for '
-                                            + (selectedAfterDecode || selectedBeforeDecode || '<empty>')
-                                            + '; fallback=' + (img.getAttribute('src') || '<empty>')
-                                            + '; natural=' + img.naturalWidth + 'x' + img.naturalHeight
-                                            + '; cause=' + error.message);
-                                        }
-                                      }
-                                      const classes = Array.from(img.classList);
-                                      return {
-                                        currentSrc: img.currentSrc,
-                                        fallbackSrc: img.getAttribute('src') || '',
-                                        width: img.naturalWidth,
-                                        height: img.naturalHeight,
-                                        declaredWidth: img.getAttribute('width') || '',
-                                        declaredHeight: img.getAttribute('height') || '',
-                                        loading: img.getAttribute('loading') || '',
-                                        decoding: img.getAttribute('decoding') || '',
-                                        fetchpriority: img.getAttribute('fetchpriority') || '',
-                                        classes,
-                                        alt: img.getAttribute('alt')
-                                      };
-                                    }"""
-                                )
-                                source_details = source.evaluate(
-                                    """(element) => ({
-                                      type: element.getAttribute('type') || '',
-                                      srcset: element.getAttribute('srcset') || '',
-                                      sizes: element.getAttribute('sizes') || ''
-                                    })"""
-                                )
-                            except Exception as error:
-                                try:
-                                    selected_url = image.evaluate("(img) => img.currentSrc")
-                                    fallback_url = image.get_attribute("src") or "<empty>"
-                                    source_srcset = source.get_attribute("srcset") or "<empty>"
-                                except Exception:
-                                    selected_url, fallback_url, source_srcset = "", "<unavailable>", "<unavailable>"
-                                selected_status = image_responses.get(selected_url, "not observed")
-                                selected_failure = image_request_failures.get(selected_url, "none recorded")
+                            if response is None or response.status != 200:
                                 failures.append(
-                                    f"{label}: responsive image failed to decode or inspect: "
-                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}; "
-                                    f"selected={safe_url_label(selected_url) if selected_url else '<empty>'}; "
-                                    f"http={selected_status}; requestFailure={sanitize_diagnostic_text(selected_failure)}; "
-                                    f"fallback={fallback_url}; srcset={source_srcset}"
+                                    f"{page_name} at {width}px: expected HTTP 200 for packaged preview"
                                 )
                                 continue
 
-                            check_preview(
-                                source_details["type"].lower() == "image/webp",
-                                f"{label}: responsive source must declare image/webp",
-                            )
-                            check_preview(
-                                bool(source_details["sizes"].strip()),
-                                f"{label}: responsive source must declare sizes",
-                            )
-                            candidates = [
-                                candidate.strip().split()[0]
-                                for candidate in source_details["srcset"].split(",")
-                                if candidate.strip()
-                            ]
-                            check_preview(
-                                len(candidates) >= 2,
-                                f"{label}: responsive source must expose multiple width candidates",
-                            )
-                            selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
-                            candidate_paths = [
-                                candidate.split("?", 1)[0].lstrip("/")
-                                for candidate in candidates
-                            ]
-                            check_preview(
-                                selected_path.endswith(".webp") and selected_path in candidate_paths,
-                                f"{label}: Chromium selected a WebP candidate declared by srcset; "
-                                f"selected {selected_path or '<empty>'}",
-                            )
-                            check_preview(
-                                details["fallbackSrc"].lower().endswith(".jpg"),
-                                f"{label}: JPEG fallback must remain available",
-                            )
-                            check_preview(
-                                details["width"] > 0 and details["height"] > 0,
-                                f"{label}: selected image must have positive natural dimensions",
-                            )
-                            check_preview(
-                                details["declaredWidth"].isdigit()
-                                and int(details["declaredWidth"]) > 0
-                                and details["declaredHeight"].isdigit()
-                                and int(details["declaredHeight"]) > 0,
-                                f"{label}: intrinsic width/height must reserve layout space",
-                            )
-                            check_preview(
-                                details["decoding"].lower() == "async",
-                                f"{label}: responsive image must decode asynchronously",
-                            )
-                            check_preview(
-                                details["alt"] is not None,
-                                f"{label}: image must retain an alt attribute",
-                            )
-                            is_hero = (
-                                details["fetchpriority"].lower() == "high"
-                                or "hero__image" in details["classes"]
-                            )
-                            expected_loading = "eager" if is_hero else "lazy"
-                            check_preview(
-                                details["loading"].lower() == expected_loading,
-                                f"{label}: expected loading={expected_loading}",
-                            )
+                            # The preview is an automated rendering check, not an animation test.
+                            # Disable transitions and smooth scrolling so layout motion cannot make
+                            # Playwright's stability heuristic time out while inspecting lazy images.
+                            page.emulate_media(reduced_motion="reduce")
+                            page.add_style_tag(content="""
+                                *, *::before, *::after {
+                                    animation-delay: 0s !important;
+                                    animation-duration: 0s !important;
+                                    animation-iteration-count: 1 !important;
+                                    scroll-behavior: auto !important;
+                                    transition-delay: 0s !important;
+                                    transition-duration: 0s !important;
+                                }
+                            """)
 
-                            if is_hero:
-                                preload_count = page.locator(
-                                    'link[rel="preload"][as="image"][imagesrcset]'
-                                ).count()
-                                matching_preload = False
-                                for preload_index in range(preload_count):
-                                    preload = page.locator(
-                                        'link[rel="preload"][as="image"][imagesrcset]'
-                                    ).nth(preload_index)
-                                    matching_preload = matching_preload or (
-                                        preload.get_attribute("imagesrcset") == source_details["srcset"]
-                                        and preload.get_attribute("imagesizes") == source_details["sizes"]
-                                        and (preload.get_attribute("type") or "").lower() == "image/webp"
+                            pictures = page.locator(
+                                'picture:has(source[data-responsive-image="true"])'
+                            )
+                            picture_count = pictures.count()
+
+                            for index in range(picture_count):
+                                picture = pictures.nth(index)
+                                source = picture.locator('source[data-responsive-image="true"]').first
+                                image = picture.locator("img").first
+                                label = f"{page_name} at {width}px @{device_scale_factor}x picture {index + 1}"
+                                # Exercise every responsive picture in the real package, including
+                                # offscreen and inactive carousel/gallery slides. Force eager loading
+                                # only in this isolated test context; production loading policy is
+                                # checked below and remains unchanged in the artifact.
+                                production_loading = image.get_attribute("loading") or ""
+                                image.evaluate("(img) => { img.loading = 'eager'; img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'}); }")
+                                image.wait_for(state="attached")
+                                try:
+                                    image.evaluate(
+                                        """async (img) => {
+                                          if (!img.complete) {
+                                            await new Promise((resolve, reject) => {
+                                              const timeout = setTimeout(() => {
+                                                cleanup();
+                                                reject(new Error('timed out waiting for offscreen image: ' + (img.currentSrc || img.src)));
+                                              }, 8000);
+                                              const cleanup = () => {
+                                                clearTimeout(timeout);
+                                                img.removeEventListener('load', onLoad);
+                                                img.removeEventListener('error', onError);
+                                              };
+                                              const onLoad = () => { cleanup(); resolve(); };
+                                              const onError = () => { cleanup(); reject(new Error('offscreen image request failed: ' + (img.currentSrc || img.src))); };
+                                              img.addEventListener('load', onLoad, {once: true});
+                                              img.addEventListener('error', onError, {once: true});
+                                            });
+                                          }
+                                        }"""
+                                    )
+                                except Exception as error:
+                                    failures.append(
+                                        f"{label}: could not load image after activating the test-only eager path: "
+                                        f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                    )
+                                    continue
+                                routes_with_responsive_images.add(page_name)
+                                checked_pictures += 1
+                                try:
+                                    image.evaluate(
+                                        "(img) => img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+                                    )
+                                    details = image.evaluate(
+                                        """async (img) => {
+                                          const waitForImageLoad = () => new Promise((resolve, reject) => {
+                                            const cleanup = () => {
+                                              clearTimeout(timer);
+                                              img.removeEventListener('load', onLoad);
+                                              img.removeEventListener('error', onError);
+                                            };
+                                            const onLoad = () => { cleanup(); resolve(); };
+                                            const onError = () => {
+                                              cleanup();
+                                              reject(new Error('image request failed for ' + (img.currentSrc || img.src)));
+                                            };
+                                            const timer = setTimeout(() => {
+                                              cleanup();
+                                              reject(new Error('timed out waiting for image load: ' + (img.currentSrc || img.src)));
+                                            }, 8000);
+                                            img.addEventListener('load', onLoad, {once: true});
+                                            img.addEventListener('error', onError, {once: true});
+                                          });
+                                          if (!img.complete) await waitForImageLoad();
+                                          if (!img.naturalWidth || !img.naturalHeight) {
+                                            throw new Error('image completed without decodable pixels: currentSrc='
+                                              + (img.currentSrc || '<empty>') + '; fallback='
+                                              + (img.getAttribute('src') || '<empty>'));
+                                          }
+                                          const selectedBeforeDecode = img.currentSrc;
+                                          try {
+                                            await img.decode();
+                                          } catch (error) {
+                                            const selectedAfterDecode = img.currentSrc;
+                                            if (selectedAfterDecode && selectedAfterDecode !== selectedBeforeDecode
+                                                && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                              await img.decode();
+                                            } else {
+                                              throw new Error('decode failed for '
+                                                + (selectedAfterDecode || selectedBeforeDecode || '<empty>')
+                                                + '; fallback=' + (img.getAttribute('src') || '<empty>')
+                                                + '; natural=' + img.naturalWidth + 'x' + img.naturalHeight
+                                                + '; cause=' + error.message);
+                                            }
+                                          }
+                                          const box = img.getBoundingClientRect();
+                                          const carouselViewport = img.closest('.experience-carousel__viewport');
+                                          const renderedWidth = box.width || (carouselViewport
+                                            ? carouselViewport.getBoundingClientRect().width : 0);
+                                          const classes = Array.from(img.classList);
+                                          return {
+                                            currentSrc: img.currentSrc,
+                                            fallbackSrc: img.getAttribute('src') || '',
+                                            width: img.naturalWidth,
+                                            height: img.naturalHeight,
+                                            renderedWidth,
+                                            devicePixelRatio: window.devicePixelRatio,
+                                            declaredWidth: img.getAttribute('width') || '',
+                                            declaredHeight: img.getAttribute('height') || '',
+                                            loading: img.getAttribute('loading') || '',
+                                            decoding: img.getAttribute('decoding') || '',
+                                            fetchpriority: img.getAttribute('fetchpriority') || '',
+                                            classes,
+                                            alt: img.getAttribute('alt')
+                                          };
+                                        }"""
+                                    )
+                                    source_details = source.evaluate(
+                                        """(element) => ({
+                                          type: element.getAttribute('type') || '',
+                                          srcset: element.getAttribute('srcset') || '',
+                                          sizes: element.getAttribute('sizes') || ''
+                                        })"""
+                                    )
+                                except Exception as error:
+                                    try:
+                                        selected_url = image.evaluate("(img) => img.currentSrc")
+                                        fallback_url = image.get_attribute("src") or "<empty>"
+                                        source_srcset = source.get_attribute("srcset") or "<empty>"
+                                    except Exception:
+                                        selected_url, fallback_url, source_srcset = "", "<unavailable>", "<unavailable>"
+                                    selected_status = image_responses.get(selected_url, "not observed")
+                                    selected_failure = image_request_failures.get(selected_url, "none recorded")
+                                    failures.append(
+                                        f"{label}: responsive image failed to decode or inspect: "
+                                        f"{type(error).__name__}: {sanitize_diagnostic_text(error)}; "
+                                        f"selected={safe_url_label(selected_url) if selected_url else '<empty>'}; "
+                                        f"http={selected_status}; requestFailure={sanitize_diagnostic_text(selected_failure)}; "
+                                        f"fallback={fallback_url}; srcset={source_srcset}"
+                                    )
+                                    continue
+
+                                check_preview(
+                                    source_details["type"].lower() == "image/webp",
+                                    f"{label}: responsive source must declare image/webp",
+                                )
+                                check_preview(
+                                    bool(source_details["sizes"].strip()),
+                                    f"{label}: responsive source must declare sizes",
+                                )
+                                candidate_pairs: list[tuple[str, int]] = []
+                                for raw_candidate in source_details["srcset"].split(","):
+                                    pieces = raw_candidate.strip().rsplit(None, 1)
+                                    if len(pieces) != 2:
+                                        continue
+                                    width_match = re.fullmatch(r"([1-9][0-9]*)w", pieces[1])
+                                    if width_match:
+                                        candidate_pairs.append((
+                                            pieces[0].split("?", 1)[0].lstrip("/"),
+                                            int(width_match.group(1)),
+                                        ))
+                                candidates = [path for path, _width in candidate_pairs]
+                                check_preview(
+                                    len(candidates) >= 2,
+                                    f"{label}: responsive source must expose multiple width candidates",
+                                )
+                                selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
+                                candidate_paths = [
+                                    candidate.split("?", 1)[0].lstrip("/")
+                                    for candidate in candidates
+                                ]
+                                check_preview(
+                                    selected_path.endswith(".webp") and selected_path in candidate_paths,
+                                    f"{label}: Chromium selected a WebP candidate declared by srcset; "
+                                    f"selected {selected_path or '<empty>'}",
+                                )
+                                selected_width = next(
+                                    (width for candidate_path, width in candidate_pairs if candidate_path == selected_path),
+                                    None,
+                                )
+                                check_preview(
+                                    selected_width is not None,
+                                    f"{label}: selected WebP width descriptor must be recoverable from srcset",
+                                )
+                                check_preview(
+                                    details["renderedWidth"] > 0,
+                                    f"{label}: responsive image slot must have a measurable rendered width",
+                                )
+                                if selected_width is not None and details["renderedWidth"] > 0:
+                                    required_pixels = float(details["renderedWidth"]) * device_scale_factor
+                                    ratio = selected_width / required_pixels
+                                    max_selected_to_required_ratio = max(max_selected_to_required_ratio, ratio)
+                                    check_preview(
+                                        selected_width <= required_pixels * 1.9,
+                                        f"{label}: selected WebP {selected_width}px exceeds 1.9x "
+                                        f"rendered slot demand ({required_pixels:.1f}px); verify sizes",
                                     )
                                 check_preview(
-                                    matching_preload,
-                                    f"{label}: hero responsive preload must match source srcset and sizes",
+                                    details["fallbackSrc"].lower().endswith((".jpg", ".jpeg")),
+                                    f"{label}: JPEG fallback must remain available",
+                                )
+                                check_preview(
+                                    details["width"] > 0 and details["height"] > 0,
+                                    f"{label}: selected image must have positive natural dimensions",
+                                )
+                                check_preview(
+                                    details["declaredWidth"].isdigit()
+                                    and int(details["declaredWidth"]) > 0
+                                    and details["declaredHeight"].isdigit()
+                                    and int(details["declaredHeight"]) > 0,
+                                    f"{label}: intrinsic width/height must reserve layout space",
+                                )
+                                check_preview(
+                                    details["decoding"].lower() == "async",
+                                    f"{label}: responsive image must decode asynchronously",
+                                )
+                                check_preview(
+                                    details["alt"] is not None,
+                                    f"{label}: image must retain an alt attribute",
+                                )
+                                is_hero = (
+                                    details["fetchpriority"].lower() == "high"
+                                    or "hero__image" in details["classes"]
+                                )
+                                expected_loading = "eager" if is_hero else "lazy"
+                                check_preview(
+                                    production_loading.lower() == expected_loading,
+                                    f"{label}: expected loading={expected_loading}",
                                 )
 
-                            selected_request_count = request_counts.get(details["currentSrc"], 0)
-                            check_preview(
-                                selected_request_count == 1,
-                                f"{label}: selected WebP candidate should be requested once, "
-                                f"observed {selected_request_count}",
-                            )
+                                if is_hero:
+                                    preload_count = page.locator(
+                                        'link[rel="preload"][as="image"][imagesrcset]'
+                                    ).count()
+                                    matching_preload = False
+                                    for preload_index in range(preload_count):
+                                        preload = page.locator(
+                                            'link[rel="preload"][as="image"][imagesrcset]'
+                                        ).nth(preload_index)
+                                        matching_preload = matching_preload or (
+                                            preload.get_attribute("imagesrcset") == source_details["srcset"]
+                                            and preload.get_attribute("imagesizes") == source_details["sizes"]
+                                            and (preload.get_attribute("type") or "").lower() == "image/webp"
+                                        )
+                                    check_preview(
+                                        matching_preload,
+                                        f"{label}: hero responsive preload must match source srcset and sizes",
+                                    )
 
-                        page.wait_for_timeout(50)
-                        for request_url, request_count in request_counts.items():
-                            request_path = urlsplit(request_url).path.lower()
-                            if request_path.endswith(".webp") and request_count > 1:
-                                failures.append(
-                                    f"{page_name} at {width}px: duplicate WebP request "
-                                    f"({request_count}): {safe_url_label(request_url)}"
+                                selected_request_count = request_counts.get(details["currentSrc"], 0)
+                                check_preview(
+                                    selected_request_count == 1,
+                                    f"{label}: selected WebP candidate should be requested once, "
+                                    f"observed {selected_request_count}",
                                 )
-                    finally:
-                        context.close()
+
+                            page.wait_for_timeout(50)
+                            for request_url, request_count in request_counts.items():
+                                request_path = urlsplit(request_url).path.lower()
+                                if request_path.endswith(".webp") and request_count > 1:
+                                    failures.append(
+                                        f"{page_name} at {width}px: duplicate WebP request "
+                                        f"({request_count}): {safe_url_label(request_url)}"
+                                    )
+                        finally:
+                            context.close()
 
             browser.close()
             browser = None
@@ -801,11 +867,13 @@ def run_responsive_image_preview_smoke() -> int:
             print(f" - {failure}")
         return 1
 
+    viewport_widths = ", ".join(str(width) for width, _height in RESPONSIVE_AUDIT_VIEWPORTS)
     print(
         "PASS: packaged responsive-image browser smoke checked "
         f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
-        "at 390px and 1440px; Chromium selected declared WebP candidates, retained JPEG fallbacks, "
-        "matched hero responsive preloads, and issued no duplicate WebP requests."
+        f"at {viewport_widths}px and DPR 1x/2x; maximum selected/required pixel ratio "
+        f"{max_selected_to_required_ratio:.2f}x. Chromium selected declared WebP candidates, "
+        "retained JPEG fallbacks, matched hero responsive preloads, and issued no duplicate WebP requests."
     )
     return 0
 
@@ -1163,6 +1231,267 @@ def check_404_recovery(page, base_url: str) -> dict:
     check(evidence["complete"], "Unknown-route recovery evidence is incomplete; release preflight must fail closed")
     return evidence
 
+
+def check_stay_planner(page, base_url: str) -> None:
+    """Exercise the shared enquiry planner, editable draft, and deliberate WhatsApp handoff."""
+    page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+    planner = page.locator("[data-stay-planner]")
+    check(planner.count() == 1, "Stay planner should appear once on the home route")
+    if planner.count() != 1:
+        return
+    details = planner.locator("[data-stay-planner-disclosure]")
+    details.locator("summary").click()
+    form = planner.locator("[data-stay-planner-form]")
+    arrival = form.locator("#stay-plan-arrival")
+    departure = form.locator("#stay-plan-departure")
+    guests = form.locator("#stay-plan-guests")
+    draft = planner.locator("#stay-plan-draft")
+    status = planner.locator("[data-stay-plan-status]")
+    whatsapp_button = planner.locator("[data-open-stay-plan-whatsapp]")
+    copy_button = planner.locator("[data-copy-stay-plan]")
+
+    arrival.fill("2099-01-10")
+    departure.fill("2099-01-10")
+    check(not departure.evaluate("(element) => element.checkValidity()"),
+          "Stay planner must reject a departure date on the arrival date")
+    departure.fill("2099-01-12")
+    guests.select_option("3")
+    form.locator('[data-stay-plan-topic][value="room options and total rates"]').check()
+    form.locator("#stay-plan-notes").fill("Arriving after sunset")
+    non_get_requests: list[str] = []
+    page.on("request", lambda request: non_get_requests.append(request.url)
+            if request.method.upper() not in {"GET", "HEAD", "OPTIONS"} else None)
+    page.evaluate("""() => {
+      window.__stayPlanOriginalOpen = window.open;
+      window.__stayPlanOpenedUrl = null;
+      window.open = (url) => { window.__stayPlanOpenedUrl = String(url); return null; };
+    }""")
+    form.locator('button[type="submit"]').click()
+    check(planner.locator("[data-stay-plan-result]").is_visible(),
+          "Stay planner should reveal a reviewable draft after valid input")
+    message = draft.input_value()
+    check("10 January 2099" in message and "12 January 2099" in message,
+          "Stay planner draft should include the requested arrival and departure dates")
+    check("Travelling party: 3 people." in message and "room options and total rates" in message,
+          "Stay planner draft should include party size and selected planning topics")
+    check("Arriving after sunset" in message and "does not confirm a booking" in message,
+          "Stay planner draft should preserve optional notes and clear enquiry-only language")
+    check("Nothing has been sent or saved." in status.inner_text(),
+          "Stay planner must confirm that the draft remains local to the page")
+    check(page.url.endswith("/index.html"), "Stay planner must not navigate away when building a draft")
+    check(not non_get_requests, "Stay planner must not submit the enquiry form over the network")
+    check(page.evaluate("window.__stayPlanOpenedUrl") is None,
+          "Preparing an enquiry must not launch WhatsApp automatically")
+
+    edited_message = message + "\nGuest note: A&B + 50% / room"
+    draft.fill(edited_message)
+    check(copy_button.is_enabled(), "The editable draft must retain its copy fallback")
+    ready = False
+    try:
+        page.wait_for_function(
+            "() => { const button = document.querySelector('[data-open-stay-plan-whatsapp]'); return Boolean(button && !button.disabled); }",
+            timeout=5000,
+        )
+        ready = True
+    except Exception:
+        ready = False
+    check(ready, "WhatsApp handoff must enable after contact configuration and a draft are ready")
+    if ready:
+        whatsapp_button.click()
+        opened_url = page.evaluate("window.__stayPlanOpenedUrl")
+        parsed_target = page.evaluate("""raw => {
+          try {
+            const url = new URL(raw);
+            return {protocol: url.protocol, hostname: url.hostname, pathname: url.pathname, text: url.searchParams.get('text')};
+          } catch (_) { return null; }
+        }""", opened_url)
+        path_digits = (parsed_target or {}).get("pathname", "").strip("/")
+        check(bool(parsed_target) and parsed_target["protocol"] == "https:"
+              and parsed_target["hostname"] == "wa.me"
+              and path_digits.isdigit() and 8 <= len(path_digits) <= 15,
+              "WhatsApp handoff must use the centrally authorized HTTPS wa.me destination")
+        check(bool(parsed_target) and parsed_target["text"] == edited_message,
+              "WhatsApp handoff must safely encode the exact guest-edited draft")
+        check("press Send yourself" in status.inner_text(),
+              "WhatsApp handoff must clearly require the guest to review and send manually")
+        check(page.url.endswith("/index.html"),
+              "WhatsApp handoff test must not navigate the site or send guest details from the page")
+    page.evaluate("""() => {
+      if (typeof window.__stayPlanOriginalOpen === 'function') window.open = window.__stayPlanOriginalOpen;
+      delete window.__stayPlanOriginalOpen;
+      delete window.__stayPlanOpenedUrl;
+    }""")
+
+    # A failed or disabled script must not turn guest dates and notes into a GET query.
+    browser = page.context.browser
+    if browser is None:
+        check(False, "Stay planner privacy fallback requires an attached browser context")
+    else:
+        # A tab left open across local midnight must reject the previous day.
+        rollover_context = browser.new_context()
+        try:
+            rollover_context.add_init_script(
+                """(() => {
+                  const NativeDate = Date;
+                  let now = new NativeDate(2099, 0, 10, 12, 0, 0).getTime();
+                  Object.defineProperty(window, '__setPlannerClock', {
+                    value(year, month, day) {
+                      now = new NativeDate(year, month - 1, day, 12, 0, 0).getTime();
+                    },
+                  });
+                  class ControlledDate extends NativeDate {
+                    constructor(...args) {
+                      if (args.length === 0) super(now);
+                      else super(...args);
+                    }
+                    static now() { return now; }
+                  }
+                  window.Date = ControlledDate;
+                })();"""
+            )
+            rollover_page = rollover_context.new_page()
+            rollover_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            rollover_planner = rollover_page.locator("[data-stay-planner]")
+            rollover_planner.locator("[data-stay-planner-disclosure] summary").click()
+            rollover_arrival = rollover_planner.locator("#stay-plan-arrival")
+            rollover_departure = rollover_planner.locator("#stay-plan-departure")
+            rollover_arrival.fill("2099-01-10")
+            rollover_page.evaluate("window.__setPlannerClock(2099, 1, 11)")
+            rollover_arrival.dispatch_event("change")
+            check(
+                rollover_arrival.get_attribute("min") == "2099-01-11",
+                "Stay planner must advance the arrival minimum after local midnight",
+            )
+            check(
+                not rollover_arrival.evaluate("(element) => element.checkValidity()"),
+                "Stay planner must reject an arrival date that became historical while the tab was open",
+            )
+            check(
+                rollover_departure.get_attribute("min") == "2099-01-11",
+                "Stay planner must keep departure minimum at today when arrival is now historical",
+            )
+        finally:
+            rollover_context.close()
+
+        fallback_context = browser.new_context(java_script_enabled=False)
+        try:
+            fallback_page = fallback_context.new_page()
+            fallback_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            fallback_planner = fallback_page.locator("[data-stay-planner]")
+            fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
+            fallback_notice = fallback_planner.locator(".stay-planner__no-script")
+            check(
+                fallback_notice.is_visible(),
+                "Stay planner must show a usable privacy notice when JavaScript is disabled",
+            )
+            check(
+                "Nothing entered here is sent or saved" in fallback_notice.inner_text(),
+                "Stay planner no-JavaScript notice must explain that guest details are not transmitted or stored",
+            )
+            fallback_form = fallback_planner.locator("[data-stay-planner-form]")
+            fallback_form.locator("#stay-plan-arrival").fill("2099-01-10")
+            fallback_form.locator("#stay-plan-departure").fill("2099-01-12")
+            fallback_form.locator("#stay-plan-guests").select_option("3")
+            fallback_form.locator("#stay-plan-notes").fill("NOJS-PRIVACY-SENTINEL-20261029")
+            fallback_navigation_requests: list[str] = []
+            fallback_page.on(
+                "request",
+                lambda request: fallback_navigation_requests.append(request.url)
+                if request.is_navigation_request() else None,
+            )
+            fallback_url = fallback_page.url
+            fallback_form.locator('button[type="submit"]').click()
+            fallback_page.wait_for_timeout(200)
+            check(
+                fallback_page.url == fallback_url,
+                "Stay planner must not navigate or serialize guest details when JavaScript is disabled",
+            )
+            check(
+                not fallback_navigation_requests,
+                "Stay planner no-JS fallback must not issue a document navigation",
+            )
+            check(
+                "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
+                "Stay planner notes must never appear in a URL when JavaScript is disabled",
+            )
+        finally:
+            fallback_context.close()
+
+    planner.locator("[data-edit-stay-plan]").click()
+    check(planner.locator("[data-stay-plan-result]").is_hidden(),
+          "Stay planner should let visitors revise their draft inputs")
+
+    # Exercise the same central contact handoff on every other planner integration.
+    for route in (
+        "rooms.html", "experiences.html", "experience-details.html",
+        "dining.html", "about.html", "directions.html", "gallery.html",
+    ):
+        response = page.goto(base_url + route, wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"{route}: planner route should load before handoff testing")
+        route_planner = page.locator("[data-stay-planner]")
+        check(route_planner.count() == 1, f"{route}: planner must appear exactly once")
+        if route_planner.count() != 1:
+            continue
+        route_planner.locator("[data-stay-planner-disclosure] summary").click()
+        route_form = route_planner.locator("[data-stay-planner-form]")
+        route_form.locator("#stay-plan-arrival").fill("2099-02-10")
+        route_form.locator("#stay-plan-departure").fill("2099-02-12")
+        route_form.locator("#stay-plan-guests").select_option("2")
+        route_form.locator("[data-stay-plan-topic]").first.check()
+        route_draft = route_planner.locator("#stay-plan-draft")
+        route_status = route_planner.locator("[data-stay-plan-status]")
+        page.evaluate("""() => {
+          window.__stayPlanOriginalOpen = window.open;
+          window.__stayPlanOpenedUrl = null;
+          window.open = (url) => { window.__stayPlanOpenedUrl = String(url); return null; };
+        }""")
+        route_form.locator('button[type="submit"]').click()
+        check(route_planner.locator("[data-stay-plan-result]").is_visible(),
+              f"{route}: valid details should create a local reviewable draft")
+        route_message = route_draft.input_value()
+        check("10 February 2099" in route_message and "12 February 2099" in route_message,
+              f"{route}: draft should retain its requested dates")
+        check(page.evaluate("window.__stayPlanOpenedUrl") is None,
+              f"{route}: preparing a draft must not open WhatsApp automatically")
+        route_ready = False
+        try:
+            page.wait_for_function(
+                "() => { const button = document.querySelector('[data-open-stay-plan-whatsapp]'); return Boolean(button && !button.disabled); }",
+                timeout=5000,
+            )
+            route_ready = True
+        except Exception:
+            route_ready = False
+        check(route_ready, f"{route}: WhatsApp handoff must enable with authorized configuration and a draft")
+        if route_ready:
+            route_planner.locator("[data-open-stay-plan-whatsapp]").click()
+            opened_url = page.evaluate("window.__stayPlanOpenedUrl")
+            parsed_target = page.evaluate("""raw => {
+              try {
+                const url = new URL(raw);
+                return {protocol: url.protocol, hostname: url.hostname, pathname: url.pathname, text: url.searchParams.get('text')};
+              } catch (_) { return null; }
+            }""", opened_url)
+            path_digits = (parsed_target or {}).get("pathname", "").strip("/")
+            check(bool(parsed_target) and parsed_target["protocol"] == "https:"
+                  and parsed_target["hostname"] == "wa.me"
+                  and path_digits.isdigit() and 8 <= len(path_digits) <= 15,
+                  f"{route}: handoff must use the authorized HTTPS wa.me destination")
+            check(bool(parsed_target) and parsed_target["text"] == route_message,
+                  f"{route}: encoded WhatsApp draft must match the generated guest enquiry")
+            check("press Send yourself" in route_status.inner_text(),
+                  f"{route}: handoff must preserve the guest-controlled send step")
+        page.evaluate("""() => {
+          if (typeof window.__stayPlanOriginalOpen === 'function') window.open = window.__stayPlanOriginalOpen;
+          delete window.__stayPlanOriginalOpen;
+          delete window.__stayPlanOpenedUrl;
+        }""")
+        check(page.url.endswith("/" + route),
+              f"{route}: preparing and opening a WhatsApp draft must not navigate the site")
+
+    check(not non_get_requests,
+          "Stay planner handoff must not submit guest details using a non-GET request")
 
 def check_contact_hydration(page, base_url: str) -> None:
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
@@ -2645,6 +2974,7 @@ def main(argv: list[str] | None = None) -> int:
 
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
+            check_stay_planner(page, base_url)
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
@@ -2743,7 +3073,7 @@ def main(argv: list[str] | None = None) -> int:
     mode_label = "staging" if staging_mode else "local"
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
-        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
+        "same-origin assets/publication guards, contact-link hydration, shared enquiry draft generation/date validation/no network submission, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
         "keyboard/skip-link behavior, reduced motion, date-specific arrival enquiry validation/recovery/no-JavaScript fallback, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "

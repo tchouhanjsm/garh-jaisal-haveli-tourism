@@ -7,16 +7,23 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 from html.parser import HTMLParser
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_DIRECTORIES = ("assets", "img", "blogs", "tours", "gallery")
+# The legacy `img/` tree is retained in Git as a source/asset archive, not
+# used by the static runtime. Keep it out of staging artifacts unless the site
+# deliberately migrates those assets into the supported `assets/` tree.
+RUNTIME_DIRECTORIES = ("assets", "blogs", "tours", "gallery")
+MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
+LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
     ".htaccess",
     "favicon.svg",
@@ -94,8 +101,8 @@ def validate_responsive_markup(
     candidate_by_path = {entry["path"]: entry for entry in generated_files}
     if len(candidate_by_path) != len(generated_files):
         fail("Responsive package contains duplicate generated asset paths.")
-    source_by_stem = {Path(entry["sourceJpeg"]).stem: entry for entry in image_sources}
-    if len(source_by_stem) != len(image_sources):
+    source_by_path = {entry["sourceJpeg"]: entry for entry in image_sources}
+    if len(source_by_path) != len(image_sources):
         fail("Responsive package contains duplicate source-image records.")
 
     picture_count = 0
@@ -129,8 +136,7 @@ def validate_responsive_markup(
                 fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
 
             fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
-            stem = Path(fallback_path).stem
-            source_record = source_by_stem.get(stem)
+            source_record = source_by_path.get(fallback_path)
             if (
                 source_record is None
                 or fallback_path != source_record["sourceJpeg"]
@@ -180,11 +186,17 @@ def validate_responsive_markup(
                         f"{page.name}: srcset descriptor width {declared_width}w does not match "
                         f"decoded asset width {metadata['width']}px for {relative}."
                     )
-                expected_relative = (
-                    f"assets/images/{stem}.webp"
-                    if declared_width == natural_width
-                    else f"assets/images/responsive/{stem}-{declared_width}.webp"
-                )
+                if declared_width == natural_width:
+                    expected_relative = source_record["fullSizeWebp"]
+                else:
+                    source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
+                        PurePosixPath("assets/images")
+                    )
+                    expected_relative = (
+                        PurePosixPath("assets/images/responsive")
+                        / source_relative.parent
+                        / f"{source_relative.stem}-{declared_width}.webp"
+                    ).as_posix()
                 if relative != expected_relative:
                     fail(f"{page.name}: srcset candidate path does not match its source stem/width: {relative}")
                 absolute = output / relative
@@ -198,12 +210,22 @@ def validate_responsive_markup(
                 seen_widths.add(declared_width)
                 previous_width = declared_width
 
+            source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
+                PurePosixPath("assets/images")
+            )
             expected_candidates = [
-                (f"assets/images/responsive/{stem}-{width}.webp", width)
+                (
+                    (
+                        PurePosixPath("assets/images/responsive")
+                        / source_relative.parent
+                        / f"{source_relative.stem}-{width}.webp"
+                    ).as_posix(),
+                    width,
+                )
                 for width in responsive_widths
                 if width < natural_width
             ]
-            expected_candidates.append((f"assets/images/{stem}.webp", natural_width))
+            expected_candidates.append((source_record["fullSizeWebp"], natural_width))
             if candidates != expected_candidates:
                 fail(
                     f"{page.name}: srcset candidates must include the verified responsive widths "
@@ -219,6 +241,838 @@ def validate_responsive_markup(
         "validatedSrcsetCandidateCount": candidate_count,
         "widthDescriptorsMatchDecodedPixels": True,
         "jpegFallbackDimensionsMatchSource": True,
+    }
+
+
+
+
+class DocumentContractParser(HTMLParser):
+    """Collect route-level SEO metadata and accessible-name relationships."""
+
+    VOID_TAGS = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+        "meta", "param", "source", "track", "wbr",
+    }
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[dict] = []
+        self.html_languages: list[str] = []
+        self.title_nodes: list[dict] = []
+        self.h1_nodes: list[dict] = []
+        self.descriptions: list[str] = []
+        self.viewports: list[str] = []
+        self.open_graph: dict[str, list[str]] = {}
+        self.main_count = 0
+        self.skip_link_hrefs: list[str] = []
+        self.images: list[dict] = []
+        self.links: list[dict] = []
+        self.buttons: list[dict] = []
+        self.controls: list[dict] = []
+        self.labels: list[dict] = []
+        self.nodes_by_id: dict[str, list[dict]] = {}
+        self.aria_labelledby_nodes: list[dict] = []
+        self._seen_ids: set[str] = set()
+        self.duplicate_ids: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        name = tag.lower()
+        values = {key.lower(): value or "" for key, value in attrs}
+        node = {
+            "tag": name,
+            "attrs": values,
+            "text": "",
+            "imageAltText": [],
+            "ancestorLabels": [entry for entry in self.stack if entry["tag"] == "label"],
+        }
+
+        identifier = values.get("id", "").strip()
+        if identifier:
+            if identifier in self._seen_ids:
+                self.duplicate_ids.add(identifier)
+            self._seen_ids.add(identifier)
+            self.nodes_by_id.setdefault(identifier, []).append(node)
+
+        if name == "html":
+            self.html_languages.append(values.get("lang", "").strip())
+        elif name == "title":
+            self.title_nodes.append(node)
+        elif name == "h1":
+            self.h1_nodes.append(node)
+        elif name == "main":
+            self.main_count += 1
+        elif name == "meta":
+            meta_name = values.get("name", "").strip().lower()
+            property_name = values.get("property", "").strip().lower()
+            content = values.get("content", "").strip()
+            if meta_name == "description":
+                self.descriptions.append(content)
+            elif meta_name == "viewport":
+                self.viewports.append(content)
+            if property_name in {"og:title", "og:description", "og:image"}:
+                self.open_graph.setdefault(property_name, []).append(content)
+
+        if name == "a" and "href" in values:
+            self.links.append(node)
+            if "skip-link" in values.get("class", "").split():
+                self.skip_link_hrefs.append(values.get("href", "").strip())
+        elif name == "button":
+            self.buttons.append(node)
+        elif name == "img":
+            self.images.append(node)
+            if (
+                "alt" in values
+                and values.get("alt", "").strip()
+                and values.get("aria-hidden", "").lower() != "true"
+                and not any(entry["attrs"].get("aria-hidden", "").lower() == "true" for entry in self.stack)
+            ):
+                for ancestor in self.stack:
+                    if ancestor["tag"] in {"a", "button"}:
+                        ancestor["imageAltText"].append(values["alt"].strip())
+        elif name == "label":
+            self.labels.append(node)
+        elif name in {"input", "select", "textarea"}:
+            self.controls.append(node)
+
+        if values.get("aria-labelledby", "").strip():
+            self.aria_labelledby_nodes.append(node)
+
+        if name not in self.VOID_TAGS:
+            self.stack.append(node)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
+        if tag.lower() not in self.VOID_TAGS:
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        name = tag.lower()
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index]["tag"] == name:
+                self.stack = self.stack[:index]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if any(entry["attrs"].get("aria-hidden", "").lower() == "true" for entry in self.stack):
+            return
+        for entry in self.stack:
+            entry["text"] += data
+
+    @staticmethod
+    def normalized_text(value: str) -> str:
+        return re.sub(r"\s+", " ", value).strip()
+
+    def labelledby_text(self, node: dict) -> str:
+        tokens = node["attrs"].get("aria-labelledby", "").split()
+        if not tokens:
+            return ""
+        parts: list[str] = []
+        for token in tokens:
+            matches = self.nodes_by_id.get(token, [])
+            if not matches:
+                return ""
+            target = matches[0]
+            value = (
+                target.get("text", "")
+                or target["attrs"].get("aria-label", "")
+                or target["attrs"].get("title", "")
+            )
+            value = self.normalized_text(value)
+            if not value:
+                return ""
+            parts.append(value)
+        return " ".join(parts)
+
+    def has_accessible_name(self, node: dict) -> bool:
+        attrs = node["attrs"]
+        return bool(
+            attrs.get("aria-label", "").strip()
+            or self.labelledby_text(node)
+            or self.normalized_text(node.get("text", ""))
+            or any(self.normalized_text(value) for value in node.get("imageAltText", []))
+            or attrs.get("title", "").strip()
+        )
+
+    def control_has_label(self, node: dict) -> bool:
+        attrs = node["attrs"]
+        if attrs.get("type", "").lower() == "hidden":
+            return True
+        if (
+            attrs.get("aria-label", "").strip()
+            or self.labelledby_text(node)
+            or attrs.get("title", "").strip()
+        ):
+            return True
+        identifier = attrs.get("id", "").strip()
+        associated = [
+            label for label in self.labels
+            if identifier and label["attrs"].get("for", "").strip() == identifier
+        ]
+        wrapped = node.get("ancestorLabels", [])
+        if any(self.normalized_text(label.get("text", "")) or label["attrs"].get("aria-label", "").strip()
+               for label in associated + wrapped):
+            return True
+        if attrs.get("type", "").lower() in {"button", "submit", "reset"}:
+            return bool(attrs.get("value", "").strip())
+        if attrs.get("type", "").lower() == "image":
+            return bool(attrs.get("alt", "").strip())
+        return False
+
+
+def validate_document_contract(output: Path) -> dict:
+    """Fail closed when packaged routes regress core SEO or accessible-name contracts."""
+    raw_root = Path(output)
+    if raw_root.is_symlink():
+        fail("Document-contract root must not be a symlink.")
+    root = raw_root.resolve(strict=True)
+    if not root.is_dir():
+        fail("Document-contract root must be a directory.")
+
+    pages = sorted(root.glob("*.html"))
+    if not pages:
+        fail("Document-contract audit found no root HTML routes.")
+
+    counters = {
+        "routesScanned": len(pages),
+        "imagesChecked": 0,
+        "imagesMissingAlt": 0,
+        "linksChecked": 0,
+        "unnamedLinks": 0,
+        "buttonsChecked": 0,
+        "unnamedButtons": 0,
+        "formControlsChecked": 0,
+        "unlabelledFormControls": 0,
+        "missingLanguage": 0,
+        "missingTitle": 0,
+        "missingDescription": 0,
+        "missingViewport": 0,
+        "missingH1": 0,
+        "missingMain": 0,
+        "missingSkipLink": 0,
+        "missingOpenGraph": 0,
+        "brokenAriaLabelledbyReferences": 0,
+        "duplicateIds": 0,
+        "duplicateTitles": 0,
+        "duplicateDescriptions": 0,
+    }
+    errors: list[str] = []
+    titles: list[str] = []
+    descriptions: list[str] = []
+
+    for page in pages:
+        if page.is_symlink() or not page.is_file():
+            fail(f"Document-contract route is unsafe: {page.name}")
+        parser = DocumentContractParser()
+        try:
+            parser.feed(page.read_text(encoding="utf-8"))
+            parser.close()
+        except (UnicodeDecodeError, ValueError) as error:
+            fail(f"Document-contract markup could not be parsed in {page.name}: {error}")
+
+        route = page.name
+        title_values = [parser.normalized_text(node["text"]) for node in parser.title_nodes]
+        title_value = title_values[0] if len(title_values) == 1 else ""
+        description_value = parser.descriptions[0] if len(parser.descriptions) == 1 else ""
+        if len(parser.html_languages) != 1 or not parser.html_languages[0]:
+            counters["missingLanguage"] += 1
+            errors.append(f"{route}: html element must declare one non-empty lang attribute.")
+        if len(parser.title_nodes) != 1 or not title_value:
+            counters["missingTitle"] += 1
+            errors.append(f"{route}: exactly one non-empty document title is required.")
+        else:
+            titles.append(title_value)
+        if len(parser.descriptions) != 1 or not description_value:
+            counters["missingDescription"] += 1
+            errors.append(f"{route}: exactly one non-empty meta description is required.")
+        else:
+            descriptions.append(description_value)
+        if len(parser.viewports) != 1 or not parser.viewports[0]:
+            counters["missingViewport"] += 1
+            errors.append(f"{route}: exactly one non-empty viewport meta tag is required.")
+        if len(parser.h1_nodes) != 1 or not parser.normalized_text(parser.h1_nodes[0]["text"] if parser.h1_nodes else ""):
+            counters["missingH1"] += 1
+            errors.append(f"{route}: exactly one non-empty h1 is required.")
+        if parser.main_count != 1:
+            counters["missingMain"] += 1
+            errors.append(f"{route}: exactly one main landmark is required.")
+
+        if (
+            len(parser.skip_link_hrefs) != 1
+            or not parser.skip_link_hrefs[0].startswith("#")
+            or parser.skip_link_hrefs[0][1:] not in parser.nodes_by_id
+        ):
+            counters["missingSkipLink"] += 1
+            errors.append(f"{route}: one skip link must target an existing element ID.")
+
+        for image in parser.images:
+            counters["imagesChecked"] += 1
+            if "alt" not in image["attrs"]:
+                counters["imagesMissingAlt"] += 1
+                errors.append(f"{route}: image missing alt attribute: {image['attrs'].get('src', '<no src>')}.")
+
+        for link in parser.links:
+            counters["linksChecked"] += 1
+            if not parser.has_accessible_name(link):
+                counters["unnamedLinks"] += 1
+                errors.append(f"{route}: link has no accessible name: {link['attrs'].get('href', '<no href>')}.")
+
+        for button in parser.buttons:
+            counters["buttonsChecked"] += 1
+            if not parser.has_accessible_name(button):
+                counters["unnamedButtons"] += 1
+                errors.append(f"{route}: button has no accessible name.")
+
+        for control in parser.controls:
+            if control["attrs"].get("type", "").lower() == "hidden":
+                continue
+            counters["formControlsChecked"] += 1
+            if not parser.control_has_label(control):
+                counters["unlabelledFormControls"] += 1
+                errors.append(
+                    f"{route}: form control has no associated label: "
+                    f"{control['attrs'].get('name') or control['attrs'].get('id') or control['tag']}."
+                )
+
+        for node in parser.aria_labelledby_nodes:
+            for token in node["attrs"].get("aria-labelledby", "").split():
+                if token not in parser.nodes_by_id:
+                    counters["brokenAriaLabelledbyReferences"] += 1
+                    errors.append(f"{route}: aria-labelledby references missing ID {token!r}.")
+
+        counters["duplicateIds"] += len(parser.duplicate_ids)
+        if parser.duplicate_ids:
+            errors.append(f"{route}: duplicate element IDs: {', '.join(sorted(parser.duplicate_ids)[:8])}.")
+
+        if route != "404.html":
+            required_open_graph = ("og:title", "og:description", "og:image")
+            missing = [
+                key for key in required_open_graph
+                if len(parser.open_graph.get(key, [])) != 1 or not parser.open_graph[key][0]
+            ]
+            if missing:
+                counters["missingOpenGraph"] += 1
+                errors.append(f"{route}: required Open Graph metadata missing or duplicated: {', '.join(missing)}.")
+
+    title_counts: dict[str, int] = {}
+    for value in titles:
+        title_counts[value] = title_counts.get(value, 0) + 1
+    counters["duplicateTitles"] = sum(count - 1 for count in title_counts.values() if count > 1)
+    if counters["duplicateTitles"]:
+        errors.append("Root routes contain duplicate document titles.")
+
+    description_counts: dict[str, int] = {}
+    for value in descriptions:
+        description_counts[value] = description_counts.get(value, 0) + 1
+    counters["duplicateDescriptions"] = sum(count - 1 for count in description_counts.values() if count > 1)
+    if counters["duplicateDescriptions"]:
+        errors.append("Root routes contain duplicate meta descriptions.")
+
+    if errors:
+        fail("Packaged document accessibility/SEO contract failed:\n" + "\n".join(errors[:40]))
+    return {"status": "PASS", **counters}
+
+
+CSS_URL_PATTERN = re.compile(
+    r"""url\(\s*(?:(?P<quote>["'])(?P<quoted>.*?)(?P=quote)|(?P<bare>[^)]*?))\s*\)""",
+    re.IGNORECASE | re.DOTALL,
+)
+CSS_IMPORT_PATTERN = re.compile(r"""@import\s+(["'])(.*?)\1""", re.IGNORECASE | re.DOTALL)
+META_IMAGE_PROPERTIES = {"og:image", "og:image:url", "twitter:image", "twitter:image:src"}
+
+
+def srcset_urls(value: str) -> list[str]:
+    """Extract file-like srcset candidates, including mixed data/local lists safely."""
+    candidates: list[str] = []
+    in_data_candidate = False
+    for segment in value.split(","):
+        item = segment.strip()
+        if not item:
+            continue
+        if item.lower().startswith("data:"):
+            in_data_candidate = True
+        if in_data_candidate:
+            # Data URLs can contain commas; resume only at a recognizable descriptor boundary.
+            if re.search(r"\s+(?:[1-9][0-9]*(?:\.[0-9]+)?[wx])$", item, re.IGNORECASE):
+                in_data_candidate = False
+            continue
+        url = item.split(None, 1)[0]
+        if "/" in url or Path(url).suffix:
+            candidates.append(url)
+    return candidates
+
+
+def css_references(text: str) -> list[tuple[str, str]]:
+    """Collect CSS url() and quoted @import targets without double-counting imports."""
+    references: list[tuple[str, str]] = []
+    for match in CSS_URL_PATTERN.finditer(text):
+        value = match.group("quoted") if match.group("quote") else match.group("bare")
+        value = (value or "").strip()
+        if value:
+            references.append(("css-url", value))
+    for match in CSS_IMPORT_PATTERN.finditer(text):
+        value = match.group(2).strip()
+        if value:
+            references.append(("css-import", value))
+    return list(dict.fromkeys(references))
+
+
+def template_expression_end(source: str, start: int) -> int | None:
+    """Find the closing brace for a template interpolation without counting nested syntax."""
+    depth = 1
+    index = start
+    size = len(source)
+    while index < size:
+        if source.startswith("//", index):
+            newline = source.find("\n", index + 2)
+            if newline < 0:
+                return None
+            index = newline
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            if end < 0:
+                return None
+            index = end + 2
+            continue
+        char = source[index]
+        if char in ("'", '"'):
+            quote = char
+            index += 1
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == quote:
+                    index += 1
+                    break
+                index += 1
+            continue
+        if char == chr(96):
+            index += 1
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == chr(96):
+                    index += 1
+                    break
+                index += 1
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
+def javascript_tokens(source: str) -> list[tuple[str, str, int]]:
+    """Tokenize dependency-bearing JavaScript syntax while ignoring comments and literal text."""
+    tokens: list[tuple[str, str, int]] = []
+    index = 0
+    line = 1
+    size = len(source)
+    while index < size:
+        char = source[index]
+        if char in " \t\r\n":
+            if char == "\n":
+                line += 1
+            index += 1
+            continue
+        if source.startswith("//", index):
+            newline = source.find("\n", index + 2)
+            if newline < 0:
+                break
+            index = newline
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            if end < 0:
+                break
+            line += source[index:end + 2].count("\n")
+            index = end + 2
+            continue
+        if char in ("'", '"'):
+            token_line = line
+            quote = char
+            index += 1
+            value: list[str] = []
+            closed = False
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    if index + 1 >= size:
+                        index += 1
+                        break
+                    escaped = source[index + 1]
+                    if escaped == "\n":
+                        line += 1
+                        index += 2
+                        continue
+                    if escaped == "\r":
+                        line += 1
+                        index += 2
+                        if index < size and source[index] == "\n":
+                            index += 1
+                        continue
+                    value.append(escaped)
+                    index += 2
+                    continue
+                if char == quote:
+                    index += 1
+                    closed = True
+                    break
+                if char == "\n":
+                    line += 1
+                value.append(char)
+                index += 1
+            if closed:
+                tokens.append(("string", "".join(value), token_line))
+            continue
+        if char == chr(96):
+            token_line = line
+            index += 1
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    if index + 1 < size and source[index + 1] == "\n":
+                        line += 1
+                    index += 2
+                    continue
+                if source.startswith("$" + "{", index):
+                    expression_start = index + 2
+                    expression_end = template_expression_end(source, expression_start)
+                    if expression_end is None:
+                        index = size
+                        break
+                    expression = source[expression_start:expression_end]
+                    expression_tokens = javascript_tokens(expression)
+                    tokens.extend(
+                        (kind, value, line + token_line - 1)
+                        for kind, value, token_line in expression_tokens
+                    )
+                    line += expression.count("\n")
+                    index = expression_end + 1
+                    continue
+                if char == chr(96):
+                    index += 1
+                    break
+                if char == "\n":
+                    line += 1
+                index += 1
+            tokens.append(("template", "", token_line))
+            continue
+        if char.isalpha() or char in "_$":
+            start = index
+            while index < size and (source[index].isalnum() or source[index] in "_$"):
+                index += 1
+            tokens.append(("identifier", source[start:index], line))
+            continue
+        tokens.append(("punct", char, line))
+        index += 1
+    return tokens
+
+
+def js_module_references(text: str) -> list[tuple[str, str]]:
+    """Collect literal module references without mistaking comments or string examples for imports."""
+    tokens = javascript_tokens(text)
+    references: list[str] = []
+
+    def find_from_specifier(start: int) -> str | None:
+        depth = {"{": 0, "(": 0, "[": 0}
+        closing = {"}": "{", ")": "(", "]": "["}
+        start_line = tokens[start][2]
+        for cursor in range(start + 1, len(tokens)):
+            kind, value, token_line = tokens[cursor]
+            if value == ";" and not any(depth.values()):
+                break
+            if (
+                cursor > start + 1
+                and token_line > start_line
+                and kind == "identifier"
+                and value in {"import", "export", "const", "let", "var", "function", "class", "return"}
+                and not any(depth.values())
+            ):
+                break
+            if kind == "identifier" and value == "from" and cursor + 1 < len(tokens):
+                next_kind, specifier, _ = tokens[cursor + 1]
+                if next_kind == "string":
+                    return specifier
+            if value in depth:
+                depth[value] += 1
+            elif value in closing:
+                opener = closing[value]
+                depth[opener] = max(0, depth[opener] - 1)
+        return None
+
+    for index, (kind, value, _token_line) in enumerate(tokens):
+        if kind != "identifier":
+            continue
+        previous = tokens[index - 1] if index else None
+        if previous and previous[1] == ".":
+            continue
+        if value == "import":
+            if index + 1 >= len(tokens):
+                continue
+            next_kind, next_value, _ = tokens[index + 1]
+            if next_value == ".":
+                continue
+            if next_value == "(":
+                if index + 2 < len(tokens) and tokens[index + 2][0] == "string":
+                    references.append(tokens[index + 2][1])
+                continue
+            if next_kind == "string":
+                references.append(next_value)
+                continue
+            specifier = find_from_specifier(index)
+            if specifier:
+                references.append(specifier)
+            continue
+        if value == "export":
+            if index + 1 >= len(tokens) or tokens[index + 1][1] not in ("{", "*"):
+                continue
+            specifier = find_from_specifier(index)
+            if specifier:
+                references.append(specifier)
+            continue
+        if value == "new" and index + 10 < len(tokens):
+            sequence = tokens[index:index + 11]
+            values = [token[1] for token in sequence]
+            if (
+                values[:3] == ["new", "URL", "("]
+                and sequence[3][0] == "string"
+                and values[4:] == [",", "import", ".", "meta", ".", "url", ")"]
+            ):
+                references.append(sequence[3][1])
+    return [("js-module", value.strip()) for value in dict.fromkeys(references) if value.strip()]
+
+
+class RuntimeReferenceParser(HTMLParser):
+    """Collect local-file-bearing HTML attributes plus inline CSS and module references."""
+
+    ATTRIBUTES = {"href", "src", "poster", "data", "srcset", "imagesrcset", "xlink:href"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.references: list[tuple[str, str]] = []
+        self.inline_styles: list[str] = []
+        self.inline_scripts: list[str] = []
+        self._in_style = False
+        self._in_script = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        name = tag.lower()
+        values = {key.lower(): value or "" for key, value in attrs}
+        for key, value in values.items():
+            if not value:
+                continue
+            if key in {"srcset", "imagesrcset"}:
+                self.references.extend((key, url) for url in srcset_urls(value))
+            elif key in self.ATTRIBUTES:
+                self.references.append((key, value))
+            elif key == "style":
+                self.inline_styles.append(value)
+        if name == "meta" and values.get("content", ""):
+            property_name = values.get("property", "").lower()
+            name_value = values.get("name", "").lower()
+            if property_name in META_IMAGE_PROPERTIES or name_value in META_IMAGE_PROPERTIES:
+                self.references.append(("meta-image", values["content"]))
+        if name == "style":
+            self._in_style = True
+        if name == "script":
+            self._in_script = not bool(values.get("src"))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "style":
+            self._in_style = False
+        elif tag.lower() == "script":
+            self._in_script = False
+
+    def handle_data(self, data: str) -> None:
+        if self._in_style:
+            self.inline_styles.append(data)
+        if self._in_script:
+            self.inline_scripts.append(data)
+
+
+def resolve_runtime_reference(root: Path, source: Path, kind: str, reference: str) -> bool:
+    """Verify a local runtime reference exists inside the package and crosses no symlink."""
+    value = reference.strip()
+    try:
+        parsed = urlsplit(value)
+    except ValueError as error:
+        fail(f"{source.relative_to(root).as_posix()}: malformed local {kind} reference {value!r}: {error}")
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return False
+
+    relative_path = unquote(parsed.path)
+    if "\x00" in relative_path or "\\" in relative_path:
+        fail(f"{source.relative_to(root).as_posix()}: unsafe local {kind} reference: {value}")
+    candidate = root / relative_path.lstrip("/") if relative_path.startswith("/") else source.parent / relative_path
+    candidate = Path(os.path.abspath(candidate))
+    source_label = source.relative_to(root).as_posix()
+    if not is_within(candidate, root):
+        fail(f"{source_label}: local {kind} reference escapes package root: {value}")
+
+    cursor = root
+    for part in candidate.relative_to(root).parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            fail(f"{source_label}: local {kind} reference traverses a symlink: {value}")
+
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        fail(f"{source_label}: could not resolve local {kind} reference {value}: {error}")
+    if not is_within(resolved, root):
+        fail(f"{source_label}: local {kind} reference escapes package root: {value}")
+
+    if candidate.is_dir():
+        candidate = candidate / "index.html"
+        if candidate.is_symlink():
+            fail(f"{source_label}: local {kind} directory index is a symlink: {value}")
+    if not candidate.exists() or not candidate.is_file():
+        fail(f"{source_label}: broken local asset reference ({kind}): {value}")
+    return True
+
+
+def validate_runtime_asset_closure(output: Path) -> dict:
+    """Fail closed on missing HTML/CSS/SVG/module assets after package transformations."""
+    raw_root = Path(output)
+    if raw_root.is_symlink():
+        fail("Runtime asset-closure root must not be a symlink.")
+    root = raw_root.resolve(strict=True)
+    if not root.is_dir():
+        fail("Runtime asset-closure root must be a directory.")
+    text_suffixes = {".html", ".css", ".js", ".svg"}
+    files = sorted(
+        path for path in root.rglob("*")
+        if path.is_file() and not path.is_symlink() and path.suffix.lower() in text_suffixes
+    )
+    references_checked = 0
+    references_by_kind: dict[str, int] = {}
+    for source in files:
+        relative = source.relative_to(root).as_posix()
+        if source.is_symlink():
+            fail(f"Unsafe runtime reference source: {relative}")
+        try:
+            content = source.read_text(encoding="utf-8")
+        except UnicodeDecodeError as error:
+            fail(f"Runtime reference source is not valid UTF-8: {relative}: {error}")
+
+        references: list[tuple[str, str]] = []
+        if source.suffix.lower() in {".html", ".svg"}:
+            parser = RuntimeReferenceParser()
+            try:
+                parser.feed(content)
+                parser.close()
+            except (ValueError, AssertionError) as error:
+                fail(f"Could not parse runtime markup {relative}: {error}")
+            references.extend(parser.references)
+            for style_text in parser.inline_styles:
+                references.extend(css_references(style_text))
+            for script_text in parser.inline_scripts:
+                references.extend(js_module_references(script_text))
+        elif source.suffix.lower() == ".css":
+            references.extend(css_references(content))
+        elif source.suffix.lower() == ".js":
+            references.extend(js_module_references(content))
+
+        for kind, reference in dict.fromkeys(references):
+            if resolve_runtime_reference(root, source, kind, reference):
+                references_checked += 1
+                references_by_kind[kind] = references_by_kind.get(kind, 0) + 1
+
+    return {
+        "status": "PASS",
+        "filesScanned": len(files),
+        "localReferencesChecked": references_checked,
+        "referencesByKind": dict(sorted(references_by_kind.items())),
+        "missingLocalReferences": 0,
+    }
+
+
+def validate_no_legacy_image_tree_references(output: Path) -> dict:
+    """Fail closed if a runtime file references the excluded legacy /img asset library."""
+    raw_output = Path(output)
+    if raw_output.is_symlink():
+        fail("Legacy-reference audit root must not be a symlink.")
+    output = raw_output.resolve(strict=True)
+    if not output.is_dir():
+        fail("Legacy-reference audit root must be a directory.")
+    text_suffixes = {".html", ".css", ".js", ".json", ".svg", ".xml", ".txt", ".map"}
+    checked = 0
+    for candidate in sorted(output.rglob("*")):
+        if candidate.is_symlink():
+            fail(f"Unsafe package symlink while auditing legacy image references: {candidate.relative_to(output)}")
+        if not candidate.is_file():
+            continue
+        if candidate.suffix.lower() not in text_suffixes and candidate.name != ".htaccess":
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            fail(f"Runtime text asset is not valid UTF-8: {candidate.relative_to(output)}")
+        match = LEGACY_IMG_REFERENCE.search(text)
+        if match:
+            line_number = text.count("\n", 0, match.start()) + 1
+            fail(
+                f"Runtime file references the source-only img/ library, which is not packaged: "
+                f"{candidate.relative_to(output)}:{line_number}. Move the asset into assets/ "
+                "or explicitly design a reviewed runtime asset migration."
+            )
+        checked += 1
+    if (output / "img").exists():
+        fail("The source-only img/ library must not be copied into the runtime package.")
+    return {"status": "PASS", "textFilesChecked": checked, "legacyImageReferences": 0}
+
+
+def legacy_source_image_inventory() -> dict:
+    """Measure the Git-retained legacy image library without copying it into the website package."""
+    root = ROOT / "img"
+    if not root.exists():
+        return {"path": "img/", "fileCount": 0, "bytesExcluded": 0}
+    if root.is_symlink() or not root.is_dir():
+        fail("The legacy source image path must be a real directory.")
+    count = 0
+    total_bytes = 0
+    for candidate in sorted(root.rglob("*")):
+        if candidate.is_symlink():
+            fail(f"Symlink in legacy source image library: {candidate.relative_to(ROOT)}")
+        if candidate.is_dir() or not candidate.is_file() or candidate.name == ".gitkeep":
+            continue
+        count += 1
+        total_bytes += candidate.stat().st_size
+    return {"path": "img/", "fileCount": count, "bytesExcluded": total_bytes}
+
+
+def package_size_metrics(entries: list[dict], legacy_inventory: dict,
+                         budget_bytes: int = MAX_UNCOMPRESSED_PACKAGE_BYTES) -> dict:
+    """Enforce a deterministic uncompressed payload budget and report archive-scope savings."""
+    if not isinstance(budget_bytes, int) or isinstance(budget_bytes, bool) or budget_bytes <= 0:
+        fail("Package size budget must be a positive integer.")
+    total = 0
+    for entry in entries:
+        amount = entry.get("bytes")
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
+            fail("Package inventory contains an invalid byte count.")
+        total += amount
+    if total > budget_bytes:
+        fail(
+            f"Uncompressed staging payload exceeds its {budget_bytes}-byte budget: "
+            f"{total} bytes. Review runtime assets; do not raise the budget without a measured reason."
+        )
+    utilization = round((total / budget_bytes) * 100, 2)
+    return {
+        "uncompressedPayloadBytes": total,
+        "uncompressedBudgetBytes": budget_bytes,
+        "budgetUtilizationPercent": utilization,
+        "sizeBudgetPassed": True,
+        "sourceOnlyImageLibraryExcluded": legacy_inventory,
     }
 
 
@@ -279,8 +1133,105 @@ def checked_paths() -> list[Path]:
     return sorted(files, key=lambda item: item.relative_to(ROOT).as_posix())
 
 
+def validate_hosting_delivery_contract(htaccess: str) -> dict:
+    """Fail closed on insecure headers, unbounded mutable-asset caching or missing compression."""
+    required_headers = {
+        "X-Content-Type-Options": r'(?mi)^\s*Header\s+always\s+set\s+X-Content-Type-Options\s+"nosniff"\s*$',
+        "Referrer-Policy": r'(?mi)^\s*Header\s+always\s+set\s+Referrer-Policy\s+"strict-origin-when-cross-origin"\s*$',
+        "Permissions-Policy": r'(?mi)^\s*Header\s+always\s+set\s+Permissions-Policy\s+"camera=\(\),\s*microphone=\(\),\s*geolocation=\(\)"\s*$',
+    }
+    for name, pattern in required_headers.items():
+        if not re.search(pattern, htaccess):
+            fail(f"Hosting security header is missing or unsafe: {name}.")
+
+    noncanonical_host_rule = re.search(
+        r'(?mi)^\s*SetEnvIfNoCase\s+Host\s+"[^"]+"\s+GJ_NONCANONICAL_HOST\s*$',
+        htaccess,
+    )
+    noncanonical_robots_header = re.search(
+        r'(?mi)^\s*Header\s+always\s+set\s+X-Robots-Tag\s+"noindex,\s*nofollow"\s+env=GJ_NONCANONICAL_HOST\s*$',
+        htaccess,
+    )
+    if not noncanonical_host_rule or not noncanonical_robots_header:
+        fail("Hosting delivery contract must keep non-canonical hosts noindex.")
+
+    if not re.search(r'(?mi)^\s*ErrorDocument\s+404\s+/404\.html\s*$', htaccess):
+        fail("Hosting delivery contract must route HTTP 404s to /404.html.")
+
+    html_cache_block = re.search(
+        r'(?is)<FilesMatch\s+"[^"]*\\\.html\?\$">\s*'
+        r'Header\s+always\s+set\s+Cache-Control\s+"no-cache,\s*must-revalidate"\s*'
+        r'</FilesMatch>',
+        htaccess,
+    )
+    if not html_cache_block:
+        fail("HTML responses must use no-cache, must-revalidate inside an HTML FilesMatch block.")
+
+    expected_cache_lifetimes = {
+        "text/html": ("0 seconds", 0),
+        "text/css": ("7 days", 604800),
+        "application/javascript": ("7 days", 604800),
+        "image/svg+xml": ("30 days", 2592000),
+        "image/webp": ("30 days", 2592000),
+        "image/jpeg": ("30 days", 2592000),
+        "image/png": ("30 days", 2592000),
+    }
+    if not re.search(r"(?mi)^\s*ExpiresActive\s+On\s*$", htaccess):
+        fail("Hosting cache policy must enable ExpiresActive.")
+    cache_lifetimes_seconds: dict[str, int] = {}
+    for mime_type, (expected_duration, seconds) in expected_cache_lifetimes.items():
+        directives = re.findall(
+            rf'(?mi)^\s*ExpiresByType\s+{re.escape(mime_type)}\s+"access\s+plus\s+([^"]+)"\s*$',
+            htaccess,
+        )
+        if len(directives) != 1:
+            fail(f"Hosting cache policy must define exactly one ExpiresByType directive for {mime_type}.")
+        if directives[0].strip().lower() != expected_duration:
+            fail(
+                f"Hosting cache lifetime for {mime_type} must be {expected_duration} "
+                "until runtime asset filenames are content-hashed."
+            )
+        cache_lifetimes_seconds[mime_type] = seconds
+
+    required_compression_types = (
+        "application/javascript",
+        "application/json",
+        "application/xml",
+        "image/svg+xml",
+        "text/css",
+        "text/html",
+        "text/plain",
+    )
+    deflate_directive = re.search(
+        r"(?mi)^\s*AddOutputFilterByType\s+DEFLATE\s+([^#\r\n]+?)\s*$",
+        htaccess,
+    )
+    configured_types = set(deflate_directive.group(1).split()) if deflate_directive else set()
+    missing_compression_types = sorted(set(required_compression_types) - configured_types)
+    if missing_compression_types:
+        fail(
+            "Hosting compression directive is missing required MIME types: "
+            + ", ".join(missing_compression_types)
+            + "."
+        )
+
+    return {
+        "status": "PASS",
+        "securityHeaders": {
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        },
+        "nonCanonicalHostNoIndex": True,
+        "custom404": "/404.html",
+        "htmlCachePolicy": "NO_CACHE_MUST_REVALIDATE",
+        "cacheLifetimesSeconds": cache_lifetimes_seconds,
+        "compressionMimeTypes": sorted(required_compression_types),
+    }
+
+
 def validate_staging_policy(source_config: dict, source_robots: str, source_sitemap: str,
-                            htaccess: str, empty_sitemap: str, staging_robots: str) -> None:
+                            htaccess: str, empty_sitemap: str, staging_robots: str) -> dict:
     site = source_config.get("site")
     if not isinstance(site, dict) or site.get("canonicalHostApproved") is not False:
         fail("Staging package blocked: canonicalHostApproved must remain false.")
@@ -308,6 +1259,7 @@ def validate_staging_policy(source_config: dict, source_robots: str, source_site
         fail(".htaccess must preserve non-canonical staging robots/sitemap overrides.")
     if not re.search(r'X-Robots-Tag\s+"noindex, nofollow"', htaccess, re.IGNORECASE):
         fail(".htaccess must preserve the noindex header for non-canonical hosts.")
+    return validate_hosting_delivery_contract(htaccess)
 
 
 def copy_runtime_files(files: list[Path], output: Path) -> list[dict]:
@@ -358,13 +1310,32 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     spec.loader.exec_module(generator)
 
     rewritten = generator.rewrite_site(output, "responsive")
-    sources = ("rest3.jpg", "courtyard.jpg", "scarlet.jpg", "tent.jpg")
+    sources = (
+        "rest3.jpg",
+        "courtyard.jpg",
+        "scarlet.jpg",
+        "tent.jpg",
+        "legacy/camel-day.jpg",
+        "legacy/camel-sunset.jpg",
+        "legacy/fort-temple-spires.jpg",
+        "rooms/rising-sun.jpg",
+        "rooms/opium.jpg",
+        "rooms/red-maharani.jpg",
+        "rooms/green.jpg",
+        "rooms/bluesky.jpg",
+        "experiences/cultural-programme.jpg",
+        "experiences/swiss-tent-detail.jpeg",
+        "experiences/heritage-architecture.jpg",
+        "gallery/desert/camp-evening.jpeg",
+        "gallery/desert/camp-from-above.jpeg",
+        "dining/rooftop-candlelit-table.jpg",
+    )
     generated_files: list[dict] = []
     image_sources: list[dict] = []
     for filename in sources:
         stem = Path(filename).stem
-        source = output / "assets" / "images" / filename
-        full_size = output / "assets" / "images" / f"{stem}.webp"
+        source = output / "assets" / "images" / Path(filename)
+        full_size = source.with_suffix(".webp")
         if source.is_symlink() or not source.is_file():
             fail(f"Responsive source photo is missing or unsafe: {filename}")
         if full_size.is_symlink() or not full_size.is_file():
@@ -377,16 +1348,23 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             converted.load()
             if converted.format != "WEBP" or converted.size != (width, height):
                 fail(f"Full-size WebP failed decoded format/dimension verification: {full_size.name}")
+        source_bytes = source.stat().st_size
+        full_size_bytes = full_size.stat().st_size
+        if full_size_bytes >= source_bytes:
+            fail(f"Verified full-size WebP is not smaller than its source JPEG: {filename}")
         image_sources.append({
-            "sourceJpeg": f"assets/images/{filename}",
+            "sourceJpeg": (PurePosixPath("assets/images") / PurePosixPath(filename)).as_posix(),
             "naturalWidth": width,
             "naturalHeight": height,
-            "fullSizeWebp": f"assets/images/{stem}.webp",
+            "sourceBytes": source_bytes,
+            "fullSizeWebp": full_size.relative_to(output).as_posix(),
+            "fullSizeBytes": full_size_bytes,
+            "fullSizeSavingsBytes": source_bytes - full_size_bytes,
         })
         candidates = [full_size]
-        responsive_dir = output / "assets" / "images" / "responsive"
+        responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
         if responsive_dir.is_dir():
-            candidates.extend(sorted(responsive_dir.glob(f"{stem}-*.webp")))
+            candidates.extend(sorted(responsive_dir.glob(f"{Path(filename).stem}-*.webp")))
         for candidate in candidates:
             with generator.Image.open(candidate) as converted:
                 converted.load()
@@ -407,9 +1385,25 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     markup_validation = validate_responsive_markup(
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS)
     )
+    source_jpeg_bytes = sum(item["sourceBytes"] for item in image_sources)
+    full_size_webp_bytes = sum(item["fullSizeBytes"] for item in image_sources)
+    responsive_variants = [
+        item for item in generated_files
+        if item["path"].startswith("assets/images/responsive/")
+    ]
+    responsive_variant_bytes = sum(item["bytes"] for item in responsive_variants)
+    savings_bytes = source_jpeg_bytes - full_size_webp_bytes
+    savings_percent = round((savings_bytes / source_jpeg_bytes) * 100, 2) if source_jpeg_bytes else 0
     return {
         "enabled": True,
         "generationTarget": "isolated staging package; source checkout remains unchanged",
+        "sourceImageCount": len(image_sources),
+        "sourceJpegBytes": source_jpeg_bytes,
+        "fullSizeWebpBytes": full_size_webp_bytes,
+        "fullSizeSavingsBytes": savings_bytes,
+        "fullSizeSavingsPercent": savings_percent,
+        "responsiveVariantCount": len(responsive_variants),
+        "responsiveVariantBytes": responsive_variant_bytes,
         "sourceImages": image_sources,
         "generatedWebpFileCount": len(generated_files),
         "generatedWebpFiles": sorted(generated_files, key=lambda item: item["path"]),
@@ -498,6 +1492,97 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             fail(f"Release manifest is not valid UTF-8 JSON: {error}")
         if not isinstance(manifest, dict):
             fail("Release manifest must be a JSON object.")
+        metrics = manifest.get("packageMetrics")
+        if not isinstance(metrics, dict) or metrics.get("sizeBudgetPassed") is not True:
+            fail("The release manifest must record a passing package-size budget.")
+        if metrics.get("uncompressedPayloadBytes", MAX_UNCOMPRESSED_PACKAGE_BYTES + 1) > metrics.get("uncompressedBudgetBytes", 0):
+            fail("The package payload exceeds its declared uncompressed-size budget.")
+        closure = manifest.get("runtimeAssetClosure")
+        if not isinstance(closure, dict) or closure.get("status") != "PASS":
+            fail("The release manifest must record a passing runtime asset-closure audit.")
+        closure_files = closure.get("filesScanned")
+        closure_references = closure.get("localReferencesChecked")
+        closure_missing = closure.get("missingLocalReferences")
+        for field, value in (("filesScanned", closure_files), ("localReferencesChecked", closure_references), ("missingLocalReferences", closure_missing)):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                fail(f"Runtime asset-closure metric is invalid: {field}.")
+        if closure_files == 0 or closure_missing != 0:
+            fail("The release manifest must record a completed asset-closure audit with zero missing local references.")
+
+        document_contract = manifest.get("documentContract")
+        if not isinstance(document_contract, dict) or document_contract.get("status") != "PASS":
+            fail("The release manifest must record a passing document accessibility/SEO contract.")
+        contract_fields = (
+            "routesScanned", "imagesChecked", "imagesMissingAlt", "linksChecked", "unnamedLinks",
+            "buttonsChecked", "unnamedButtons", "formControlsChecked", "unlabelledFormControls",
+            "missingLanguage", "missingTitle", "missingDescription", "missingViewport", "missingH1",
+            "missingMain", "missingSkipLink", "missingOpenGraph", "brokenAriaLabelledbyReferences",
+            "duplicateIds", "duplicateTitles", "duplicateDescriptions",
+        )
+        for field in contract_fields:
+            value = document_contract.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                fail(f"Document accessibility/SEO metric is invalid: {field}.")
+            if field != "routesScanned" and field not in {"imagesChecked", "linksChecked", "buttonsChecked", "formControlsChecked"} and value != 0:
+                fail(f"Document accessibility/SEO metric must be zero: {field}.")
+        if document_contract["routesScanned"] == 0:
+            fail("The release manifest must record a completed document accessibility/SEO audit.")
+
+        hosting_delivery = manifest.get("hostingDelivery")
+        if not isinstance(hosting_delivery, dict) or hosting_delivery.get("status") != "PASS":
+            fail("The release manifest must record a passing hosting security, caching and compression contract.")
+        expected_security_headers = {
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        }
+        security_headers = hosting_delivery.get("securityHeaders")
+        if not isinstance(security_headers, dict):
+            fail("The release manifest hosting security headers are missing.")
+        for header_name, expected_value in expected_security_headers.items():
+            if security_headers.get(header_name) != expected_value:
+                fail(f"Release manifest hosting security header is invalid: {header_name}.")
+        if hosting_delivery.get("nonCanonicalHostNoIndex") is not True:
+            fail("Release manifest must preserve non-canonical host noindex protection.")
+        if hosting_delivery.get("custom404") != "/404.html":
+            fail("Release manifest must preserve the branded /404.html recovery route.")
+        if hosting_delivery.get("htmlCachePolicy") != "NO_CACHE_MUST_REVALIDATE":
+            fail("Release manifest must require HTML cache revalidation.")
+        expected_cache_lifetimes = {
+            "text/html": 0,
+            "text/css": 604800,
+            "application/javascript": 604800,
+            "image/svg+xml": 2592000,
+            "image/webp": 2592000,
+            "image/jpeg": 2592000,
+            "image/png": 2592000,
+        }
+        cache_lifetimes = hosting_delivery.get("cacheLifetimesSeconds")
+        if not isinstance(cache_lifetimes, dict):
+            fail("Release manifest hosting cache lifetimes are missing.")
+        for mime_type, expected_seconds in expected_cache_lifetimes.items():
+            actual_seconds = cache_lifetimes.get(mime_type)
+            if (
+                not isinstance(actual_seconds, int)
+                or isinstance(actual_seconds, bool)
+                or actual_seconds != expected_seconds
+            ):
+                fail(f"Release manifest hosting cache lifetime is invalid: {mime_type}.")
+        compression_types = hosting_delivery.get("compressionMimeTypes")
+        required_compression_types = {
+            "application/javascript", "application/json", "application/xml",
+            "image/svg+xml", "text/css", "text/html", "text/plain",
+        }
+        if (
+            not isinstance(compression_types, list)
+            or not all(isinstance(value, str) for value in compression_types)
+            or not required_compression_types.issubset(set(compression_types))
+        ):
+            fail("Release manifest is missing required hosting compression MIME types.")
+
+
+        if any(name.startswith("img/") for name in names):
+            fail("The staging archive must not contain the source-only img/ asset library.")
         if manifest.get("deploymentPerformed") is not False:
             fail("The staging archive must explicitly state that no deployment was performed.")
         if manifest.get("releaseStatus") != "BLOCKED_PENDING_MANUAL_UAT":
@@ -577,7 +1662,7 @@ def main() -> int:
 
     files = checked_paths()
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
-    validate_staging_policy(
+    hosting_delivery_report = validate_staging_policy(
         source_config,
         (ROOT / "robots.txt").read_text(encoding="utf-8"),
         (ROOT / "sitemap.xml").read_text(encoding="utf-8"),
@@ -586,9 +1671,15 @@ def main() -> int:
         (ROOT / "robots-staging.txt").read_text(encoding="utf-8"),
     )
     copy_runtime_files(files, output)
+    legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
+    asset_closure_report = validate_runtime_asset_closure(output)
+    runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
+    document_contract_report = validate_document_contract(output)
     entries = inventory_package_files(output)
+    legacy_inventory = legacy_source_image_inventory()
+    package_metrics = package_size_metrics(entries, legacy_inventory)
     manifest = {
         "schemaVersion": 1,
         "artifactType": "static-site-staging-preview",
@@ -601,6 +1692,10 @@ def main() -> int:
         "sourceRouteCount": len(json.loads((ROOT / "content" / "staging-route-contract.json").read_text(encoding="utf-8"))["routes"]),
         "payloadFileCount": len(entries),
         "files": entries,
+        "packageMetrics": package_metrics,
+        "runtimeAssetClosure": runtime_asset_report,
+        "documentContract": document_contract_report,
+        "hostingDelivery": hosting_delivery_report,
         "responsiveImageDelivery": responsive_report,
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
         "canonicalHostApproved": False,
@@ -617,7 +1712,12 @@ def main() -> int:
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
     print(f"Runtime files: {len(entries)}")
+    print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
+    print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
+    print(f"Responsive source photos optimized: {responsive_report['sourceImageCount']}")
     print(f"Verified responsive WebP files: {responsive_report['generatedWebpFileCount']}")
+    print(f"Downscaled responsive variants: {responsive_report['responsiveVariantCount']} ({responsive_report['responsiveVariantBytes']} bytes)")
+    print(f"Full-size WebP savings: {responsive_report['fullSizeSavingsBytes']} bytes ({responsive_report['fullSizeSavingsPercent']}%) across source photos")
     print(f"Archive: {archive.name} ({archive_bytes} bytes)")
     print(f"SHA-256: {digest_bytes(archive.read_bytes())}")
     print("Release status: BLOCKED_PENDING_MANUAL_UAT (no deployment or indexing activation).")
