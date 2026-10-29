@@ -577,22 +577,6 @@ CSS_URL_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 CSS_IMPORT_PATTERN = re.compile(r"""@import\s+(["'])(.*?)\1""", re.IGNORECASE | re.DOTALL)
-JS_STATIC_IMPORT_FROM_PATTERN = re.compile(
-    r"""(?<![\w$.])(?:import|export)\s+(?:(?!["';]).)*?\sfrom\s*(["'])(.*?)\1""",
-    re.DOTALL,
-)
-JS_SIDE_EFFECT_IMPORT_PATTERN = re.compile(
-    r"""(?<![\w$.])import\s*(["'])(.*?)\1""",
-    re.DOTALL,
-)
-JS_DYNAMIC_IMPORT_PATTERN = re.compile(
-    r"""\bimport\s*\(\s*(["'])(.*?)\1\s*\)""",
-    re.DOTALL,
-)
-JS_NEW_URL_PATTERN = re.compile(
-    r"""\bnew\s+URL\s*\(\s*(["'])(.*?)\1\s*,\s*import\.meta\.url\s*\)""",
-    re.DOTALL,
-)
 META_IMAGE_PROPERTIES = {"og:image", "og:image:url", "twitter:image", "twitter:image:src"}
 
 
@@ -632,21 +616,170 @@ def css_references(text: str) -> list[tuple[str, str]]:
     return list(dict.fromkeys(references))
 
 
+def javascript_tokens(source: str) -> list[tuple[str, str, int]]:
+    """Tokenize dependency-bearing JavaScript syntax while ignoring comments and literal text."""
+    tokens: list[tuple[str, str, int]] = []
+    index = 0
+    line = 1
+    size = len(source)
+    while index < size:
+        char = source[index]
+        if char in " \t\r\n":
+            if char == "\n":
+                line += 1
+            index += 1
+            continue
+        if source.startswith("//", index):
+            newline = source.find("\n", index + 2)
+            if newline < 0:
+                break
+            index = newline
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            if end < 0:
+                break
+            line += source[index:end + 2].count("\n")
+            index = end + 2
+            continue
+        if char in ("'", '"'):
+            token_line = line
+            quote = char
+            index += 1
+            value: list[str] = []
+            closed = False
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    if index + 1 >= size:
+                        index += 1
+                        break
+                    escaped = source[index + 1]
+                    if escaped == "\n":
+                        line += 1
+                        index += 2
+                        continue
+                    if escaped == "\r":
+                        line += 1
+                        index += 2
+                        if index < size and source[index] == "\n":
+                            index += 1
+                        continue
+                    value.append(escaped)
+                    index += 2
+                    continue
+                if char == quote:
+                    index += 1
+                    closed = True
+                    break
+                if char == "\n":
+                    line += 1
+                value.append(char)
+                index += 1
+            if closed:
+                tokens.append(("string", "".join(value), token_line))
+            continue
+        if char == chr(96):
+            token_line = line
+            index += 1
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    if index + 1 < size and source[index + 1] == "\n":
+                        line += 1
+                    index += 2
+                    continue
+                if char == chr(96):
+                    index += 1
+                    break
+                if char == "\n":
+                    line += 1
+                index += 1
+            tokens.append(("template", "", token_line))
+            continue
+        if char.isalpha() or char in "_$":
+            start = index
+            while index < size and (source[index].isalnum() or source[index] in "_$"):
+                index += 1
+            tokens.append(("identifier", source[start:index], line))
+            continue
+        tokens.append(("punct", char, line))
+        index += 1
+    return tokens
+
+
 def js_module_references(text: str) -> list[tuple[str, str]]:
-    """Collect side-effect, from-clause, dynamic imports, re-exports and module-relative URLs."""
-    patterns = (
-        JS_STATIC_IMPORT_FROM_PATTERN,
-        JS_SIDE_EFFECT_IMPORT_PATTERN,
-        JS_DYNAMIC_IMPORT_PATTERN,
-        JS_NEW_URL_PATTERN,
-    )
-    references: list[tuple[str, str]] = []
-    for pattern in patterns:
-        for match in pattern.finditer(text):
-            value = match.group(2).strip()
-            if value:
-                references.append(("js-module", value))
-    return list(dict.fromkeys(references))
+    """Collect literal module references without mistaking comments or string examples for imports."""
+    tokens = javascript_tokens(text)
+    references: list[str] = []
+
+    def find_from_specifier(start: int) -> str | None:
+        depth = {"{": 0, "(": 0, "[": 0}
+        closing = {"}": "{", ")": "(", "]": "["}
+        start_line = tokens[start][2]
+        for cursor in range(start + 1, len(tokens)):
+            kind, value, token_line = tokens[cursor]
+            if value == ";" and not any(depth.values()):
+                break
+            if (
+                cursor > start + 1
+                and token_line > start_line
+                and kind == "identifier"
+                and value in {"import", "export", "const", "let", "var", "function", "class", "return"}
+                and not any(depth.values())
+            ):
+                break
+            if kind == "identifier" and value == "from" and cursor + 1 < len(tokens):
+                next_kind, specifier, _ = tokens[cursor + 1]
+                if next_kind == "string":
+                    return specifier
+            if value in depth:
+                depth[value] += 1
+            elif value in closing:
+                opener = closing[value]
+                depth[opener] = max(0, depth[opener] - 1)
+        return None
+
+    for index, (kind, value, _token_line) in enumerate(tokens):
+        if kind != "identifier":
+            continue
+        previous = tokens[index - 1] if index else None
+        if previous and previous[1] == ".":
+            continue
+        if value == "import":
+            if index + 1 >= len(tokens):
+                continue
+            next_kind, next_value, _ = tokens[index + 1]
+            if next_value == ".":
+                continue
+            if next_value == "(":
+                if index + 2 < len(tokens) and tokens[index + 2][0] == "string":
+                    references.append(tokens[index + 2][1])
+                continue
+            if next_kind == "string":
+                references.append(next_value)
+                continue
+            specifier = find_from_specifier(index)
+            if specifier:
+                references.append(specifier)
+            continue
+        if value == "export":
+            if index + 1 >= len(tokens) or tokens[index + 1][1] not in ("{", "*"):
+                continue
+            specifier = find_from_specifier(index)
+            if specifier:
+                references.append(specifier)
+            continue
+        if value == "new" and index + 10 < len(tokens):
+            sequence = tokens[index:index + 11]
+            values = [token[1] for token in sequence]
+            if (
+                values[:3] == ["new", "URL", "("]
+                and sequence[3][0] == "string"
+                and values[4:] == [",", "import", ".", "meta", ".", "url", ")"]
+            ):
+                references.append(sequence[3][1])
+    return [("js-module", value.strip()) for value in dict.fromkeys(references) if value.strip()]
 
 
 class RuntimeReferenceParser(HTMLParser):

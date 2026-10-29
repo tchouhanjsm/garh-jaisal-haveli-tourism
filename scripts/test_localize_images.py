@@ -336,7 +336,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     'import { ready } from "./module.js"; '
                     'export { ready } from "./re-export.js"; '
                     'import("./module.js"); '
-                    'const icon = new URL("./icons.svg", import.meta.url);'
+                    'const icon = new URL("./icons.svg", import.meta.url);\n'
+                    '// import "./comment-only-missing.js";\n'
+                    '/* export { missing } from "./comment-export-only.js"; */\n'
+                    "const example = 'import \"./string-only-missing.js\"';\n"
+                    "const template = " + chr(96) + 'import("./template-only-missing.js")' + chr(96) + ";"
                 ),
                 "assets/js/side-effect.js": "export const sideEffect = true;",
                 "assets/js/module.js": "export const ready = true;",
@@ -389,6 +393,20 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing-re-export.js"):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
+            script_path.write_text(
+                'import("./missing-dynamic.js");',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing-dynamic.js"):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
+            script_path.write_text(
+                'const icon = new URL("./missing-icon.svg", import.meta.url);',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing-icon.svg"):
                 _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
 
 
