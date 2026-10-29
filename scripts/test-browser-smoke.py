@@ -582,6 +582,7 @@ def run_responsive_image_preview_smoke() -> int:
                             # offscreen and inactive carousel/gallery slides. Force eager loading
                             # only in this isolated test context; production loading policy is
                             # checked below and remains unchanged in the artifact.
+                            production_loading = image.get_attribute("loading") or ""
                             image.evaluate("(img) => { img.loading = 'eager'; img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'}); }")
                             image.wait_for(state="attached")
                             try:
@@ -757,7 +758,7 @@ def run_responsive_image_preview_smoke() -> int:
                             )
                             expected_loading = "eager" if is_hero else "lazy"
                             check_preview(
-                                details["loading"].lower() == expected_loading,
+                                production_loading.lower() == expected_loading,
                                 f"{label}: expected loading={expected_loading}",
                             )
 
