@@ -135,6 +135,10 @@ assert.match(siteRuntime, /setAttribute\('aria-current', 'location'\)/,
   'the active Directions section link must expose aria-current=location');
 assert.match(siteRuntime, /addEventListener\('scroll', scheduleUpdate, \{ passive: true \}\)/,
   'section state must follow scroll position without blocking scrolling');
+assert.match(siteRuntime, /let currentTop = Number\.NEGATIVE_INFINITY/,
+  'active-section selection must track the nearest heading above the reading line, independent of navigation order');
+assert.match(siteRuntime, /targetTop <= activationLine && targetTop > currentTop/,
+  'active-section selection must use heading geometry rather than navigation link order');
 assert.match(siteRuntime, /Math\.max\(168, sectionNav\.getBoundingClientRect\(\)\.bottom \+ 32\)/,
   'the active-section reading line must remain below the sticky rail and align with heading scroll margins');
 assert.match(siteRuntime, /addEventListener\('hashchange', scheduleUpdate\)/,
