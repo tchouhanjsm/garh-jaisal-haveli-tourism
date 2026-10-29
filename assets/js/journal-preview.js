@@ -8,6 +8,19 @@ const results=root.querySelector('[data-journal-results]'),error=root.querySelec
 const archive=root.querySelector('.journal-archive'),panel=root.querySelector('[data-journal-article]'),title=root.querySelector('[data-journal-article-title]'),topicNode=root.querySelector('[data-journal-article-topic]'),lede=root.querySelector('[data-journal-article-lede]');
 const toc=root.querySelector('[data-journal-toc]'),body=root.querySelector('[data-journal-article-body]'),sources=root.querySelector('[data-journal-sources]'),related=root.querySelector('[data-journal-related]');
 const backs=Array.from(root.querySelectorAll('[data-journal-back]'));let records=[];
+const reviewNodes={
+recordStatus:root.querySelector('[data-review-record-status]'),
+editorial:root.querySelector('[data-review-editorial]'),
+source:root.querySelector('[data-review-source]'),
+facts:root.querySelector('[data-review-facts]'),
+media:root.querySelector('[data-review-media]'),
+ownerFacts:root.querySelector('[data-review-owner-facts]'),
+reviewer:root.querySelector('[data-review-reviewer]'),
+reviewedAt:root.querySelector('[data-review-reviewed-at]'),
+approvedMedia:root.querySelector('[data-review-approved-media]'),
+candidateMedia:root.querySelector('[data-review-candidate-media]'),
+mediaConsistency:root.querySelector('[data-review-media-consistency]')
+};
 function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined&&text!==null)n.textContent=String(text);return n;}
 function norm(value){return String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,' ').trim();}
 function topicText(id){return labels[id]||'Travel guide';}
@@ -16,8 +29,37 @@ function art(r,i){const a=el('div','journal-card__art');a.setAttribute('aria-hid
 function card(r,i,isFeature){const c=el('article','journal-card'+(isFeature?' journal-card--featured':'')+' journal-card--topic-'+r.topic);c.dataset.journalCard=r.slug;c.dataset.topic=r.topic;c.append(art(r,i));const b=el('div','journal-card__body'),meta=el('div','journal-card__meta');meta.append(el('span','journal-card__topic',topicText(r.topic)),el('span','journal-draft-stamp','Draft preview'));b.append(meta,el('h3','',r.title),el('p','journal-card__lede',r.lede));const action=el('button','journal-card__action','Preview working draft');action.type='button';action.dataset.journalOpen=r.slug;action.setAttribute('aria-label','Preview draft: '+r.title);const arrow=el('span','','↗');arrow.setAttribute('aria-hidden','true');action.append(arrow);b.append(action);c.append(b);return c;}
 function buildTopics(){Array.from(new Set(records.map(r=>r.topic))).sort((a,b)=>topicText(a).localeCompare(topicText(b))).forEach(id=>{const opt=el('option','',topicText(id));opt.value=id;topic.append(opt);});}
 function renderArchive(){const q=norm(search.value),t=topic.value;const matches=records.filter(r=>(t==='all'||r.topic===t)&&(!q||searchText(r).includes(q)));const pillar=matches.find(r=>r.slug==='jaisalmer-fort-guide');featured.replaceChildren();grid.replaceChildren();if(pillar)featured.append(card(pillar,records.indexOf(pillar),true));matches.filter(r=>!pillar||r.slug!==pillar.slug).forEach(r=>grid.append(card(r,records.indexOf(r),false)));empty.hidden=matches.length>0;results.textContent=matches.length+(matches.length===1?' draft guide in this preview':' draft guides in this preview');}
+function setReviewValue(node,label,state){
+if(!node)return;
+const allowed=['pending','approved','missing','rejected','unrecorded','not-approved','none','unreviewed','draft','warning','aligned'];
+const safeState=allowed.includes(state)?state:'unrecorded';
+node.replaceChildren(el('span','journal-readiness__value journal-readiness__value--'+safeState,label));
+}
+function setMappedReviewValue(node,value,labels){
+const entry=Object.prototype.hasOwnProperty.call(labels,value)?labels[value]:['Not recorded','unrecorded'];
+setReviewValue(node,entry[0],entry[1]);
+}
+function renderReadiness(record){
+const review=record.editorialReview&&typeof record.editorialReview==='object'?record.editorialReview:{};
+const media=record.media&&typeof record.media==='object'?record.media:{};
+const approved=Array.isArray(media.approvedAssets)?media.approvedAssets:[];
+const candidates=Array.isArray(media.candidates)?media.candidates:[];
+setReviewValue(reviewNodes.recordStatus,record.status==='draft'?'Draft — not published':'Unexpected record status',record.status==='draft'?'draft':'warning');
+setMappedReviewValue(reviewNodes.editorial,review.editorialStatus,{pending:['Pending','pending'],approved:['Approved in record','approved']});
+setMappedReviewValue(reviewNodes.source,review.sourceStatus,{pending:['Pending','pending'],approved:['Approved in record','approved']});
+setMappedReviewValue(reviewNodes.facts,review.factStatus,{pending:['Pending','pending'],approved:['Approved in record','approved']});
+setMappedReviewValue(reviewNodes.media,review.mediaStatus,{missing:['Missing','missing'],pending:['Pending','pending'],rejected:['Rejected','rejected'],approved:['Approved in record','approved']});
+setReviewValue(reviewNodes.ownerFacts,review.ownerFactApproved===true?'Approved in record':'Not approved',review.ownerFactApproved===true?'approved':'not-approved');
+setReviewValue(reviewNodes.reviewer,typeof review.reviewer==='string'&&review.reviewer.trim()?review.reviewer.trim():'Not recorded',typeof review.reviewer==='string'&&review.reviewer.trim()?'aligned':'unrecorded');
+const validReviewDate=typeof review.reviewedAt==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(review.reviewedAt);
+setReviewValue(reviewNodes.reviewedAt,validReviewDate?review.reviewedAt:'Not recorded',validReviewDate?'aligned':'unrecorded');
+setReviewValue(reviewNodes.approvedMedia,approved.length?approved.length+' approved asset record'+(approved.length===1?'':'s'):'None recorded',approved.length?'approved':'none');
+setReviewValue(reviewNodes.candidateMedia,candidates.length?candidates.length+' candidate lead'+(candidates.length===1?'':'s')+' — not approved':'None recorded',candidates.length?'unreviewed':'none');
+const recordsAgree=(review.mediaStatus==='approved')===(approved.length>0);
+setReviewValue(reviewNodes.mediaConsistency,!recordsAgree?'Review required: status and approved asset records disagree':approved.length?'Status and approved asset records align':'No approved assets; consistent with current status',recordsAgree?(approved.length?'aligned':'none'):'warning');
+}
 function safeUrl(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u:null;}catch(_){return null;}}
-function showArticle(r){archive.hidden=true;panel.hidden=false;title.textContent=r.title;topicNode.textContent=topicText(r.topic)+' · Draft preview';lede.textContent=r.lede;toc.replaceChildren();body.replaceChildren();sources.replaceChildren();related.replaceChildren();const ids=new Map();
+function showArticle(r){archive.hidden=true;panel.hidden=false;renderReadiness(r);title.textContent=r.title;topicNode.textContent=topicText(r.topic)+' · Draft preview';lede.textContent=r.lede;toc.replaceChildren();body.replaceChildren();sources.replaceChildren();related.replaceChildren();const ids=new Map();
 (r.sections||[]).forEach((s,i)=>{const sid=/^[a-z0-9-]+$/.test(s.id)?s.id:'section-'+(i+1),id='journal-section-'+sid;ids.set(s.id,id);const section=el('section','journal-preview-section');section.id=id;section.append(el('h3','',s.heading));(s.body||[]).forEach(p=>section.append(el('p','',p)));body.append(section);});
 const contents=Array.isArray(r.tableOfContents)?r.tableOfContents:[];contents.forEach(item=>{const id=ids.get(item.id);if(!id)return;const li=el('li'),a=el('a','',item.label);a.href='#'+id;li.append(a);toc.append(li);});
 if(!toc.children.length)(r.sections||[]).forEach(s=>{const id=ids.get(s.id);if(!id)return;const li=el('li'),a=el('a','',s.heading);a.href='#'+id;li.append(a);toc.append(li);});
