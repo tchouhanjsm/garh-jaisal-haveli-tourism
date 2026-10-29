@@ -370,6 +370,85 @@ class RewriteImageReferencesTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "escapes package root"):
                 _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
 
+
+    def test_packaged_document_contract_checks_accessibility_and_seo(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            index_html = (
+                '<!doctype html><html lang="en"><head>'
+                '<meta name="viewport" content="width=device-width, initial-scale=1">'
+                '<title>Example home</title>'
+                '<meta name="description" content="Example home description">'
+                '<meta property="og:title" content="Example home">'
+                '<meta property="og:description" content="Example home description">'
+                '<meta property="og:image" content="assets/room.webp">'
+                '</head><body><a class="skip-link" href="#main">Skip to content</a>'
+                '<main id="main"><h1>Example home</h1>'
+                '<img src="assets/room.webp" alt="A heritage room">'
+                '<a href="#main">Back to top</a>'
+                '<button type="button" aria-label="Open menu"></button>'
+                '<label for="email">Email</label><input id="email" type="email">'
+                '</main></body></html>'
+            )
+            not_found_html = (
+                '<!doctype html><html lang="en"><head>'
+                '<meta name="viewport" content="width=device-width, initial-scale=1">'
+                '<title>Page not found</title>'
+                '<meta name="description" content="This page could not be found">'
+                '</head><body><a class="skip-link" href="#main">Skip to content</a>'
+                '<main id="main"><h1>Page not found</h1><a href="#main">Home</a></main></body></html>'
+            )
+            index_path = root / "index.html"
+            index_path.write_text(index_html, encoding="utf-8")
+            (root / "404.html").write_text(not_found_html, encoding="utf-8")
+
+            report = _PACKAGE_PREVIEW.validate_document_contract(root)
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["routesScanned"], 2)
+            self.assertEqual(report["imagesMissingAlt"], 0)
+            self.assertEqual(report["unlabelledFormControls"], 0)
+
+            index_path.write_text(index_html.replace(' alt="A heritage room"', ""), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "image missing alt attribute"):
+                _PACKAGE_PREVIEW.validate_document_contract(root)
+
+            index_path.write_text(
+                index_html.replace(
+                    '<a href="#main">Back to top</a>',
+                    '<a href="#main"><span aria-hidden="true">↗</span></a>',
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "link has no accessible name"):
+                _PACKAGE_PREVIEW.validate_document_contract(root)
+
+            index_path.write_text(
+                index_html.replace(
+                    '<meta property="og:description" content="Example home description">',
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "Open Graph metadata missing"):
+                _PACKAGE_PREVIEW.validate_document_contract(root)
+
+    def test_package_audits_reject_symlinked_output_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "preview"
+            root.mkdir()
+            linked_root = base / "preview-link"
+            linked_root.symlink_to(root, target_is_directory=True)
+
+            for audit in (
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure,
+                _PACKAGE_PREVIEW.validate_no_legacy_image_tree_references,
+                _PACKAGE_PREVIEW.validate_document_contract,
+            ):
+                with self.subTest(audit=audit.__name__):
+                    with self.assertRaisesRegex(RuntimeError, "root must not be a symlink"):
+                        audit(linked_root)
+
     def test_release_archive_manifest_covers_every_safe_payload_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -393,6 +472,30 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "localReferencesChecked": 1,
                     "missingLocalReferences": 0,
                 },
+                "documentContract": {
+                    "status": "PASS",
+                    "routesScanned": 1,
+                    "imagesChecked": 0,
+                    "imagesMissingAlt": 0,
+                    "linksChecked": 1,
+                    "unnamedLinks": 0,
+                    "buttonsChecked": 1,
+                    "unnamedButtons": 0,
+                    "formControlsChecked": 0,
+                    "unlabelledFormControls": 0,
+                    "missingLanguage": 0,
+                    "missingTitle": 0,
+                    "missingDescription": 0,
+                    "missingViewport": 0,
+                    "missingH1": 0,
+                    "missingMain": 0,
+                    "missingSkipLink": 0,
+                    "missingOpenGraph": 0,
+                    "brokenAriaLabelledbyReferences": 0,
+                    "duplicateIds": 0,
+                    "duplicateTitles": 0,
+                    "duplicateDescriptions": 0,
+                },
                 "files": [{
                     "path": "index.html",
                     "bytes": len(payload),
@@ -404,6 +507,18 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
             # A complete manifest and matching payload must remain packageable.
             _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+            manifest["documentContract"]["status"] = "FAIL"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "passing document accessibility/SEO contract"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["documentContract"]["status"] = "PASS"
+            manifest["documentContract"]["unnamedLinks"] = 1
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "Document accessibility/SEO metric must be zero: unnamedLinks"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["documentContract"]["unnamedLinks"] = 0
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             manifest["runtimeAssetClosure"]["status"] = "FAIL"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
