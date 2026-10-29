@@ -18,13 +18,36 @@
   font-size: clamp(32px, 4.2vw, 52px);
   text-wrap: balance;
 }
-.stay-planner__intro > p:last-child {
+.stay-planner__intro > p:last-of-type {
   max-width: 540px;
   margin: 20px 0 0;
   color: var(--muted, #69736a);
   font-size: 13px;
   line-height: 1.9;
 }
+.stay-planner__quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 18px;
+  margin-top: 22px;
+}
+.stay-planner__quick-links a {
+  color: var(--gold-dark, #8c673a);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.7;
+  text-decoration: underline;
+  text-decoration-color: rgba(140, 103, 58, .45);
+  text-underline-offset: 4px;
+}
+.stay-planner__quick-links a:hover {
+  text-decoration-color: currentColor;
+}
+.stay-planner__quick-links a:focus-visible {
+  outline: 3px solid var(--gold-dark, #8c673a);
+  outline-offset: 4px;
+}
+
 .stay-planner__details {
   min-width: 0;
   border: 1px solid var(--line, #e0d7c8);
@@ -193,6 +216,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+.stay-planner__result button[data-copy-stay-plan] {
+  border-color: rgba(26, 40, 33, .45);
+  background: transparent;
+  color: var(--ink, #1a2821);
 }
 .stay-planner__result button[data-edit-stay-plan] {
   border-color: rgba(26, 40, 33, .45);

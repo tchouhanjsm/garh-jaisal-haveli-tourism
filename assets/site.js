@@ -470,6 +470,9 @@
         }
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
+      document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
+        detail: { whatsappBaseUrl }
+      }));
       configureRoomCompareEnquiry(whatsappBaseUrl);
       configureArrivalPlanningForms(whatsappBaseUrl);
 
@@ -585,6 +588,9 @@
         || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
+      document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
+        detail: { whatsappBaseUrl: '' }
+      }));
       if (contactStatus) contactStatus.hidden = false;
       enquiryLinks.forEach(link => disableContactLink(link, 'WhatsApp unavailable'));
       phoneLinks.forEach(link => disableContactLink(link, 'Phone unavailable'));

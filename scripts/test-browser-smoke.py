@@ -1233,7 +1233,7 @@ def check_404_recovery(page, base_url: str) -> dict:
 
 
 def check_stay_planner(page, base_url: str) -> None:
-    """Exercise the shared enquiry planner without sending or persisting guest details."""
+    """Exercise the shared enquiry planner, editable draft, and deliberate WhatsApp handoff."""
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
     planner = page.locator("[data-stay-planner]")
     check(planner.count() == 1, "Stay planner should appear once on the home route")
@@ -1247,6 +1247,8 @@ def check_stay_planner(page, base_url: str) -> None:
     guests = form.locator("#stay-plan-guests")
     draft = planner.locator("#stay-plan-draft")
     status = planner.locator("[data-stay-plan-status]")
+    whatsapp_button = planner.locator("[data-open-stay-plan-whatsapp]")
+    copy_button = planner.locator("[data-copy-stay-plan]")
 
     arrival.fill("2099-01-10")
     departure.fill("2099-01-10")
@@ -1259,6 +1261,11 @@ def check_stay_planner(page, base_url: str) -> None:
     non_get_requests: list[str] = []
     page.on("request", lambda request: non_get_requests.append(request.url)
             if request.method.upper() not in {"GET", "HEAD", "OPTIONS"} else None)
+    page.evaluate("""() => {
+      window.__stayPlanOriginalOpen = window.open;
+      window.__stayPlanOpenedUrl = null;
+      window.open = (url) => { window.__stayPlanOpenedUrl = String(url); return null; };
+    }""")
     form.locator('button[type="submit"]').click()
     check(planner.locator("[data-stay-plan-result]").is_visible(),
           "Stay planner should reveal a reviewable draft after valid input")
@@ -1273,6 +1280,47 @@ def check_stay_planner(page, base_url: str) -> None:
           "Stay planner must confirm that the draft remains local to the page")
     check(page.url.endswith("/index.html"), "Stay planner must not navigate away when building a draft")
     check(not non_get_requests, "Stay planner must not submit the enquiry form over the network")
+    check(page.evaluate("window.__stayPlanOpenedUrl") is None,
+          "Preparing an enquiry must not launch WhatsApp automatically")
+
+    edited_message = message + "\nGuest note: A&B + 50% / room"
+    draft.fill(edited_message)
+    check(copy_button.is_enabled(), "The editable draft must retain its copy fallback")
+    ready = False
+    try:
+        page.wait_for_function(
+            "() => { const button = document.querySelector('[data-open-stay-plan-whatsapp]'); return Boolean(button && !button.disabled); }",
+            timeout=5000,
+        )
+        ready = True
+    except Exception:
+        ready = False
+    check(ready, "WhatsApp handoff must enable after contact configuration and a draft are ready")
+    if ready:
+        whatsapp_button.click()
+        opened_url = page.evaluate("window.__stayPlanOpenedUrl")
+        parsed_target = page.evaluate("""raw => {
+          try {
+            const url = new URL(raw);
+            return {protocol: url.protocol, hostname: url.hostname, pathname: url.pathname, text: url.searchParams.get('text')};
+          } catch (_) { return null; }
+        }""", opened_url)
+        path_digits = (parsed_target or {}).get("pathname", "").strip("/")
+        check(bool(parsed_target) and parsed_target["protocol"] == "https:"
+              and parsed_target["hostname"] == "wa.me"
+              and path_digits.isdigit() and 8 <= len(path_digits) <= 15,
+              "WhatsApp handoff must use the centrally authorized HTTPS wa.me destination")
+        check(bool(parsed_target) and parsed_target["text"] == edited_message,
+              "WhatsApp handoff must safely encode the exact guest-edited draft")
+        check("press Send yourself" in status.inner_text(),
+              "WhatsApp handoff must clearly require the guest to review and send manually")
+        check(page.url.endswith("/index.html"),
+              "WhatsApp handoff test must not navigate the site or send guest details from the page")
+    page.evaluate("""() => {
+      if (typeof window.__stayPlanOriginalOpen === 'function') window.open = window.__stayPlanOriginalOpen;
+      delete window.__stayPlanOriginalOpen;
+      delete window.__stayPlanOpenedUrl;
+    }""")
 
     # A failed or disabled script must not turn guest dates and notes into a GET query.
     browser = page.context.browser
@@ -1318,6 +1366,77 @@ def check_stay_planner(page, base_url: str) -> None:
     check(planner.locator("[data-stay-plan-result]").is_hidden(),
           "Stay planner should let visitors revise their draft inputs")
 
+    # Exercise the same central contact handoff on every other planner integration.
+    for route in (
+        "rooms.html", "experiences.html", "experience-details.html",
+        "dining.html", "about.html", "directions.html", "gallery.html",
+    ):
+        response = page.goto(base_url + route, wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"{route}: planner route should load before handoff testing")
+        route_planner = page.locator("[data-stay-planner]")
+        check(route_planner.count() == 1, f"{route}: planner must appear exactly once")
+        if route_planner.count() != 1:
+            continue
+        route_planner.locator("[data-stay-planner-disclosure] summary").click()
+        route_form = route_planner.locator("[data-stay-planner-form]")
+        route_form.locator("#stay-plan-arrival").fill("2099-02-10")
+        route_form.locator("#stay-plan-departure").fill("2099-02-12")
+        route_form.locator("#stay-plan-guests").select_option("2")
+        route_form.locator("[data-stay-plan-topic]").first.check()
+        route_draft = route_planner.locator("#stay-plan-draft")
+        route_status = route_planner.locator("[data-stay-plan-status]")
+        page.evaluate("""() => {
+          window.__stayPlanOriginalOpen = window.open;
+          window.__stayPlanOpenedUrl = null;
+          window.open = (url) => { window.__stayPlanOpenedUrl = String(url); return null; };
+        }""")
+        route_form.locator('button[type="submit"]').click()
+        check(route_planner.locator("[data-stay-plan-result]").is_visible(),
+              f"{route}: valid details should create a local reviewable draft")
+        route_message = route_draft.input_value()
+        check("10 February 2099" in route_message and "12 February 2099" in route_message,
+              f"{route}: draft should retain its requested dates")
+        check(page.evaluate("window.__stayPlanOpenedUrl") is None,
+              f"{route}: preparing a draft must not open WhatsApp automatically")
+        route_ready = False
+        try:
+            page.wait_for_function(
+                "() => { const button = document.querySelector('[data-open-stay-plan-whatsapp]'); return Boolean(button && !button.disabled); }",
+                timeout=5000,
+            )
+            route_ready = True
+        except Exception:
+            route_ready = False
+        check(route_ready, f"{route}: WhatsApp handoff must enable with authorized configuration and a draft")
+        if route_ready:
+            route_planner.locator("[data-open-stay-plan-whatsapp]").click()
+            opened_url = page.evaluate("window.__stayPlanOpenedUrl")
+            parsed_target = page.evaluate("""raw => {
+              try {
+                const url = new URL(raw);
+                return {protocol: url.protocol, hostname: url.hostname, pathname: url.pathname, text: url.searchParams.get('text')};
+              } catch (_) { return null; }
+            }""", opened_url)
+            path_digits = (parsed_target or {}).get("pathname", "").strip("/")
+            check(bool(parsed_target) and parsed_target["protocol"] == "https:"
+                  and parsed_target["hostname"] == "wa.me"
+                  and path_digits.isdigit() and 8 <= len(path_digits) <= 15,
+                  f"{route}: handoff must use the authorized HTTPS wa.me destination")
+            check(bool(parsed_target) and parsed_target["text"] == route_message,
+                  f"{route}: encoded WhatsApp draft must match the generated guest enquiry")
+            check("press Send yourself" in route_status.inner_text(),
+                  f"{route}: handoff must preserve the guest-controlled send step")
+        page.evaluate("""() => {
+          if (typeof window.__stayPlanOriginalOpen === 'function') window.open = window.__stayPlanOriginalOpen;
+          delete window.__stayPlanOriginalOpen;
+          delete window.__stayPlanOpenedUrl;
+        }""")
+        check(page.url.endswith("/" + route),
+              f"{route}: preparing and opening a WhatsApp draft must not navigate the site")
+
+    check(not non_get_requests,
+          "Stay planner handoff must not submit guest details using a non-GET request")
 
 def check_contact_hydration(page, base_url: str) -> None:
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)

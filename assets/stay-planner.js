@@ -16,10 +16,11 @@
   const status = root.querySelector('[data-stay-plan-status]');
   const draft = root.querySelector('#stay-plan-draft');
   const copyButton = root.querySelector('[data-copy-stay-plan]');
+  const whatsappButton = root.querySelector('[data-open-stay-plan-whatsapp]');
   const editButton = root.querySelector('[data-edit-stay-plan]');
 
   if (!form || !arrival || !departure || !guests || topics.length === 0 ||
-      !notes || !result || !status || !draft || !copyButton || !editButton) {
+      !notes || !result || !status || !draft || !copyButton || !whatsappButton || !editButton) {
     return;
   }
 
@@ -62,6 +63,47 @@
   syncDates();
   syncTopics();
 
+  let whatsappBaseUrl = '';
+
+  function normalizeWhatsAppBaseUrl(value) {
+    if (typeof value !== 'string' || !value) return '';
+    try {
+      const url = new URL(value);
+      if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'wa.me'
+          || url.port !== '' || !/^\/\d{8,15}\/?$/.test(url.pathname)
+          || url.username || url.password || url.search || url.hash) return '';
+      return url.origin + url.pathname.replace(/\/$/, '');
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function updateShareActions() {
+    const hasDraft = Boolean(draft.value.trim()) && !result.hidden;
+    copyButton.disabled = !hasDraft;
+    whatsappButton.disabled = !hasDraft || !whatsappBaseUrl;
+  }
+
+  function invalidateDraft() {
+    if (result.hidden) return;
+    draft.value = '';
+    updateShareActions();
+    status.textContent = 'Your details changed. Prepare a new draft before copying or opening WhatsApp. Nothing has been sent or saved.';
+  }
+
+  document.addEventListener('garh-jaisal:contact-ready', event => {
+    whatsappBaseUrl = normalizeWhatsAppBaseUrl(
+      event && event.detail ? event.detail.whatsappBaseUrl : ''
+    );
+    updateShareActions();
+    if (!whatsappBaseUrl && !result.hidden && draft.value.trim()) {
+      status.textContent = 'Your enquiry draft is available to copy, but the configured WhatsApp destination could not be loaded. Nothing has been sent.';
+    }
+  });
+
+  form.addEventListener('input', invalidateDraft);
+  form.addEventListener('change', invalidateDraft);
+
   form.addEventListener('submit', event => {
     event.preventDefault();
     syncDates();
@@ -83,8 +125,10 @@
 
     draft.value = lines.join('\n');
     result.hidden = false;
-    copyButton.disabled = false;
-    status.textContent = 'Your draft is ready on this page. Nothing has been sent or saved.';
+    updateShareActions();
+    status.textContent = whatsappBaseUrl
+      ? 'Your draft is ready on this page. Nothing has been sent or saved. Edit it below, then deliberately open WhatsApp or copy it.'
+      : 'Your draft is ready on this page. Nothing has been sent or saved. WhatsApp is unavailable, so copy or manually select the message below.';
     if (disclosure) disclosure.open = true;
     result.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   });
@@ -114,8 +158,33 @@
       : 'Select the draft text above and copy it manually. Nothing has been sent.';
   });
 
+  draft.addEventListener('input', () => {
+    updateShareActions();
+    status.textContent = draft.value.trim()
+      ? 'Draft edited locally. Review it carefully before sharing. Nothing has been sent or saved.'
+      : 'The message is empty. Prepare a fresh draft or add text before sharing.';
+  });
+
+  whatsappButton.addEventListener('click', () => {
+    const message = draft.value.trim();
+    if (!whatsappBaseUrl || !message || result.hidden) {
+      updateShareActions();
+      return;
+    }
+
+    const target = new URL(whatsappBaseUrl);
+    target.searchParams.set('text', message);
+    try {
+      window.open(target.toString(), '_blank', 'noopener,noreferrer');
+    } catch (_) {
+      // The editable draft remains available for manual copy if the handoff fails.
+    }
+    status.textContent = 'WhatsApp handoff requested. Review the prefilled draft there and press Send yourself. If a new tab does not appear, copy the message below. Nothing was sent by this page.';
+  });
+
   editButton.addEventListener('click', () => {
     result.hidden = true;
+    updateShareActions();
     form.querySelector('input, select, textarea').focus();
   });
 })();

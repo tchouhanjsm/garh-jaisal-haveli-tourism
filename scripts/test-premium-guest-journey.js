@@ -21,6 +21,8 @@ const stylesheet = 'assets/css/premium-guest-journey.css';
 const cssPath = path.join(ROOT, stylesheet);
 const css = fs.readFileSync(cssPath, 'utf8');
 const siteJs = fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8');
+const stayPlannerJs = fs.readFileSync(path.join(ROOT, 'assets/stay-planner.js'), 'utf8');
+const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets/css/stay-planner.css'), 'utf8');
 assert.match(css, /--premium-ease:\s*cubic-bezier\(/, 'premium motion tokens must be centralized');
 assert.match(css, /\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
   'desktop journey needs four consistently aligned steps');
@@ -55,6 +57,17 @@ assert.match(siteJs, /IntersectionObserver/,
 assert.match(siteJs, /directEnquiryDismissed/,
   'dismissal must persist for the current page view');
 
+assert.match(siteJs, /garh-jaisal:contact-ready/,
+  'central contact validation must publish the authorized handoff readiness state');
+assert.match(stayPlannerJs, /document\.addEventListener\('garh-jaisal:contact-ready'/,
+  'the stay planner must consume the central contact readiness state');
+assert.match(stayPlannerJs, /searchParams\.set\('text', message\)/,
+  'WhatsApp handoff must URL-encode the edited message safely');
+assert.match(stayPlannerJs, /whatsappButton\.addEventListener\('click'/,
+  'the planner must only launch its external handoff after an explicit click');
+assert.match(stayPlannerCss, /\.stay-planner__quick-links a:focus-visible/,
+  'quick decision links must have a visible keyboard focus state');
+
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
   const dockMatches = [...html.matchAll(/<aside class="direct-enquiry-dock" data-direct-enquiry-dock[\s\S]*?<\/aside>/g)];
@@ -74,6 +87,24 @@ for (const route of ROUTES) {
   assert.ok(allStyles.length, route.file + ': expected linked stylesheets');
   assert.ok(allStyles[allStyles.length - 1][0].includes('assets/css/premium-guest-journey.css'),
     route.file + ': premium visual layer must load after route-specific styles');
+  const plannerMatch = html.match(/<section class="stay-planner wrap" data-stay-planner[\s\S]*?<\/section>/);
+  assert.ok(plannerMatch, route.file + ': each core route must expose the shared stay planner');
+  assert.equal((html.match(/<section class="stay-planner wrap" data-stay-planner\b/g) || []).length, 1,
+    route.file + ': planner must appear exactly once per route');
+  const planner = plannerMatch ? plannerMatch[0] : '';
+  assert.match(planner, /<nav class="stay-planner__quick-links" aria-label="Explore stay details">[\s\S]*?<\/nav>/,
+    route.file + ': planner must connect room, experience, dining, arrival and gallery decision pages');
+  assert.deepEqual([...planner.matchAll(/<a href="([^"]+)">([^<]+)<\/a>/g)].map(match => match[1]),
+    ['rooms.html', 'experiences.html', 'dining.html', 'directions.html#arrival-planning', 'gallery.html'],
+    route.file + ': planner decision links must use the expected local route set');
+  assert.match(planner, /data-open-stay-plan-whatsapp disabled/,
+    route.file + ': WhatsApp handoff must start disabled until configuration and a draft are ready');
+  assert.match(planner, /data-copy-stay-plan disabled/,
+    route.file + ': copy fallback must start disabled until a draft exists');
+  assert.doesNotMatch(planner, /data-stay-plan-draft[^>]*readonly/,
+    route.file + ': guests must be able to edit their generated message directly');
+  assert.match(planner, /Opening WhatsApp creates a draft for you to review; you must press Send yourself/,
+    route.file + ': handoff disclosure must distinguish an enquiry from a sent message or booking');
   if (!route.journey) {
     assert.doesNotMatch(html, /<section class="guest-journey"/,
       route.file + ': homepage must retain its own planning panel instead of duplicating the shared rail');
@@ -119,4 +150,4 @@ const allDockMessages = ROUTES.map(route => {
 });
 assert.equal(new Set(allDockMessages).size, ROUTES.length, 'each core route must keep its own contextual draft');
 
-console.log('PASS: premium journey and contextual direct-enquiry dock contracts cover all eight core routes.');
+console.log('PASS: premium journey, planner handoff and contextual enquiry contracts cover all eight core routes.');

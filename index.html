@@ -178,7 +178,14 @@
   <div class="stay-planner__intro">
     <p class="eyebrow">Bring the details together</p>
     <h2 class="display-title" id="stay-planner-title">One clear note.<br><em>A better-prepared visit.</em></h2>
-    <p>Planning a room, an experience, a rooftop meal or your arrival? Select the topics that matter and prepare one enquiry draft you can review and copy yourself. Nothing is sent or stored.</p>
+    <p>Planning a room, an experience, a rooftop meal or your arrival? Select the topics that matter and prepare one enquiry draft to review, edit and deliberately share. Nothing is sent or stored by this page.</p>
+    <nav class="stay-planner__quick-links" aria-label="Explore stay details">
+      <a href="rooms.html">Compare rooms</a>
+      <a href="experiences.html">Explore experiences</a>
+      <a href="dining.html">Dining details</a>
+      <a href="directions.html#arrival-planning">Arrival guide</a>
+      <a href="gallery.html">Browse gallery</a>
+    </nav>
   </div>
   <details class="stay-planner__details" data-stay-planner-disclosure>
     <summary>Build my stay enquiry</summary>
@@ -218,14 +225,15 @@
       <label class="stay-planner__field" for="stay-plan-notes">Anything else to include? <span>(optional)</span>
         <textarea id="stay-plan-notes" name="notes" maxlength="280" rows="3" placeholder="For example: approximate arrival time, room preferences or a special occasion."></textarea>
       </label>
-      <p class="stay-planner__form-note">This prepares an enquiry only. Availability and prices are not live-checked, and no booking or message is submitted.</p>
+      <p class="stay-planner__form-note">This prepares an enquiry only. Availability and prices are not live-checked. Opening WhatsApp creates a draft for you to review; you must press Send yourself. No booking is created here.</p>
       <button class="button button--gold" type="submit">Prepare enquiry draft <span aria-hidden="true">↗</span></button>
     </form>
     <div class="stay-planner__result" data-stay-plan-result hidden>
       <p class="stay-planner__result-status" data-stay-plan-status role="status" aria-live="polite"></p>
-      <label class="stay-planner__draft-label" for="stay-plan-draft">Review your message</label>
-      <textarea class="stay-planner__draft" id="stay-plan-draft" data-stay-plan-draft rows="8" readonly></textarea>
+      <label class="stay-planner__draft-label" for="stay-plan-draft">Review and edit your message</label>
+      <textarea class="stay-planner__draft" id="stay-plan-draft" data-stay-plan-draft rows="8" spellcheck="true"></textarea>
       <div class="stay-planner__result-actions">
+        <button type="button" data-open-stay-plan-whatsapp disabled>Open WhatsApp draft <span aria-hidden="true">↗</span></button>
         <button type="button" data-copy-stay-plan disabled>Copy enquiry</button>
         <button type="button" data-edit-stay-plan>Adjust details</button>
       </div>
