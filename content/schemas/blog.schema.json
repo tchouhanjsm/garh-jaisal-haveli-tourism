@@ -4,10 +4,11 @@
   "title": "Garh Jaisal Editorial Content",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "slug", "title", "seo", "status", "lede", "sections", "sources", "lastReviewed", "editorialReview", "media"],
+  "required": ["schemaVersion", "slug", "topic", "title", "seo", "status", "lede", "sections", "sources", "lastReviewed", "editorialReview", "media"],
   "properties": {
     "schemaVersion": {"const": 1},
     "slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "topic": {"type": "string", "enum": ["fort-and-heritage", "trip-planning", "itineraries", "desert-planning", "beyond-the-fort"]},
     "title": {"type": "string", "minLength": 10, "maxLength": 90},
     "seo": {
       "type": "object", "additionalProperties": false,

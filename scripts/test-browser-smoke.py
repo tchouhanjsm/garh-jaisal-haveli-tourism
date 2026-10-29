@@ -2497,6 +2497,62 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                       f"Directions at {width}px: booking bar must return when the hero summary clears")
 
 
+
+def check_journal_preview(page, base_url: str) -> None:
+    """Exercise the local Journal prototype without exposing draft article routes."""
+    response = page.goto(base_url + "preview/journal.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200,
+          "Journal preview: local prototype must load successfully")
+    if response is None or response.status != 200:
+        return
+    check(page.locator('meta[name="robots"][content="noindex,nofollow"]').count() == 1,
+          "Journal preview: must opt out of indexing")
+    check(page.locator('link[rel="canonical"]').count() == 0,
+          "Journal preview: must not claim a canonical URL")
+    check(page.locator("[data-preview-only]").is_visible(),
+          "Journal preview: draft-only disclosure must be visible")
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    except Exception as error:
+        check(False, f"Journal preview: all 12 draft cards should render from JSON ({error})")
+        return
+    check(page.locator("[data-journal-card]").count() == 12,
+          "Journal preview: exactly 12 current draft records should render")
+    check("12 draft guides" in page.locator("[data-journal-results]").inner_text().lower(),
+          "Journal preview: result count must announce all drafts")
+    check(page.locator("a[href*='/blogs/'], a[href^='../blogs/']").count() == 0,
+          "Journal preview: draft cards must not link to unpublished article URLs")
+    page.locator("[data-journal-topic]").select_option("fort-and-heritage")
+    check(page.locator("[data-journal-card]:visible").count() == 3,
+          "Journal preview: Fort & heritage should filter to its three assigned drafts")
+    page.locator("[data-journal-search]").fill("Jaisalmer Fort Guide")
+    check(page.locator("[data-journal-card]:visible").count() == 1,
+          "Journal preview: search must intersect with the selected topic")
+    page.locator("[data-journal-clear]").click()
+    check(page.locator("[data-journal-card]:visible").count() == 12,
+          "Journal preview: clear filters must restore all draft cards")
+    page.locator('[data-journal-open="jaisalmer-fort-guide"]').first.click()
+    article = page.locator("[data-journal-article]")
+    check(article.is_visible(), "Journal preview: a draft card should open its article presentation")
+    check(article.locator("#journal-article-title").inner_text() == "Jaisalmer Fort Guide: Plan a Better Visit",
+          "Journal preview: heading must come from the article record")
+    toc = article.locator("[data-journal-toc] a")
+    check(toc.count() > 0, "Journal preview: table of contents must be populated")
+    check(article.locator("[data-journal-sources] a").count() >= 2,
+          "Journal preview: sources must remain visible")
+    check(article.locator("[data-journal-related] button").count() > 0,
+          "Journal preview: related drafts must be discoverable")
+    if toc.count() > 0:
+        target = toc.first.get_attribute("href")
+        check(bool(target) and article.locator(target).count() == 1,
+              "Journal preview: contents links must target a real section")
+    page.locator("[data-journal-back]").first.click()
+    check(page.locator("[data-journal-card]:visible").count() == 12,
+          "Journal preview: back action must restore the archive")
+    check(page.url.endswith("/preview/journal.html"),
+          "Journal preview: browsing must stay within the local prototype")
+
+
 def check_arrival_planning_deep_links(page, base_url: str) -> None:
     """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
     for page_name in PAGES:
@@ -3176,6 +3232,7 @@ def main(argv: list[str] | None = None) -> int:
             check_arrival_wayfinding_journey(page, base_url)
             check_arrival_planning_enquiry(page, base_url, browser)
             check_arrival_planning_deep_links(page, base_url)
+            check_journal_preview(page, base_url)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)

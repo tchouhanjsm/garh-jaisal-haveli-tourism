@@ -309,6 +309,15 @@ Keep the Journal implementation as the next slice after M0 confirms shared visua
 - The Chromium suite now checks actual rendered card geometry at 320, 360, 390, 768, 1280 and 1440 CSS px, plus real section-navigation targets and heading visibility. The test fails if the grid collapses back into a narrow secondary column.
 - Corrected exact-head screenshot evidence and the full quality workflow passed on commit `549a579ed0fbece691989734db0753e43a652e5a` (run `40868200117`). The visible travel-grid defect is resolved in local Chromium screenshots; live staging and release sign-off remain separate.
 
+### M3 — local Journal design prototype (PR #66)
+
+- Added `preview/journal.html`, a local-only prototype driven by all 12 JSON records; it is outside the public route/staging-package contract and is not linked from public pages.
+- Added a schema-backed topic taxonomy: Fort & heritage, Trip planning, Itineraries, Desert planning and Beyond the Fort.
+- The prototype supports topic/search filtering, a featured Fort guide, article reading view, contents anchors, source links, related drafts and return/focus recovery.
+- Draft data is rendered through DOM text nodes. Article-specific photos are not presented as approved while contextual fit/rights review remains pending.
+- Node and real-Chromium checks protect this behavior. The public renderer must still emit zero blog pages; canonical approval stays false, robots stays blocking and the sitemap stays empty.
+- Acceptance is pending exact-head quality checks and visual-evidence review. This is a local design prototype, not a public Journal launch.
+
 ## 7. Source references
 
 - Authoritative legacy Direction page: `garh-jaisal-website/direction.php`

@@ -52,11 +52,16 @@ assert.ok(primaryQueries.every(query => query.length >= 4), 'every article must 
 assert.equal(new Set(primaryQueries).size, records.length,
   'primary queries must be unique across the cluster to reduce keyword cannibalization');
 const allowedIntents = new Set(['informational', 'commercial', 'transactional', 'local']);
+const allowedTopics = new Set(['fort-and-heritage', 'trip-planning', 'itineraries', 'desert-planning', 'beyond-the-fort']);
+const observedTopics = new Set();
 for (const record of records) {
   assert.ok(allowedIntents.has(record.seo.searchIntent),
     record.slug + ': search intent must use the controlled editorial vocabulary');
+  assert.ok(allowedTopics.has(record.topic), record.slug + ': topic must use the shared editorial taxonomy');
+  observedTopics.add(record.topic);
 }
 assert.equal(EXPECTED_CLUSTER.length, 11);
+assert.equal(observedTopics.size, allowedTopics.size, 'the draft collection must represent every editorial topic');
 for (const slug of EXPECTED_CLUSTER) {
   assert.ok(bySlug.has(slug), 'missing editorial-cluster record: ' + slug);
   const record = bySlug.get(slug);

@@ -54,6 +54,18 @@ python3 -m http.server 8000
 
 Open `http://localhost:8000`. A local HTTP server is recommended because browsers can treat some assets differently when opened as `file://` URLs.
 
+## Local Journal design preview
+
+The non-public prototype lives at `preview/journal.html`. It reads the JSON article records over local HTTP and supports search, topic filters, an article reading view, contents, sources and related drafts.
+
+Run a server from the repository root and open `http://localhost:8000/preview/journal.html`:
+
+```bash
+python3 -m http.server 8000
+```
+
+The preview is excluded from the public route and staging-package contract. It is not linked from public navigation, emits no canonical/article schema, and must never be included in a production deployment. All 12 articles remain drafts pending editorial, source, owner-fact, image-rights and release review.
+
 ## Images
 
 The site uses locally hosted images in `assets/images/`, mapped to page subject and role. New source-backed gallery assets are tracked in `docs/MEDIA-MIGRATION-MANIFEST.json`. To prepare the assets for a standalone deployment, run:

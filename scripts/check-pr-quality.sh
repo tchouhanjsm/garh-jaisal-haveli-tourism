@@ -57,6 +57,7 @@ echo "== Content contract =="
 node scripts/validate-content.js
 node scripts/test-content-contract.js
 node scripts/test-editorial-content-cluster.js
+node scripts/test-journal-preview.js
 node scripts/test-editorial-readiness.js
 node scripts/test-editorial-media-readiness.js
 node scripts/audit-editorial-media-readiness.js --check
