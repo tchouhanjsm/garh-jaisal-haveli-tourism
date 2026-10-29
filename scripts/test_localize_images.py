@@ -409,6 +409,17 @@ class RewriteImageReferencesTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing-icon.svg"):
                 _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
 
+            script_path.write_text(
+                "const template = " + chr(96) + "$" +
+                "{import(\"./missing-template-expression.js\")}" + chr(96) + ";",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "broken local asset reference.*missing-template-expression.js",
+            ):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
 
     def test_packaged_document_contract_checks_accessibility_and_seo(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

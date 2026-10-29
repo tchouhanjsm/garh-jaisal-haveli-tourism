@@ -616,6 +616,60 @@ def css_references(text: str) -> list[tuple[str, str]]:
     return list(dict.fromkeys(references))
 
 
+def template_expression_end(source: str, start: int) -> int | None:
+    """Find the closing brace for a template interpolation without counting nested syntax."""
+    depth = 1
+    index = start
+    size = len(source)
+    while index < size:
+        if source.startswith("//", index):
+            newline = source.find("\n", index + 2)
+            if newline < 0:
+                return None
+            index = newline
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            if end < 0:
+                return None
+            index = end + 2
+            continue
+        char = source[index]
+        if char in ("'", '"'):
+            quote = char
+            index += 1
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == quote:
+                    index += 1
+                    break
+                index += 1
+            continue
+        if char == chr(96):
+            index += 1
+            while index < size:
+                char = source[index]
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == chr(96):
+                    index += 1
+                    break
+                index += 1
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
 def javascript_tokens(source: str) -> list[tuple[str, str, int]]:
     """Tokenize dependency-bearing JavaScript syntax while ignoring comments and literal text."""
     tokens: list[tuple[str, str, int]] = []
@@ -688,6 +742,21 @@ def javascript_tokens(source: str) -> list[tuple[str, str, int]]:
                     if index + 1 < size and source[index + 1] == "\n":
                         line += 1
                     index += 2
+                    continue
+                if source.startswith("$" + "{", index):
+                    expression_start = index + 2
+                    expression_end = template_expression_end(source, expression_start)
+                    if expression_end is None:
+                        index = size
+                        break
+                    expression = source[expression_start:expression_end]
+                    expression_tokens = javascript_tokens(expression)
+                    tokens.extend(
+                        (kind, value, line + token_line - 1)
+                        for kind, value, token_line in expression_tokens
+                    )
+                    line += expression.count("\n")
+                    index = expression_end + 1
                     continue
                 if char == chr(96):
                     index += 1
