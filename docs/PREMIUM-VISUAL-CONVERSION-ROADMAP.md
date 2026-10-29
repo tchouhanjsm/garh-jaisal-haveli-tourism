@@ -289,12 +289,19 @@ Keep the Journal implementation as the next slice after M0 confirms shared visua
 - The baseline was manually inspected for Directions. It exposed the travel section's nested grid being rendered in a narrow right-hand track at desktop/tablet widths despite the static tests passing.
 - The evidence artifact is a local Chromium baseline, not live-staging proof or a human acceptance claim for every route.
 
+### M1 — design-token ownership and content-rail alignment
+
+- A single canonical `:root` in `assets/site.css` now owns the active premium palette, typography families, 1280px content rail, shared shadow/easing, button-height/radius and focus-ring tokens.
+- The duplicate token root was removed from `assets/css/premium-guest-journey.css`; it is now a consumer of the shared system. The page wrapper and guest-journey rail use the same `--container` token instead of competing 1240px/1280px limits.
+- The shared premium test now locks the one-root/token contract, key palette values, shared container alignment and button geometry. This is an ownership/consistency refactor, not a new visual theme.
+- Final acceptance depends on exact-head CI and screenshot regression evidence for the full core-route set.
+
 ### M2 — Directions arrival slice
 
 - The arrival hero/quick-facts card, distance cards, four-step approach, source-qualified travel options, mobility note, exact-pin/address panel, date-specific enquiry, contextual FAQs and responsive sticky section navigation are implemented on this branch.
 - Current change fixes the travel section's layout ownership: it no longer reuses the unrelated `.transport-source-panel` two-column layout, and the generic boxed side-actions class is removed. Wide screens now get a balanced editorial intro plus a full-width three-card grid; tablets use two columns; narrow phones stack cards.
 - The Chromium suite now checks actual rendered card geometry at 320, 360, 390, 768, 1280 and 1440 CSS px, plus real section-navigation targets and heading visibility. The test fails if the grid collapses back into a narrow secondary column.
-- This is the current implementation batch. Its visual acceptance remains conditional on the corrected exact-head screenshot artifact and tests; merge/deployment are not implied.
+- Corrected exact-head screenshot evidence and the full quality workflow passed on commit `549a579ed0fbece691989734db0753e43a652e5a` (run `40868200117`). The visible travel-grid defect is resolved in local Chromium screenshots; live staging and release sign-off remain separate.
 
 ## 7. Source references
 

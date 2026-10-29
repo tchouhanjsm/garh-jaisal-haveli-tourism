@@ -20,10 +20,31 @@ const ROUTES = [
 const stylesheet = 'assets/css/premium-guest-journey.css';
 const cssPath = path.join(ROOT, stylesheet);
 const css = fs.readFileSync(cssPath, 'utf8');
+const siteCssPath = path.join(ROOT, 'assets/site.css');
+const siteCss = fs.readFileSync(siteCssPath, 'utf8');
 const siteJs = fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8');
 const stayPlannerJs = fs.readFileSync(path.join(ROOT, 'assets/stay-planner.js'), 'utf8');
 const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets/css/stay-planner.css'), 'utf8');
-assert.match(css, /--premium-ease:\s*cubic-bezier\(/, 'premium motion tokens must be centralized');
+
+assert.equal((siteCss.match(/:root\s*\{/g) || []).length, 1,
+  'the main stylesheet must own exactly one canonical design-token root');
+assert.doesNotMatch(css, /:root\s*\{/,
+  'the premium layer must consume canonical design tokens, not redefine the palette');
+assert.match(siteCss, /--ink:\s*#1a2821/i, 'the canonical ink token must match the approved premium palette');
+assert.match(siteCss, /--paper:\s*#faf8f3/i, 'the canonical paper token must match the approved premium palette');
+assert.match(siteCss, /--gold-dark:\s*#8c673a/i, 'the canonical accessible gold-ink token must be explicit');
+assert.match(siteCss, /--container:\s*1280px/i, 'the canonical content rail must be 1280px');
+assert.match(siteCss, /--premium-ease:\s*cubic-bezier\(/, 'shared motion easing must be centralized');
+assert.match(siteCss, /--premium-shadow:\s*0 18px 52px/, 'shared premium shadow must be centralized');
+assert.match(siteCss, /--button-height:\s*52px/, 'primary control height must use a shared token');
+assert.match(siteCss, /--control-radius:\s*2px/, 'control geometry must use a shared radius token');
+assert.match(siteCss, /--focus-ring:\s*3px solid/, 'keyboard focus ring must be centralized');
+assert.match(css, /\.wrap\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
+  'premium content wrapper must consume the shared canonical container width');
+assert.match(css, /\.guest-journey\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
+  'guest-journey rail must align to the same canonical container width');
+assert.match(css, /\.button\s*\{[\s\S]*?min-height:\s*var\(--button-height\)[\s\S]*?border-radius:\s*var\(--control-radius\)/,
+  'shared buttons must consume the canonical interaction geometry tokens');
 assert.match(css, /\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
   'desktop journey needs four consistently aligned steps');
 assert.match(css, /@media\s*\(max-width:\s*760px\)[\s\S]*?\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
