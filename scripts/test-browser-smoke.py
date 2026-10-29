@@ -2448,11 +2448,16 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             """() => {
               const heading = document.querySelector('#travel-options-title');
               const header = document.querySelector('.site-header');
+              const sectionNav = document.querySelector('.arrival-section-nav');
               const current = document.querySelector('.arrival-section-nav a[aria-current="location"]');
-              if (!heading || !header || !current || current.getAttribute('href') !== '#travel-options-title') return false;
+              if (!heading || !header || !sectionNav || !current || current.getAttribute('href') !== '#travel-options-title') return false;
               const top = heading.getBoundingClientRect().top;
               const headerBottom = header.getBoundingClientRect().bottom;
-              return top >= headerBottom + 8 && top <= headerBottom + 80;
+              // At tablet/mobile widths the section rail sticks beneath the site header.
+              // Measure the heading against the lowest visible sticky obstruction, not the header alone.
+              const navBottom = sectionNav.getBoundingClientRect().bottom;
+              const clearanceBottom = Math.max(headerBottom, navBottom);
+              return top >= clearanceBottom + 8 && top <= clearanceBottom + 80;
             }""",
             timeout=5000,
         )
@@ -2471,10 +2476,14 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                 """() => {
                   const heading = document.querySelector('#travel-options-title');
                   const header = document.querySelector('.site-header');
-                  if (!heading || !header || window.location.hash !== '#travel-options-title') return false;
+                  const sectionNav = document.querySelector('.arrival-section-nav');
+                  if (!heading || !header || !sectionNav || window.location.hash !== '#travel-options-title') return false;
                   const top = heading.getBoundingClientRect().top;
                   const headerBottom = header.getBoundingClientRect().bottom;
-                  return top >= headerBottom + 8 && top <= headerBottom + 80;
+                  // The section rail is sticky below the header at tablet/mobile widths.
+                  const navBottom = sectionNav.getBoundingClientRect().bottom;
+                  const clearanceBottom = Math.max(headerBottom, navBottom);
+                  return top >= clearanceBottom + 8 && top <= clearanceBottom + 80;
                 }""",
                 timeout=5000,
             )
