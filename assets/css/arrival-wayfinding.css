@@ -336,7 +336,7 @@
 #walking-access-title,
 #arrival-map-title,
 #arrival-faq-title {
-  scroll-margin-top: 112px;
+  scroll-margin-top: 50px;
 }
 .arrival-travel {
   display: grid;
@@ -628,8 +628,6 @@
   background: rgba(248, 245, 239, .97);
   backdrop-filter: blur(12px);
 }
-#arrival-overview-title, #travel-options-title, #walking-access-title,
-#arrival-map-title, #arrival-faq-title { scroll-margin-top: 168px; }
 .arrival-overview { display: block; padding-top: clamp(54px, 6vw, 86px); }
 .arrival-overview__copy {
   display: grid;
@@ -1007,6 +1005,8 @@
   outline-offset: 4px;
 }
 @media (max-width: 760px) {
+  #arrival-overview-title, #travel-options-title, #walking-access-title,
+  #arrival-map-title, #arrival-faq-title { scroll-margin-top: 78px; }
   .arrival-map__orientation {
     padding: 22px;
   }
