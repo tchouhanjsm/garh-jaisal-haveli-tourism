@@ -332,6 +332,12 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "uncompressedBudgetBytes": 18 * 1024 * 1024,
                     "sizeBudgetPassed": True,
                 },
+                "runtimeAssetClosure": {
+                    "status": "PASS",
+                    "filesScanned": 1,
+                    "localReferencesChecked": 1,
+                    "missingLocalReferences": 0,
+                },
                 "files": [{
                     "path": "index.html",
                     "bytes": len(payload),
@@ -343,6 +349,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
             # A complete manifest and matching payload must remain packageable.
             _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+            manifest["runtimeAssetClosure"]["status"] = "FAIL"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "passing runtime asset-closure audit"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["runtimeAssetClosure"]["status"] = "PASS"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             (output / "unmanifested.txt").write_text("not represented in release evidence", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "not listed in RELEASE-MANIFEST.json"):
