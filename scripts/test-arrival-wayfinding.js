@@ -141,8 +141,11 @@ assert.match(siteRuntime, /targetTop <= activationLine && targetTop > currentTop
   'active-section selection must use heading geometry rather than navigation link order');
 assert.match(siteRuntime, /Math\.max\(168, sectionNav\.getBoundingClientRect\(\)\.bottom \+ 32\)/,
   'the active-section reading line must remain below the sticky rail and align with heading scroll margins');
-assert.ok(stylesheet.includes('#arrival-overview-title, #travel-options-title, #walking-access-title,\n#arrival-map-title, #arrival-faq-title { scroll-margin-top: 168px; }'),
-  'tablet and mobile section headings must clear the sticky Directions rail');
+assert.ok(stylesheet.includes('#arrival-overview-title,\n#travel-options-title,\n#walking-access-title,\n#arrival-map-title,\n#arrival-faq-title {\n  scroll-margin-top: 50px;\n}'),
+  'desktop and tablet headings must add only the clearance needed beyond global scroll padding');
+const mobileOffsetRule = stylesheet.indexOf('scroll-margin-top: 78px;');
+assert.ok(mobileOffsetRule > stylesheet.lastIndexOf('@media (max-width: 760px)'),
+  'mobile headings must account for the smaller global scroll padding while clearing the sticky rail');
 assert.match(siteRuntime, /addEventListener\('hashchange', scheduleUpdate\)/,
   'deep-link changes must refresh the active section state');
 assert.match(siteRuntime, /addEventListener\('pageshow', scheduleUpdate\)/,
