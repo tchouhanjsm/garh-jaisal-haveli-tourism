@@ -44,6 +44,7 @@ const mediaFixture = () => ({
 const validBlog = {
   schemaVersion: 1,
   slug: 'jaisalmer-fort-guide',
+  topic: 'fort-and-heritage',
   title: 'A Practical Guide to Jaisalmer Fort',
   seo: { title: 'Jaisalmer Fort Visitor Guide', description, primaryQuery: 'Jaisalmer Fort guide', searchIntent: 'informational' },
   status: 'draft',

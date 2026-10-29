@@ -37,7 +37,7 @@ function blogRecord(slug) {
       candidates: [],
       approvedAssets: [],
     },
-    schemaVersion: 1, slug, title: 'Pack Safety Guide for Jaisalmer',
+    schemaVersion: 1, slug, topic: 'trip-planning', title: 'Pack Safety Guide for Jaisalmer',
     seo: {
       title: 'Pack Safety Guide for Jaisalmer',
       description: 'A practical, source-backed draft guide to help travellers plan a Jaisalmer visit and identify details that should be confirmed before travel.',
