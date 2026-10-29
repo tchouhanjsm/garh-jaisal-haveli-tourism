@@ -371,6 +371,14 @@ function validateRecordPolicy(type, record, root, registry, siteConfig, findings
         if (!(hasHero && hasHeroAlt && hasOg && hasOgAlt)) {
           findings.push({ path: sourcePath, message: 'approved/live blog requires a hero image, OG image, and meaningful alt text for both' });
         }
+        if (typeof record.heroCaption !== 'string'
+            || record.heroCaption.trim().length < 20
+            || record.heroCaption.trim().length > 180) {
+          findings.push({
+            path: sourcePath + '.heroCaption',
+            message: 'approved/live blog requires a reviewed hero caption between 20 and 180 characters',
+          });
+        }
       }
       if (status === 'approved_for_release' && record.publishedAt != null) {
         findings.push({ path: sourcePath + '.publishedAt', message: 'approved_for_release blog must not claim a publication date before going live' });

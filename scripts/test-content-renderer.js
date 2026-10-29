@@ -81,6 +81,7 @@ function makeBlogLive(root) {
   blog.publishedAt = '2026-10-25';
   blog.heroImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
   blog.heroAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
+  blog.heroCaption = 'Fixture caption for renderer verification: a test-only image & its <caption> markup.';
   copyFixtureImage(root, blog.heroImage);
   blog.seo.ogImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
   blog.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
@@ -169,6 +170,15 @@ try {
   writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', prematureBlog);
 
   makeBlogLive(root);
+  const captionlessBlog = readJson(root, 'content/blogs/jaisalmer-fort-guide.json');
+  delete captionlessBlog.heroCaption;
+  writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', captionlessBlog);
+  assert.throws(
+    () => buildContentPages(root, { write: false }),
+    /approved\/live blog requires a reviewed hero caption between 20 and 180 characters/,
+    'approved/live articles must fail closed when the reviewed hero caption is missing',
+  );
+  makeBlogLive(root);
   const beforeWrite = fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8');
   assert.throws(() => buildContentPages(root, { write: false }), /Generated content is out of date/);
   assert.equal(fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8'), beforeWrite);
@@ -197,6 +207,9 @@ try {
   }
   assert.ok(blogHtml.includes('aria-label="On this page"'));
   assert.ok(blogHtml.includes('id="living-fort"'));
+  assert.ok(blogHtml.includes('<figure class="content-page__hero-figure">'));
+  assert.ok(blogHtml.includes('<figcaption class="content-page__hero-caption">Fixture caption for renderer verification: a test-only image &amp; its &lt;caption&gt; markup.</figcaption>'),
+    'published hero captions must render visibly and escape untrusted markup');
   assert.ok(blogHtml.includes('Rajasthan Tourism — Jaisalmer destination guide'));
   assert.ok(blogHtml.includes('../tours/sunset-camel-safari.html'));
   assert.ok(sitemap.includes(SITEMAP_BEGIN) && sitemap.includes(SITEMAP_END));
