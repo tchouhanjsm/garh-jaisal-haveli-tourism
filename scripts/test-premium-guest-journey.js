@@ -7,11 +7,11 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const ROUTES = [
-  { file: 'index.html', journey: false },
+  { file: 'index.html', journey: false, planner: false },
   { file: 'rooms.html', journey: true, current: 'rooms.html' },
-  { file: 'experiences.html', journey: true, current: 'experiences.html' },
-  { file: 'experience-details.html', journey: true },
-  { file: 'dining.html', journey: true, current: 'dining.html' },
+  { file: 'experiences.html', journey: true, current: 'experiences.html', planner: false },
+  { file: 'experience-details.html', journey: true, planner: false },
+  { file: 'dining.html', journey: true, current: 'dining.html', planner: false },
   { file: 'about.html', journey: true },
   { file: 'directions.html', journey: true, current: 'directions.html#arrival-planning', planner: false },
   { file: 'gallery.html', journey: true },
@@ -110,13 +110,29 @@ for (const route of ROUTES) {
     route.file + ': premium visual layer must load after route-specific styles');
   if (route.planner === false) {
     assert.equal((html.match(/data-stay-planner/g) || []).length, 0,
-      route.file + ': a purpose-built arrival form must not be duplicated by the generic multi-topic stay planner');
+      route.file + ': this route must not repeat the generic multi-topic stay planner');
     assert.doesNotMatch(html, /assets\/css\/stay-planner\.css|assets\/stay-planner\.js/,
-      route.file + ': do not load generic planner assets when the component is intentionally absent');
-    assert.match(html, /data-arrival-planning-form/,
-      route.file + ': dedicated arrival enquiry remains the conversion path');
-    assert.match(html, /class="arrival-next-step__panel"/,
-      route.file + ': terminal action must return guests to the arrival planner');
+      route.file + ': do not load unused generic planner assets');
+    const contextualContracts = {
+      'index.html': /<section id="plan-stay" class="booking-panel wrap home-plan-panel"/,
+      'experiences.html': /<form class="guest-enquiry-form" data-guest-enquiry-form>/,
+      'experience-details.html': /<form class="guest-enquiry-form" data-guest-enquiry-form>/,
+      'dining.html': /data-restaurant-table-form/,
+      'directions.html': /data-arrival-planning-form/,
+    };
+    assert.ok(contextualContracts[route.file], route.file + ': an explicit conversion contract must be defined');
+    assert.match(html, contextualContracts[route.file],
+      route.file + ': route-specific booking/enquiry path must remain present');
+    if (route.file === 'dining.html') {
+      assert.equal((html.match(/data-restaurant-table-form/g) || []).length, 1,
+        'dining.html: retain one dedicated table enquiry form');
+      assert.match(html, /Your table is not reserved until the restaurant replies and confirms it/,
+        'dining.html: table enquiry must not be presented as a reservation');
+    }
+    if (route.file === 'directions.html') {
+      assert.match(html, /class="arrival-next-step__panel"/,
+        'directions.html: terminal action must return guests to the arrival planner');
+    }
   } else {
   const plannerMatch = html.match(/<section class="stay-planner wrap" data-stay-planner[\s\S]*?<\/section>/);
   assert.ok(plannerMatch, route.file + ': each core route must expose the shared stay planner');

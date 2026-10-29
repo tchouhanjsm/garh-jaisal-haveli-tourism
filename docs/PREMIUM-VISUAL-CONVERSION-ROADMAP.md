@@ -12,6 +12,8 @@
 - **CI contract correction:** retained a dedicated accessible facade-reference section, descriptive hero image alt text, and explicit contextual WhatsApp/phone arrival-confirmation copy required by the repository’s existing content/UX gate.
 - **Exact-head CI:** all quality gates passed on `079a98a4091260f4854c451e2fe161f436f8faa3`, including source/content quality, the guarded staging package, packaged responsive-image budgets and the packaged Chromium preview. PR #66 remains open; no deployment was performed.
 - **M0 visual evidence capture:** the standard browser smoke now preserves its existing 24 full-page PNG captures (eight core routes at 390, 1280 and 1440 CSS px) plus a JSON integrity/evidence report as a short-lived GitHub Actions artifact. Responsive behavior remains exercised at 320, 360, 390, 768, 1280 and 1440 px. Human review of the artifact and owner-approved staging UAT are still required before assigning the final visual score or marking the release ready.
+- **M4 — contextual conversion hierarchy:** the homepage retains its four-path planning panel instead of repeating the generic planner; Experiences and Experience Details use their purpose-built date/guest enquiry; Dining keeps its table-request form and a separate stay/experience enquiry; Directions keeps its arrival-specific planner. The generic multi-topic planner remains only on Rooms, About and Gallery, where it adds a useful general path. Unused planner CSS/JS are not loaded on the other routes.
+- **M4 regression coverage:** the Node conversion contract, premium route contract and Chromium smoke assert planner placement, route-specific forms, honest “enquiry not reservation” copy, and absence of unused planner assets. Chromium continues to exercise date validation, editable drafts, safe WhatsApp handoff, copy recovery and no-JavaScript privacy on retained planner routes.
 - No blog content is published and canonical/robots/sitemap release gates remain unchanged.
 
 ## 1. Objective and bar
@@ -271,7 +273,7 @@ A milestone does not count as complete because code was pushed.
 
 ## 6. Immediate next execution batch
 
-**Next milestone in this same PR: M3 — Journal preview visual QA and article-experience refinement.** The prototype already provides all 12 draft records, topic search/filter, article view, contents, sources and related drafts. Continue with:
+**M4 — cross-page conversion hierarchy — is now implemented as a complete code/test slice in this PR. Next: M3 — Journal preview visual QA and article-experience refinement.** The prototype already provides all 12 draft records, topic search/filter, article view, contents, sources and related drafts. Continue with:
 - add a dedicated preview screenshot set for the local-only Journal archive and article view without including it in the public route/sitemap/staging-package contract;
 - review the archive and article at 390 and 1280 px for title scale, text measure, card rhythm, filter/focus states, TOC readability and source/related-link behavior;
 - extend browser regression coverage for keyboard open/back, TOC navigation, no-match results and filter clearing;

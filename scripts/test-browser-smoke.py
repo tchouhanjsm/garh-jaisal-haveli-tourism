@@ -1252,9 +1252,21 @@ def check_404_recovery(page, base_url: str) -> dict:
 
 def check_stay_planner(page, base_url: str) -> None:
     """Exercise the shared enquiry planner, editable draft, and deliberate WhatsApp handoff."""
-    page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+
+    # The home page already has its own four-path planning panel; do not duplicate it.
+    home_response = page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+    check(home_response is not None and home_response.status == 200,
+          "Home conversion panel route should load")
+    check(page.locator("[data-stay-planner]").count() == 0,
+          "Home: avoid repeating the multi-topic planner after the purpose-built planning panel")
+    check(page.locator("#plan-stay .home-plan-path").count() == 4,
+          "Home: keep the four primary Stay / Explore / Dine / Arrive decision paths")
+    check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
+          "Home: do not load the generic planner runtime when its component is absent")
+    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
+    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
     planner = page.locator("[data-stay-planner]")
-    check(planner.count() == 1, "Stay planner should appear once on the home route")
+    check(planner.count() == 1, "Stay planner should appear once on the Rooms route")
     if planner.count() != 1:
         return
     details = planner.locator("[data-stay-planner-disclosure]")
@@ -1296,7 +1308,7 @@ def check_stay_planner(page, base_url: str) -> None:
           "Stay planner draft should preserve optional notes and clear enquiry-only language")
     check("Nothing has been sent or saved." in status.inner_text(),
           "Stay planner must confirm that the draft remains local to the page")
-    check(page.url.endswith("/index.html"), "Stay planner must not navigate away when building a draft")
+    check(page.url.endswith("/rooms.html"), "Stay planner must not navigate away when building a draft")
     check(not non_get_requests, "Stay planner must not submit the enquiry form over the network")
     check(page.evaluate("window.__stayPlanOpenedUrl") is None,
           "Preparing an enquiry must not launch WhatsApp automatically")
@@ -1332,7 +1344,7 @@ def check_stay_planner(page, base_url: str) -> None:
               "WhatsApp handoff must safely encode the exact guest-edited draft")
         check("press Send yourself" in status.inner_text(),
               "WhatsApp handoff must clearly require the guest to review and send manually")
-        check(page.url.endswith("/index.html"),
+        check(page.url.endswith("/rooms.html"),
               "WhatsApp handoff test must not navigate the site or send guest details from the page")
     page.evaluate("""() => {
       if (typeof window.__stayPlanOriginalOpen === 'function') window.open = window.__stayPlanOriginalOpen;
@@ -1368,7 +1380,7 @@ def check_stay_planner(page, base_url: str) -> None:
                 })();"""
             )
             rollover_page = rollover_context.new_page()
-            rollover_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            rollover_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             rollover_planner = rollover_page.locator("[data-stay-planner]")
             rollover_planner.locator("[data-stay-planner-disclosure] summary").click()
             rollover_arrival = rollover_planner.locator("#stay-plan-arrival")
@@ -1394,7 +1406,7 @@ def check_stay_planner(page, base_url: str) -> None:
         fallback_context = browser.new_context(java_script_enabled=False)
         try:
             fallback_page = fallback_context.new_page()
-            fallback_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            fallback_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             fallback_planner = fallback_page.locator("[data-stay-planner]")
             fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
             fallback_notice = fallback_planner.locator(".stay-planner__no-script")
@@ -1439,15 +1451,33 @@ def check_stay_planner(page, base_url: str) -> None:
     check(planner.locator("[data-stay-plan-result]").is_hidden(),
           "Stay planner should let visitors revise their draft inputs")
 
-    # Exercise the same central contact handoff on every other planner integration.
+    # Keep the multi-topic planner only where a more specific conversion form is not present.
+    context_specific_routes = {
+        "experiences.html": "[data-guest-enquiry-form]",
+        "experience-details.html": "[data-guest-enquiry-form]",
+        "dining.html": "[data-restaurant-table-form]",
+    }
     for route in (
         "rooms.html", "experiences.html", "experience-details.html",
         "dining.html", "about.html", "gallery.html",
     ):
         response = page.goto(base_url + route, wait_until="domcontentloaded", timeout=15000)
         check(response is not None and response.status == 200,
-              f"{route}: planner route should load before handoff testing")
+              f"{route}: conversion route should load before handoff testing")
         route_planner = page.locator("[data-stay-planner]")
+        if route in context_specific_routes:
+            check(route_planner.count() == 0,
+                  f"{route}: a purpose-built enquiry route must not repeat the generic stay planner")
+            check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
+                  f"{route}: do not load unused generic planner runtime")
+            check(page.locator(context_specific_routes[route]).count() == 1,
+                  f"{route}: purpose-built conversion form should remain available")
+            if route == "dining.html":
+                check(page.locator("[data-guest-enquiry-form]").count() == 1,
+                      "Dining: retain the separate stay/experience enquiry as a distinct intent")
+                check("not reserved" in page.locator(".dining-table-panel__notice").inner_text().lower(),
+                      "Dining: the table request must be distinguished from a confirmed reservation")
+            continue
         check(route_planner.count() == 1, f"{route}: planner must appear exactly once")
         if route_planner.count() != 1:
             continue
