@@ -2486,11 +2486,12 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         check("300 metres" in parking and "5–6 minutes" in parking,
               "Directions: Fort Parking estimate must be about 300 metres / 5–6 minutes")
         check("fort entrance" in entrance.lower()
-              and "Confirm the route" in entrance
-              and "No published walking-time estimate" in entrance
-              and "200 metres" not in entrance
-              and "3–4 minutes" not in entrance,
-              "Directions: fort entrance card must request current route confirmation instead of publishing a provisional distance/time")
+              and "200 metres" in entrance
+              and "3–4 minutes" in entrance
+              and "approximate walk" in entrance.lower()
+              and "confirm your meeting point" in entrance.lower()
+              and "current access" in entrance.lower(),
+              "Directions: fort entrance card must retain the source-listed approximate 200 metres / 3–4 minutes and current-access caveat")
         check("Rickshaw access rules and drop-off points can vary" in rickshaw
               and "8:00 AM" not in section.inner_text(),
               "Directions: unconfirmed rickshaw hours must be omitted and current access confirmed")
