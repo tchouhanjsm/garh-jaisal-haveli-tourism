@@ -81,6 +81,10 @@ const validGallery = {
 
 assert.deepEqual(validateAgainstSchema(schemas.tour, validTour), [], 'valid tour fixture should satisfy the actual schema');
 assert.deepEqual(validateAgainstSchema(schemas.blog, validBlog), [], 'valid blog fixture should satisfy the actual schema');
+assert.deepEqual(validateAgainstSchema(schemas.blog, {
+  ...validBlog,
+  heroCaptionReview: { status: 'pending' },
+}), [], 'draft blog may explicitly keep hero-caption review pending without reviewer metadata');
 assert.deepEqual(validateAgainstSchema(schemas.gallery, validGallery), [], 'valid gallery fixture should satisfy the actual schema');
 const tourWithOgImage = {
   ...validTour,
@@ -126,6 +130,38 @@ validateRecordPolicy('tour', {
 assert.ok(findings.some(f => f.message.includes('factsConfirmed')), 'live tour without confirmed facts must be rejected');
 assert.ok(findings.some(f => f.message.includes('lastVerified')), 'live tour without verification date must be rejected');
 assert.ok(findings.some(f => f.message.includes('canonical host')), 'live content without approved canonical host must be rejected');
+
+const liveBlogWithoutCaptionReview = {
+  ...validBlog,
+  status: 'live',
+  heroCaption: 'A sufficiently descriptive fixture caption for a reviewed hero image.',
+  heroImage: 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp',
+  heroAlt: 'Carved sandstone terrace above the Jaisalmer Fort lanes',
+  seo: {
+    ...validBlog.seo,
+    ogImage: 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp',
+    ogAlt: 'Carved sandstone terrace above the Jaisalmer Fort lanes',
+  },
+  lastReviewed: '2026-10-29',
+  editorialReview: {
+    editorialStatus: 'approved',
+    sourceStatus: 'approved',
+    factStatus: 'approved',
+    mediaStatus: 'approved',
+    ownerFactApproved: true,
+    reviewedAt: '2026-10-29',
+    reviewer: 'fixture-editor',
+  },
+};
+const captionReviewFindings = [];
+validateRecordPolicy('blog', liveBlogWithoutCaptionReview, root, {
+  contentTypes: { blog: { outputDirectory: 'blogs', outputExtension: '.html' } },
+}, {
+  site: { canonicalHostApproved: false, newStaticSiteCanonicalHost: 'https://example.test' },
+}, captionReviewFindings, 'content/blogs/fixture.json');
+assert.ok(captionReviewFindings.some(f => f.path.endsWith('.heroCaptionReview')
+  && f.message.includes('approved hero-caption review metadata')),
+'approved/live blog policy must reject a caption string without explicit review evidence');
 
 const missingOgAltFindings = [];
 validateRecordPolicy('tour', {
