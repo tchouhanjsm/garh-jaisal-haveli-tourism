@@ -51,7 +51,15 @@
   </div>
   <div class="room-finder__results">
     <p data-room-finder-status role="status" aria-live="polite" aria-atomic="true">All seven listed rooms are shown.</p>
-    <button class="room-finder__reset" type="button" data-room-reset disabled>Clear filters</button>
+    <div class="room-finder__actions">
+      <button class="room-finder__share" type="button" data-room-share disabled>Copy filter link</button>
+      <button class="room-finder__reset" type="button" data-room-reset disabled>Clear filters</button>
+    </div>
+  </div>
+  <div class="room-finder__share-fallback" data-room-share-fallback hidden>
+    <label for="room-finder-share-url">Shareable room filter link</label>
+    <input type="url" id="room-finder-share-url" data-room-share-url readonly>
+    <p>Clipboard access may be unavailable in this browser. Select and copy this link to share the current floor and listed-feature filters. No guest details are included.</p>
   </div>
   <div class="room-finder__empty" data-room-finder-empty hidden>
     <p>No room matches every selected source-listed feature and floor. Clear the filters or ask the team to confirm the room fit for your dates.</p>

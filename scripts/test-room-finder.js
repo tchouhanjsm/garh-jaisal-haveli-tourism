@@ -29,14 +29,51 @@ function eventTarget(properties = {}) {
       listeners.get(type).push(callback);
     },
     dispatch(type) {
-      for (const callback of listeners.get(type) || []) callback({ type });
+      return Promise.all((listeners.get(type) || []).map(callback => callback({ type })));
     },
     focusCount: 0,
     focus() { this.focusCount += 1; },
   };
 }
 
-function bootFinder(roomData = EXPECTED_ROOMS) {
+function bootFinder(
+  roomData = EXPECTED_ROOMS,
+  initialUrl = 'https://example.test/rooms.html',
+  clipboardFails = false,
+) {
+  const currentUrl = { value: new URL(initialUrl) };
+  const clipboardWrites = [];
+  const windowListeners = new Map();
+  const window = {
+    get location() {
+      return {
+        href: currentUrl.value.toString(),
+        hash: currentUrl.value.hash,
+        pathname: currentUrl.value.pathname,
+        search: currentUrl.value.search,
+      };
+    },
+    history: {
+      replaceState(_state, _title, nextUrl) {
+        currentUrl.value = new URL(nextUrl, currentUrl.value);
+      },
+    },
+    addEventListener(type, callback) {
+      if (!windowListeners.has(type)) windowListeners.set(type, []);
+      windowListeners.get(type).push(callback);
+    },
+    dispatch(type) {
+      return Promise.all((windowListeners.get(type) || []).map(callback => callback()));
+    },
+  };
+  const navigator = {
+    clipboard: {
+      async writeText(value) {
+        clipboardWrites.push(String(value));
+        if (clipboardFails) throw new Error('clipboard unavailable');
+      },
+    },
+  };
   const cards = roomData.map(room => ({
     id: room.id,
     dataset: { roomFloor: room.floor, roomFeatures: room.features },
@@ -48,6 +85,13 @@ function bootFinder(roomData = EXPECTED_ROOMS) {
   const status = { textContent: '' };
   const emptyState = { hidden: true };
   const resetButton = eventTarget({ disabled: true });
+  const shareButton = eventTarget({ disabled: true });
+  const shareFallback = { hidden: true };
+  const shareUrlField = eventTarget({
+    value: '',
+    selected: false,
+    select() { this.selected = true; },
+  });
   const grid = {
     querySelectorAll(selector) {
       assert.equal(selector, '.room-card--named[data-room-floor][data-room-features]');
@@ -62,6 +106,9 @@ function bootFinder(roomData = EXPECTED_ROOMS) {
         '[data-room-finder-status]': status,
         '[data-room-finder-empty]': emptyState,
         '[data-room-reset]': resetButton,
+        '[data-room-share]': shareButton,
+        '[data-room-share-fallback]': shareFallback,
+        '[data-room-share-url]': shareUrlField,
       })[selector] || null;
     },
     querySelectorAll(selector) {
@@ -77,8 +124,14 @@ function bootFinder(roomData = EXPECTED_ROOMS) {
       })[selector] || null;
     },
   };
-  vm.runInNewContext(script, { document, console }, { filename: 'assets/room-finder.js' });
-  return { cards, finder, floorSelect, featureInputs, status, emptyState, resetButton };
+  vm.runInNewContext(script, {
+    document, console, window, navigator, URL, URLSearchParams,
+  }, { filename: 'assets/room-finder.js' });
+  return {
+    cards, finder, floorSelect, featureInputs, status, emptyState, resetButton,
+    shareButton, shareFallback, shareUrlField, clipboardWrites,
+    currentUrl: () => currentUrl.value.toString(),
+  };
 }
 
 function visibleIds(cards) {
@@ -98,6 +151,16 @@ function testStaticCatalogueContract() {
     'room finder styling must be scoped to the room page');
   assert.match(html, /href="#room-planning">Ask about room fit →<\/a>/,
     'the no-results state must retain a useful path to ask about a room');
+  assert.match(html, /data-room-share disabled/,
+    'share controls must be disabled until the guest chooses a catalogue filter');
+  assert.match(html, /data-room-share-fallback hidden/,
+    'manual copy fallback must stay hidden until clipboard access fails');
+  assert.match(html, /data-room-share-url readonly/,
+    'manual copy fallback must expose a read-only share URL');
+  assert.match(script, /#room-finder\?/,
+    'shareable filter state must use a non-indexable URL fragment');
+  assert.doesNotMatch(script, /localStorage|sessionStorage|fetch\s*\(/,
+    'room filter sharing must not persist guest data or make network requests');
 
   const cardMatches = [...html.matchAll(/<article class="room-card room-card--named"[^>]*>[\s\S]*?<\/article>/g)];
   assert.equal(cardMatches.length, EXPECTED_ROOMS.length, 'all seven source-listed room cards must stay in the catalogue');
@@ -178,6 +241,84 @@ function testFilterInteractions() {
     'fail closed if the catalogue no longer has the expected seven cards; controls must not claim filtering works');
 }
 
+async function testShareableFilters() {
+  const featureData = {
+    'room-sweet-purple': 'carved-bed second-bed city-view',
+    'room-rising-sun': 'city-view window-seat',
+    'room-scarlet': 'city-view window-seat',
+    'room-opium': 'city-view',
+    'room-red-maharani': 'king-bed city-view window-seat',
+    'room-green': 'king-bed window-seat',
+    'room-bluesky': 'city-view window-seat',
+  };
+  const rooms = EXPECTED_ROOMS.map(room => ({ ...room, features: featureData[room.id] }));
+
+  const restored = bootFinder(
+    rooms,
+    'https://example.test/rooms.html#room-finder?floor=first&feature=king-bed',
+  );
+  assert.equal(restored.floorSelect.value, 'first',
+    'a shared URL must restore the source-listed floor filter');
+  assert.equal(restored.featureInputs.find(input => input.value === 'king-bed').checked, true,
+    'a shared URL must restore source-listed feature filters');
+  assert.deepEqual(visibleIds(restored.cards), ['room-red-maharani', 'room-green']);
+  assert.equal(restored.shareButton.disabled, false);
+
+  const state = bootFinder(rooms);
+  state.floorSelect.value = 'first';
+  await state.floorSelect.dispatch('change');
+  const kingBed = state.featureInputs.find(input => input.value === 'king-bed');
+  kingBed.checked = true;
+  await kingBed.dispatch('change');
+  await state.shareButton.dispatch('click');
+
+  assert.equal(state.clipboardWrites.length, 1, 'sharing should copy exactly one filter URL');
+  const copiedUrl = state.clipboardWrites[0];
+  assert.equal(copiedUrl, state.currentUrl(), 'the copied URL must match the address-bar URL');
+  const parsed = new URL(copiedUrl);
+  assert.match(parsed.hash, /^#room-finder\?/);
+  const params = new URLSearchParams(parsed.hash.slice('#room-finder?'.length));
+  assert.equal(params.get('floor'), 'first');
+  assert.deepEqual(params.getAll('feature'), ['king-bed']);
+  assert.doesNotMatch(parsed.hash, /guest|name|email|phone|date|note/i,
+    'the share fragment must contain only catalogue filters, never guest-entered details');
+
+  const reopened = bootFinder(rooms, copiedUrl);
+  assert.equal(reopened.floorSelect.value, 'first');
+  assert.equal(reopened.featureInputs.find(input => input.value === 'king-bed').checked, true);
+  assert.deepEqual(visibleIds(reopened.cards), ['room-red-maharani', 'room-green']);
+
+  const invalid = bootFinder(
+    rooms,
+    'https://example.test/rooms.html#room-finder?floor=unknown&feature=king-bed&feature=untrusted-value',
+  );
+  assert.equal(invalid.floorSelect.value, 'all',
+    'unrecognized floor values must fail closed to the full catalogue');
+  assert.equal(invalid.featureInputs.find(input => input.value === 'king-bed').checked, true);
+  assert.deepEqual(visibleIds(invalid.cards), ['room-red-maharani', 'room-green'],
+    'unknown feature tokens must be ignored');
+
+  const fallback = bootFinder(rooms, 'https://example.test/rooms.html', true);
+  fallback.floorSelect.value = 'ground';
+  await fallback.floorSelect.dispatch('change');
+  await fallback.shareButton.dispatch('click');
+  assert.equal(fallback.shareFallback.hidden, false,
+    'clipboard failure must reveal a manual-copy fallback');
+  assert.equal(fallback.shareUrlField.value, fallback.currentUrl());
+  assert.equal(fallback.shareUrlField.focusCount, 1,
+    'manual-copy fallback must receive focus');
+  assert.equal(fallback.shareUrlField.selected, true,
+    'manual-copy fallback must select the share URL');
+  assert.match(fallback.status.textContent, /Copy the selected link below/);
+}
+
 testStaticCatalogueContract();
 testFilterInteractions();
-console.log('PASS: seven room mappings/floors/features match the visible source catalogue; filtering, result status, no-results recovery, keyboard focus and non-JavaScript fallback are guarded.');
+testShareableFilters()
+  .then(() => {
+    console.log('PASS: room finder preserves the seven source-listed records, filters accessibly, and shares privacy-safe floor/feature fragments with clipboard fallback.');
+  })
+  .catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
