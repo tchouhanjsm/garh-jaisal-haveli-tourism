@@ -368,7 +368,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete)
 
     return {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -397,11 +397,13 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "complete": False,
         },
         "visualEvidence": {
-            "required": mode == "staging-read-only",
+            "required": True,
             "captureMode": "full-page PNG",
             "expectedScreenshotCount": len(expected_screenshots),
             "capturedScreenshotCount": len(screenshot_records),
             "complete": screenshot_complete,
+            "reviewStatus": "PENDING_OWNER_REVIEW",
+            "ownerApproved": False,
             "capturedFiles": screenshot_records,
         },
         "crossOriginNavigationAttemptsBlocked": [
