@@ -5,6 +5,8 @@
   const nav = document.querySelector('#primary-navigation');
   const contactStatus = document.querySelector('#contact-status');
   const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
+  const mobileBookingBar = document.querySelector('.mobile-booking-bar');
+  const arrivalQuickCard = document.querySelector('[data-arrival-quick-card]');
   const directEnquiryDismiss = directEnquiryDock ? directEnquiryDock.querySelector('[data-direct-enquiry-dismiss]') : null;
   const enquiryLinks = Array.from(document.querySelectorAll('[data-enquiry-link]'));
   const phoneLinks = Array.from(document.querySelectorAll('[data-contact-phone]'));
@@ -691,13 +693,62 @@
     }
   }
 
+  let knownMobileBookingBarHeight = 0;
+
+  function updateMobileBookingBar() {
+    if (!mobileBookingBar) return;
+    const compact = typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 760px)').matches;
+    if (!compact || !arrivalQuickCard) {
+      mobileBookingBar.classList.remove('is-suppressed-by-arrival-card');
+      mobileBookingBar.removeAttribute('aria-hidden');
+      mobileBookingBar.removeAttribute('inert');
+      return;
+    }
+
+    const bounds = arrivalQuickCard.getBoundingClientRect();
+    const measuredHeight = Number.parseFloat(window.getComputedStyle(mobileBookingBar).height) || 0;
+    if (measuredHeight > 0) knownMobileBookingBarHeight = measuredHeight;
+    const barHeight = Math.max(64, measuredHeight, knownMobileBookingBarHeight);
+    const overlaps = bounds.left < window.innerWidth
+      && bounds.right > 0
+      && bounds.top < window.innerHeight
+      && bounds.bottom > Math.max(0, window.innerHeight - barHeight);
+    const shouldSuppress = overlaps && !mobileBookingBar.contains(document.activeElement);
+    mobileBookingBar.classList.toggle('is-suppressed-by-arrival-card', shouldSuppress);
+    if (shouldSuppress) {
+      mobileBookingBar.setAttribute('aria-hidden', 'true');
+      mobileBookingBar.setAttribute('inert', '');
+    } else {
+      mobileBookingBar.removeAttribute('aria-hidden');
+      mobileBookingBar.removeAttribute('inert');
+    }
+  }
+
+  if (mobileBookingBar) {
+    mobileBookingBar.addEventListener('focusin', updateMobileBookingBar);
+    mobileBookingBar.addEventListener('focusout', () => {
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(updateMobileBookingBar);
+      } else {
+        updateMobileBookingBar();
+      }
+    });
+  }
+
   function updateHeader() {
     if (header) header.classList.toggle('is-scrolled', window.scrollY > 20);
     updateDirectEnquiryDock();
+    updateMobileBookingBar();
   }
   updateHeader();
   window.addEventListener('scroll', updateHeader, { passive: true });
-  window.addEventListener('resize', updateDirectEnquiryDock);
+  window.addEventListener('resize', () => {
+    updateDirectEnquiryDock();
+    updateMobileBookingBar();
+  });
+  window.addEventListener('orientationchange', updateMobileBookingBar);
+  window.addEventListener('load', updateMobileBookingBar, { once: true });
 
   if (menuToggle && nav) {
     menuToggle.addEventListener('click', () => {

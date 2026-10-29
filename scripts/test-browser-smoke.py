@@ -2100,7 +2100,28 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                   f"{page_name} at {width}px: horizontal overflow ({dimensions})")
             if width <= 390:
                 bar = page.locator(".mobile-booking-bar")
-                check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
+                if page_name == "directions.html":
+                    state = page.evaluate("""() => {
+                      const card = document.querySelector('[data-arrival-quick-card]');
+                      const bar = document.querySelector('.mobile-booking-bar');
+                      if (!card || !bar) return null;
+                      const bounds = card.getBoundingClientRect();
+                      const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                      const overlaps = bounds.left < window.innerWidth && bounds.right > 0
+                        && bounds.top < window.innerHeight
+                        && bounds.bottom > Math.max(0, window.innerHeight - height);
+                      const expected = overlaps && !bar.contains(document.activeElement);
+                      return {expected, suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                        display: getComputedStyle(bar).display, ariaHidden: bar.getAttribute('aria-hidden'),
+                        inert: bar.hasAttribute('inert')};
+                    }""")
+                    check(state is not None and state["suppressed"] == state["expected"],
+                          f"{page_name}: mobile booking bar should yield only when it overlaps arrival summary")
+                    if state and state["expected"]:
+                        check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
+                              f"{page_name}: hidden booking bar must leave visual and keyboard access")
+                else:
+                    check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
                 box = bar.bounding_box()
                 if box:
                     check(box["x"] >= -1 and box["x"] + box["width"] <= width + 1,
@@ -2365,7 +2386,7 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               and "8:00 AM" not in section.inner_text(),
               "Directions: unconfirmed rickshaw hours must be omitted and current access confirmed")
 
-    for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
+    for width, height in [(320, 740), (360, 800), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
         page.set_viewport_size({"width": width, "height": height})
         dimensions = page.evaluate(
             "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"
@@ -2374,6 +2395,30 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance cards must not overflow horizontally at {width}px")
         check(page.locator("#arrival-walk-distances-title").is_visible(),
               f"Directions: arrival distance heading must remain available at {width}px")
+        if width <= 760:
+            page.wait_for_timeout(80)
+            state = page.evaluate("""() => {
+              const card = document.querySelector('[data-arrival-quick-card]');
+              const bar = document.querySelector('.mobile-booking-bar');
+              if (!card || !bar) return null;
+              const bounds = card.getBoundingClientRect();
+              const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+              const overlaps = bounds.left < window.innerWidth && bounds.right > 0
+                && bounds.top < window.innerHeight
+                && bounds.bottom > Math.max(0, window.innerHeight - height);
+              const expected = overlaps && !bar.contains(document.activeElement);
+              return {expected, suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                display: getComputedStyle(bar).display, ariaHidden: bar.getAttribute('aria-hidden'),
+                inert: bar.hasAttribute('inert')};
+            }""")
+            check(state is not None and state["suppressed"] == state["expected"],
+                  f"Directions at {width}px: booking bar must yield only while it overlaps the hero summary")
+            if state and state["expected"]:
+                check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
+                      f"Directions at {width}px: suppressed bar must be visually and keyboard hidden")
+            elif state:
+                check(state["display"] != "none" and state["ariaHidden"] is None and not state["inert"],
+                      f"Directions at {width}px: booking bar must return when the hero summary clears")
 
 
 def check_arrival_planning_deep_links(page, base_url: str) -> None:

@@ -684,3 +684,11 @@
   gap: 0;
   border-top: 1px solid var(--line);
 }
+
+
+/* Keep the fixed mobile booking action from covering Directions' hero essentials. */
+@media (max-width: 760px) {
+  .mobile-booking-bar.is-suppressed-by-arrival-card {
+    display: none;
+  }
+}

@@ -8,6 +8,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const directions = fs.readFileSync(path.join(ROOT, 'directions.html'), 'utf8');
 const stylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'arrival-wayfinding.css'), 'utf8');
+const siteRuntime = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
 
 const publicPages = [
   'index.html',
@@ -129,5 +130,11 @@ assert.match(stylesheet, /\.arrival-travel__grid[\s\S]*?repeat\(3, minmax\(0, 1f
   'Travel choices must form a deliberate three-column desktop grid');
 assert.match(stylesheet, /\.arrival-map__layout[\s\S]*?grid-template-columns/,
   'Map and orientation content must have a responsive layout');
+assert.match(siteRuntime, /function updateMobileBookingBar\(\)/,
+  'Shared runtime must suppress the fixed mobile booking action when it covers the arrival hero card');
+assert.match(siteRuntime, /is-suppressed-by-arrival-card/,
+  'Mobile booking suppression must use an explicit, page-scoped state');
+assert.match(stylesheet, /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*\{\s*display:\s*none/s,
+  'Arrival-specific CSS must let the fixed booking bar yield while it overlaps the summary card');
 
 console.log('PASS: source-backed distances, accessible Directions navigation, qualified travel options, mobility safeguards and exact-pin orientation are present.');
