@@ -84,7 +84,7 @@ assert.match(directions, /not live navigation/i,
   'The hero summary must not imply live route measurements');
 assert.match(directions, /alt="Golden sandstone passages reflect the character of the historic fort"/,
   'The hero photograph must have descriptive non-generic alternative text');
-assert.match(directions, /<section class="section wrap arrival-visual"[^>]*>[\\s\\S]*?not as a guaranteed pickup point or route marker/i,
+assert.match(directions, /<section class="section wrap arrival-visual"[^>]*>[\s\S]*?not as a guaranteed pickup point or route marker/i,
   'The facade photograph must have its own accessible reference section and clear caveat');
 assert.match(directions, /WhatsApp or phone link shown on this page to confirm the current meeting point/i,
   'Arrival help must point guests to centralized contact routes and date-specific confirmation');
