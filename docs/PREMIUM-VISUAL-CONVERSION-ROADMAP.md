@@ -281,6 +281,21 @@ A milestone does not count as complete because code was pushed.
 
 Keep the Journal implementation as the next slice after M0 confirms shared visual tokens and article-layout needs, or include its source/schema test preparation in a parallel **draft-only** content slice if CI capacity permits. Do not merge small documentation-only/cosmetic PRs in lieu of the complete slice. Do not alter canonical host/robots/sitemap in this phase.
 
+## Implementation progress — PR #66
+
+### M0 — baseline evidence captured and reviewed
+
+- The exact-head quality workflow produces a `garh-jaisal-visual-baseline-<run-id>` artifact with full-page screenshots and a JSON run report for every core route at 360, 768 and 1440 CSS px.
+- The baseline was manually inspected for Directions. It exposed the travel section's nested grid being rendered in a narrow right-hand track at desktop/tablet widths despite the static tests passing.
+- The evidence artifact is a local Chromium baseline, not live-staging proof or a human acceptance claim for every route.
+
+### M2 — Directions arrival slice
+
+- The arrival hero/quick-facts card, distance cards, four-step approach, source-qualified travel options, mobility note, exact-pin/address panel, date-specific enquiry, contextual FAQs and responsive sticky section navigation are implemented on this branch.
+- Current change fixes the travel section's layout ownership: it no longer reuses the unrelated `.transport-source-panel` two-column layout, and the generic boxed side-actions class is removed. Wide screens now get a balanced editorial intro plus a full-width three-card grid; tablets use two columns; narrow phones stack cards.
+- The Chromium suite now checks actual rendered card geometry at 320, 360, 390, 768, 1280 and 1440 CSS px, plus real section-navigation targets and heading visibility. The test fails if the grid collapses back into a narrow secondary column.
+- This is the current implementation batch. Its visual acceptance remains conditional on the corrected exact-head screenshot artifact and tests; merge/deployment are not implied.
+
 ## 7. Source references
 
 - Authoritative legacy Direction page: `garh-jaisal-website/direction.php`

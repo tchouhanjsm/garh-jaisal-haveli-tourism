@@ -128,6 +128,14 @@ assert.match(stylesheet, /\.arrival-section-nav[\s\S]*?overflow-x:\s*auto/,
   'Section navigation must remain usable on narrow screens without forcing page overflow');
 assert.match(stylesheet, /\.arrival-travel__grid[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/,
   'Travel choices must form a deliberate three-column desktop grid');
+assert.match(directions, /<section id="travel-options" class="section wrap arrival-travel"/,
+  'Directions travel options must own a page-specific layout rather than inherit the unrelated two-column transport component');
+assert.match(stylesheet, /\.arrival-travel\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
+  'Directions travel section must use a single-column section shell');
+assert.match(stylesheet, /\.arrival-travel__intro\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, \.9fr\) minmax\(0, 1\.1fr\)/,
+  'Directions travel heading and explanatory copy must form a deliberate editorial split on wide screens');
+assert.match(stylesheet, /\.arrival-travel__actions\s*\{[\s\S]*?background:\s*transparent/,
+  'Directions travel actions must not inherit the generic boxed side-panel treatment');
 assert.match(stylesheet, /\.arrival-map__layout[\s\S]*?grid-template-columns/,
   'Map and orientation content must have a responsive layout');
 assert.match(siteRuntime, /function updateMobileBookingBar\(\)/,

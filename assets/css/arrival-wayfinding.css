@@ -692,3 +692,115 @@
     display: none;
   }
 }
+
+
+/* PR #66 · M2 visual QA fix: the travel section has three direct children.
+   It must own a single-column section shell; the old generic transport panel
+   was a two-column component and squeezed the nested three-card grid. */
+.arrival-travel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: clamp(22px, 3vw, 34px);
+  padding-block: clamp(54px, 6vw, 82px);
+  border-block: 1px solid var(--line);
+}
+.arrival-travel__intro {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  align-items: end;
+  gap: 10px clamp(24px, 5vw, 72px);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+.arrival-travel__intro > .eyebrow {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.arrival-travel__intro > h2 {
+  grid-column: 1;
+  max-width: 15ch;
+  margin: 0;
+}
+.arrival-travel__intro > p:not(.eyebrow) {
+  grid-column: 2;
+  justify-self: end;
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.9;
+}
+.arrival-travel__grid {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+.arrival-travel-card {
+  height: 100%;
+}
+.arrival-travel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.arrival-travel__actions .button {
+  width: auto;
+  min-height: 48px;
+}
+.arrival-travel__actions .text-link {
+  align-self: center;
+  min-height: 44px;
+  align-items: center;
+}
+@media (max-width: 1000px) {
+  .arrival-travel__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .arrival-travel__intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .arrival-travel__intro > .eyebrow,
+  .arrival-travel__intro > h2,
+  .arrival-travel__intro > p:not(.eyebrow) {
+    grid-column: 1;
+  }
+  .arrival-travel__intro > p:not(.eyebrow) {
+    justify-self: start;
+  }
+}
+@media (max-width: 620px) {
+  .arrival-travel {
+    padding-block: 48px;
+  }
+  .arrival-travel__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .arrival-travel-card {
+    padding: 20px;
+  }
+  .arrival-travel__actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .arrival-travel__actions > * {
+    width: 100%;
+    max-width: 100%;
+  }
+  .arrival-travel__actions .text-link {
+    align-self: flex-start;
+  }
+}

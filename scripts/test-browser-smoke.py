@@ -2379,6 +2379,34 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
           "Directions: the arrival sequence must have four steps")
     check(page.locator("#travel-options .arrival-travel-card").count() == 3,
           "Directions: station, airport and road options should remain separate")
+
+    section_nav = page.get_by_role("navigation", name="Directions page sections")
+    for label, fragment in [
+        ("Quick directions", "#arrival-overview-title"),
+        ("Travel options", "#travel-options-title"),
+        ("Walking & mobility", "#walking-access-title"),
+        ("Map & navigation", "#arrival-map-title"),
+        ("FAQs", "#arrival-faq-title"),
+    ]:
+        link = section_nav.get_by_role("link", name=label, exact=True)
+        check(link.count() == 1 and link.get_attribute("href") == fragment,
+              f"Directions: {label} navigation must point to its real section heading")
+    travel_nav = section_nav.get_by_role("link", name="Travel options", exact=True)
+    if travel_nav.count() == 1:
+        travel_nav.click()
+        try:
+            page.wait_for_function(
+                "() => window.location.hash === '#travel-options-title' "
+                "&& document.querySelector('#travel-options-title')?.getBoundingClientRect().top >= 0",
+                timeout=5000,
+            )
+            heading_top = page.locator("#travel-options-title").bounding_box()["y"]
+            nav_bottom = section_nav.bounding_box()["y"] + section_nav.bounding_box()["height"]
+            check(heading_top >= nav_bottom - 2,
+                  "Directions: section navigation must not cover the destination heading")
+        except Exception as error:
+            check(False, f"Directions: section navigation must reach a visible travel heading ({error})")
+        page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
     check(page.locator(".arrival-visual__media img").count() == 1,
           "Directions: the accessible facade reference section must load its local building image")
     check(page.locator(".arrival-visual__copy").get_by_role("heading", name="A visual reference for the final approach.").is_visible(),
@@ -2411,6 +2439,34 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance cards must not overflow horizontally at {width}px")
         check(page.locator("#arrival-walk-distances-title").is_visible(),
               f"Directions: arrival distance heading must remain available at {width}px")
+        travel_layout = page.evaluate("""() => {
+          const section = document.querySelector('#travel-options');
+          const grid = document.querySelector('#travel-options .arrival-travel__grid');
+          const cards = Array.from(document.querySelectorAll('#travel-options .arrival-travel-card'));
+          if (!section || !grid || cards.length !== 3) return null;
+          const rect = element => {
+            const box = element.getBoundingClientRect();
+            return {x: box.x, y: box.y, width: box.width, height: box.height};
+          };
+          return {section: rect(section), grid: rect(grid), cards: cards.map(rect)};
+        }""")
+        check(travel_layout is not None,
+              f"Directions: travel layout evidence must exist at {width}px")
+        if travel_layout:
+            check(travel_layout["grid"]["width"] >= travel_layout["section"]["width"] * 0.88,
+                  f"Directions: travel-card grid must use the main content width at {width}px, not a squeezed secondary column")
+            card_widths = [card["width"] for card in travel_layout["cards"]]
+            if width > 1000:
+                check(all(card_width >= travel_layout["grid"]["width"] * 0.27 for card_width in card_widths),
+                      f"Directions: three desktop travel cards must have useful width at {width}px ({card_widths})")
+                check(max(card["y"] for card in travel_layout["cards"]) - min(card["y"] for card in travel_layout["cards"]) <= 2,
+                      f"Directions: all three desktop travel cards must share the same row at {width}px")
+            elif width > 620:
+                check(all(card_width >= travel_layout["grid"]["width"] * 0.40 for card_width in card_widths[:2]),
+                      f"Directions: tablet travel cards must use two readable columns at {width}px ({card_widths})")
+            else:
+                check(all(card_width >= travel_layout["grid"]["width"] * 0.88 for card_width in card_widths),
+                      f"Directions: mobile travel cards must stack full width at {width}px ({card_widths})")
         if width <= 760:
             page.wait_for_timeout(80)
             state = page.evaluate("""() => {
