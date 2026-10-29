@@ -332,10 +332,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 ),
                 "assets/css/tokens.css": ":root{--asset-closure-test:1}",
                 "assets/js/site.js": (
+                    'import "./side-effect.js"; '
+                    'import { ready } from "./module.js"; '
+                    'export { ready } from "./re-export.js"; '
                     'import("./module.js"); '
                     'const icon = new URL("./icons.svg", import.meta.url);'
                 ),
+                "assets/js/side-effect.js": "export const sideEffect = true;",
                 "assets/js/module.js": "export const ready = true;",
+                "assets/js/re-export.js": "export const ready = true;",
                 "assets/js/icons.svg": '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
                 "assets/images/room.jpg": "jpeg",
                 "assets/images/room-480.webp": "webp-480",
@@ -368,6 +373,22 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 'href="/rooms.html"', 'href="../escape.html"'
             ), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "escapes package root"):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
+            index_path.write_text(files["index.html"], encoding="utf-8")
+            script_path = root / "assets" / "js" / "site.js"
+            script_path.write_text(
+                'import { missing } from "./missing-static.js";',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing-static.js"):
+                _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
+
+            script_path.write_text(
+                'export { missing } from "./missing-re-export.js";',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "broken local asset reference.*missing-re-export.js"):
                 _PACKAGE_PREVIEW.validate_runtime_asset_closure(root)
 
 

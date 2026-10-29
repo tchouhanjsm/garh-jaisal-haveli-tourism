@@ -577,8 +577,20 @@ CSS_URL_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 CSS_IMPORT_PATTERN = re.compile(r"""@import\s+(["'])(.*?)\1""", re.IGNORECASE | re.DOTALL)
-JS_MODULE_REFERENCE_PATTERN = re.compile(
-    r"""(?:\bimport\s*(?:\(\s*)?|\bnew\s+URL\s*\(\s*)(["'])(.*?)\1""",
+JS_STATIC_IMPORT_FROM_PATTERN = re.compile(
+    r"""(?<![\w$.])(?:import|export)\s+(?:(?!["';]).)*?\sfrom\s*(["'])(.*?)\1""",
+    re.DOTALL,
+)
+JS_SIDE_EFFECT_IMPORT_PATTERN = re.compile(
+    r"""(?<![\w$.])import\s*(["'])(.*?)\1""",
+    re.DOTALL,
+)
+JS_DYNAMIC_IMPORT_PATTERN = re.compile(
+    r"""\bimport\s*\(\s*(["'])(.*?)\1\s*\)""",
+    re.DOTALL,
+)
+JS_NEW_URL_PATTERN = re.compile(
+    r"""\bnew\s+URL\s*\(\s*(["'])(.*?)\1\s*,\s*import\.meta\.url\s*\)""",
     re.DOTALL,
 )
 META_IMAGE_PROPERTIES = {"og:image", "og:image:url", "twitter:image", "twitter:image:src"}
@@ -621,12 +633,20 @@ def css_references(text: str) -> list[tuple[str, str]]:
 
 
 def js_module_references(text: str) -> list[tuple[str, str]]:
-    """Collect static/dynamic module imports and import.meta-relative URL constructors."""
-    return list(dict.fromkeys(
-        ("js-module", match.group(2).strip())
-        for match in JS_MODULE_REFERENCE_PATTERN.finditer(text)
-        if match.group(2).strip()
-    ))
+    """Collect side-effect, from-clause, dynamic imports, re-exports and module-relative URLs."""
+    patterns = (
+        JS_STATIC_IMPORT_FROM_PATTERN,
+        JS_SIDE_EFFECT_IMPORT_PATTERN,
+        JS_DYNAMIC_IMPORT_PATTERN,
+        JS_NEW_URL_PATTERN,
+    )
+    references: list[tuple[str, str]] = []
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            value = match.group(2).strip()
+            if value:
+                references.append(("js-module", value))
+    return list(dict.fromkeys(references))
 
 
 class RuntimeReferenceParser(HTMLParser):
