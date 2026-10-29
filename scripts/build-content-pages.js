@@ -236,6 +236,11 @@ function validateLiveRecord(item, root, siteConfig) {
     if (!isValidDate(review.reviewedAt) || typeof review.reviewer !== 'string' || review.reviewer.trim().length < 2) {
       fail('Live article requires a valid editorial review date and named reviewer: ' + sourcePath);
     }
+    if (typeof record.heroCaption !== 'string'
+        || record.heroCaption.trim().length < 20
+        || record.heroCaption.trim().length > 180) {
+      fail('Live article requires a reviewed hero caption between 20 and 180 characters: ' + sourcePath);
+    }
     if (!record.heroImage || typeof record.heroAlt !== 'string' || record.heroAlt.trim().length < 5
         || !record.seo || !record.seo.ogImage || typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5) {
       fail('Live article requires hero and OG image assets with meaningful alt text: ' + sourcePath);
