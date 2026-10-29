@@ -743,6 +743,10 @@ for (const file of STAY_PLANNER_ROUTES) {
       !html.includes('assets/stay-planner.js')) {
     fail(file + ': shared enquiry planner must be present, styled and initialized');
   }
+  const plannerForm = html.match(/<form\\b[^>]*\\bdata-stay-planner-form\\b[^>]*>/i);
+  if (!plannerForm || !/\\bmethod=["']dialog["']/i.test(plannerForm[0])) {
+    fail(file + ': planner must fail closed without JavaScript so guest details cannot be GET-submitted');
+  }
   if (!html.includes('Nothing is sent or stored.') ||
       !html.includes('Prepare enquiry draft')) {
     fail(file + ': planner must state its enquiry-only behavior clearly');
