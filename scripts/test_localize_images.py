@@ -509,7 +509,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
         # The packaged smoke must not silently skip hidden carousel/gallery pictures.
         self.assertNotIn("if not image.is_visible():", browser_check)
         self.assertIn("img.loading = 'eager'", browser_check)
-        self.assertIn('details["loading"].lower() == expected_loading', browser_check)
+        self.assertIn('production_loading.lower() == expected_loading', browser_check)
         self.assertIn('endswith((".jpg", ".jpeg"))', browser_check)
         self.assertIn("responsive source must declare sizes", browser_check)
 
