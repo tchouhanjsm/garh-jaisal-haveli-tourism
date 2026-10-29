@@ -100,7 +100,7 @@ assert.match(map, /data-property-map-link/,
   'Map panel must use the centrally authorized exact hotel pin');
 assert.match(map, /Kotari Para, inside Jaisalmer Fort/,
   'Map panel must provide a plain-text property address');
-assert.match(map, /not as live walking directions/i,
+assert.match(map, /not as a turn-by-turn route/i,
   'Map panel must not imply that the map pin supplies live final-walk navigation');
 assert.match(stylesheet, /\.arrival-section-nav[\s\S]*?overflow-x:\s*auto/,
   'Section navigation must remain usable on narrow screens without forcing page overflow');
