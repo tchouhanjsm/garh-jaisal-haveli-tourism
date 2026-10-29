@@ -747,6 +747,14 @@ for (const file of STAY_PLANNER_ROUTES) {
   if (!plannerForm || !/\bmethod=["']dialog["']/i.test(plannerForm[0])) {
     fail(file + ': planner must fail closed without JavaScript so guest details cannot be GET-submitted');
   }
+  const plannerNoScript = [...html.matchAll(/<noscript\b[^>]*>([\s\S]*?)<\/noscript>/gi)]
+    .map((match) => match[1])
+    .find((block) => /class=["']stay-planner__no-script["']/.test(block));
+  if (!plannerNoScript || !/needs JavaScript/i.test(plannerNoScript) ||
+      !/Nothing entered here is sent or saved/i.test(plannerNoScript) ||
+      !/Enable JavaScript/i.test(plannerNoScript)) {
+    fail(file + ': planner must explain its privacy-safe no-JavaScript fallback');
+  }
   if (!html.includes('Nothing is sent or stored.') ||
       !html.includes('Prepare enquiry draft')) {
     fail(file + ': planner must state its enquiry-only behavior clearly');
