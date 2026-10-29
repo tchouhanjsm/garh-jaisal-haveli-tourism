@@ -168,6 +168,16 @@
   font-size: 11px;
   line-height: 1.7;
 }
+
+.stay-planner__no-script {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #8c673a;
+  background: #fffefa;
+  color: #1a2821;
+  font-size: 12px;
+  line-height: 1.7;
+}
 .stay-planner__form > button,
 .stay-planner__result button {
   justify-self: start;
