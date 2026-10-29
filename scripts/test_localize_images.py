@@ -620,7 +620,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             source_names = (
                 "rest3.jpg",
                 "experiences/swiss-tent-detail.jpeg",
-                "rooms/sweet-purple.jpg",
+                "rooms/rising-sun.jpg",
                 "tent.jpg",
             )
             for name in source_names:
@@ -639,7 +639,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<img src="assets/images/experiences/swiss-tent-detail.jpeg" alt="Desert tent">'
                 '</figure></article></div></section>'
                 '<section><div class="room-card-grid room-card-grid--catalog"><article>'
-                '<div class="room-card__image"><img src="assets/images/rooms/sweet-purple.jpg" '
+                '<div class="room-card__image"><img src="assets/images/rooms/rising-sun.jpg" '
                 'alt="Purple room"></div></article></div></section>'
                 '<section><div class="gallery-grid"><figure class="gallery-card">'
                 '<div class="gallery-card__media"><img src="assets/images/tent.jpg" '
