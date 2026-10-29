@@ -1332,6 +1332,7 @@ def check_stay_planner(page, base_url: str) -> None:
             fallback_page = fallback_context.new_page()
             fallback_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
             fallback_planner = fallback_page.locator("[data-stay-planner]")
+            fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
             fallback_notice = fallback_planner.locator(".stay-planner__no-script")
             check(
                 fallback_notice.is_visible(),
@@ -1341,7 +1342,6 @@ def check_stay_planner(page, base_url: str) -> None:
                 "Nothing entered here is sent or saved" in fallback_notice.inner_text(),
                 "Stay planner no-JavaScript notice must explain that guest details are not transmitted or stored",
             )
-            fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
             fallback_form = fallback_planner.locator("[data-stay-planner-form]")
             fallback_form.locator("#stay-plan-arrival").fill("2099-01-10")
             fallback_form.locator("#stay-plan-departure").fill("2099-01-12")
