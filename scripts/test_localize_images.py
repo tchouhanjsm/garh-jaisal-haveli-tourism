@@ -554,6 +554,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "deploymentPerformed": False,
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
                 "qualityGate": "PASS",
+                "editorialDraftIsolation": {
+                    "status": "PASS",
+                    "previewDirectoryExcluded": True,
+                    "draftSourceRecordsExcluded": True,
+                    "previewAssetsExcluded": True,
+                    "generatedBlogHtmlRoutes": 0,
+                },
                 "packageMetrics": {
                     "uncompressedPayloadBytes": len(payload),
                     "uncompressedBudgetBytes": 18 * 1024 * 1024,
@@ -603,6 +610,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
             # A complete manifest and matching payload must remain packageable.
             _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+            manifest["editorialDraftIsolation"]["previewAssetsExcluded"] = False
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "draft editorial content and preview assets are excluded"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["editorialDraftIsolation"]["previewAssetsExcluded"] = True
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             manifest["documentContract"]["status"] = "FAIL"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
