@@ -129,6 +129,14 @@ for (const [label, target] of [
   assert.equal(count(directions, new RegExp('id="' + target + '"', 'g')), 1,
     target + ' must exist exactly once');
 }
+assert.match(siteRuntime, /function initArrivalSectionNavigation\(\)/,
+  'Directions section navigation must progressively enhance its active section state');
+assert.match(siteRuntime, /setAttribute\('aria-current', 'location'\)/,
+  'the active Directions section link must expose aria-current=location');
+assert.match(siteRuntime, /addEventListener\('scroll', scheduleUpdate, \{ passive: true \}\)/,
+  'section state must follow scroll position without blocking scrolling');
+assert.match(stylesheet, /\.arrival-section-nav a\[aria-current="location"\]/,
+  'the current section link must have a visible visual state');
 const travel = directions.match(/<section id="travel-options"[\s\S]*?<\/section>/)?.[0] || '';
 assert.equal(count(travel, /class="arrival-travel-card"/g), 3,
   'Travel options must present three differentiated planning choices');
