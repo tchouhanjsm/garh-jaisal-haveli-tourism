@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import re
+import tempfile
 
 from PIL import Image, ImageOps
 
@@ -19,9 +21,19 @@ MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
 
 
+def _resolve_site_root(root: Path) -> Path:
+    """Resolve an existing site root without accepting a symlink as the root itself."""
+    candidate = Path(os.path.abspath(os.fspath(root)))
+    if candidate.is_symlink():
+        raise ValueError(f"Refusing symlinked site root: {candidate}")
+    if not candidate.is_dir():
+        raise NotADirectoryError(f"site root is not a directory: {candidate}")
+    return candidate.resolve()
+
+
 def _safe_directory(root: Path, relative: Path, *, create: bool = False) -> Path:
     """Walk a repository-relative directory without following symlink components."""
-    root = Path(root).resolve()
+    root = _resolve_site_root(root)
     relative = Path(relative)
     if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
         raise ValueError(f"Unsafe relative image directory: {relative}")
@@ -114,7 +126,7 @@ def generate_responsive_variants(
     root: Path, image_names: tuple[str, ...] = IMAGE_NAMES
 ) -> dict[str, dict]:
     """Generate full-size and downscaled WebP files from approved local source paths."""
-    root = Path(root).resolve()
+    root = _resolve_site_root(root)
     output: dict[str, dict] = {}
     image_root = _safe_directory(root, Path("assets/images"))
     responsive_root = _safe_directory(root, Path("assets/images/responsive"), create=True)
@@ -189,7 +201,7 @@ def _natural_dimensions(root: Path, stem: str) -> tuple[int, int]:
 
 
 def _srcset(root: Path, stem: str) -> str:
-    root = Path(root).resolve()
+    root = _resolve_site_root(root)
     image_root = _safe_directory(root, Path("assets/images"))
     responsive_root = _safe_directory(root, Path("assets/images/responsive"))
     source = image_root / f"{stem}.jpg"
@@ -218,7 +230,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
     """Rewrite known references to JPG, WebP, or responsive WebP with a JPEG fallback."""
     if extension not in {"jpg", "webp", "responsive"}:
         raise ValueError("extension must be 'jpg', 'webp', or 'responsive'")
-    root = Path(root or Path.cwd()).resolve()
+    root = _resolve_site_root(root or Path.cwd())
 
     protected_sources: list[tuple[str, str]] = []
     if extension == "responsive":
@@ -333,21 +345,82 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
 
 
 def rewrite_site(root: Path, extension: str) -> list[Path]:
-    """Rewrite root-level HTML pages, generating variants before touching HTML."""
-    root = Path(root).resolve()
-    if not root.is_dir():
-        raise NotADirectoryError(f"site root is not a directory: {root}")
+    """Rewrite regular root-level HTML pages only after every transformation succeeds."""
+    root = _resolve_site_root(root)
+    pages = sorted(root.glob("*.html"))
+    for page in pages:
+        if page.is_symlink() or not page.is_file():
+            raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
+
     if extension == "responsive":
         generate_responsive_variants(root)
 
-    changed: list[Path] = []
-    for page in sorted(root.glob("*.html")):
+    # Render every page before writing any of them. A bad later page must not leave a
+    # partially rewritten site, and a symlinked route must never redirect writes outside root.
+    pending: list[tuple[Path, str, str, int]] = []
+    for page in pages:
+        if page.is_symlink() or not page.is_file():
+            raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
         original = page.read_text(encoding="utf-8")
         updated = rewrite_html_text(original, extension, root=root)
         if updated != original:
-            page.write_text(updated, encoding="utf-8")
-            changed.append(page)
-    return changed
+            pending.append((page, original, updated, page.stat().st_mode & 0o777))
+
+    if not pending:
+        return []
+
+    staged: list[tuple[Path, Path, str, int]] = []
+    replaced: list[tuple[Path, str, int]] = []
+    try:
+        for page, original, updated, mode in pending:
+            if page.is_symlink() or not page.is_file():
+                raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{page.name}.", suffix=".tmp", dir=root
+            )
+            temporary = Path(temporary_name)
+            staged.append((temporary, page, original, mode))
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as output:
+                output.write(updated)
+            os.chmod(temporary, mode)
+
+        # Re-check every destination immediately before replacing any page.
+        for _, page, _, _ in staged:
+            if page.is_symlink() or not page.is_file():
+                raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
+
+        try:
+            for temporary, page, original, mode in staged:
+                os.replace(temporary, page)
+                replaced.append((page, original, mode))
+        except Exception as error:
+            rollback_errors: list[str] = []
+            for page, original, mode in reversed(replaced):
+                rollback_path: Path | None = None
+                try:
+                    descriptor, rollback_name = tempfile.mkstemp(
+                        prefix=f".{page.name}.rollback.", suffix=".tmp", dir=root
+                    )
+                    rollback_path = Path(rollback_name)
+                    with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as output:
+                        output.write(original)
+                    os.chmod(rollback_path, mode)
+                    os.replace(rollback_path, page)
+                except Exception as rollback_error:
+                    rollback_errors.append(f"{page.name}: {rollback_error}")
+                finally:
+                    if rollback_path is not None:
+                        rollback_path.unlink(missing_ok=True)
+            if rollback_errors:
+                raise RuntimeError(
+                    "HTML rewrite failed and rollback was incomplete: " + "; ".join(rollback_errors)
+                ) from error
+            raise
+
+        return [page for page, _, _, _ in pending]
+    finally:
+        for temporary, _, _, _ in staged:
+            temporary.unlink(missing_ok=True)
 
 
 def main() -> int:
