@@ -63,7 +63,8 @@
 
     const updateCurrent = () => {
       framePending = false;
-      const activationLine = Math.max(120, sectionNav.getBoundingClientRect().bottom + 16);
+      // Match the 160px heading scroll margin, with a buffer below the sticky rail.
+      const activationLine = Math.max(168, sectionNav.getBoundingClientRect().bottom + 32);
       let currentItem = items[0];
       items.forEach(item => {
         if (item.target.getBoundingClientRect().top <= activationLine) currentItem = item;
@@ -88,6 +89,9 @@
     });
     window.addEventListener('scroll', scheduleUpdate, { passive: true });
     window.addEventListener('resize', scheduleUpdate, { passive: true });
+    // Re-evaluate after deep-link changes and browser scroll restoration.
+    window.addEventListener('hashchange', scheduleUpdate);
+    window.addEventListener('pageshow', scheduleUpdate);
     updateCurrent();
   }
 

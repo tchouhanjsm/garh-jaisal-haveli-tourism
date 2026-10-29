@@ -2436,29 +2436,55 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         check(link.count() == 1 and link.get_attribute("href") == fragment,
               f"Directions: {label} navigation must point to its real section heading")
     map_heading = page.locator("#arrival-map-title")
-    map_heading.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => {
+          const nav = document.querySelector('.arrival-section-nav');
+          const heading = document.querySelector('#arrival-map-title');
+          if (!nav || !heading) return;
+          document.documentElement.style.scrollBehavior = 'auto';
+          const activationLine = Math.max(168, nav.getBoundingClientRect().bottom + 32);
+          window.scrollTo(0, window.scrollY + heading.getBoundingClientRect().top - activationLine - 2);
+        }"""
+    )
     try:
         page.wait_for_function(
-            "() => document.querySelector('.arrival-section-nav a[aria-current=location]')?.getAttribute('href') === '#arrival-map-title'",
+            """() => {
+              const nav = document.querySelector('.arrival-section-nav');
+              const heading = document.querySelector('#arrival-map-title');
+              const current = document.querySelector('.arrival-section-nav a[aria-current="location"]');
+              if (!nav || !heading || !current || current.getAttribute('href') !== '#arrival-map-title') return false;
+              const activationLine = Math.max(168, nav.getBoundingClientRect().bottom + 32);
+              return Math.abs(heading.getBoundingClientRect().top - (activationLine - 2)) < 4;
+            }""",
             timeout=5000,
         )
-        check(True, "Directions: scrolling to the map heading must update the active section link")
+        check(True, "Directions: scrolling the map heading through the reading line must update the active section link")
     except Exception as error:
         check(False, f"Directions: active section link must follow scroll position ({error})")
+    finally:
+        page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
 
     travel_nav = section_nav.get_by_role("link", name="Travel options", exact=True)
     if travel_nav.count() == 1:
         travel_nav.click()
         try:
+            page.evaluate("document.documentElement.style.scrollBehavior = 'auto'")
             page.wait_for_function(
-                "() => window.location.hash === '#travel-options-title' "
-                "&& document.querySelector('#travel-options-title')?.getBoundingClientRect().top >= 0",
+                """() => {
+                  const nav = document.querySelector('.arrival-section-nav');
+                  const heading = document.querySelector('#travel-options-title');
+                  if (!nav || !heading || window.location.hash !== '#travel-options-title') return false;
+                  const top = heading.getBoundingClientRect().top;
+                  const navBottom = nav.getBoundingClientRect().bottom;
+                  return top >= navBottom + 8 && top <= navBottom + 80;
+                }""",
                 timeout=5000,
             )
             heading_top = page.locator("#travel-options-title").bounding_box()["y"]
             nav_bottom = section_nav.bounding_box()["y"] + section_nav.bounding_box()["height"]
-            check(heading_top >= nav_bottom - 2,
-                  "Directions: section navigation must not cover the destination heading")
+            check(heading_top >= nav_bottom + 8,
+                  "Directions: section navigation must leave clear space above the destination heading")
+            page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
         except Exception as error:
             check(False, f"Directions: section navigation must reach a visible travel heading ({error})")
         page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
