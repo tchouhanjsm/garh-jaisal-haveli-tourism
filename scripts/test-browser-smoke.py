@@ -578,10 +578,39 @@ def run_responsive_image_preview_smoke() -> int:
                             source = picture.locator('source[data-responsive-image="true"]').first
                             image = picture.locator("img").first
                             label = f"{page_name} at {width}px picture {index + 1}"
-                            # Inactive carousel slides intentionally remain hidden. Their
-                            # static srcset is covered by the media gate; browser selection
-                            # is checked only for images a guest can currently see.
-                            if not image.is_visible():
+                            # Exercise every responsive picture in the real package, including
+                            # offscreen and inactive carousel/gallery slides. Force eager loading
+                            # only in this isolated test context; production loading policy is
+                            # checked below and remains unchanged in the artifact.
+                            image.evaluate("(img) => { img.loading = 'eager'; img.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'}); }")
+                            image.wait_for(state="attached")
+                            try:
+                                image.evaluate(
+                                    """async (img) => {
+                                      if (!img.complete) {
+                                        await new Promise((resolve, reject) => {
+                                          const timeout = setTimeout(() => {
+                                            cleanup();
+                                            reject(new Error('timed out waiting for offscreen image: ' + (img.currentSrc || img.src)));
+                                          }, 8000);
+                                          const cleanup = () => {
+                                            clearTimeout(timeout);
+                                            img.removeEventListener('load', onLoad);
+                                            img.removeEventListener('error', onError);
+                                          };
+                                          const onLoad = () => { cleanup(); resolve(); };
+                                          const onError = () => { cleanup(); reject(new Error('offscreen image request failed: ' + (img.currentSrc || img.src))); };
+                                          img.addEventListener('load', onLoad, {once: true});
+                                          img.addEventListener('error', onError, {once: true});
+                                        });
+                                      }
+                                    }"""
+                                )
+                            except Exception as error:
+                                failures.append(
+                                    f"{label}: could not load image after activating the test-only eager path: "
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                )
                                 continue
                             routes_with_responsive_images.add(page_name)
                             checked_pictures += 1
