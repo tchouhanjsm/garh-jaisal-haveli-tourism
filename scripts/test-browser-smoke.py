@@ -1327,6 +1327,52 @@ def check_stay_planner(page, base_url: str) -> None:
     if browser is None:
         check(False, "Stay planner privacy fallback requires an attached browser context")
     else:
+        # A tab left open across local midnight must reject the previous day.
+        rollover_context = browser.new_context()
+        try:
+            rollover_context.add_init_script(
+                """(() => {
+                  const NativeDate = Date;
+                  let now = new NativeDate(2099, 0, 10, 12, 0, 0).getTime();
+                  Object.defineProperty(window, '__setPlannerClock', {
+                    value(year, month, day) {
+                      now = new NativeDate(year, month - 1, day, 12, 0, 0).getTime();
+                    },
+                  });
+                  class ControlledDate extends NativeDate {
+                    constructor(...args) {
+                      if (args.length === 0) super(now);
+                      else super(...args);
+                    }
+                    static now() { return now; }
+                  }
+                  window.Date = ControlledDate;
+                })();"""
+            )
+            rollover_page = rollover_context.new_page()
+            rollover_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            rollover_planner = rollover_page.locator("[data-stay-planner]")
+            rollover_planner.locator("[data-stay-planner-disclosure] summary").click()
+            rollover_arrival = rollover_planner.locator("#stay-plan-arrival")
+            rollover_departure = rollover_planner.locator("#stay-plan-departure")
+            rollover_arrival.fill("2099-01-10")
+            rollover_page.evaluate("window.__setPlannerClock(2099, 1, 11)")
+            rollover_arrival.dispatch_event("change")
+            check(
+                rollover_arrival.get_attribute("min") == "2099-01-11",
+                "Stay planner must advance the arrival minimum after local midnight",
+            )
+            check(
+                not rollover_arrival.evaluate("(element) => element.checkValidity()"),
+                "Stay planner must reject an arrival date that became historical while the tab was open",
+            )
+            check(
+                rollover_departure.get_attribute("min") == "2099-01-11",
+                "Stay planner must keep departure minimum at today when arrival is now historical",
+            )
+        finally:
+            rollover_context.close()
+
         fallback_context = browser.new_context(java_script_enabled=False)
         try:
             fallback_page = fallback_context.new_page()

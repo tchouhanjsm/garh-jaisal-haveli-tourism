@@ -41,14 +41,22 @@
     }).format(date);
   }
 
-  const today = localDateKey(new Date());
-  arrival.min = today;
-  departure.min = today;
-
   function syncDates() {
-    departure.min = arrival.value || today;
-    const invalidRange = Boolean(arrival.value && departure.value && departure.value <= arrival.value);
-    departure.setCustomValidity(invalidRange ? 'Departure must be after the arrival date.' : '');
+    // Recompute the local business date on every edit/submit. A tab may remain
+    // open across midnight; stale min values must not allow yesterday's dates.
+    const today = localDateKey(new Date());
+    const arrivalValue = arrival.value;
+    const departureValue = departure.value;
+    arrival.min = today;
+    departure.min = arrivalValue && arrivalValue > today ? arrivalValue : today;
+
+    const invalidArrival = Boolean(arrivalValue && arrivalValue < today);
+    arrival.setCustomValidity(invalidArrival ? 'Arrival must be today or later.' : '');
+    const invalidDeparture = Boolean(departureValue && departureValue < today);
+    const invalidRange = Boolean(arrivalValue && departureValue && departureValue <= arrivalValue);
+    departure.setCustomValidity(invalidRange
+      ? 'Departure must be after the arrival date.'
+      : invalidDeparture ? 'Departure must be today or later.' : '');
   }
 
   function syncTopics() {
