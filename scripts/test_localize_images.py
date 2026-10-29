@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image, ImageDraw
 
 from rewrite_image_refs import (
+    IMAGE_NAMES,
     generate_responsive_variants,
     rewrite_html_text,
     rewrite_site,
@@ -198,6 +199,54 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 result,
             )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
+
+    def test_nested_photo_paths_preserve_identity_and_packaged_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_jpeg(root, "rooms/opium.jpg", (1200, 800))
+            generated = generate_responsive_variants(root, ("rooms/opium.jpg",))
+            entry = generated["rooms/opium.jpg"]
+            self.assertEqual(entry["fullSizePath"], "assets/images/rooms/opium.webp")
+            self.assertEqual(entry["variants"][0]["path"], "assets/images/responsive/rooms/opium-480.webp")
+            self.assertEqual(entry["sourceBytes"], source.stat().st_size)
+
+            html = (
+                '<link rel="preload" as="image" href="assets/images/rooms/opium.jpg">'
+                '<img src="assets/images/rooms/opium.jpg" alt="Opium heritage room">'
+            )
+            rewritten = rewrite_html_text(html, "responsive", root=root)
+            self.assertIn("assets/images/responsive/rooms/opium-480.webp 480w", rewritten)
+            self.assertIn('href="assets/images/rooms/opium.webp"', rewritten)
+            self.assertIn('src="assets/images/rooms/opium.jpg"', rewritten)
+            self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
+
+            page = root / "rooms.html"
+            page.write_text(rewritten, encoding="utf-8")
+            candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+            generated_files = []
+            for relative in candidate_paths:
+                target = root / relative
+                with Image.open(target) as decoded:
+                    decoded.load()
+                    generated_files.append({
+                        "path": relative,
+                        "bytes": target.stat().st_size,
+                        "sha256": "0" * 64,
+                        "width": decoded.width,
+                        "height": decoded.height,
+                    })
+            source_record = [{
+                "sourceJpeg": "assets/images/rooms/opium.jpg",
+                "naturalWidth": entry["width"],
+                "naturalHeight": entry["height"],
+                "fullSizeWebp": entry["fullSizePath"],
+            }]
+            report = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root, generated_files, source_record, (480, 768, 1200, 1600)
+            )
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["responsivePictureCount"], 1)
+            self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
 
     def test_packaged_srcset_width_descriptors_match_decoded_webp_assets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -418,12 +467,8 @@ class RewriteImageReferencesTests(unittest.TestCase):
     def test_site_rewrite_is_idempotent_after_responsive_generation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name, size in (
-                ("rest3.jpg", (1200, 800)),
-                ("courtyard.jpg", (1200, 800)),
-                ("scarlet.jpg", (900, 600)),
-                ("tent.jpg", (750, 750)),
-            ):
+            for name in IMAGE_NAMES:
+                size = (1200, 800) if Path(name).name in {"rest3.jpg", "courtyard.jpg"} else (900, 600)
                 create_jpeg(root, name, size)
             home = root / "index.html"
             rooms = root / "rooms.html"

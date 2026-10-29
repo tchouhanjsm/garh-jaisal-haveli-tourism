@@ -101,8 +101,8 @@ def validate_responsive_markup(
     candidate_by_path = {entry["path"]: entry for entry in generated_files}
     if len(candidate_by_path) != len(generated_files):
         fail("Responsive package contains duplicate generated asset paths.")
-    source_by_stem = {Path(entry["sourceJpeg"]).stem: entry for entry in image_sources}
-    if len(source_by_stem) != len(image_sources):
+    source_by_path = {entry["sourceJpeg"]: entry for entry in image_sources}
+    if len(source_by_path) != len(image_sources):
         fail("Responsive package contains duplicate source-image records.")
 
     picture_count = 0
@@ -136,8 +136,7 @@ def validate_responsive_markup(
                 fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
 
             fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
-            stem = Path(fallback_path).stem
-            source_record = source_by_stem.get(stem)
+            source_record = source_by_path.get(fallback_path)
             if (
                 source_record is None
                 or fallback_path != source_record["sourceJpeg"]
@@ -187,11 +186,17 @@ def validate_responsive_markup(
                         f"{page.name}: srcset descriptor width {declared_width}w does not match "
                         f"decoded asset width {metadata['width']}px for {relative}."
                     )
-                expected_relative = (
-                    f"assets/images/{stem}.webp"
-                    if declared_width == natural_width
-                    else f"assets/images/responsive/{stem}-{declared_width}.webp"
-                )
+                if declared_width == natural_width:
+                    expected_relative = source_record["fullSizeWebp"]
+                else:
+                    source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
+                        PurePosixPath("assets/images")
+                    )
+                    expected_relative = (
+                        PurePosixPath("assets/images/responsive")
+                        / source_relative.parent
+                        / f"{source_relative.stem}-{declared_width}.webp"
+                    ).as_posix()
                 if relative != expected_relative:
                     fail(f"{page.name}: srcset candidate path does not match its source stem/width: {relative}")
                 absolute = output / relative
@@ -205,12 +210,22 @@ def validate_responsive_markup(
                 seen_widths.add(declared_width)
                 previous_width = declared_width
 
+            source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
+                PurePosixPath("assets/images")
+            )
             expected_candidates = [
-                (f"assets/images/responsive/{stem}-{width}.webp", width)
+                (
+                    (
+                        PurePosixPath("assets/images/responsive")
+                        / source_relative.parent
+                        / f"{source_relative.stem}-{width}.webp"
+                    ).as_posix(),
+                    width,
+                )
                 for width in responsive_widths
                 if width < natural_width
             ]
-            expected_candidates.append((f"assets/images/{stem}.webp", natural_width))
+            expected_candidates.append((source_record["fullSizeWebp"], natural_width))
             if candidates != expected_candidates:
                 fail(
                     f"{page.name}: srcset candidates must include the verified responsive widths "
@@ -638,13 +653,32 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     spec.loader.exec_module(generator)
 
     rewritten = generator.rewrite_site(output, "responsive")
-    sources = ("rest3.jpg", "courtyard.jpg", "scarlet.jpg", "tent.jpg")
+    sources = (
+        "rest3.jpg",
+        "courtyard.jpg",
+        "scarlet.jpg",
+        "tent.jpg",
+        "legacy/camel-day.jpg",
+        "legacy/camel-sunset.jpg",
+        "legacy/fort-temple-spires.jpg",
+        "rooms/rising-sun.jpg",
+        "rooms/opium.jpg",
+        "rooms/red-maharani.jpg",
+        "rooms/green.jpg",
+        "rooms/bluesky.jpg",
+        "experiences/cultural-programme.jpg",
+        "experiences/swiss-tent-detail.jpeg",
+        "experiences/heritage-architecture.jpg",
+        "gallery/desert/camp-evening.jpeg",
+        "gallery/desert/camp-from-above.jpeg",
+        "dining/rooftop-candlelit-table.jpg",
+    )
     generated_files: list[dict] = []
     image_sources: list[dict] = []
     for filename in sources:
         stem = Path(filename).stem
-        source = output / "assets" / "images" / filename
-        full_size = output / "assets" / "images" / f"{stem}.webp"
+        source = output / "assets" / "images" / Path(filename)
+        full_size = source.with_suffix(".webp")
         if source.is_symlink() or not source.is_file():
             fail(f"Responsive source photo is missing or unsafe: {filename}")
         if full_size.is_symlink() or not full_size.is_file():
@@ -657,16 +691,23 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             converted.load()
             if converted.format != "WEBP" or converted.size != (width, height):
                 fail(f"Full-size WebP failed decoded format/dimension verification: {full_size.name}")
+        source_bytes = source.stat().st_size
+        full_size_bytes = full_size.stat().st_size
+        if full_size_bytes >= source_bytes:
+            fail(f"Verified full-size WebP is not smaller than its source JPEG: {filename}")
         image_sources.append({
-            "sourceJpeg": f"assets/images/{filename}",
+            "sourceJpeg": (PurePosixPath("assets/images") / PurePosixPath(filename)).as_posix(),
             "naturalWidth": width,
             "naturalHeight": height,
-            "fullSizeWebp": f"assets/images/{stem}.webp",
+            "sourceBytes": source_bytes,
+            "fullSizeWebp": full_size.relative_to(output).as_posix(),
+            "fullSizeBytes": full_size_bytes,
+            "fullSizeSavingsBytes": source_bytes - full_size_bytes,
         })
         candidates = [full_size]
-        responsive_dir = output / "assets" / "images" / "responsive"
+        responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
         if responsive_dir.is_dir():
-            candidates.extend(sorted(responsive_dir.glob(f"{stem}-*.webp")))
+            candidates.extend(sorted(responsive_dir.glob(f"{Path(filename).stem}-*.webp")))
         for candidate in candidates:
             with generator.Image.open(candidate) as converted:
                 converted.load()
@@ -687,9 +728,25 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     markup_validation = validate_responsive_markup(
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS)
     )
+    source_jpeg_bytes = sum(item["sourceBytes"] for item in image_sources)
+    full_size_webp_bytes = sum(item["fullSizeBytes"] for item in image_sources)
+    responsive_variants = [
+        item for item in generated_files
+        if item["path"].startswith("assets/images/responsive/")
+    ]
+    responsive_variant_bytes = sum(item["bytes"] for item in responsive_variants)
+    savings_bytes = source_jpeg_bytes - full_size_webp_bytes
+    savings_percent = round((savings_bytes / source_jpeg_bytes) * 100, 2) if source_jpeg_bytes else 0
     return {
         "enabled": True,
         "generationTarget": "isolated staging package; source checkout remains unchanged",
+        "sourceImageCount": len(image_sources),
+        "sourceJpegBytes": source_jpeg_bytes,
+        "fullSizeWebpBytes": full_size_webp_bytes,
+        "fullSizeSavingsBytes": savings_bytes,
+        "fullSizeSavingsPercent": savings_percent,
+        "responsiveVariantCount": len(responsive_variants),
+        "responsiveVariantBytes": responsive_variant_bytes,
         "sourceImages": image_sources,
         "generatedWebpFileCount": len(generated_files),
         "generatedWebpFiles": sorted(generated_files, key=lambda item: item["path"]),
@@ -924,7 +981,10 @@ def main() -> int:
     print(f"Runtime files: {len(entries)}")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
     print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
+    print(f"Responsive source photos optimized: {responsive_report['sourceImageCount']}")
     print(f"Verified responsive WebP files: {responsive_report['generatedWebpFileCount']}")
+    print(f"Downscaled responsive variants: {responsive_report['responsiveVariantCount']} ({responsive_report['responsiveVariantBytes']} bytes)")
+    print(f"Full-size WebP savings: {responsive_report['fullSizeSavingsBytes']} bytes ({responsive_report['fullSizeSavingsPercent']}%) across source photos")
     print(f"Archive: {archive.name} ({archive_bytes} bytes)")
     print(f"SHA-256: {digest_bytes(archive.read_bytes())}")
     print("Release status: BLOCKED_PENDING_MANUAL_UAT (no deployment or indexing activation).")
