@@ -7,12 +7,14 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 from html.parser import HTMLParser
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -224,6 +226,204 @@ def validate_responsive_markup(
         "validatedSrcsetCandidateCount": candidate_count,
         "widthDescriptorsMatchDecodedPixels": True,
         "jpegFallbackDimensionsMatchSource": True,
+    }
+
+
+
+CSS_URL_PATTERN = re.compile(
+    r"""url\(\s*(?:(?P<quote>["'])(?P<quoted>.*?)(?P=quote)|(?P<bare>[^)]*?))\s*\)""",
+    re.IGNORECASE | re.DOTALL,
+)
+CSS_IMPORT_PATTERN = re.compile(r"""@import\s+(["'])(.*?)\1""", re.IGNORECASE | re.DOTALL)
+JS_MODULE_REFERENCE_PATTERN = re.compile(
+    r"""(?:\bimport\s*(?:\(\s*)?|\bnew\s+URL\s*\(\s*)(["'])(.*?)\1""",
+    re.DOTALL,
+)
+META_IMAGE_PROPERTIES = {"og:image", "og:image:url", "twitter:image", "twitter:image:src"}
+
+
+def srcset_urls(value: str) -> list[str]:
+    """Extract file-like srcset candidates, including mixed data/local lists safely."""
+    candidates: list[str] = []
+    in_data_candidate = False
+    for segment in value.split(","):
+        item = segment.strip()
+        if not item:
+            continue
+        if item.lower().startswith("data:"):
+            in_data_candidate = True
+        if in_data_candidate:
+            # Data URLs can contain commas; resume only at a recognizable descriptor boundary.
+            if re.search(r"\s+(?:[1-9][0-9]*(?:\.[0-9]+)?[wx])$", item, re.IGNORECASE):
+                in_data_candidate = False
+            continue
+        url = item.split(None, 1)[0]
+        if "/" in url or Path(url).suffix:
+            candidates.append(url)
+    return candidates
+
+
+def css_references(text: str) -> list[tuple[str, str]]:
+    """Collect CSS url() and quoted @import targets without double-counting imports."""
+    references: list[tuple[str, str]] = []
+    for match in CSS_URL_PATTERN.finditer(text):
+        value = match.group("quoted") if match.group("quote") else match.group("bare")
+        value = (value or "").strip()
+        if value:
+            references.append(("css-url", value))
+    for match in CSS_IMPORT_PATTERN.finditer(text):
+        value = match.group(2).strip()
+        if value:
+            references.append(("css-import", value))
+    return list(dict.fromkeys(references))
+
+
+def js_module_references(text: str) -> list[tuple[str, str]]:
+    """Collect static/dynamic module imports and import.meta-relative URL constructors."""
+    return list(dict.fromkeys(
+        ("js-module", match.group(2).strip())
+        for match in JS_MODULE_REFERENCE_PATTERN.finditer(text)
+        if match.group(2).strip()
+    ))
+
+
+class RuntimeReferenceParser(HTMLParser):
+    """Collect local-file-bearing HTML attributes plus inline CSS and module references."""
+
+    ATTRIBUTES = {"href", "src", "poster", "data", "srcset", "imagesrcset", "xlink:href"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.references: list[tuple[str, str]] = []
+        self.inline_styles: list[str] = []
+        self.inline_scripts: list[str] = []
+        self._in_style = False
+        self._in_script = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        name = tag.lower()
+        values = {key.lower(): value or "" for key, value in attrs}
+        for key, value in values.items():
+            if not value:
+                continue
+            if key in {"srcset", "imagesrcset"}:
+                self.references.extend((key, url) for url in srcset_urls(value))
+            elif key in self.ATTRIBUTES:
+                self.references.append((key, value))
+            elif key == "style":
+                self.inline_styles.append(value)
+        if name == "meta" and values.get("content", ""):
+            property_name = values.get("property", "").lower()
+            name_value = values.get("name", "").lower()
+            if property_name in META_IMAGE_PROPERTIES or name_value in META_IMAGE_PROPERTIES:
+                self.references.append(("meta-image", values["content"]))
+        if name == "style":
+            self._in_style = True
+        if name == "script":
+            self._in_script = not bool(values.get("src"))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "style":
+            self._in_style = False
+        elif tag.lower() == "script":
+            self._in_script = False
+
+    def handle_data(self, data: str) -> None:
+        if self._in_style:
+            self.inline_styles.append(data)
+        if self._in_script:
+            self.inline_scripts.append(data)
+
+
+def resolve_runtime_reference(root: Path, source: Path, kind: str, reference: str) -> bool:
+    """Verify a local runtime reference exists inside the package and crosses no symlink."""
+    value = reference.strip()
+    try:
+        parsed = urlsplit(value)
+    except ValueError as error:
+        fail(f"{source.relative_to(root).as_posix()}: malformed local {kind} reference {value!r}: {error}")
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return False
+
+    relative_path = unquote(parsed.path)
+    if "\x00" in relative_path or "\\" in relative_path:
+        fail(f"{source.relative_to(root).as_posix()}: unsafe local {kind} reference: {value}")
+    candidate = root / relative_path.lstrip("/") if relative_path.startswith("/") else source.parent / relative_path
+    candidate = Path(os.path.abspath(candidate))
+    source_label = source.relative_to(root).as_posix()
+    if not is_within(candidate, root):
+        fail(f"{source_label}: local {kind} reference escapes package root: {value}")
+
+    cursor = root
+    for part in candidate.relative_to(root).parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            fail(f"{source_label}: local {kind} reference traverses a symlink: {value}")
+
+    try:
+        resolved = candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        fail(f"{source_label}: could not resolve local {kind} reference {value}: {error}")
+    if not is_within(resolved, root):
+        fail(f"{source_label}: local {kind} reference escapes package root: {value}")
+
+    if candidate.is_dir():
+        candidate = candidate / "index.html"
+        if candidate.is_symlink():
+            fail(f"{source_label}: local {kind} directory index is a symlink: {value}")
+    if not candidate.exists() or not candidate.is_file():
+        fail(f"{source_label}: broken local asset reference ({kind}): {value}")
+    return True
+
+
+def validate_runtime_asset_closure(output: Path) -> dict:
+    """Fail closed on missing HTML/CSS/SVG/module assets after package transformations."""
+    root = Path(output).resolve(strict=True)
+    text_suffixes = {".html", ".css", ".js", ".svg"}
+    files = sorted(
+        path for path in root.rglob("*")
+        if path.is_file() and not path.is_symlink() and path.suffix.lower() in text_suffixes
+    )
+    references_checked = 0
+    references_by_kind: dict[str, int] = {}
+    for source in files:
+        relative = source.relative_to(root).as_posix()
+        if source.is_symlink():
+            fail(f"Unsafe runtime reference source: {relative}")
+        try:
+            content = source.read_text(encoding="utf-8")
+        except UnicodeDecodeError as error:
+            fail(f"Runtime reference source is not valid UTF-8: {relative}: {error}")
+
+        references: list[tuple[str, str]] = []
+        if source.suffix.lower() in {".html", ".svg"}:
+            parser = RuntimeReferenceParser()
+            try:
+                parser.feed(content)
+                parser.close()
+            except (ValueError, AssertionError) as error:
+                fail(f"Could not parse runtime markup {relative}: {error}")
+            references.extend(parser.references)
+            for style_text in parser.inline_styles:
+                references.extend(css_references(style_text))
+            for script_text in parser.inline_scripts:
+                references.extend(js_module_references(script_text))
+        elif source.suffix.lower() == ".css":
+            references.extend(css_references(content))
+        elif source.suffix.lower() == ".js":
+            references.extend(js_module_references(content))
+
+        for kind, reference in dict.fromkeys(references):
+            if resolve_runtime_reference(root, source, kind, reference):
+                references_checked += 1
+                references_by_kind[kind] = references_by_kind.get(kind, 0) + 1
+
+    return {
+        "status": "PASS",
+        "filesScanned": len(files),
+        "localReferencesChecked": references_checked,
+        "referencesByKind": dict(sorted(references_by_kind.items())),
+        "missingLocalReferences": 0,
     }
 
 
@@ -675,6 +875,8 @@ def main() -> int:
     copy_runtime_files(files, output)
     legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
+    asset_closure_report = validate_runtime_asset_closure(output)
+    runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     entries = inventory_package_files(output)
     legacy_inventory = legacy_source_image_inventory()
@@ -692,7 +894,7 @@ def main() -> int:
         "payloadFileCount": len(entries),
         "files": entries,
         "packageMetrics": package_metrics,
-        "runtimeAssetClosure": legacy_reference_report,
+        "runtimeAssetClosure": runtime_asset_report,
         "responsiveImageDelivery": responsive_report,
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
         "canonicalHostApproved": False,
