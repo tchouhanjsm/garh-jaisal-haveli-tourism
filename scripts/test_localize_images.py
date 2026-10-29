@@ -189,6 +189,38 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
 
+    def test_rewrite_site_rejects_symlinked_root_and_pages_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            site = base / "site"
+            site.mkdir()
+            linked_root = base / "site-link"
+            linked_root.symlink_to(site, target_is_directory=True)
+
+            with self.assertRaisesRegex(ValueError, "symlinked site root"):
+                rewrite_site(linked_root, "jpg")
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "site"
+            root.mkdir()
+            index = root / "index.html"
+            index_before = f'<img src="{SOURCE_PREFIX}rest3.jpg">'
+            index.write_text(index_before, encoding="utf-8")
+
+            protected = base / "protected.html"
+            protected_before = f'<img src="{SOURCE_PREFIX}scarlet.jpg">'
+            protected.write_text(protected_before, encoding="utf-8")
+            (root / "rooms.html").symlink_to(protected)
+
+            # The symlinked route is detected before the earlier-sorted index page
+            # can be rewritten, and the external target remains untouched.
+            with self.assertRaisesRegex(ValueError, "symlinked or non-regular HTML page"):
+                rewrite_site(root, "jpg")
+
+            self.assertEqual(index.read_text(encoding="utf-8"), index_before)
+            self.assertEqual(protected.read_text(encoding="utf-8"), protected_before)
+
     def test_site_rewrite_is_idempotent_after_responsive_generation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
