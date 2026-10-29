@@ -241,6 +241,15 @@ function validateLiveRecord(item, root, siteConfig) {
         || record.heroCaption.trim().length > 180) {
       fail('Live article requires a reviewed hero caption between 20 and 180 characters: ' + sourcePath);
     }
+    const captionReview = record.heroCaptionReview || {};
+    if (captionReview.status !== 'approved'
+        || typeof captionReview.reviewer !== 'string'
+        || captionReview.reviewer.trim().length < 2
+        || !isValidDate(captionReview.reviewedAt)
+        || typeof captionReview.evidenceReference !== 'string'
+        || captionReview.evidenceReference.trim().length < 8) {
+      fail('Live article requires approved hero-caption review metadata with a named reviewer, valid date and evidence reference: ' + sourcePath);
+    }
     if (!record.heroImage || typeof record.heroAlt !== 'string' || record.heroAlt.trim().length < 5
         || !record.seo || !record.seo.ogImage || typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5) {
       fail('Live article requires hero and OG image assets with meaningful alt text: ' + sourcePath);

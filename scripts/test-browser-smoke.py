@@ -2574,6 +2574,7 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         "table-of-contents target and navigation",
         "safe source-link attributes",
         "related draft navigation without route change",
+        "hero-caption and caption-review readiness",
         "archive/article overflow at six viewport widths",
     ]
 
@@ -2668,6 +2669,10 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
           "Journal preview: owner-fact approval must remain pending")
     check("none recorded" in article.locator("[data-review-approved-media]").inner_text().lower(),
           "Journal preview: no article media may appear approved without review evidence")
+    check("not drafted" in article.locator("[data-review-hero-caption]").inner_text().lower(),
+          "Journal preview: draft without a caption must be clearly marked as missing one")
+    check("not recorded" in article.locator("[data-review-hero-caption-review]").inner_text().lower(),
+          "Journal preview: draft without caption review metadata must remain explicitly unreviewed")
 
     toc=article.locator("[data-journal-toc] a")
     check(toc.count()>0,"Journal preview: table of contents must be populated")

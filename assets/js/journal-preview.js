@@ -10,6 +10,8 @@ const toc=root.querySelector('[data-journal-toc]'),body=root.querySelector('[dat
 const backs=Array.from(root.querySelectorAll('[data-journal-back]'));let records=[];
 const reviewNodes={
 recordStatus:root.querySelector('[data-review-record-status]'),
+heroCaption:root.querySelector('[data-review-hero-caption]'),
+heroCaptionReview:root.querySelector('[data-review-hero-caption-review]'),
 editorial:root.querySelector('[data-review-editorial]'),
 source:root.querySelector('[data-review-source]'),
 facts:root.querySelector('[data-review-facts]'),
@@ -51,8 +53,18 @@ setMappedReviewValue(reviewNodes.facts,review.factStatus,{pending:['Pending','pe
 setMappedReviewValue(reviewNodes.media,review.mediaStatus,{missing:['Missing','missing'],pending:['Pending','pending'],rejected:['Rejected','rejected'],approved:['Approved in record','approved']});
 setReviewValue(reviewNodes.ownerFacts,review.ownerFactApproved===true?'Approved in record':'Not approved',review.ownerFactApproved===true?'approved':'not-approved');
 setReviewValue(reviewNodes.reviewer,typeof review.reviewer==='string'&&review.reviewer.trim()?review.reviewer.trim():'Not recorded',typeof review.reviewer==='string'&&review.reviewer.trim()?'aligned':'unrecorded');
-const validReviewDate=typeof review.reviewedAt==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(review.reviewedAt);
+const validReviewDate=typeof review.reviewedAt==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(review.reviewedAt)&&!Number.isNaN(Date.parse(review.reviewedAt+'T00:00:00Z'))&&new Date(review.reviewedAt+'T00:00:00Z').toISOString().slice(0,10)===review.reviewedAt;
 setReviewValue(reviewNodes.reviewedAt,validReviewDate?review.reviewedAt:'Not recorded',validReviewDate?'aligned':'unrecorded');
+const caption=typeof record.heroCaption==='string'?record.heroCaption.trim():'';
+const captionValid=caption.length>=20&&caption.length<=180;
+setReviewValue(reviewNodes.heroCaption,captionValid?'Caption text present — review is separate':'Not drafted or outside 20–180 characters',captionValid?'pending':'missing');
+const captionReview=record.heroCaptionReview&&typeof record.heroCaptionReview==='object'?record.heroCaptionReview:{};
+const captionReviewDate=typeof captionReview.reviewedAt==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(captionReview.reviewedAt)&&!Number.isNaN(Date.parse(captionReview.reviewedAt+'T00:00:00Z'))&&new Date(captionReview.reviewedAt+'T00:00:00Z').toISOString().slice(0,10)===captionReview.reviewedAt;
+const captionReviewComplete=captionReview.status==='approved'&&typeof captionReview.reviewer==='string'&&captionReview.reviewer.trim().length>=2&&captionReviewDate&&typeof captionReview.evidenceReference==='string'&&captionReview.evidenceReference.trim().length>=8;
+const captionReviewRejected=captionReview.status==='rejected';
+const captionReviewLabel=captionReviewComplete?'Approved review recorded':captionReviewRejected?'Review rejected':captionReview.status==='pending'?'Review pending':captionReview.status==='approved'?'Review evidence incomplete':'Not recorded';
+const captionReviewState=captionReviewComplete?'approved':captionReviewRejected?'rejected':captionReview.status==='pending'?'pending':captionReview.status==='approved'?'warning':'unrecorded';
+setReviewValue(reviewNodes.heroCaptionReview,captionReviewLabel,captionReviewState);
 setReviewValue(reviewNodes.approvedMedia,approved.length?approved.length+' approved asset record'+(approved.length===1?'':'s'):'None recorded',approved.length?'approved':'none');
 setReviewValue(reviewNodes.candidateMedia,candidates.length?candidates.length+' candidate lead'+(candidates.length===1?'':'s')+' — not approved':'None recorded',candidates.length?'unreviewed':'none');
 const recordsAgree=(review.mediaStatus==='approved')===(approved.length>0);

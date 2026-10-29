@@ -82,6 +82,12 @@ function makeBlogLive(root) {
   blog.heroImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-hero-01.webp';
   blog.heroAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
   blog.heroCaption = 'Fixture caption for renderer verification: a test-only image & its <caption> markup.';
+  blog.heroCaptionReview = {
+    status: 'approved',
+    reviewer: 'fixture-editor',
+    reviewedAt: '2026-10-25',
+    evidenceReference: 'fixture-caption-review:hero',
+  };
   copyFixtureImage(root, blog.heroImage);
   blog.seo.ogImage = 'assets/images/blogs/jaisalmer-fort-guide/jaisalmer-fort-guide-og-01.webp';
   blog.seo.ogAlt = 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk';
@@ -177,6 +183,15 @@ try {
     () => buildContentPages(root, { write: false }),
     /Live article requires a reviewed hero caption between 20 and 180 characters/,
     'approved/live articles must fail closed when the reviewed hero caption is missing',
+  );
+  makeBlogLive(root);
+  const pendingCaptionReview = readJson(root, 'content/blogs/jaisalmer-fort-guide.json');
+  pendingCaptionReview.heroCaptionReview = { status: 'pending' };
+  writeJson(root, 'content/blogs/jaisalmer-fort-guide.json', pendingCaptionReview);
+  assert.throws(
+    () => buildContentPages(root, { write: false }),
+    /Live article requires approved hero-caption review metadata with a named reviewer, valid date and evidence reference/,
+    'a caption string alone must not bypass the explicit caption-review evidence gate',
   );
   makeBlogLive(root);
   const beforeWrite = fs.readFileSync(path.join(root, 'sitemap.xml'), 'utf8');
