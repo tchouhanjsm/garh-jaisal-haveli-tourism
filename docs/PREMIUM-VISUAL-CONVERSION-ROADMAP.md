@@ -5,6 +5,12 @@
 **Baseline reviewed:** tourism `main` at `7604d4fe52c5f0fbd9bb5df5832a777d5dfc232b`; PR #64 is already merged.  
 **Status:** execution framework and design specification. This file is not a claim of a visual sign-off, publication approval, or production release.
 
+## Delivery log
+
+- **M2 — Directions vertical slice in progress:** the current PR adds section navigation, qualified walking-distance facts, four-step arrival guidance, travel-choice cards and an exact-pin orientation panel. This refinement adds a prioritized hero summary, makes the map orientation visual, separates railway/airport/road decisions, and removes repeated lower-page contact/photo/checklist sections.
+- **Regression coverage:** static contracts and rendered Chromium checks include the hero summary, unique section targets, four-step route, differentiated transport options, source-qualified map guidance and responsive layout across the six audit widths.
+- **Evidence state:** exact-head CI, screenshot inspection and human staging UAT are required before the milestone is marked verified. No blog content is published and canonical/robots/sitemap release gates remain unchanged.
+
 ## 1. Objective and bar
 
 Move Garh Jaisal Haveli from a coherent, well-structured static site to a distinctive, art-directed heritage-hospitality experience that can credibly compete with a high-budget custom website on visual craft, guest confidence, direct-enquiry clarity and operational quality.

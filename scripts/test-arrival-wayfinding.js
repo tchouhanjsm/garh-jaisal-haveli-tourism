@@ -69,6 +69,18 @@ assert.match(stylesheet, /minmax\(0, 1fr\)/,
 
 
 /* Directions M2: section navigation, arrival options and accessibility safeguards. */
+assert.match(directions, /class="page-hero arrival-hero"/,
+  'Directions should use the arrival-specific photo hero treatment');
+assert.equal(count(directions, /data-arrival-quick-card/g), 1,
+  'Directions must prioritize a single quick-arrival summary card in the hero');
+assert.match(directions, /class="arrival-quick-card"[^>]*aria-labelledby="arrival-overview-title"/,
+  'The quick-arrival card must have a stable accessible heading relationship');
+assert.match(directions, /id="arrival-overview-title"/,
+  'Quick-directions navigation must land on the hero arrival summary');
+assert.match(directions, /300 metres[\s\S]*?5–6 minutes/,
+  'The hero summary must surface the approximate source-listed parking-walk estimate');
+assert.match(directions, /not live navigation/i,
+  'The hero summary must not imply live route measurements');
 assert.match(directions, /<nav class="arrival-section-nav wrap" aria-label="Directions page sections">/,
   'Directions must expose a named, keyboard-accessible section navigation');
 for (const [label, target] of [

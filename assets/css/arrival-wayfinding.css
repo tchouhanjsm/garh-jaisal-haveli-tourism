@@ -483,3 +483,211 @@
     scroll-behavior: auto;
   }
 }
+
+
+/* PR #66 · Directions M2 visual refinement: hero essentials and consolidated orientation. */
+.arrival-hero {
+  min-height: clamp(590px, 56vw, 760px);
+  align-items: center;
+}
+.arrival-hero > img { object-position: center 52%; }
+.arrival-hero .page-hero__content {
+  width: min(var(--container), calc(100% - 64px));
+  margin-inline: auto;
+  padding-block: clamp(48px, 6vw, 78px);
+}
+.arrival-hero .breadcrumb { margin-bottom: clamp(24px, 3vw, 36px); }
+.arrival-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(330px, .82fr);
+  align-items: center;
+  gap: clamp(28px, 4.5vw, 68px);
+}
+.arrival-hero__copy, .arrival-quick-card { min-width: 0; }
+.arrival-hero .arrival-hero__copy h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(50px, 6.1vw, 82px);
+  line-height: 1.01;
+  text-wrap: balance;
+}
+.arrival-hero .arrival-hero__copy h1 em { color: var(--gold); font-weight: 400; }
+.arrival-hero__copy > p:not(.eyebrow) {
+  max-width: 590px;
+  margin: 22px 0 0;
+  color: rgba(255, 255, 255, .88);
+  font-size: clamp(13px, 1.1vw, 15px);
+  line-height: 1.9;
+}
+.arrival-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  margin-top: 26px;
+}
+.arrival-hero__actions .button { min-height: 48px; white-space: normal; }
+.arrival-hero .button--light {
+  border-color: rgba(255, 255, 255, .55);
+  background: rgba(18, 27, 22, .22);
+  color: #fffdf8;
+}
+.arrival-hero .button--light:hover {
+  border-color: var(--gold);
+  background: rgba(18, 27, 22, .6);
+}
+.arrival-hero__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  margin-top: 19px;
+}
+.arrival-hero__secondary a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  border-bottom: 1px solid rgba(226, 195, 150, .65);
+  color: #fffdf8;
+  font-size: 12px;
+  text-underline-offset: 4px;
+}
+.arrival-hero__secondary a[aria-disabled="true"] { opacity: .78; }
+.arrival-quick-card {
+  padding: clamp(22px, 2.7vw, 34px);
+  border: 1px solid rgba(255, 255, 255, .78);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .22);
+}
+.arrival-quick-card > .eyebrow { margin-bottom: 10px; color: var(--gold-dark); }
+.arrival-quick-card h2 {
+  margin: 0 0 18px;
+  font-family: var(--serif);
+  font-size: clamp(27px, 2.6vw, 36px);
+  font-weight: 400;
+  line-height: 1.13;
+  letter-spacing: -.035em;
+}
+.arrival-quick-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.arrival-quick-list li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.arrival-quick-list__number {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid rgba(157, 113, 64, .5);
+  border-radius: 50%;
+  color: var(--gold-dark);
+  font-size: 10px;
+  font-weight: 700;
+}
+.arrival-quick-list strong {
+  display: block;
+  margin: 1px 0 3px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.arrival-quick-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.arrival-quick-card__note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.arrival-section-nav {
+  position: sticky;
+  top: 84px;
+  z-index: 30;
+  background: rgba(248, 245, 239, .97);
+  backdrop-filter: blur(12px);
+}
+#arrival-overview-title, #travel-options-title, #walking-access-title,
+#arrival-map-title, #arrival-faq-title { scroll-margin-top: 160px; }
+.arrival-overview { display: block; padding-top: clamp(54px, 6vw, 86px); }
+.arrival-overview__copy {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 10px clamp(24px, 5vw, 74px);
+  align-items: start;
+}
+.arrival-overview__copy .eyebrow { grid-column: 1 / -1; margin-bottom: -3px; }
+.arrival-overview__copy .display-title { max-width: 12ch; }
+.arrival-overview__copy .lead { margin: 0; }
+.arrival-overview__copy > p:not(.eyebrow):not(.lead) {
+  grid-column: 2;
+  margin: -65px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.9;
+}
+.arrival-overview__copy > .button { grid-column: 2; justify-self: start; margin-top: 5px; }
+.arrival-map__checklist {
+  padding: 0 0 clamp(20px, 3vw, 34px);
+  overflow: hidden;
+}
+.arrival-map__visual { margin: 0 0 23px; }
+.arrival-map__visual img {
+  display: block;
+  width: 100%;
+  height: clamp(230px, 28vw, 390px);
+  object-fit: cover;
+  object-position: center 44%;
+}
+.arrival-map__visual figcaption {
+  padding: 10px 16px;
+  background: var(--ink);
+  color: rgba(255, 253, 248, .82);
+  font-size: 10px;
+  line-height: 1.65;
+}
+.arrival-map__checklist > .eyebrow,
+.arrival-map__checklist > ul { margin-inline: clamp(18px, 2.5vw, 28px); }
+.arrival-map__checklist > .eyebrow { margin-bottom: 0; }
+.arrival-map__checklist ul { margin-bottom: 0; }
+@media (max-width: 1080px) {
+  .arrival-hero__grid { grid-template-columns: minmax(0, 1fr) minmax(285px, .9fr); gap: 24px; }
+  .arrival-hero .arrival-hero__copy h1 { font-size: clamp(48px, 5.8vw, 66px); }
+}
+@media (max-width: 900px) {
+  .arrival-hero { min-height: 0; align-items: stretch; }
+  .arrival-hero .page-hero__content { width: calc(100% - 48px); }
+  .arrival-hero__grid { grid-template-columns: minmax(0, 1fr); max-width: 760px; gap: 28px; }
+  .arrival-hero .arrival-hero__copy h1 { max-width: 13ch; font-size: clamp(48px, 8vw, 68px); }
+  .arrival-quick-card { max-width: 650px; }
+  .arrival-overview__copy { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .arrival-overview__copy .eyebrow,
+  .arrival-overview__copy > p:not(.eyebrow):not(.lead),
+  .arrival-overview__copy > .button { grid-column: auto; }
+  .arrival-overview__copy > p:not(.eyebrow):not(.lead) { margin: 0; }
+}
+@media (max-width: 760px) {
+  .arrival-section-nav { top: 72px; }
+  .arrival-hero .page-hero__content { width: calc(100% - 36px); padding-block: 46px 38px; }
+  .arrival-hero .breadcrumb { margin-bottom: 24px; }
+  .arrival-hero .arrival-hero__copy h1 { font-size: clamp(44px, 11.5vw, 62px); }
+  .arrival-hero__copy > p:not(.eyebrow) { margin-top: 17px; font-size: 12px; }
+  .arrival-hero__actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 22px; }
+  .arrival-hero__actions .button { width: 100%; }
+  .arrival-quick-card { padding: 21px 19px; }
+  .arrival-quick-card h2 { font-size: 29px; }
+  .arrival-overview__copy .display-title { max-width: 14ch; }
+}

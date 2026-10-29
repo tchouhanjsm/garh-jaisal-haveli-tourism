@@ -2324,6 +2324,27 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
 
     response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
     check(response is not None and response.status == 200, "Directions: expected HTTP 200")
+    hero = page.locator(".arrival-hero")
+    quick_card = page.locator("[data-arrival-quick-card]")
+    check(hero.count() == 1 and hero.is_visible(),
+          "Directions: arrival-specific photo hero must be visible")
+    check(quick_card.count() == 1 and quick_card.is_visible(),
+          "Directions: one prioritized quick-arrival card must be visible")
+    if quick_card.count():
+        quick_text = quick_card.inner_text()
+        check("Fort Parking" in quick_text and "300 metres" in quick_text and "5–6 minutes" in quick_text,
+              "Directions: quick-arrival card must surface source-listed parking-walk guidance")
+        check("narrow" in quick_text.lower() and "steps" in quick_text.lower(),
+              "Directions: quick-arrival card must explain pedestrian access conditions")
+        check("Confirm the meeting point" in quick_text,
+              "Directions: quick-arrival card must prompt guests to confirm the meeting point")
+    check(page.locator("#walking-access .arrival-steps > .arrival-step").count() == 4,
+          "Directions: the arrival sequence must have four steps")
+    check(page.locator("#travel-options .arrival-travel-card").count() == 3,
+          "Directions: station, airport and road options should remain separate")
+    check(page.locator(".arrival-map__visual img").count() == 1,
+          "Directions: the building reference must load inside the map/orientation module")
+
     section = page.locator("#arrival-walk-distances")
     check(section.count() == 1 and section.is_visible(),
           "Directions: source-backed arrival distance section must be visible")
