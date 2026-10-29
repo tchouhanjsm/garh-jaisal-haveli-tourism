@@ -81,6 +81,15 @@ assert.match(directions, /300 metres[\s\S]*?5–6 minutes/,
   'The hero summary must surface the approximate source-listed parking-walk estimate');
 assert.match(directions, /not live navigation/i,
   'The hero summary must not imply live route measurements');
+assert.match(directions, /alt="Golden sandstone passages reflect the character of the historic fort"/,
+  'The hero photograph must have descriptive non-generic alternative text');
+assert.match(directions, /<section class="section wrap arrival-visual"[^>]*>[\\s\\S]*?not as a guaranteed pickup point or route marker/i,
+  'The facade photograph must have its own accessible reference section and clear caveat');
+assert.match(directions, /WhatsApp or phone link shown on this page to confirm the current meeting point/i,
+  'Arrival help must point guests to centralized contact routes and date-specific confirmation');
+assert.match(directions, /Ask about arrival on WhatsApp/i,
+  'Directions must expose a contextual WhatsApp enquiry action');
+
 assert.match(directions, /<nav class="arrival-section-nav wrap" aria-label="Directions page sections">/,
   'Directions must expose a named, keyboard-accessible section navigation');
 for (const [label, target] of [

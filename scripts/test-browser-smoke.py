@@ -2342,8 +2342,10 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
           "Directions: the arrival sequence must have four steps")
     check(page.locator("#travel-options .arrival-travel-card").count() == 3,
           "Directions: station, airport and road options should remain separate")
-    check(page.locator(".arrival-map__visual img").count() == 1,
-          "Directions: the building reference must load inside the map/orientation module")
+    check(page.locator(".arrival-visual__media img").count() == 1,
+          "Directions: the accessible facade reference section must load its local building image")
+    check(page.locator(".arrival-visual__copy").get_by_role("heading", name="A visual reference for the final approach.").is_visible(),
+          "Directions: the facade reference section must have a visible heading")
 
     section = page.locator("#arrival-walk-distances")
     check(section.count() == 1 and section.is_visible(),

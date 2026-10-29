@@ -641,26 +641,8 @@
 }
 .arrival-overview__copy > .button { grid-column: 2; justify-self: start; margin-top: 5px; }
 .arrival-map__checklist {
-  padding: 0 0 clamp(20px, 3vw, 34px);
-  overflow: hidden;
+  padding: clamp(20px, 3vw, 34px);
 }
-.arrival-map__visual { margin: 0 0 23px; }
-.arrival-map__visual img {
-  display: block;
-  width: 100%;
-  height: clamp(230px, 28vw, 390px);
-  object-fit: cover;
-  object-position: center 44%;
-}
-.arrival-map__visual figcaption {
-  padding: 10px 16px;
-  background: var(--ink);
-  color: rgba(255, 253, 248, .82);
-  font-size: 10px;
-  line-height: 1.65;
-}
-.arrival-map__checklist > .eyebrow,
-.arrival-map__checklist > ul { margin-inline: clamp(18px, 2.5vw, 28px); }
 .arrival-map__checklist > .eyebrow { margin-bottom: 0; }
 .arrival-map__checklist ul { margin-bottom: 0; }
 @media (max-width: 1080px) {
@@ -690,4 +672,15 @@
   .arrival-quick-card { padding: 21px 19px; }
   .arrival-quick-card h2 { font-size: 29px; }
   .arrival-overview__copy .display-title { max-width: 14ch; }
+}
+
+/* Regression compatibility: the hero is also the arrival overview, but keeps its flex hero layout. */
+.arrival-hero.arrival-overview {
+  display: flex;
+  padding-top: 0;
+}
+.arrival-hero .arrival-overview__facts {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--line);
 }
