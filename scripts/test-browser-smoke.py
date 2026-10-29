@@ -1232,6 +1232,52 @@ def check_404_recovery(page, base_url: str) -> dict:
     return evidence
 
 
+def check_stay_planner(page, base_url: str) -> None:
+    """Exercise the shared enquiry planner without sending or persisting guest details."""
+    page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+    planner = page.locator("[data-stay-planner]")
+    check(planner.count() == 1, "Stay planner should appear once on the home route")
+    if planner.count() != 1:
+        return
+    details = planner.locator("[data-stay-planner-disclosure]")
+    details.locator("summary").click()
+    form = planner.locator("[data-stay-planner-form]")
+    arrival = form.locator("#stay-plan-arrival")
+    departure = form.locator("#stay-plan-departure")
+    guests = form.locator("#stay-plan-guests")
+    draft = planner.locator("#stay-plan-draft")
+    status = planner.locator("[data-stay-plan-status]")
+
+    arrival.fill("2099-01-10")
+    departure.fill("2099-01-10")
+    check(not departure.evaluate("(element) => element.checkValidity()"),
+          "Stay planner must reject a departure date on the arrival date")
+    departure.fill("2099-01-12")
+    guests.select_option("3")
+    form.locator('[data-stay-plan-topic][value="room options and total rates"]').check()
+    form.locator("#stay-plan-notes").fill("Arriving after sunset")
+    non_get_requests: list[str] = []
+    page.on("request", lambda request: non_get_requests.append(request.url)
+            if request.method.upper() not in {"GET", "HEAD", "OPTIONS"} else None)
+    form.locator('button[type="submit"]').click()
+    check(planner.locator("[data-stay-plan-result]").is_visible(),
+          "Stay planner should reveal a reviewable draft after valid input")
+    message = draft.input_value()
+    check("10 January 2099" in message and "12 January 2099" in message,
+          "Stay planner draft should include the requested arrival and departure dates")
+    check("Travelling party: 3 people." in message and "room options and total rates" in message,
+          "Stay planner draft should include party size and selected planning topics")
+    check("Arriving after sunset" in message and "does not confirm a booking" in message,
+          "Stay planner draft should preserve optional notes and clear enquiry-only language")
+    check("Nothing has been sent or saved." in status.inner_text(),
+          "Stay planner must confirm that the draft remains local to the page")
+    check(page.url.endswith("/index.html"), "Stay planner must not navigate away when building a draft")
+    check(not non_get_requests, "Stay planner must not submit the enquiry form over the network")
+    planner.locator("[data-edit-stay-plan]").click()
+    check(planner.locator("[data-stay-plan-result]").is_hidden(),
+          "Stay planner should let visitors revise their draft inputs")
+
+
 def check_contact_hydration(page, base_url: str) -> None:
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
     page.wait_for_function(
@@ -2713,6 +2759,7 @@ def main(argv: list[str] | None = None) -> int:
 
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
+            check_stay_planner(page, base_url)
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
@@ -2811,7 +2858,7 @@ def main(argv: list[str] | None = None) -> int:
     mode_label = "staging" if staging_mode else "local"
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
-        "same-origin assets/publication guards, contact-link hydration, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
+        "same-origin assets/publication guards, contact-link hydration, shared enquiry draft generation/date validation/no network submission, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
         "keyboard/skip-link behavior, reduced motion, date-specific arrival enquiry validation/recovery/no-JavaScript fallback, six galleries with keyboard activation, "
         f"wraparound, no-autoplay and no-JavaScript fallback, plus {len(expected_screenshot_names())} full-page PNG captures "
         "with measured geometry, byte size and SHA-256 in a temporary directory. "
