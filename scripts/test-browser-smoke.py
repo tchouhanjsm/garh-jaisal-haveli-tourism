@@ -2439,7 +2439,7 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
     map_heading.scroll_into_view_if_needed()
     try:
         page.wait_for_function(
-            "() => document.querySelector('.arrival-section-nav a[aria-current=\\"location\\"]')?.getAttribute('href') === '#arrival-map-title'",
+            "() => document.querySelector('.arrival-section-nav a[aria-current=location]')?.getAttribute('href') === '#arrival-map-title'",
             timeout=5000,
         )
         check(True, "Directions: scrolling to the map heading must update the active section link")
