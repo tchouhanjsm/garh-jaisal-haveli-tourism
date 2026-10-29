@@ -2684,7 +2684,7 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         if target:
             toc.first.click()
             try:
-                page.wait_for_function("(hash) => window.location.hash === hash",target,timeout=5000)
+                page.wait_for_function("(hash) => window.location.hash === hash", arg=target, timeout=5000)
             except Exception as error:
                 check(False,f"Journal preview: contents navigation must reach the selected section ({error})")
             check(article.locator(target).is_visible(),"Journal preview: selected contents target must remain visible")
