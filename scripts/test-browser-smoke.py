@@ -1273,6 +1273,47 @@ def check_stay_planner(page, base_url: str) -> None:
           "Stay planner must confirm that the draft remains local to the page")
     check(page.url.endswith("/index.html"), "Stay planner must not navigate away when building a draft")
     check(not non_get_requests, "Stay planner must not submit the enquiry form over the network")
+
+    # A failed or disabled script must not turn guest dates and notes into a GET query.
+    browser = page.context.browser
+    if browser is None:
+        check(False, "Stay planner privacy fallback requires an attached browser context")
+    else:
+        fallback_context = browser.new_context(java_script_enabled=False)
+        try:
+            fallback_page = fallback_context.new_page()
+            fallback_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            fallback_planner = fallback_page.locator("[data-stay-planner]")
+            fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
+            fallback_form = fallback_planner.locator("[data-stay-planner-form]")
+            fallback_form.locator("#stay-plan-arrival").fill("2099-01-10")
+            fallback_form.locator("#stay-plan-departure").fill("2099-01-12")
+            fallback_form.locator("#stay-plan-guests").select_option("3")
+            fallback_form.locator("#stay-plan-notes").fill("NOJS-PRIVACY-SENTINEL-20261029")
+            fallback_navigation_requests: list[str] = []
+            fallback_page.on(
+                "request",
+                lambda request: fallback_navigation_requests.append(request.url)
+                if request.is_navigation_request() else None,
+            )
+            fallback_url = fallback_page.url
+            fallback_form.locator('button[type="submit"]').click()
+            fallback_page.wait_for_timeout(200)
+            check(
+                fallback_page.url == fallback_url,
+                "Stay planner must not navigate or serialize guest details when JavaScript is disabled",
+            )
+            check(
+                not fallback_navigation_requests,
+                "Stay planner no-JS fallback must not issue a document navigation",
+            )
+            check(
+                "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
+                "Stay planner notes must never appear in a URL when JavaScript is disabled",
+            )
+        finally:
+            fallback_context.close()
+
     planner.locator("[data-edit-stay-plan]").click()
     check(planner.locator("[data-stay-plan-result]").is_hidden(),
           "Stay planner should let visitors revise their draft inputs")
