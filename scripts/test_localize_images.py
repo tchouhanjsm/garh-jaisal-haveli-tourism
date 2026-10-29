@@ -471,7 +471,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                         audit(linked_root)
 
     def test_hosting_delivery_contract_requires_safe_headers_bounded_caches_and_compression(self) -> None:
-        htaccess = (ROOT / ".htaccess").read_text(encoding="utf-8")
+        htaccess = (Path(__file__).resolve().parents[1] / ".htaccess").read_text(encoding="utf-8")
         report = _PACKAGE_PREVIEW.validate_hosting_delivery_contract(htaccess)
         self.assertEqual(report["status"], "PASS")
         self.assertEqual(report["htmlCachePolicy"], "NO_CACHE_MUST_REVALIDATE")
@@ -531,7 +531,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "sizeBudgetPassed": True,
                 },
                 "hostingDelivery": _PACKAGE_PREVIEW.validate_hosting_delivery_contract(
-                    (ROOT / ".htaccess").read_text(encoding="utf-8")
+                    (Path(__file__).resolve().parents[1] / ".htaccess").read_text(encoding="utf-8")
                 ),
                 "runtimeAssetClosure": {
                     "status": "PASS",
