@@ -245,7 +245,7 @@ def validate_no_legacy_image_tree_references(output: Path) -> dict:
             fail(f"Runtime text asset is not valid UTF-8: {candidate.relative_to(output)}")
         match = LEGACY_IMG_REFERENCE.search(text)
         if match:
-            line_number = text.count("\\n", 0, match.start()) + 1
+            line_number = text.count("\n", 0, match.start()) + 1
             fail(
                 f"Runtime file references the source-only img/ library, which is not packaged: "
                 f"{candidate.relative_to(output)}:{line_number}. Move the asset into assets/ "
