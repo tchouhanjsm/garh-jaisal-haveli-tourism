@@ -426,13 +426,13 @@
   font-size: 12px;
   line-height: 1.8;
 }
-.arrival-map__checklist {
+.arrival-map__orientation {
   align-self: stretch;
   padding: clamp(20px, 3vw, 34px);
   border: 1px solid var(--line);
   background: var(--white);
 }
-.arrival-map__checklist ul {
+.arrival-map__orientation ul {
   display: grid;
   gap: 14px;
   margin: 14px 0 0;
@@ -440,7 +440,7 @@
   color: var(--ink-soft);
   font-size: 14px;
 }
-.arrival-map__checklist li {
+.arrival-map__orientation li {
   padding-left: 4px;
 }
 .arrival-faq {
@@ -474,7 +474,7 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
-  .arrival-map__checklist {
+  .arrival-map__orientation {
     padding: 20px;
   }
 }
@@ -640,11 +640,11 @@
   line-height: 1.9;
 }
 .arrival-overview__copy > .button { grid-column: 2; justify-self: start; margin-top: 5px; }
-.arrival-map__checklist {
+.arrival-map__orientation {
   padding: clamp(20px, 3vw, 34px);
 }
-.arrival-map__checklist > .eyebrow { margin-bottom: 0; }
-.arrival-map__checklist ul { margin-bottom: 0; }
+.arrival-map__orientation > .eyebrow { margin-bottom: 0; }
+.arrival-map__orientation ul { margin-bottom: 0; }
 @media (max-width: 1080px) {
   .arrival-hero__grid { grid-template-columns: minmax(0, 1fr) minmax(285px, .9fr); gap: 24px; }
   .arrival-hero .arrival-hero__copy h1 { font-size: clamp(48px, 5.8vw, 66px); }
@@ -802,5 +802,211 @@
   }
   .arrival-travel__actions .text-link {
     align-self: flex-start;
+  }
+}
+
+
+/* PR #66 · M2 close-out: a truthful visual sequence replaces the underfilled
+   checklist card. It is expressly illustrative, never a fabricated route map. */
+.arrival-map__orientation {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: clamp(24px, 3.4vw, 42px);
+  border: 1px solid rgba(201, 164, 106, .34);
+  background:
+    radial-gradient(circle at 92% 4%, rgba(201, 164, 106, .16), transparent 35%),
+    linear-gradient(145deg, #17261e, #22352a 72%, #1a2821);
+  color: var(--white, #fffdf8);
+  box-shadow: 0 18px 42px rgba(26, 40, 33, .12);
+}
+.arrival-map__orientation::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image: repeating-linear-gradient(135deg, transparent 0 38px, rgba(255, 253, 248, .025) 39px 40px);
+  content: "";
+  pointer-events: none;
+}
+.arrival-map__orientation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid rgba(255, 253, 248, .18);
+}
+.arrival-map__orientation .eyebrow {
+  margin: 0;
+  color: var(--gold, #c9a46a);
+}
+.arrival-map__orientation-mark {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border: 1px solid rgba(201, 164, 106, .48);
+  color: #efdbb7;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .13em;
+}
+.arrival-map__route {
+  display: grid;
+  gap: 0;
+  margin: 6px 0 22px;
+  padding: 0;
+  list-style: none;
+}
+.arrival-map__route-stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 18px 0;
+}
+.arrival-map__route-stop:not(:last-child)::after {
+  position: absolute;
+  top: 56px;
+  bottom: -5px;
+  left: 19px;
+  border-left: 1px dashed rgba(201, 164, 106, .7);
+  content: "";
+}
+.arrival-map__route-number {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--gold, #c9a46a);
+  border-radius: 50%;
+  background: #1a2821;
+  color: #efdbb7;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.arrival-map__route-stop strong {
+  display: block;
+  margin: 2px 0 6px;
+  color: var(--white, #fffdf8);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.arrival-map__route-stop p {
+  max-width: 420px;
+  margin: 0;
+  color: rgba(255, 253, 248, .76);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.arrival-map__walk-fact {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 15px;
+  align-items: center;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 253, 248, .2);
+}
+.arrival-map__walk-distance {
+  color: #efdbb7;
+  font-family: var(--serif, Georgia, serif);
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+.arrival-map__walk-fact strong,
+.arrival-map__walk-fact small {
+  display: block;
+}
+.arrival-map__walk-fact strong {
+  margin-bottom: 4px;
+  color: var(--white, #fffdf8);
+  font-size: 11px;
+}
+.arrival-map__walk-fact small {
+  color: rgba(255, 253, 248, .72);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.arrival-map__orientation-note {
+  margin: 16px 0 0;
+  color: rgba(255, 253, 248, .6);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.arrival-next-step {
+  padding-block: 0 clamp(48px, 6vw, 78px);
+}
+.arrival-next-step__panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(210px, .65fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+  padding: clamp(26px, 4vw, 48px);
+  border: 1px solid rgba(201, 164, 106, .3);
+  background:
+    radial-gradient(circle at 100% 0, rgba(201, 164, 106, .12), transparent 35%),
+    #1a2821;
+  color: var(--white, #fffdf8);
+}
+.arrival-next-step__copy > .eyebrow {
+  margin-bottom: 13px;
+  color: var(--gold, #c9a46a);
+}
+.arrival-next-step__copy h2 {
+  max-width: 17ch;
+  margin: 0;
+  font-size: clamp(30px, 4.1vw, 48px);
+  text-wrap: balance;
+}
+.arrival-next-step__copy > p:last-child {
+  max-width: 620px;
+  margin: 16px 0 0;
+  color: rgba(255, 253, 248, .78);
+  font-size: 13px;
+  line-height: 1.85;
+}
+.arrival-next-step__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 15px;
+}
+.arrival-next-step__actions .button {
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  text-align: center;
+}
+.arrival-next-step__secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  color: var(--white, #fffdf8);
+  font-size: 12px;
+  text-underline-offset: 4px;
+}
+.arrival-next-step__secondary:focus-visible {
+  outline: var(--focus-ring, 3px solid #8c673a);
+  outline-offset: 4px;
+}
+@media (max-width: 760px) {
+  .arrival-map__orientation {
+    padding: 22px;
+  }
+  .arrival-next-step__panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .arrival-next-step__actions {
+    align-items: stretch;
   }
 }

@@ -7,7 +7,7 @@
 
 ## Delivery log
 
-- **M2 — Directions vertical slice in progress:** the current PR adds section navigation, qualified walking-distance facts, four-step arrival guidance, travel-choice cards and an exact-pin orientation panel. This refinement adds a prioritized hero summary, makes the map orientation visual, separates railway/airport/road decisions, and removes repeated lower-page contact/photo/checklist sections.
+- **M2 — Directions/arrival visual refinement:** the route now has an immediate hero summary, six-width-tested section navigation, qualified parking-distance facts, four-step access guidance, distinct rail/air/road choices and exact-pin/address orientation. Screenshot review exposed an underfilled map-side panel; it is replaced with a deliberate three-step arrival schematic that is explicitly not a scaled map or turn-by-turn directions. The duplicate generic stay enquiry builder is removed from Directions; its focused arrival form and a single contextual terminal CTA remain. Exact-head CI and human visual/staging acceptance are required before M2 is called release-ready.
 - **Regression coverage:** static contracts and rendered Chromium checks include the hero summary, unique section targets, four-step route, differentiated transport options, source-qualified map guidance and responsive layout across the six audit widths. The mobile fixed Book Now bar yields when it would obscure the hero summary and restores when clear, with visible/accessible state checked in Chromium.
 - **CI contract correction:** retained a dedicated accessible facade-reference section, descriptive hero image alt text, and explicit contextual WhatsApp/phone arrival-confirmation copy required by the repository’s existing content/UX gate.
 - **Exact-head CI:** all quality gates passed on `079a98a4091260f4854c451e2fe161f436f8faa3`, including source/content quality, the guarded staging package, packaged responsive-image budgets and the packaged Chromium preview. PR #66 remains open; no deployment was performed.
@@ -271,52 +271,14 @@ A milestone does not count as complete because code was pushed.
 
 ## 6. Immediate next execution batch
 
-**First engineering PR after this roadmap: M0 + M2 Directions vertical slice**, because guest arrival is a high-risk, high-intent decision and the owner specifically asked to deepen it. Bundle:
-- Directions markup/content order;
-- arrival-only styling in `assets/css/arrival-wayfinding.css` (extend this owner; don't create a second generic layer);
-- only necessary small JS for section navigation/map and fixed CTA overlap;
-- expanded source contract and browser test coverage at all six widths;
-- updated route-level screenshot evidence;
-- a short visual scorecard and exact-head test log.
+**Next milestone in this same PR: M3 — Journal preview visual QA and article-experience refinement.** The prototype already provides all 12 draft records, topic search/filter, article view, contents, sources and related drafts. Continue with:
+- add a dedicated preview screenshot set for the local-only Journal archive and article view without including it in the public route/sitemap/staging-package contract;
+- review the archive and article at 390 and 1280 px for title scale, text measure, card rhythm, filter/focus states, TOC readability and source/related-link behavior;
+- extend browser regression coverage for keyboard open/back, TOC navigation, no-match results and filter clearing;
+- keep text-only editorial card art until real article-specific media has passed subject, rights, crop and owner review;
+- retain draft status for all 12 records and keep canonical approval false, robots blocking and sitemap empty.
 
-Keep the Journal implementation as the next slice after M0 confirms shared visual tokens and article-layout needs, or include its source/schema test preparation in a parallel **draft-only** content slice if CI capacity permits. Do not merge small documentation-only/cosmetic PRs in lieu of the complete slice. Do not alter canonical host/robots/sitemap in this phase.
-
-## Implementation progress — PR #66
-
-### M0 — baseline evidence captured and reviewed
-
-- The exact-head quality workflow produces a `garh-jaisal-visual-baseline-<run-id>` artifact with full-page screenshots and a JSON run report for every core route at 360, 768 and 1440 CSS px.
-- The baseline was manually inspected for Directions. It exposed the travel section's nested grid being rendered in a narrow right-hand track at desktop/tablet widths despite the static tests passing.
-- The evidence artifact is a local Chromium baseline, not live-staging proof or a human acceptance claim for every route.
-
-### M1 — design-token contract correction
-
-- The first exact-head run correctly caught two older tests that required a literal `outline:3px solid` declaration. The implementation now uses the equivalent centralized `var(--focus-ring)` token.
-- Updated both the carousel and launch-readiness contracts to assert the tokenized focus-ring behavior instead of depending on an inline literal. No focus treatment was removed or weakened.
-- Re-run the full site/content suite on the exact corrected head before M1 is marked accepted.
-
-### M1 — design-token ownership and content-rail alignment
-
-- A single canonical `:root` in `assets/site.css` now owns the active premium palette, typography families, 1280px content rail, shared shadow/easing, button-height/radius and focus-ring tokens.
-- The duplicate token root was removed from `assets/css/premium-guest-journey.css`; it is now a consumer of the shared system. The page wrapper and guest-journey rail use the same `--container` token instead of competing 1240px/1280px limits.
-- The shared premium test now locks the one-root/token contract, key palette values, shared container alignment and button geometry. This is an ownership/consistency refactor, not a new visual theme.
-- Final acceptance depends on exact-head CI and screenshot regression evidence for the full core-route set.
-
-### M2 — Directions arrival slice
-
-- The arrival hero/quick-facts card, distance cards, four-step approach, source-qualified travel options, mobility note, exact-pin/address panel, date-specific enquiry, contextual FAQs and responsive sticky section navigation are implemented on this branch.
-- Current change fixes the travel section's layout ownership: it no longer reuses the unrelated `.transport-source-panel` two-column layout, and the generic boxed side-actions class is removed. Wide screens now get a balanced editorial intro plus a full-width three-card grid; tablets use two columns; narrow phones stack cards.
-- The Chromium suite now checks actual rendered card geometry at 320, 360, 390, 768, 1280 and 1440 CSS px, plus real section-navigation targets and heading visibility. The test fails if the grid collapses back into a narrow secondary column.
-- Corrected exact-head screenshot evidence and the full quality workflow passed on commit `549a579ed0fbece691989734db0753e43a652e5a` (run `40868200117`). The visible travel-grid defect is resolved in local Chromium screenshots; live staging and release sign-off remain separate.
-
-### M3 — local Journal design prototype (PR #66)
-
-- Added `preview/journal.html`, a local-only prototype driven by all 12 JSON records; it is outside the public route/staging-package contract and is not linked from public pages.
-- Added a schema-backed topic taxonomy: Fort & heritage, Trip planning, Itineraries, Desert planning and Beyond the Fort.
-- The prototype supports topic/search filtering, a featured Fort guide, article reading view, contents anchors, source links, related drafts and return/focus recovery.
-- Draft data is rendered through DOM text nodes. Article-specific photos are not presented as approved while contextual fit/rights review remains pending.
-- Node and real-Chromium checks protect this behavior. The public renderer must still emit zero blog pages; canonical approval stays false, robots stays blocking and the sitemap stays empty.
-- Acceptance is pending exact-head quality checks and visual-evidence review. This is a local design prototype, not a public Journal launch.
+The M0 screenshot artifact exists, but final human visual scoring and owner-approved staging UAT are still outstanding. Do not merge or deploy automatically, and do not change canonical host/robots/sitemap in this phase.
 
 ## 7. Source references
 

@@ -131,6 +131,27 @@ assert.match(map, /Kotari Para, inside Jaisalmer Fort/,
   'Map panel must provide a plain-text property address');
 assert.match(map, /not as a turn-by-turn route/i,
   'Map panel must not imply that the map pin supplies live final-walk navigation');
+
+const orientation = map.match(/<aside class="arrival-map__orientation"[\s\S]*?<\/aside>/)?.[0] || '';
+assert.equal(count(orientation, /class="arrival-map__route-stop"/g), 3,
+  'Map orientation must show a complete three-step arrival sequence');
+assert.match(orientation, /Confirm your vehicle stop[\s\S]*?Continue on foot[\s\S]*?Reach Garh Jaisal Haveli/,
+  'The orientation graphic must present a truthful, ordered arrival sequence');
+assert.match(orientation, /~300 m[\s\S]*?From Fort Parking[\s\S]*?5–6 minutes on foot/,
+  'The orientation card must preserve the source-listed estimate only for the parking approach');
+assert.match(orientation, /not a scaled map or turn-by-turn route/i,
+  'The orientation graphic must not be mistaken for a measured route map');
+assert.match(stylesheet, /\.arrival-map__route-stop:not\(\:last-child\)::after/,
+  'The orientation diagram must connect its numbered steps visually');
+assert.match(directions, /class="arrival-next-step__panel"/,
+  'Directions must end with one concise, contextual arrival CTA');
+assert.match(directions, /Prepare arrival enquiry[\s\S]*?href="#arrival-planning"/,
+  'The terminal CTA must lead back to the dedicated arrival planner');
+assert.doesNotMatch(directions, /data-stay-planner|assets\/stay-planner\.js|assets\/css\/stay-planner\.css/,
+  'Directions must not duplicate the dedicated arrival form with the generic stay enquiry builder');
+assert.match(directions, /data-arrival-planning-form/,
+  'Directions must retain its purpose-built arrival enquiry form');
+
 assert.match(stylesheet, /\.arrival-section-nav[\s\S]*?overflow-x:\s*auto/,
   'Section navigation must remain usable on narrow screens without forcing page overflow');
 assert.match(stylesheet, /\.arrival-travel__grid[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/,

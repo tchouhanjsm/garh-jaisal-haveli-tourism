@@ -1440,7 +1440,7 @@ def check_stay_planner(page, base_url: str) -> None:
     # Exercise the same central contact handoff on every other planner integration.
     for route in (
         "rooms.html", "experiences.html", "experience-details.html",
-        "dining.html", "about.html", "directions.html", "gallery.html",
+        "dining.html", "about.html", "gallery.html",
     ):
         response = page.goto(base_url + route, wait_until="domcontentloaded", timeout=15000)
         check(response is not None and response.status == 200,
@@ -1505,6 +1505,18 @@ def check_stay_planner(page, base_url: str) -> None:
         }""")
         check(page.url.endswith("/" + route),
               f"{route}: preparing and opening a WhatsApp draft must not navigate the site")
+
+    directions_response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    check(directions_response is not None and directions_response.status == 200,
+          "Directions: dedicated arrival planner route should load")
+    check(page.locator("[data-stay-planner]").count() == 0,
+          "Directions: do not repeat the generic stay planner after the dedicated arrival form")
+    check(page.locator("[data-arrival-planning-form]").count() == 1,
+          "Directions: keep exactly one dedicated arrival enquiry form")
+    check(page.locator("#arrival-enquiry-title").is_visible(),
+          "Directions: the purpose-built arrival planner heading must remain visible")
+    check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
+          "Directions: do not load the redundant generic planner runtime")
 
     check(not non_get_requests,
           "Stay planner handoff must not submit guest details using a non-GET request")
@@ -2411,6 +2423,23 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
           "Directions: the accessible facade reference section must load its local building image")
     check(page.locator(".arrival-visual__copy").get_by_role("heading", name="A visual reference for the final approach.").is_visible(),
           "Directions: the facade reference section must have a visible heading")
+
+    orientation = page.locator("#arrival-map .arrival-map__orientation")
+    check(orientation.count() == 1 and orientation.is_visible(),
+          "Directions: map panel must contain one visible arrival-orientation diagram")
+    check(orientation.locator(".arrival-map__route-stop").count() == 3,
+          "Directions: orientation diagram must show three ordered approach steps")
+    orientation_text = orientation.inner_text()
+    check("Confirm your vehicle stop" in orientation_text
+          and "Continue on foot" in orientation_text
+          and "Reach Garh Jaisal Haveli" in orientation_text,
+          "Directions: orientation diagram must explain the vehicle-to-foot sequence")
+    check("not a scaled map or turn-by-turn route" in orientation_text.lower(),
+          "Directions: orientation diagram must be labeled as illustrative, not measured")
+    check(page.locator(".arrival-next-step__panel a[href='#arrival-planning']").count() == 1,
+          "Directions: one terminal CTA must return guests to its dedicated arrival enquiry")
+    check(page.locator("[data-stay-planner]").count() == 0,
+          "Directions: remove the duplicated generic stay planner")
 
     section = page.locator("#arrival-walk-distances")
     check(section.count() == 1 and section.is_visible(),

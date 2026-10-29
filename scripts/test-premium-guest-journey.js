@@ -13,7 +13,7 @@ const ROUTES = [
   { file: 'experience-details.html', journey: true },
   { file: 'dining.html', journey: true, current: 'dining.html' },
   { file: 'about.html', journey: true },
-  { file: 'directions.html', journey: true, current: 'directions.html#arrival-planning' },
+  { file: 'directions.html', journey: true, current: 'directions.html#arrival-planning', planner: false },
   { file: 'gallery.html', journey: true },
 ];
 
@@ -108,6 +108,16 @@ for (const route of ROUTES) {
   assert.ok(allStyles.length, route.file + ': expected linked stylesheets');
   assert.ok(allStyles[allStyles.length - 1][0].includes('assets/css/premium-guest-journey.css'),
     route.file + ': premium visual layer must load after route-specific styles');
+  if (route.planner === false) {
+    assert.equal((html.match(/data-stay-planner/g) || []).length, 0,
+      route.file + ': a purpose-built arrival form must not be duplicated by the generic multi-topic stay planner');
+    assert.doesNotMatch(html, /assets\\/css\\/stay-planner\\.css|assets\\/stay-planner\\.js/,
+      route.file + ': do not load generic planner assets when the component is intentionally absent');
+    assert.match(html, /data-arrival-planning-form/,
+      route.file + ': dedicated arrival enquiry remains the conversion path');
+    assert.match(html, /class="arrival-next-step__panel"/,
+      route.file + ': terminal action must return guests to the arrival planner');
+  } else {
   const plannerMatch = html.match(/<section class="stay-planner wrap" data-stay-planner[\s\S]*?<\/section>/);
   assert.ok(plannerMatch, route.file + ': each core route must expose the shared stay planner');
   assert.equal((html.match(/<section class="stay-planner wrap" data-stay-planner\b/g) || []).length, 1,
@@ -126,6 +136,8 @@ for (const route of ROUTES) {
     route.file + ': guests must be able to edit their generated message directly');
   assert.match(planner, /Opening WhatsApp creates a draft for you to review; you must press Send yourself/,
     route.file + ': handoff disclosure must distinguish an enquiry from a sent message or booking');
+  }
+
   if (!route.journey) {
     assert.doesNotMatch(html, /<section class="guest-journey"/,
       route.file + ': homepage must retain its own planning panel instead of duplicating the shared rail');

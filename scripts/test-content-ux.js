@@ -738,7 +738,19 @@ const STAY_PLANNER_ROUTES = [
 ];
 for (const file of STAY_PLANNER_ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-  if (!html.includes('data-stay-planner') ||
+  if (rule.file === 'directions.html') {
+  if (html.includes('data-stay-planner') ||
+      html.includes('assets/css/stay-planner.css') ||
+      html.includes('assets/stay-planner.js')) {
+    fail(rule.file + ': dedicated arrival enquiry must replace the duplicated generic stay planner');
+  }
+  if (!html.includes('data-arrival-planning-form') ||
+      !html.includes('arrival-next-step__panel') ||
+      !html.includes('does not save your details, book a transfer or confirm a reservation')) {
+    fail(rule.file + ': Directions must retain its privacy-minimized, contextual arrival enquiry and terminal action');
+  }
+} else {
+if (!html.includes('data-stay-planner') ||
       !html.includes('assets/css/stay-planner.css') ||
       !html.includes('assets/stay-planner.js')) {
     fail(file + ': shared enquiry planner must be present, styled and initialized');
@@ -759,6 +771,8 @@ for (const file of STAY_PLANNER_ROUTES) {
       !html.includes('Prepare enquiry draft')) {
     fail(file + ': planner must state its enquiry-only behavior clearly');
   }
+}
+
 }
 const stayPlannerScript = fs.readFileSync(path.join(ROOT, 'assets', 'stay-planner.js'), 'utf8');
 const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'stay-planner.css'), 'utf8');
