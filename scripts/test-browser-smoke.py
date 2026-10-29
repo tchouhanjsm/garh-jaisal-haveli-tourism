@@ -2435,6 +2435,17 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         link = section_nav.get_by_role("link", name=label, exact=True)
         check(link.count() == 1 and link.get_attribute("href") == fragment,
               f"Directions: {label} navigation must point to its real section heading")
+    map_heading = page.locator("#arrival-map-title")
+    map_heading.scroll_into_view_if_needed()
+    try:
+        page.wait_for_function(
+            "() => document.querySelector('.arrival-section-nav a[aria-current=\\"location\\"]')?.getAttribute('href') === '#arrival-map-title'",
+            timeout=5000,
+        )
+        check(True, "Directions: scrolling to the map heading must update the active section link")
+    except Exception as error:
+        check(False, f"Directions: active section link must follow scroll position ({error})")
+
     travel_nav = section_nav.get_by_role("link", name="Travel options", exact=True)
     if travel_nav.count() == 1:
         travel_nav.click()
