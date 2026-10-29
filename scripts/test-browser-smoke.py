@@ -1538,6 +1538,42 @@ def check_contact_hydration(page, base_url: str) -> None:
         check(link.get_attribute("target") == "_blank", "Hotel map pin must open in a separate tab")
         check(set((link.get_attribute("rel") or "").split()) >= {"noopener", "noreferrer"},
               "Hotel map pin must protect the new tab with noopener/noreferrer")
+    # Directions M2: validate in-page wayfinding and responsive navigation without opening external links.
+    section_nav = page.locator("nav.arrival-section-nav")
+    check(section_nav.count() == 1 and section_nav.is_visible(),
+          "Directions must expose one visible, named section navigation")
+    expected_sections = [
+        ("Quick directions", "#arrival-overview-title"),
+        ("Travel options", "#travel-options-title"),
+        ("Walking & mobility", "#walking-access-title"),
+        ("Map & navigation", "#arrival-map-title"),
+        ("FAQs", "#arrival-faq-title"),
+    ]
+    for label, href in expected_sections:
+        link = section_nav.get_by_role("link", name=label, exact=True)
+        check(link.count() == 1 and link.get_attribute("href") == href,
+              f"Directions section navigation must target {href}")
+        check(page.locator(href).count() == 1,
+              f"Directions section navigation target {href} must exist exactly once")
+    for width in (320, 390, 768, 1280):
+        page.set_viewport_size({"width": width, "height": 900})
+        dimensions = page.evaluate(
+            "() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth })"
+        )
+        check(dimensions["document"] <= dimensions["viewport"] + 1,
+              f"Directions section navigation must not cause horizontal page overflow at {width}px")
+    page.set_viewport_size({"width": 1280, "height": 900})
+    section_nav.get_by_role("link", name="Walking & mobility", exact=True).click()
+    check(urlparse(page.url).fragment == "walking-access-title",
+          "Walking & mobility navigation must update the in-page fragment")
+    check(page.locator("#walking-access-title").is_visible(),
+          "Walking & mobility navigation must target a visible heading")
+    section_nav.get_by_role("link", name="Map & navigation", exact=True).click()
+    check(urlparse(page.url).fragment == "arrival-map-title",
+          "Map & navigation must update the in-page fragment")
+    check(page.locator("#arrival-map-title").is_visible(),
+          "Map & navigation must target a visible heading")
+
     # This smoke test inspects the destination but never opens the external map.
 
     # This test only inspects links; it never navigates to the provider or submits guest data.

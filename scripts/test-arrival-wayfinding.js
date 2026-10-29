@@ -67,4 +67,46 @@ assert.match(stylesheet, /@media \(max-width: 620px\)/,
 assert.match(stylesheet, /minmax\(0, 1fr\)/,
   'Responsive grid tracks must be allowed to shrink without forced overflow');
 
-console.log('PASS: source-backed arrival distances and vehicle-access caveats are present on Directions, and all seven guest-planning pages deep-link to them.');
+
+/* Directions M2: section navigation, arrival options and accessibility safeguards. */
+assert.match(directions, /<nav class="arrival-section-nav wrap" aria-label="Directions page sections">/,
+  'Directions must expose a named, keyboard-accessible section navigation');
+for (const [label, target] of [
+  ['Quick directions', 'arrival-overview-title'],
+  ['Travel options', 'travel-options-title'],
+  ['Walking &amp; mobility', 'walking-access-title'],
+  ['Map &amp; navigation', 'arrival-map-title'],
+  ['FAQs', 'arrival-faq-title'],
+]) {
+  assert.ok(directions.includes('href="#' + target + '">' + label + '</a>'),
+    'Directions section navigation must target the visible ' + target + ' heading');
+  assert.equal(count(directions, new RegExp('id="' + target + '"', 'g')), 1,
+    target + ' must exist exactly once');
+}
+const travel = directions.match(/<section id="travel-options"[\s\S]*?<\/section>/)?.[0] || '';
+assert.equal(count(travel, /class="arrival-travel-card"/g), 3,
+  'Travel options must present three differentiated planning choices');
+assert.match(travel, /SUV and sedan arrangements across Rajasthan and Delhi/,
+  'Road-transport source context must remain qualified as a possible enquiry');
+assert.match(travel, /no vehicle, driver, fare or availability is guaranteed/i,
+  'Travel cards must not imply a confirmed transfer');
+const mobility = directions.match(/<section id="walking-access"[\s\S]*?<\/section>/)?.[0] || '';
+assert.equal(count(mobility, /class="arrival-step"/g), 4,
+  'The arrival approach must be a four-step, scannable sequence');
+assert.match(mobility, /cannot confirm step-free access or assistance/i,
+  'Mobility content must not promise access or assistance');
+const map = directions.match(/<section id="arrival-map"[\s\S]*?<\/section>/)?.[0] || '';
+assert.match(map, /data-property-map-link/,
+  'Map panel must use the centrally authorized exact hotel pin');
+assert.match(map, /Kotari Para, inside Jaisalmer Fort/,
+  'Map panel must provide a plain-text property address');
+assert.match(map, /not as live walking directions/i,
+  'Map panel must not imply that the map pin supplies live final-walk navigation');
+assert.match(stylesheet, /\.arrival-section-nav[\s\S]*?overflow-x:\s*auto/,
+  'Section navigation must remain usable on narrow screens without forcing page overflow');
+assert.match(stylesheet, /\.arrival-travel__grid[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/,
+  'Travel choices must form a deliberate three-column desktop grid');
+assert.match(stylesheet, /\.arrival-map__layout[\s\S]*?grid-template-columns/,
+  'Map and orientation content must have a responsive layout');
+
+console.log('PASS: source-backed distances, accessible Directions navigation, qualified travel options, mobility safeguards and exact-pin orientation are present.');
