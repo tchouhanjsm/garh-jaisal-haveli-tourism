@@ -69,7 +69,7 @@ assert.match(stylesheet, /minmax\(0, 1fr\)/,
 
 
 /* Directions M2: section navigation, arrival options and accessibility safeguards. */
-assert.match(directions, /class="page-hero arrival-hero"/,
+assert.match(directions, /class="page-hero arrival-hero(?:\s|")/,
   'Directions should use the arrival-specific photo hero treatment');
 assert.equal(count(directions, /data-arrival-quick-card/g), 1,
   'Directions must prioritize a single quick-arrival summary card in the hero');
