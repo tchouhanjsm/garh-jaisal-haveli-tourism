@@ -408,6 +408,15 @@ if PACKAGE_SPEC is None or PACKAGE_SPEC.loader is None:
 staging_packager = importlib.util.module_from_spec(PACKAGE_SPEC)
 PACKAGE_SPEC.loader.exec_module(staging_packager)
 assert "img" not in staging_packager.RUNTIME_DIRECTORIES
+selected_runtime_paths = {
+    path.relative_to(ROOT).as_posix() for path in staging_packager.checked_paths()
+}
+assert "preview/journal.html" not in selected_runtime_paths
+assert "assets/css/journal-preview.css" not in selected_runtime_paths
+assert "assets/js/journal-preview.js" not in selected_runtime_paths
+assert not any(path.startswith("preview/") for path in selected_runtime_paths)
+assert not any(path.startswith("content/blogs/") for path in selected_runtime_paths)
+assert not any(path.startswith("blogs/") and path.lower().endswith(".html") for path in selected_runtime_paths)
 
 with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_directory:
     package_root = Path(temporary_directory)
@@ -419,6 +428,14 @@ with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_dir
     clean_closure = staging_packager.validate_no_legacy_image_tree_references(package_root)
     assert clean_closure["status"] == "PASS"
     assert clean_closure["legacyImageReferences"] == 0
+    clean_isolation = staging_packager.validate_editorial_draft_isolation(package_root)
+    assert clean_isolation == {
+        "status": "PASS",
+        "previewDirectoryExcluded": True,
+        "draftSourceRecordsExcluded": True,
+        "previewAssetsExcluded": True,
+        "generatedBlogHtmlRoutes": 0,
+    }
 
     stylesheet = package_root / "assets" / "site.css"
     stylesheet.write_text(".legacy { background: url('../img/unused-large.jpg'); }", encoding="utf-8")
@@ -428,6 +445,27 @@ with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_dir
         assert "site.css" in str(error) and "img/" in str(error)
     else:
         raise AssertionError("Package must fail closed if runtime CSS references the excluded img/ library")
+
+for forbidden_relative in (
+    "preview/journal.html",
+    "assets/css/journal-preview.css",
+    "assets/js/journal-preview.js",
+    "content/blogs/jaisalmer-fort-guide.json",
+    "blogs/jaisalmer-fort-guide.html",
+):
+    with tempfile.TemporaryDirectory(prefix="garh-draft-isolation-") as temporary_directory:
+        isolated_root = Path(temporary_directory)
+        forbidden = isolated_root / forbidden_relative
+        forbidden.parent.mkdir(parents=True, exist_ok=True)
+        forbidden.write_text("draft-only fixture", encoding="utf-8")
+        try:
+            staging_packager.validate_editorial_draft_isolation(isolated_root)
+        except RuntimeError as error:
+            assert "Editorial draft isolation failed" in str(error), forbidden_relative
+        else:
+            raise AssertionError(
+                "Release package must reject draft-only editorial payload: " + forbidden_relative
+            )
 
 metrics = staging_packager.package_size_metrics(
     [{"path": "index.html", "bytes": 4, "sha256": "0" * 64}],
