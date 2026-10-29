@@ -783,6 +783,17 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             fail("The release manifest must record a passing package-size budget.")
         if metrics.get("uncompressedPayloadBytes", MAX_UNCOMPRESSED_PACKAGE_BYTES + 1) > metrics.get("uncompressedBudgetBytes", 0):
             fail("The package payload exceeds its declared uncompressed-size budget.")
+        closure = manifest.get("runtimeAssetClosure")
+        if not isinstance(closure, dict) or closure.get("status") != "PASS":
+            fail("The release manifest must record a passing runtime asset-closure audit.")
+        closure_files = closure.get("filesScanned")
+        closure_references = closure.get("localReferencesChecked")
+        closure_missing = closure.get("missingLocalReferences")
+        for field, value in (("filesScanned", closure_files), ("localReferencesChecked", closure_references), ("missingLocalReferences", closure_missing)):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                fail(f"Runtime asset-closure metric is invalid: {field}.")
+        if closure_files == 0 or closure_missing != 0:
+            fail("The release manifest must record a completed asset-closure audit with zero missing local references.")
         if any(name.startswith("img/") for name in names):
             fail("The staging archive must not contain the source-only img/ asset library.")
         if manifest.get("deploymentPerformed") is not False:
