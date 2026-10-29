@@ -260,6 +260,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "deploymentPerformed": False,
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
                 "qualityGate": "PASS",
+                "packageMetrics": {
+                    "uncompressedPayloadBytes": len(payload),
+                    "uncompressedBudgetBytes": 18 * 1024 * 1024,
+                    "sizeBudgetPassed": True,
+                },
                 "files": [{
                     "path": "index.html",
                     "bytes": len(payload),
