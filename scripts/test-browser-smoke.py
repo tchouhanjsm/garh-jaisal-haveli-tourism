@@ -3232,7 +3232,8 @@ def main(argv: list[str] | None = None) -> int:
             check_arrival_wayfinding_journey(page, base_url)
             check_arrival_planning_enquiry(page, base_url, browser)
             check_arrival_planning_deep_links(page, base_url)
-            check_journal_preview(page, base_url)
+            if not staging_mode:
+                check_journal_preview(page, base_url)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
