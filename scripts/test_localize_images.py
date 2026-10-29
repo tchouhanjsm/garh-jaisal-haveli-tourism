@@ -503,7 +503,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
         smoke_path = Path(__file__).with_name("test-browser-smoke.py")
         source = smoke_path.read_text(encoding="utf-8")
         start = source.index("def run_responsive_image_preview_smoke")
-        end = source.index("\\ndef load_visible_images", start)
+        end = source.index("\ndef load_visible_images", start)
         browser_check = source[start:end]
 
         # The packaged smoke must not silently skip hidden carousel/gallery pictures.
