@@ -111,11 +111,26 @@
       {
         "path": "assets/images/legacy/camel-sunset.jpg",
         "role": "hero",
-        "fit": "possible-contextual-match",
-        "rationale": "Filename suggests a sunset camel scene; verify the subject and do not infer a current package from the image.",
+        "fit": "not-assessed",
+        "rationale": "The filename suggests a sunset camel scene, but the actual subject and context have not been verified visually.",
         "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
-        "reviewStatus": "unreviewed"
+        "reviewStatus": "unreviewed",
+        "visualReview": {
+          "status": "not_assessed",
+          "evidence": "No visual subject assessment recorded; filename and path are not proof of image content.",
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "sourceEvidence": {
+          "status": "unverified",
+          "creator": null,
+          "sourceUrl": null,
+          "licenseName": null,
+          "evidenceReference": null,
+          "verifiedBy": null,
+          "verifiedAt": null
+        }
       }
     ],
     "approvedAssets": []

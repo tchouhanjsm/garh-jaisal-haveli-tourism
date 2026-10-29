@@ -37,6 +37,8 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-test.txt
 
       - name: Install pinned browser smoke dependency
         run: python -m pip install --disable-pip-version-check -r requirements-test.txt
@@ -46,3 +48,35 @@ jobs:
 
       - name: Run site and content quality suite
         run: bash scripts/check-pr-quality.sh
+
+      - name: Build guarded staging preview archive
+        run: |
+          python3 scripts/package-staging-preview.py \
+            --output "${RUNNER_TEMP}/garh-jaisal-preview" \
+            --archive "${RUNNER_TEMP}/garh-jaisal-staging-preview.zip" \
+            --commit-sha "$GITHUB_SHA" \
+            --source-ref "${GITHUB_HEAD_REF:-$GITHUB_REF}" \
+            --run-id "$GITHUB_RUN_ID" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --quality-passed
+
+      - name: Validate packaged responsive image delivery
+        run: |
+          MEDIA_PERFORMANCE_ROOT="${RUNNER_TEMP}/garh-jaisal-preview" \
+          MEDIA_PERFORMANCE_CONTRACT_ROOT="${GITHUB_WORKSPACE}" \
+            node scripts/test-page-media-performance.js
+
+      - name: Verify responsive images in packaged Chromium preview
+        run: |
+          BROWSER_SMOKE_ROOT="${RUNNER_TEMP}/garh-jaisal-preview" \
+          BROWSER_SMOKE_CONTRACT_ROOT="${GITHUB_WORKSPACE}" \
+            python3 scripts/test-browser-smoke.py --responsive-image-preview
+
+      - name: Upload guarded staging preview artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-staging-preview-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-staging-preview.zip
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

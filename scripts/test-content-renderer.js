@@ -36,7 +36,20 @@ function writeJson(root, relative, value) { fs.writeFileSync(path.join(root, rel
 function copyFixtureImage(root, relative) {
   const target = path.join(root, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.copyFileSync(path.join(root, 'assets/images/legacy/rooftop-candlelight.webp'), target);
+  const source = relative.includes('-hero-')
+    ? 'assets/images/gallery/hotel/fort-from-roof.webp'
+    : 'assets/images/legacy/rooftop-candlelight.webp';
+  fs.copyFileSync(path.join(root, source), target);
+}
+function setFixtureMediaPolicy(root) {
+  // Positive-path fixtures use an existing wide view for the hero and the
+  // smaller rooftop image for the social preview. Test-only byte allowances
+  // are isolated to this temp copy; production registry limits remain intact.
+  const config = readJson(root, 'content/paths.json');
+  config.imageLimits.hero.maxBytes = 500000;
+  config.imageLimits.hero.maxWidth = 2000;
+  config.imageLimits.supporting.maxBytes = 100000;
+  writeJson(root, 'content/paths.json', config);
 }
 function approveCanonicalAndContact(root) {
   const config = readJson(root, 'content/site-config.json');
@@ -61,11 +74,7 @@ function makeTourLive(root) {
   writeJson(root, 'content/tours/sunset-camel-safari.json', tour);
 }
 function makeBlogLive(root) {
-  // This isolated renderer fixture permits the existing 90 KB WebP fixture under
-  // a test-only supporting budget; production content/paths.json remains at 81,920 bytes.
-  const pathsConfig = readJson(root, 'content/paths.json');
-  pathsConfig.imageLimits.supporting.maxBytes = 100000;
-  writeJson(root, 'content/paths.json', pathsConfig);
+  setFixtureMediaPolicy(root);
   const blog = readJson(root, 'content/blogs/jaisalmer-fort-guide.json');
   blog.status = 'live';
   blog.lastReviewed = '2026-10-25';
@@ -82,12 +91,12 @@ function makeBlogLive(root) {
       socialPreview: { required: true, minWidth: 600, maxBytes: 81920, subject: 'A representative Jaisalmer heritage image for sharing' },
     },
     candidates: [
-      { path: blog.heroImage, role: 'hero', fit: 'possible-contextual-match', rationale: 'Fixture-only image approval path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', rightsStatus: 'owner-confirmed', reviewStatus: 'approved' },
-      { path: blog.seo.ogImage, role: 'socialPreview', fit: 'possible-contextual-match', rationale: 'Fixture-only social preview path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', rightsStatus: 'owner-confirmed', reviewStatus: 'approved' },
+      { path: blog.heroImage, role: 'hero', fit: 'possible-contextual-match', rationale: 'Fixture-only image approval path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', sourceEvidence: { status: 'owner-created', creator: 'Fixture photographer', sourceUrl: null, licenseName: null, evidenceReference: 'fixture-evidence:hero-source', verifiedBy: 'fixture-editor', verifiedAt: '2026-10-25' }, rightsStatus: 'owner-confirmed', reviewStatus: 'approved', visualReview: { status: 'matched', evidence: 'Synthetic fixture records the test-only visual subject match.', reviewer: 'fixture-editor', reviewedAt: '2026-10-25' } },
+      { path: blog.seo.ogImage, role: 'socialPreview', fit: 'possible-contextual-match', rationale: 'Fixture-only social preview path for renderer regression coverage.', provenance: 'Synthetic test copy; not a provenance claim.', sourceEvidence: { status: 'owner-created', creator: 'Fixture photographer', sourceUrl: null, licenseName: null, evidenceReference: 'fixture-evidence:social-source', verifiedBy: 'fixture-editor', verifiedAt: '2026-10-25' }, rightsStatus: 'owner-confirmed', reviewStatus: 'approved', visualReview: { status: 'matched', evidence: 'Synthetic fixture records the test-only visual subject match.', reviewer: 'fixture-editor', reviewedAt: '2026-10-25' } },
     ],
     approvedAssets: [
-      { path: blog.heroImage, role: 'hero', alt: blog.heroAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'Synthetic test fixture only; not a real publication approval.' },
-      { path: blog.seo.ogImage, role: 'socialPreview', alt: blog.seo.ogAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'Synthetic test fixture only; not a real publication approval.' },
+      { path: blog.heroImage, role: 'hero', alt: blog.heroAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'fixture-evidence:hero-source' },
+      { path: blog.seo.ogImage, role: 'socialPreview', alt: blog.seo.ogAlt, approvedBy: 'fixture-editor', approvedAt: '2026-10-25', rightsEvidence: 'fixture-evidence:social-source' },
     ],
   };
   blog.editorialReview = {

@@ -96,8 +96,19 @@ assert.ok(validateAgainstSchema(schemas.tour, { ...validTour, slug: '../escape' 
 assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, sources: [] }).length > 0, 'blog without source references must fail');
 assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), approvedAssets: [{ path:'assets/images/blogs/example/example-hero-01.webp', role:'hero', alt:'image', approvedBy:'qa', approvedAt:'2026-10-28', rightsEvidence:'test' }] } }).length > 0,
   'generic alt text for an approved asset must fail schema validation');
-assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), candidates: [{ path:'../outside.webp', role:'hero', fit:'possible-contextual-match', rationale:'Candidate rationale is long enough for the test.', provenance:'Fixture path only, not a real provenance claim.', rightsStatus:'unverified', reviewStatus:'unreviewed' }] } }).length > 0,
+assert.ok(validateAgainstSchema(schemas.blog, { ...validBlog, media: { ...mediaFixture(), candidates: [{ path:'../outside.webp', role:'hero', fit:'not-assessed', rationale:'Candidate rationale is long enough for the test.', provenance:'Fixture path only, not a real provenance claim.', sourceEvidence:{status:'unverified',creator:null,sourceUrl:null,licenseName:null,evidenceReference:null,verifiedBy:null,verifiedAt:null}, rightsStatus:'unverified', reviewStatus:'unreviewed', visualReview:{status:'not_assessed',evidence:'Not visually assessed in this fixture.',reviewer:null,reviewedAt:null} }] } }).length > 0,
   'unsafe candidate paths must fail schema validation');
+const candidateWithoutSourceEvidence = {
+  path: 'assets/images/blogs/example/candidate.webp', role: 'hero', fit: 'not-assessed',
+  rationale: 'Valid-path fixture ensures source evidence is a required schema field.',
+  provenance: 'Fixture path only; no provenance claim.', rightsStatus: 'unverified', reviewStatus: 'unreviewed',
+  visualReview: { status: 'not_assessed', evidence: 'Not visually assessed in this fixture.', reviewer: null, reviewedAt: null },
+};
+const missingEvidenceFindings = validateAgainstSchema(schemas.blog, {
+  ...validBlog, media: { ...mediaFixture(), candidates: [candidateWithoutSourceEvidence] },
+});
+assert.ok(missingEvidenceFindings.some(finding => /missing required property: sourceEvidence/.test(finding.message)),
+  'candidate without structured source evidence must fail the content contract');
 assert.ok(validateAgainstSchema(schemas.gallery, {
   ...validGallery,
   images: [{ src: 'assets/images/gallery/hotel/hotel-hero-01.webp', source: 'Source', approved: false }],
@@ -136,7 +147,7 @@ assert.deepEqual(validateAgainstSchema(schemas.blog, fortGuide), [], 'Fort guide
 assert.equal(fortGuide.status, 'draft', 'Fort guide must remain unpublished');
 assert.equal(fortGuide.lastReviewed, null, 'formal review date must remain unset');
 assert.equal(fortGuide.publishedAt, null, 'article must not claim a publication date');
-assert.equal(fortGuide.editorialReview.mediaStatus, 'missing', 'article media must remain unapproved');
+assert.equal(fortGuide.editorialReview.mediaStatus, fortGuide.media.candidates.length ? 'pending' : 'missing', 'article must distinguish unreviewed candidates from missing media');
 assert.equal(fortGuide.media.approvedAssets.length, 0, 'existing asset files must not imply editorial approval');
 assert.ok(fortGuide.media.requirements.hero.subject.length >= 8 && fortGuide.media.requirements.socialPreview.subject.length >= 8, 'media requirements must be explicit');
 const blogDirectory = path.join(root, 'content', 'blogs');

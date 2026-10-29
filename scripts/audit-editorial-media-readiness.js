@@ -9,7 +9,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
-const { safeRelativePath, validateAgainstSchema } = require('./validate-content');
+const { spawnSync } = require('node:child_process');
+const { safeRelativePath, validateAgainstSchema, mediaSourceEvidenceIssues } = require('./validate-content');
 
 const ROOT = path.resolve(__dirname, '..');
 function imagePolicy(root) {
@@ -26,6 +27,7 @@ function imagePolicy(root) {
 }
 const INSPECTABLE_SOURCE_FORMATS = new Set(['.webp', '.avif', '.jpg', '.jpeg', '.png']);
 const MAX_SCAN_BYTES = 25 * 1024 * 1024;
+const decodeCache = new Map();
 
 function readJson(root, relative) {
   const absolute = path.resolve(root, relative);
@@ -68,7 +70,7 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   if (!absolute) return { path: relative, exists: false, safe: false, errors: ['missing, unsafe or non-regular file'] };
   const stat = fs.statSync(absolute);
   const extension = path.extname(relative).toLowerCase();
-  const result = { path: relative, exists: true, safe: true, bytes: stat.size, format: extension.slice(1), width: null, height: null, sha256: null, valid: false, errors: [], warnings: [] };
+  const result = { path: relative, exists: true, safe: true, bytes: stat.size, format: extension.slice(1), width: null, height: null, sha256: null, headerValid: false, valid: false, errors: [], warnings: [] };
   if (!INSPECTABLE_SOURCE_FORMATS.has(extension)) result.errors.push('unsupported image extension');
   else if (!policy.formats.has(extension)) result.warnings.push('source format is not permitted for publication; convert to WebP or AVIF after editorial approval');
   if (!stat.size) result.errors.push('empty file');
@@ -80,18 +82,17 @@ function imageInfo(root, relative, policy = imagePolicy(root)) {
   result.width = dimensions.width; result.height = dimensions.height;
   result.errors.push(...dimensions.errors);
   result.warnings = [...result.warnings, ...(dimensions.warnings || [])];
-  if (result.width && result.height) {
-    const rolePolicy = policy.hero && /-hero-\d+\./.test(relative) ? policy.hero : policy.supporting;
-    if (result.width < rolePolicy.minWidth) result.errors.push('width below ' + rolePolicy.minWidth + 'px requirement');
-    if (result.width > rolePolicy.maxWidth) result.errors.push('width above ' + rolePolicy.maxWidth + 'px policy');
-    if (stat.size > rolePolicy.maxBytes) result.errors.push('file exceeds ' + rolePolicy.maxBytes + '-byte policy');
-  }
-  result.valid = result.errors.length === 0;
+  // Inventory validation is role-neutral. Width and byte budgets are applied
+  // later by validateForRole() using the declared media role, never a filename.
+  result.headerValid = result.errors.length === 0;
+  result.valid = result.headerValid;
   return result;
 }
 function validateForRole(info, role, policy) {
   if (!info || !info.exists || !info.safe) return { valid: false, errors: (info && info.errors) || ['asset is not a permitted local file'] };
-  const errors = [...(info.errors || [])].filter(error => !/width below |width above |file exceeds /.test(error));
+  if (!['hero', 'socialPreview'].includes(role)) return { valid: false, errors: ['unsupported media role: ' + role] };
+  const errors = [...(info.errors || [])];
+  if (info.decodeStatus !== 'verified') errors.push(info.decodeStatus === 'failed' ? 'full pixel decode failed' : 'full pixel decode has not been verified');
   if (!policy.formats.has('.' + String(info.format || '').toLowerCase())) errors.push('publication image must use WebP or AVIF');
   const limit = role === 'hero' ? policy.hero : policy.supporting;
   if (info.width == null || info.height == null) errors.push('image dimensions could not be verified');
@@ -101,6 +102,60 @@ function validateForRole(info, role, policy) {
   }
   if (info.bytes > limit.maxBytes) errors.push('file exceeds ' + limit.maxBytes + '-byte policy');
   return { valid: errors.length === 0, errors: [...new Set(errors)] };
+}
+function roleEligibilitySummary(assets, policy) {
+  const checks = assets.map(asset => ({
+    hero: validateForRole(asset, 'hero', policy).valid,
+    socialPreview: validateForRole(asset, 'socialPreview', policy).valid,
+  }));
+  return {
+    roleEligibleAssetCount: checks.filter(check => check.hero || check.socialPreview).length,
+    heroRoleEligibleAssetCount: checks.filter(check => check.hero).length,
+    socialPreviewRoleEligibleAssetCount: checks.filter(check => check.socialPreview).length,
+  };
+}
+function verifyImageDecode(root, images) {
+  const results = new Map();
+  const pending = [];
+  for (const info of images) {
+    if (!info || !info.path) continue;
+    const key = [info.sha256, info.format, info.width, info.height].join(':');
+    if (decodeCache.has(key)) results.set(info.path, decodeCache.get(key));
+    else if (!info.exists || !info.safe || !info.width || !info.height || !info.sha256) {
+      results.set(info.path, { status: 'failed', error: 'safe file and positive header dimensions are required for pixel decode' });
+    } else {
+      pending.push({ info, key });
+    }
+  }
+  if (!pending.length) return results;
+  const script = path.join(__dirname, 'decode-media-assets.py');
+  const run = spawnSync('python3', [script, path.resolve(root)], {
+    input: JSON.stringify(pending.map(({ info }) => ({
+      path: info.path, width: info.width, height: info.height, bytes: info.bytes,
+    }))),
+    encoding: 'utf8',
+    timeout: 120000,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+  let payload = null;
+  if (!run.error && run.status === 0) {
+    try { payload = JSON.parse(run.stdout); } catch (_) { payload = null; }
+  }
+  const decoded = new Map((payload && payload.results || []).map(item => [item.path, item]));
+  for (const { info, key } of pending) {
+    let result;
+    if (run.error || !payload || payload.ok !== true) {
+      result = { status: 'unavailable', error: (run.error && run.error.message) || (payload && payload.error) || 'browser decoder did not return a valid report' };
+    } else {
+      const found = decoded.get(info.path);
+      result = found && ['verified', 'failed'].includes(found.status)
+        ? { status: found.status, width: found.width || null, height: found.height || null, error: found.error || null }
+        : { status: 'unavailable', error: 'browser decoder omitted this image result' };
+    }
+    if (result.status !== 'unavailable') decodeCache.set(key, result);
+    results.set(info.path, result);
+  }
+  return results;
 }
 function inspectImage(data, extension) {
   if (extension === '.png') return inspectPng(data);
@@ -204,14 +259,10 @@ function inspectAvif(data) {
   if(declared>data.length) return {width,height,errors:['truncated AVIF ftyp box']};
   return {width,height,errors:[],warnings:['AVIF container header and ispe dimensions verified; pixel decode unavailable in dependency-free runtime']};
 }
-function flattenAssetReferences(value, location, output) {
-  if (Array.isArray(value)) { value.forEach((entry,index)=>flattenAssetReferences(entry,location+'['+index+']',output)); return; }
-  if (!value || typeof value!=='object') return;
-  for (const [key,child] of Object.entries(value)) {
-    const at=location+'.'+key;
-    if (['image','src','heroImage','ogImage'].includes(key) && typeof child==='string' && child.startsWith('assets/')) output.push({path:child,location:at});
-    else flattenAssetReferences(child,at,output);
-  }
+function isValidReviewDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 function auditMedia(root=ROOT) {
   const schema=readJson(root,'content/schemas/blog.schema.json');
@@ -234,6 +285,23 @@ function auditMedia(root=ROOT) {
     }
   }
   scan('assets/images');
+  // Decode every inspectable local image in one isolated Chromium process. A
+  // header-only match never qualifies as technically ready for publication.
+  const decodes = verifyImageDecode(root, assets.filter(asset =>
+    asset.exists && asset.safe && asset.width > 0 && asset.height > 0 && asset.bytes <= MAX_SCAN_BYTES));
+  for (const asset of assets) {
+    const decoded = decodes.get(asset.path);
+    asset.decodeStatus = decoded ? decoded.status : 'not-run';
+    asset.decodeError = decoded && decoded.error || null;
+    if (asset.decodeStatus === 'verified') {
+      asset.warnings = (asset.warnings || []).filter(warning => !/full pixel decode/.test(warning));
+    } else if (asset.decodeStatus === 'unavailable') {
+      asset.warnings = [...(asset.warnings || []), 'full pixel decode could not run: ' + asset.decodeError];
+    } else if (asset.decodeStatus === 'failed') {
+      asset.errors = [...(asset.errors || []), 'full pixel decode failed: ' + asset.decodeError];
+      asset.valid = false;
+    }
+  }
   for(const item of catalogue) {
     const findings=validateAgainstSchema(schema,item.record,item.relative);
     if(item.name!==item.record.slug+'.json') errors.push(item.relative+': filename must match slug');
@@ -245,6 +313,9 @@ function auditMedia(root=ROOT) {
     if (!Array.isArray(rawCandidates) || !Array.isArray(rawApproved)) errors.push(item.relative+': media candidates and approvedAssets must be arrays');
     if (Array.isArray(rawCandidates)&&candidates.length!==rawCandidates.length) errors.push(item.relative+': malformed media candidate record');
     if (Array.isArray(rawApproved)&&approved.length!==rawApproved.length) errors.push(item.relative+': malformed approved asset record');
+    for (const candidate of candidates) {
+      for (const issue of mediaSourceEvidenceIssues(candidate)) errors.push(item.relative+': source evidence '+candidate.path+' '+issue);
+    }
     if (item.record.editorialReview.mediaStatus === 'missing' && candidates.length > 0) errors.push(item.relative+': mediaStatus missing conflicts with declared candidates; use pending review');
     if (item.record.editorialReview.mediaStatus === 'pending' && candidates.length === 0) errors.push(item.relative+': mediaStatus pending requires at least one candidate');
     if (item.record.editorialReview.mediaStatus === 'rejected' && !candidates.some(candidate => candidate.reviewStatus === 'rejected')) errors.push(item.relative+': mediaStatus rejected requires a rejected candidate decision');
@@ -258,6 +329,18 @@ function auditMedia(root=ROOT) {
       const inventory=assets.find(a=>a.path===candidate.path);
       if(!inventory) errors.push(item.relative+': candidate is not present in inventory: '+candidate.path);
       const candidateTechnical = validateForRole(inventory, candidate.role, policy);
+      const visual = candidate.visualReview || {};
+      if(visual.status==='not_assessed') {
+        if(candidate.fit!=='not-assessed') errors.push(item.relative+': unassessed visual subject must use fit=not-assessed: '+candidate.path);
+        if(visual.reviewer!==null || visual.reviewedAt!==null) errors.push(item.relative+': unassessed visual subject cannot have reviewer/date evidence: '+candidate.path);
+      } else if(visual.status==='matched') {
+        if(!['strong-contextual-match','possible-contextual-match'].includes(candidate.fit)) errors.push(item.relative+': visually matched candidate requires an assessed contextual fit: '+candidate.path);
+        if(typeof visual.evidence!=='string'||visual.evidence.trim().length<10||typeof visual.reviewer!=='string'||visual.reviewer.trim().length<2||!isValidReviewDate(visual.reviewedAt)) errors.push(item.relative+': visual match requires evidence, reviewer and valid date: '+candidate.path);
+      } else if(visual.status==='mismatch') {
+        if(candidate.fit!=='not-a-match'||candidate.reviewStatus!=='rejected') errors.push(item.relative+': visual mismatch must be marked not-a-match and rejected: '+candidate.path);
+        if(typeof visual.evidence!=='string'||visual.evidence.trim().length<10||typeof visual.reviewer!=='string'||visual.reviewer.trim().length<2||!isValidReviewDate(visual.reviewedAt)) errors.push(item.relative+': visual mismatch requires evidence, reviewer and valid date: '+candidate.path);
+      } else errors.push(item.relative+': candidate visual review state is missing or invalid: '+candidate.path);
+      if(candidate.reviewStatus==='approved' && visual.status!=='matched') errors.push(item.relative+': candidate cannot be approved before documented visual subject match: '+candidate.path);
       if(candidate.reviewStatus==='approved') {
         if(!['owner-confirmed','licensed'].includes(candidate.rightsStatus)) errors.push(item.relative+': candidate cannot be approved without owner-confirmed or licensed rights: '+candidate.path);
         if(!candidateTechnical.valid) errors.push(item.relative+': candidate cannot be approved while technical checks fail: '+candidate.path+' ('+candidateTechnical.errors.join('; ')+')');
@@ -269,7 +352,7 @@ function auditMedia(root=ROOT) {
       if (!approvedAsset || typeof approvedAsset !== 'object' || Array.isArray(approvedAsset)) { errors.push(item.relative+': malformed approved media record'); continue; }
       if(approvedRoles.has(approvedAsset.role)) errors.push(item.relative+': multiple approved assets for role '+approvedAsset.role);
       approvedRoles.add(approvedAsset.role);
-      const candidate=candidates.find(c=>c.path===approvedAsset.path&&c.role===approvedAsset.role&&c.reviewStatus==='approved'&&['owner-confirmed','licensed'].includes(c.rightsStatus));
+      const candidate=candidates.find(c=>c.path===approvedAsset.path&&c.role===approvedAsset.role&&c.reviewStatus==='approved'&&c.visualReview&&c.visualReview.status==='matched'&&['owner-confirmed','licensed'].includes(c.rightsStatus));
       if(!candidate) errors.push(item.relative+': approved asset must reference a reviewed, rights-resolved candidate: '+approvedAsset.path);
       if(!safeImagePath(root,approvedAsset.path)) errors.push(item.relative+': approved asset path missing or unsafe: '+approvedAsset.path);
       const info=assets.find(a=>a.path===approvedAsset.path);
@@ -307,13 +390,15 @@ function auditMedia(root=ROOT) {
     files.push(asset.path); duplicateFilesMap.set(asset.sha256,files);
   }
   const duplicateFiles=[...duplicateFilesMap.entries()].filter(([,files])=>files.length>1).map(([sha256,files])=>({sha256,files:files.sort()}));
+  const articleReports=catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy));
   const duplicateCandidates=[...candidateOwners.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
   const duplicates=[...seenRefs.entries()].filter(([,owners])=>new Set(owners.map(owner=>owner.split(':')[0])).size>1).map(([asset,owners])=>({path:asset,owners}));
-  return {schemaVersion:1,state:errors.length?'ERROR':catalogue.length>0&&catalogue.every(i=>i.record.editorialReview.mediaStatus==='approved'&&(i.record.media.approvedAssets||[]).length===2)?'READY':'BLOCKED',
-    summary:{articleCount:catalogue.length,assetCount:assets.length,technicallyValidAssetCount:assets.filter(a=>a.valid).length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus!=='approved').length},
-    policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true},
+  const roleEligibility = roleEligibilitySummary(assets, policy);
+  return {schemaVersion:1,state:errors.length?'ERROR':articleReports.length>0&&articleReports.every(article=>article.mediaStatus==='approved'&&article.blockers.length===0)?'READY':'BLOCKED',
+    summary:{articleCount:catalogue.length,assetCount:assets.length,headerValidAssetCount:assets.filter(asset=>asset.headerValid).length,technicallyValidAssetCount:assets.filter(asset=>asset.headerValid&&asset.decodeStatus==='verified').length,...roleEligibility,verifiedPixelDecodeAssetCount:assets.filter(asset=>asset.decodeStatus==='verified').length,failedPixelDecodeAssetCount:assets.filter(asset=>asset.decodeStatus==='failed').length,referenceCount:allRefs.length,duplicateUsageCount:duplicates.length,duplicateCandidateCount:duplicateCandidates.length,duplicateFileCount:duplicateFiles.length,approvedArticleCount:articleReports.filter(article=>article.mediaStatus==='approved'&&article.blockers.length===0).length,declaredApprovedArticleCount:catalogue.filter(i=>i.record.editorialReview.mediaStatus==='approved').length,blockedArticleCount:articleReports.filter(article=>article.blockers.length>0).length},
+    policy:{readOnly:true,formats:[...policy.formats].map(f=>f.slice(1)).sort(),roleLimits:{hero:policy.hero,socialPreview:policy.socialPreview,supporting:policy.supporting},roleEligibilityIsTechnicalOnly:true,roleEligibilityUsesDeclaredRoleNotFilename:true,approvalRequiresCandidateReviewRightsEvidenceAndTechnicalValidity:true,structuredSourceEvidenceRequired:true,approvedRightsEvidenceMustMatchSourceEvidenceReference:true},
     inventory:assets.sort((a,b)=>a.path.localeCompare(b.path)),
-    duplicates,duplicateCandidates,duplicateFiles,errors,articles:catalogue.map(item=>articleReport(root,item,assets,seenRefs,policy))
+    duplicates,duplicateCandidates,duplicateFiles,errors,articles:articleReports
   };
 }
 function flattenRefs(record) {
@@ -336,8 +421,9 @@ function articleReport(root,item,assets,seenRefs,policy) {
       const info=assets.find(item=>item.path===asset.path);
       const check=validateForRole(info,role,policy);
       if(!check.valid) integrityBlockers.push(role+'-technical-invalid:'+check.errors.join('; '));
-      const candidate=candidateRecords.find(item=>item.path===asset.path&&item.role===role&&item.reviewStatus==='approved'&&['owner-confirmed','licensed'].includes(item.rightsStatus));
+      const candidate=candidateRecords.find(item=>item.path===asset.path&&item.role===role&&item.reviewStatus==='approved'&&item.visualReview&&item.visualReview.status==='matched'&&['owner-confirmed','licensed'].includes(item.rightsStatus)&&mediaSourceEvidenceIssues(item).length===0);
       if(!candidate) integrityBlockers.push(role+'-candidate-or-rights-evidence-invalid');
+      else if(asset.rightsEvidence!==candidate.sourceEvidence.evidenceReference) integrityBlockers.push(role+'-rights-evidence-reference-mismatch');
       const actualPath=role==='hero'?r.heroImage:(r.seo&&r.seo.ogImage);
       const actualAlt=role==='hero'?r.heroAlt:(r.seo&&r.seo.ogAlt);
       if(asset.path!==actualPath) integrityBlockers.push(role+'-rendered-path-mismatch');
@@ -349,7 +435,10 @@ function articleReport(root,item,assets,seenRefs,policy) {
     const check=validateForRole(info,candidate.role,policy);
     return [
       ...(candidate.reviewStatus==='unreviewed'?['candidate-unreviewed:'+candidate.path]:[]),
+      ...(candidate.visualReview && candidate.visualReview.status==='not_assessed'?['candidate-visual-review-not-assessed:'+candidate.path]:[]),
+      ...(candidate.visualReview && candidate.visualReview.status==='mismatch'?['candidate-visual-subject-mismatch:'+candidate.path]:[]),
       ...(candidate.rightsStatus==='unverified'?['candidate-rights-unverified:'+candidate.path]:[]),
+      ...(!candidate.sourceEvidence||candidate.sourceEvidence.status==='unverified'?['candidate-source-provenance-unverified:'+candidate.path]:[]),
       ...(!check.valid?['candidate-needs-technical-review:'+candidate.path+': '+check.errors.join('; ')]:[]),
     ];
   });
@@ -369,9 +458,23 @@ function articleReport(root,item,assets,seenRefs,policy) {
 }
 function reportText(report) {
   const lines=['EDITORIAL MEDIA READINESS: '+report.state,
-    'Articles: '+report.summary.articleCount+' | inventoried assets: '+report.summary.assetCount+' | technical pass: '+report.summary.technicallyValidAssetCount+' | approved articles: '+report.summary.approvedArticleCount+' | blocked: '+report.summary.blockedArticleCount,
-    'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | duplicate files: '+report.summary.duplicateFileCount+' | read-only: yes'];
-  for(const article of report.articles) lines.push((article.blockers.length?'BLOCK ':'READY ')+article.slug+' — '+article.blockers.join(', '));
+    'Articles: '+report.summary.articleCount+' | inventoried assets: '+report.summary.assetCount+' | header-valid: '+report.summary.headerValidAssetCount+' | pixel-decode verified: '+report.summary.technicallyValidAssetCount+' | role-eligible assets (technical only, not editorial approval): '+report.summary.roleEligibleAssetCount+' (hero: '+report.summary.heroRoleEligibleAssetCount+', social preview: '+report.summary.socialPreviewRoleEligibleAssetCount+') | valid media approvals: '+report.summary.approvedArticleCount+' | blocked: '+report.summary.blockedArticleCount,
+    'Duplicate usage: '+report.summary.duplicateUsageCount+' | shared candidates: '+report.summary.duplicateCandidateCount+' | duplicate files: '+report.summary.duplicateFileCount+' | pixel decode verified: '+report.summary.verifiedPixelDecodeAssetCount+' | read-only: yes'];
+  for(const article of report.articles) {
+    lines.push((article.blockers.length?'BLOCK ':'READY ')+article.slug+' ['+article.mediaStatus+']');
+    if(article.requirements) {
+      lines.push('  Hero requirement: '+article.requirements.hero.subject);
+      lines.push('  Social requirement: '+article.requirements.socialPreview.subject);
+    }
+    if(!article.candidates.length) lines.push('  Candidate gap: no context-supported local asset identified; source/proper asset needed.');
+    for(const candidate of article.candidates) {
+      lines.push('  Candidate '+candidate.role+': '+candidate.path+' | fit='+candidate.fit+' | visual-review='+(candidate.visualReview&&candidate.visualReview.status||'missing')+' | review='+candidate.reviewStatus+' | rights='+candidate.rightsStatus+' | source-evidence='+(candidate.sourceEvidence&&candidate.sourceEvidence.status||'missing')+' | role-check='+(candidate.technical?'PASS':'BLOCKED'));
+      lines.push('    '+candidate.rationale);
+      if(candidate.technicalErrors.length) lines.push('    Technical findings: '+candidate.technicalErrors.join('; '));
+    }
+    if(article.blockers.length) lines.push('  Blockers: '+article.blockers.join(', '));
+    if(article.candidateWarnings.length) lines.push('  Candidate warnings: '+[...new Set(article.candidateWarnings)].join(' | '));
+  }
   if(report.errors.length) lines.push('Integrity errors:',...report.errors.map(e=>' - '+e));
   return lines.join('\n');
 }
@@ -385,4 +488,4 @@ if(require.main===module) {
     }catch(error){console.error('FAIL: media audit could not complete safely: '+error.message);process.exitCode=1;}
   }
 }
-module.exports={auditMedia,imageInfo,inspectImage,safeImagePath,imagePolicy,validateForRole};
+module.exports={auditMedia,imageInfo,inspectImage,safeImagePath,imagePolicy,validateForRole,roleEligibilitySummary,verifyImageDecode};

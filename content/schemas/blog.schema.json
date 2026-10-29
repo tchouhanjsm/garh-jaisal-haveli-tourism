@@ -60,15 +60,38 @@
               "properties": {"required": {"const": true}, "minWidth": {"type": "integer", "minimum": 1}, "maxBytes": {"type": "integer", "minimum": 1}, "subject": {"type": "string", "minLength": 8, "maxLength": 240}}}
           }
         },
-        "candidates": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "role", "fit", "rationale", "provenance", "rightsStatus", "reviewStatus"],
+        "candidates": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "role", "fit", "rationale", "provenance", "rightsStatus", "reviewStatus", "visualReview", "sourceEvidence"],
           "properties": {
             "path": {"type": "string", "pattern": "^assets/images/[a-z0-9._/-]+\\.(jpg|jpeg|png|webp|avif)$"},
             "role": {"enum": ["hero", "socialPreview"]},
-            "fit": {"enum": ["strong-contextual-match", "possible-contextual-match", "not-assessed"]},
+            "fit": {"enum": ["strong-contextual-match", "possible-contextual-match", "not-assessed", "not-a-match"]},
             "rationale": {"type": "string", "minLength": 10, "maxLength": 300},
             "provenance": {"type": "string", "minLength": 5, "maxLength": 240},
             "rightsStatus": {"enum": ["unverified", "owner-confirmed", "licensed", "rejected"]},
-            "reviewStatus": {"enum": ["unreviewed", "approved", "rejected"]}
+            "reviewStatus": {"enum": ["unreviewed", "approved", "rejected"]},
+            "visualReview": {
+              "type": "object", "additionalProperties": false,
+              "required": ["status", "evidence", "reviewer", "reviewedAt"],
+              "properties": {
+                "status": {"enum": ["not_assessed", "matched", "mismatch"]},
+                "evidence": {"type": "string", "minLength": 10, "maxLength": 400},
+                "reviewer": {"type": ["string", "null"], "minLength": 2, "maxLength": 80},
+                "reviewedAt": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+              }
+            },
+            "sourceEvidence": {
+              "type": "object", "additionalProperties": false,
+              "required": ["status", "creator", "sourceUrl", "licenseName", "evidenceReference", "verifiedBy", "verifiedAt"],
+              "properties": {
+                "status": {"enum": ["unverified", "owner-created", "licensed", "commissioned"]},
+                "creator": {"type": ["string", "null"], "minLength": 2, "maxLength": 120},
+                "sourceUrl": {"type": ["string", "null"], "format": "uri"},
+                "licenseName": {"type": ["string", "null"], "minLength": 2, "maxLength": 160},
+                "evidenceReference": {"type": ["string", "null"], "minLength": 8, "maxLength": 500},
+                "verifiedBy": {"type": ["string", "null"], "minLength": 2, "maxLength": 80},
+                "verifiedAt": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+              }
+            }
           }}},
         "approvedAssets": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "role", "alt", "approvedBy", "approvedAt", "rightsEvidence"],
           "properties": {

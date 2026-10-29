@@ -4,10 +4,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(process.env.MEDIA_PERFORMANCE_ROOT || path.join(__dirname, '..'));
+const CONTRACT_ROOT = path.resolve(process.env.MEDIA_PERFORMANCE_CONTRACT_ROOT || ROOT);
 const KIB = 1024;
 const DEFAULT_MAX_BYTES = 650 * KIB;
-const routeContract = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
+const routeContract = JSON.parse(fs.readFileSync(path.join(CONTRACT_ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
 const PAGES = routeContract.routes.map(route => route.file);
 const HERO_BUDGETS = new Map([
   ['index.html', 150 * KIB],
@@ -103,7 +104,8 @@ for (const page of PAGES) {
   const highPriority = imageTags.filter(tag => (attributes(tag).fetchpriority || '').toLowerCase() === 'high');
   if (heroImageTag) {
     if ((attributes(heroImageTag).fetchpriority || '').toLowerCase() !== 'high') fail(page + ': hero image must use fetchpriority="high"');
-    if ((attributes(heroImageTag).loading || '').toLowerCase() === 'lazy') fail(page + ': hero image must not be lazy-loaded');
+    if ((attributes(heroImageTag).loading || '').toLowerCase() !== 'eager') fail(page + ': hero image must explicitly use loading="eager"');
+    if ((attributes(heroImageTag).decoding || '').toLowerCase() !== 'async') fail(page + ': hero image must use decoding="async"');
     if (highPriority.length !== 1 || highPriority[0] !== heroImageTag) fail(page + ': only the primary hero image may use fetchpriority="high"');
   } else if (highPriority.length) {
     fail(page + ': a page without an image hero must not prioritize a supporting image');
@@ -116,6 +118,16 @@ for (const page of PAGES) {
     const src = attr.src || '';
     if (!src) fail(page + ': image has no src attribute');
     else inspectAsset(src, page, isHero ? 'hero image' : 'supporting image', isHero ? heroBudget : null);
+    if ((attr['data-responsive-image-fallback'] || '').toLowerCase() === 'true') {
+      const fallbackPath = src.split(/[?#]/, 1)[0];
+      if (!/\.jpe?g$/i.test(fallbackPath)) fail(page + ': responsive image must retain a JPEG fallback: ' + src);
+      if (!/^[1-9]\d*$/.test(attr.width || '') || !/^[1-9]\d*$/.test(attr.height || '')) {
+        fail(page + ': responsive image must reserve positive intrinsic width and height: ' + src);
+      }
+      if ((attr.decoding || '').toLowerCase() !== 'async') {
+        fail(page + ': responsive image fallback must use decoding="async": ' + src);
+      }
+    }
     if (!isHero) {
       if ((attr.loading || '').toLowerCase() !== 'lazy') fail(page + ': below-hero image must use loading="lazy": ' + src);
       if ((attr.decoding || '').toLowerCase() !== 'async') fail(page + ': below-hero image must use decoding="async": ' + src);
@@ -127,14 +139,102 @@ for (const page of PAGES) {
     }
   }
 
-  for (const match of html.matchAll(/<source\b[^>]*>/gi)) {
-    const tag = match[0];
+  const sourceTags = [...html.matchAll(/<source\b[^>]*>/gi)].map(match => match[0]);
+  for (const tag of sourceTags) {
     const attr = attributes(tag);
     if (!attr.srcset) continue;
     const inHero = Boolean(heroHtml && heroHtml.includes(tag));
+    if ((attr['data-responsive-image'] || '').toLowerCase() === 'true') {
+      if ((attr.type || '').toLowerCase() !== 'image/webp') {
+        fail(page + ': responsive picture source must declare type="image/webp"');
+      }
+      if (!attr.sizes) fail(page + ': responsive picture source must declare sizes');
+    }
     for (const candidate of srcsetCandidates(attr.srcset)) {
       inspectAsset(candidate, page, inHero ? 'hero responsive source' : 'responsive source',
         inHero ? (HERO_BUDGETS.get(page) || DEFAULT_MAX_BYTES) : null);
+    }
+  }
+
+  // A non-responsive image preload must target the actual primary hero image or one of its
+  // <picture> candidates. Preloading an unrelated room/supporting photo wastes bandwidth and
+  // can compete with the real LCP image even when the asset itself is valid.
+  const heroImageCandidates = new Set();
+  if (heroImageTag) {
+    const heroSrc = (attributes(heroImageTag).src || '').split(/[?#]/, 1)[0];
+    if (heroSrc) heroImageCandidates.add(heroSrc);
+    for (const sourceTag of sourceTags) {
+      if (!heroHtml.includes(sourceTag)) continue;
+      for (const candidate of srcsetCandidates(attributes(sourceTag).srcset)) heroImageCandidates.add(candidate);
+    }
+  }
+
+  const imagePreloadTags = [...html.matchAll(/<link\b[^>]*>/gi)]
+    .map(match => ({ tag: match[0], attr: attributes(match[0]) }))
+    .filter(({ attr }) => (attr.rel || '').toLowerCase() === 'preload'
+      && (attr.as || '').toLowerCase() === 'image');
+  if (heroImageTag && !imagePreloadTags.some(({ attr }) => {
+    const href = (attr.href || '').split(/[?#]/, 1)[0];
+    return heroImageCandidates.has(href);
+  })) {
+    fail(page + ': image hero must have a preload matching the hero image or a picture candidate');
+  }
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+    const attr = attributes(match[0]);
+    if ((attr.rel || '').toLowerCase() !== 'preload'
+      || (attr.as || '').toLowerCase() !== 'image'
+      || attr.imagesrcset) continue;
+    const href = (attr.href || '').split(/[?#]/, 1)[0];
+    if (!heroImageCandidates.has(href)) {
+      fail(page + ': image preload must target the primary hero image or its picture candidate: ' + href);
+    }
+    const type = (attr.type || '').toLowerCase();
+    const extension = path.extname(href).toLowerCase();
+    const expectedType = ({
+      '.webp': 'image/webp',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+    })[extension] || '';
+    if (type && expectedType && type !== expectedType) {
+      fail(page + ': image preload type does not match its file extension: ' + href);
+    }
+  }
+
+  // Responsive preload hints must agree with a real <picture> source. A mismatched
+  // candidate list or slot size can trigger duplicate downloads and waste bandwidth.
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    const attr = attributes(tag);
+    if ((attr.rel || '').toLowerCase() !== 'preload'
+      || (attr.as || '').toLowerCase() !== 'image'
+      || !attr.imagesrcset) continue;
+    if (!attr.imagesizes) fail(page + ': responsive image preload must declare imagesizes');
+    if ((attr.type || '').toLowerCase() !== 'image/webp') {
+      fail(page + ': responsive image preload must declare type="image/webp"');
+    }
+    const candidateSourceTag = sourceTags.find(sourceTag => {
+      const source = attributes(sourceTag);
+      return (source.type || '').toLowerCase() === 'image/webp'
+        && source.srcset === attr.imagesrcset;
+    });
+    if (!candidateSourceTag) {
+      fail(page + ': responsive preload imagesrcset must exactly match a picture source');
+      continue;
+    }
+    const candidateSource = attributes(candidateSourceTag);
+    if (candidateSource.sizes !== attr.imagesizes) {
+      fail(page + ': responsive preload imagesizes must match picture source sizes');
+    }
+    const candidatePaths = srcsetCandidates(attr.imagesrcset);
+    const preloadHref = (attr.href || '').split(/[?#]/, 1)[0];
+    if (!preloadHref || !candidatePaths.includes(preloadHref)) {
+      fail(page + ': responsive preload href must be one of its imagesrcset candidates');
+    }
+    const isHeroPreload = Boolean(heroHtml && heroHtml.includes(candidateSourceTag));
+    for (const candidate of candidatePaths) {
+      inspectAsset(candidate, page, isHeroPreload ? 'hero responsive preload candidate' : 'responsive preload candidate',
+        isHeroPreload ? (HERO_BUDGETS.get(page) || DEFAULT_MAX_BYTES) : null);
     }
   }
 }

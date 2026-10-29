@@ -111,20 +111,50 @@
       {
         "path": "assets/images/directions/haveli-facade.webp",
         "role": "hero",
-        "fit": "possible-contextual-match",
-        "rationale": "Facade relates to property identity but does not establish room facilities, rates or availability.",
+        "fit": "not-assessed",
+        "rationale": "The asset path is a lead only; inspect the actual pixels and confirm property identity before assigning a match.",
         "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
-        "reviewStatus": "unreviewed"
+        "reviewStatus": "unreviewed",
+        "visualReview": {
+          "status": "not_assessed",
+          "evidence": "No visual subject assessment recorded; filename and path are not proof of image content.",
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "sourceEvidence": {
+          "status": "unverified",
+          "creator": null,
+          "sourceUrl": null,
+          "licenseName": null,
+          "evidenceReference": null,
+          "verifiedBy": null,
+          "verifiedAt": null
+        }
       },
       {
         "path": "assets/images/rooms/haveli-sitting-room.webp",
         "role": "socialPreview",
-        "fit": "possible-contextual-match",
-        "rationale": "Room image may support a checklist; verify room identity and current relevance.",
+        "fit": "not-assessed",
+        "rationale": "The filename/path is only a search lead; inspect the actual pixels and confirm room identity and relevance before assigning a match.",
         "provenance": "Existing target-repository asset path. Creator/source record not yet verified.",
         "rightsStatus": "unverified",
-        "reviewStatus": "unreviewed"
+        "reviewStatus": "unreviewed",
+        "visualReview": {
+          "status": "not_assessed",
+          "evidence": "No visual subject assessment recorded; filename and path are not proof of image content.",
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "sourceEvidence": {
+          "status": "unverified",
+          "creator": null,
+          "sourceUrl": null,
+          "licenseName": null,
+          "evidenceReference": null,
+          "verifiedBy": null,
+          "verifiedAt": null
+        }
       }
     ],
     "approvedAssets": []

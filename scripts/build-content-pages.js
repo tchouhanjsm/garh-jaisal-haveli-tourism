@@ -166,30 +166,47 @@ function walkAssetPaths(value, root, location) {
 
 function validateApprovedBlogMedia(record, sourcePath, root) {
   const media = record.media || {};
+  const sourceEvidenceIssues = require('./validate-content').mediaSourceEvidenceIssues;
   const candidates = Array.isArray(media.candidates) ? media.candidates.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
   const approved = Array.isArray(media.approvedAssets) ? media.approvedAssets.filter(item => item && typeof item === 'object' && !Array.isArray(item)) : [];
-  for (const [role, imagePath, alt] of [
+  if (approved.length !== 2) fail('Live article must have exactly two approved media-role records: ' + sourcePath);
+
+  const mediaAudit = require('./audit-editorial-media-readiness');
+  const policy = mediaAudit.imagePolicy(root);
+  const roles = [
     ['hero', record.heroImage, record.heroAlt],
     ['socialPreview', record.seo && record.seo.ogImage, record.seo && record.seo.ogAlt],
-  ]) {
+  ];
+  const selected = roles.map(([role, imagePath, alt]) => {
     const asset = approved.find(item => item.role === role);
     if (!asset) fail('Live article requires approved ' + role + ' media evidence: ' + sourcePath);
     if (asset.path !== imagePath || asset.alt !== alt) fail('Live article ' + role + ' metadata must match approved path and alt text: ' + sourcePath);
     if (!String(asset.approvedBy || '').trim() || !isValidDate(asset.approvedAt) || !String(asset.rightsEvidence || '').trim()) {
       fail('Live article ' + role + ' requires reviewer, approval date and rights evidence: ' + sourcePath);
     }
-    const mediaAudit = require('./audit-editorial-media-readiness');
-    const policy = mediaAudit.imagePolicy(root);
+    const candidate = candidates.find(item => {
+      const visual = item.visualReview || {};
+      return item.path === asset.path && item.role === role
+        && item.reviewStatus === 'approved'
+        && visual.status === 'matched'
+        && typeof visual.evidence === 'string' && visual.evidence.trim().length >= 10
+        && typeof visual.reviewer === 'string' && visual.reviewer.trim().length >= 2
+        && isValidDate(visual.reviewedAt)
+        && ['owner-confirmed', 'licensed'].includes(item.rightsStatus)
+        && sourceEvidenceIssues(item).length === 0
+        && item.sourceEvidence.evidenceReference === asset.rightsEvidence;
+    });
+    if (!candidate) fail('Live article ' + role + ' must reference a candidate with documented visual match and resolved rights: ' + sourcePath);
     const info = mediaAudit.imageInfo(root, asset.path, policy);
-    const technical = mediaAudit.validateForRole(info, role, policy);
-    if (!technical.valid) fail('Live article ' + role + ' failed technical media checks: ' + sourcePath + ' (' + technical.errors.join('; ') + ')');
-    const candidate = candidates.find(item => item.path === asset.path && item.role === role
-      && item.reviewStatus === 'approved' && ['owner-confirmed', 'licensed'].includes(item.rightsStatus));
-    if (!candidate) fail('Live article ' + role + ' must reference a candidate explicitly reviewed with resolved rights: ' + sourcePath);
+    return { role, asset, info };
+  });
+  const decoded = mediaAudit.verifyImageDecode(root, selected.map(item => item.info));
+  for (const item of selected) {
+    const result = decoded.get(item.asset.path);
+    const technical = mediaAudit.validateForRole({ ...item.info, decodeStatus: result && result.status }, item.role, policy);
+    if (!technical.valid) fail('Live article ' + item.role + ' failed technical media checks: ' + sourcePath + ' (' + technical.errors.join('; ') + ')');
   }
-  if (approved.length !== 2) fail('Live article must have exactly two approved media-role records: ' + sourcePath);
 }
-
 function validateLiveRecord(item, root, siteConfig) {
   const { type, record, sourcePath } = item;
   if (record.status !== 'live') return;
@@ -209,7 +226,6 @@ function validateLiveRecord(item, root, siteConfig) {
   }
   if (type === 'blog' && !isValidDate(record.lastReviewed)) fail('Live article requires a valid lastReviewed date: ' + sourcePath);
   if (type === 'blog') {
-    validateApprovedBlogMedia(record, sourcePath, root);
     const review = record.editorialReview || {};
     const requiredApprovals = ['editorialStatus', 'sourceStatus', 'factStatus', 'mediaStatus'];
     const missingApprovals = requiredApprovals.filter(field => review[field] !== 'approved');
@@ -224,6 +240,7 @@ function validateLiveRecord(item, root, siteConfig) {
         || !record.seo || !record.seo.ogImage || typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5) {
       fail('Live article requires hero and OG image assets with meaningful alt text: ' + sourcePath);
     }
+    validateApprovedBlogMedia(record, sourcePath, root);
   }
   if (record.publishedAt != null && !isValidDate(record.publishedAt)) fail('publishedAt must be a real YYYY-MM-DD date: ' + sourcePath);
   walkAssetPaths(record, root, sourcePath);
@@ -282,6 +299,32 @@ function renderSitemap(original, urls, origin) {
 
 function rootLink(file) { return '../' + file; }
 
+const imageMetadataCache = new Map();
+function localImageMetadata(root, relative) {
+  if (typeof relative !== 'string' || !safeRelativePath(relative) || !relative.startsWith('assets/images/')) return null;
+  const key = path.resolve(root) + '\\0' + relative;
+  if (imageMetadataCache.has(key)) return imageMetadataCache.get(key);
+  const mediaAudit = require('./audit-editorial-media-readiness');
+  const policy = mediaAudit.imagePolicy(root);
+  const image = mediaAudit.imageInfo(root, relative, policy);
+  const metadata = image.exists && image.safe && Number.isInteger(image.width) && image.width > 0
+    && Number.isInteger(image.height) && image.height > 0
+    ? { width: image.width, height: image.height, type: 'image/' + image.format }
+    : null;
+  imageMetadataCache.set(key, metadata);
+  return metadata;
+}
+
+function renderLocalImage(root, relative, alt, options = {}) {
+  const metadata = localImageMetadata(root, relative);
+  if (!metadata) fail('Cannot render an image without a safe local path and intrinsic dimensions: ' + relative);
+  const classAttribute = options.className ? ' class="' + escapeHtml(options.className) + '"' : '';
+  const priorityAttributes = options.priority ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"';
+  return '<img' + classAttribute + ' src="' + escapeHtml(rootLink(relative)) + '" alt="' + escapeHtml(alt) + '"'
+    + ' width="' + metadata.width + '" height="' + metadata.height + '"'
+    + priorityAttributes + ' decoding="async">';
+}
+
 function navLink(href, label, active) {
   return '<a' + (active ? ' class="is-active" aria-current="page"' : '') + ' href="' + escapeHtml(href) + '">' + escapeHtml(label) + '</a>';
 }
@@ -307,10 +350,18 @@ function renderFooter() {
   return '<footer class="site-footer"><div class="site-footer__main wrap"><div class="footer-brand"><a class="brand brand--footer" href="' + rootLink('index.html') + '"><span class="brand__mark">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a><p>A family-run heritage stay inside the historic walls of Jaisalmer Fort. Rooted in the Golden City, open to the world.</p></div><div class="footer-column"><h2>Explore</h2><a href="' + rootLink('rooms.html') + '">Rooms</a><a href="' + rootLink('experiences.html') + '">Experiences</a><a href="' + rootLink('dining.html') + '">Rooftop dining</a><a href="' + rootLink('about.html') + '">Our story</a></div><div class="footer-column"><h2>Plan your visit</h2><a href="' + rootLink('directions.html') + '">Getting here</a><p>Ask the hotel to confirm current arrangements before you travel.</p></div><div class="footer-address"><h2>Find the haveli</h2><p>Kotari Para, inside Jaisalmer Fort<br>Jaisalmer, Rajasthan 345001, India</p><a href="' + rootLink('directions.html') + '" class="text-link text-link--light">Arrival information →</a></div></div><div class="site-footer__bottom wrap"><span>© <span data-current-year>2026</span> Garh Jaisal Haveli</span><span>Made with a sense of place in Jaisalmer, Rajasthan.</span><a href="#main">Back to top ↑</a></div></footer>';
 }
 
-function renderShell({ type, title, description, canonical, image, imageAlt, body, publishedByType, schema }) {
+function renderShell({ type, title, description, canonical, image, imagePath, preloadImagePath, imageAlt, body, publishedByType, schema, root = ROOT }) {
   const isBlog = type === 'blog';
   const resolvedImageAlt = image ? String(imageAlt || title).trim() : '';
-  const imageTag = image ? '<meta property="og:image" content="' + escapeHtml(image) + '"><meta property="og:image:alt" content="' + escapeHtml(resolvedImageAlt) + '">' : '';
+  const socialMetadata = imagePath ? localImageMetadata(root, imagePath) : null;
+  const imageProperties = socialMetadata
+    ? '<meta property="og:image:type" content="' + socialMetadata.type + '"><meta property="og:image:width" content="' + socialMetadata.width + '"><meta property="og:image:height" content="' + socialMetadata.height + '">'
+    : '';
+  const imageTag = image ? '<meta property="og:image" content="' + escapeHtml(image) + '"><meta property="og:image:alt" content="' + escapeHtml(resolvedImageAlt) + '">' + imageProperties : '';
+  const preloadMetadata = preloadImagePath ? localImageMetadata(root, preloadImagePath) : null;
+  const imagePreloadTag = preloadImagePath && preloadMetadata
+    ? '<link rel="preload" as="image" href="' + escapeHtml(rootLink(preloadImagePath)) + '" type="' + preloadMetadata.type + '" fetchpriority="high">'
+    : '';
   const twitterImageTag = image ? '<meta name="twitter:image" content="' + escapeHtml(image) + '"><meta name="twitter:image:alt" content="' + escapeHtml(resolvedImageAlt) + '">' : '';
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -325,7 +376,7 @@ function renderShell({ type, title, description, canonical, image, imageAlt, bod
   if (isBlog && schema.publishedAt) jsonLd.datePublished = schema.publishedAt;
   if (isBlog && schema.lastReviewed) jsonLd.dateModified = schema.lastReviewed;
   const head = '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#171b19">' +
-    '<title>' + escapeHtml(title) + '</title><meta name="description" content="' + escapeHtml(description) + '"><link rel="canonical" href="' + escapeHtml(canonical) + '">' +
+    '<title>' + escapeHtml(title) + '</title><meta name="description" content="' + escapeHtml(description) + '"><link rel="canonical" href="' + escapeHtml(canonical) + '">' + imagePreloadTag +
     '<meta property="og:type" content="' + (isBlog ? 'article' : 'website') + '"><meta property="og:site_name" content="Garh Jaisal Haveli"><meta property="og:title" content="' + escapeHtml(title) + '"><meta property="og:description" content="' + escapeHtml(description) + '"><meta property="og:url" content="' + escapeHtml(canonical) + '">' + imageTag +
     '<meta name="twitter:card" content="' + (image ? 'summary_large_image' : 'summary') + '"><meta name="twitter:title" content="' + escapeHtml(title) + '"><meta name="twitter:description" content="' + escapeHtml(description) + '">' + twitterImageTag +
     '<link rel="icon" href="' + rootLink('favicon.svg') + '" type="image/svg+xml"><link rel="stylesheet" href="' + rootLink('assets/site.css') + '"><link rel="stylesheet" href="' + rootLink('assets/css/content-pages.css') + '"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet"><script type="application/ld+json">' + safeJsonForHtml(jsonLd) + '</script></head><body>';
@@ -356,7 +407,7 @@ function renderCta(cta) {
   return '<section class="content-page__cta" aria-labelledby="enquiry-title"><div><p class="eyebrow">Plan with confidence</p><h2 id="enquiry-title">Have a question?</h2><p>Ask about the current details for your dates. An enquiry is not a confirmed reservation.</p></div><a class="button button--gold" href="' + escapeHtml(cta.href) + '"' + (cta.external ? ' target="_blank" rel="noopener noreferrer"' : '') + '>' + escapeHtml(cta.label || 'Ask a question') + ' <span aria-hidden="true">↗</span></a></section>';
 }
 
-function renderTour(item, allPublished, origin, publishedByType) {
+function renderTour(item, allPublished, origin, publishedByType, root = ROOT) {
   const r = item.record;
   const route = item.config.outputDirectory + '/' + r.slug + item.config.outputExtension;
   const canonical = origin + '/' + route;
@@ -367,17 +418,17 @@ function renderTour(item, allPublished, origin, publishedByType) {
   if (r.transport) facts.push(['Transport', r.transport]);
   if (r.startingPoint) facts.push(['Starting point', r.startingPoint]);
   const factsHtml = facts.length ? '<dl class="content-page__facts">' + facts.map(([label, value]) => '<div><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>').join('') + '</dl>' : '';
-  const timeline = '<ol class="content-page__timeline">' + r.timeline.map(step => '<li><span class="content-page__step">' + String(step.step).padStart(2, '0') + '</span><div>' + (step.timeOfDay ? '<p class="content-page__time">' + escapeHtml(step.timeOfDay) + '</p>' : '') + '<h3>' + escapeHtml(step.title) + '</h3><p>' + escapeHtml(step.description) + '</p>' + (step.image ? '<img loading="lazy" src="' + escapeHtml(rootLink(step.image)) + '" alt="' + escapeHtml(step.imageAlt || step.title) + '">' : '') + '</div></li>').join('') + '</ol>';
+  const timeline = '<ol class="content-page__timeline">' + r.timeline.map(step => '<li><span class="content-page__step">' + String(step.step).padStart(2, '0') + '</span><div>' + (step.timeOfDay ? '<p class="content-page__time">' + escapeHtml(step.timeOfDay) + '</p>' : '') + '<h3>' + escapeHtml(step.title) + '</h3><p>' + escapeHtml(step.description) + '</p>' + (step.image ? renderLocalImage(root, step.image, step.imageAlt || step.title) : '') + '</div></li>').join('') + '</ol>';
   const faqs = (r.faqs || []).length ? '<section class="content-page__section" aria-labelledby="faq-title"><h2 id="faq-title">Questions to ask before you go</h2><div data-accordion>' + r.faqs.map((faq, index) => '<details' + (index === 0 ? ' open' : '') + '><summary>' + escapeHtml(faq.question) + '</summary><p>' + escapeHtml(faq.answer) + '</p></details>').join('') + '</div></section>' : '';
   const body = '<section class="page-hero content-page__hero"><div class="wrap"><p class="eyebrow">' + escapeHtml(r.eyebrow || 'Jaisalmer experience') + '</p><h1 class="display-title">' + escapeHtml(r.title) + '</h1><p class="lead">' + escapeHtml(r.summary) + '</p></div></section>' +
     '<div class="section content-page wrap"><div class="content-page__intro">' + (r.bestFor ? '<p>' + escapeHtml(r.bestFor) + '</p>' : '') + factsHtml + '</div>' +
     '<section class="content-page__section" aria-labelledby="itinerary-title"><h2 id="itinerary-title">The experience, step by step</h2>' + timeline + (r.timingNote ? '<p class="content-page__muted">' + escapeHtml(r.timingNote) + '</p>' : '') + '</section>' +
     '<div class="content-page__two-col"><section class="content-page__section" aria-labelledby="included-title"><h2 id="included-title">What is included</h2>' + renderList(r.included, 'Ask the hotel to confirm what is included for your date.') + '</section><section class="content-page__section" aria-labelledby="excluded-title"><h2 id="excluded-title">Not included</h2>' + renderList(r.notIncluded, 'Confirm exclusions with the operator before booking.') + '</section></div>' +
     ((r.practicalNotes || []).length ? '<section class="content-page__section" aria-labelledby="practical-title"><h2 id="practical-title">Practical notes</h2>' + renderList(r.practicalNotes, '') + '</section>' : '') + faqs + renderRelated(r, allPublished) + renderCta(item.cta) + '</div>';
-  return { route, content: renderShell({ type: 'tour', title: r.seo.title, description: r.seo.description, canonical, image, imageAlt: r.seo.ogAlt, body, publishedByType, schema: r }) };
+  return { route, content: renderShell({ type: 'tour', title: r.seo.title, description: r.seo.description, canonical, image, imagePath: r.seo.ogImage, imageAlt: r.seo.ogAlt, body, publishedByType, schema: r, root }) };
 }
 
-function renderBlog(item, allPublished, origin, publishedByType) {
+function renderBlog(item, allPublished, origin, publishedByType, root = ROOT) {
   const r = item.record;
   const route = item.config.outputDirectory + '/' + r.slug + item.config.outputExtension;
   const canonical = origin + '/' + route;
@@ -389,11 +440,11 @@ function renderBlog(item, allPublished, origin, publishedByType) {
   const toc = (r.tableOfContents || []).filter(entry => sectionIds.has(entry.id));
   if ((r.tableOfContents || []).some(entry => !sectionIds.has(entry.id))) fail('Table of contents references a missing section in ' + item.sourcePath);
   const tocHtml = toc.length ? '<nav class="content-page__toc" aria-label="On this page"><h2>On this page</h2><ol>' + toc.map(entry => '<li><a href="#' + escapeHtml(entry.id) + '">' + escapeHtml(entry.label) + '</a></li>').join('') + '</ol></nav>' : '';
-  const sections = r.sections.map(section => '<section class="content-page__section" id="' + escapeHtml(section.id) + '"><h2>' + escapeHtml(section.heading) + '</h2>' + (section.image ? '<figure><img loading="lazy" src="' + escapeHtml(rootLink(section.image)) + '" alt="' + escapeHtml(section.imageAlt || section.heading) + '"></figure>' : '') + (section.body || []).map(paragraph => '<p>' + escapeHtml(paragraph) + '</p>').join('') + '</section>').join('');
+  const sections = r.sections.map(section => '<section class="content-page__section" id="' + escapeHtml(section.id) + '"><h2>' + escapeHtml(section.heading) + '</h2>' + (section.image ? '<figure>' + renderLocalImage(root, section.image, section.imageAlt || section.heading) + '</figure>' : '') + (section.body || []).map(paragraph => '<p>' + escapeHtml(paragraph) + '</p>').join('') + '</section>').join('');
   const sources = '<section class="content-page__section" aria-labelledby="sources-title"><h2 id="sources-title">Sources and further reading</h2><ul class="content-page__sources">' + r.sources.map(source => '<li><a href="' + escapeHtml(source.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.label) + ' ↗</a></li>').join('') + '</ul></section>';
-  const body = '<section class="page-hero content-page__hero"><div class="wrap"><p class="eyebrow">Jaisalmer travel guide</p><h1 class="display-title">' + escapeHtml(r.title) + '</h1><p class="lead">' + escapeHtml(r.lede) + '</p>' + (r.heroImage ? '<img class="content-page__hero-image" src="' + escapeHtml(rootLink(r.heroImage)) + '" alt="' + escapeHtml(r.heroAlt) + '" fetchpriority="high">' : '') + '</div></section>' +
+  const body = '<section class="page-hero content-page__hero"><div class="wrap"><p class="eyebrow">Jaisalmer travel guide</p><h1 class="display-title">' + escapeHtml(r.title) + '</h1><p class="lead">' + escapeHtml(r.lede) + '</p>' + (r.heroImage ? renderLocalImage(root, r.heroImage, r.heroAlt, { className: 'content-page__hero-image', priority: true }) : '') + '</div></section>' +
     '<div class="section content-page wrap">' + tocHtml + '<article class="content-page__article">' + sections + '</article>' + sources + renderRelated(r, allPublished) + renderCta(item.cta) + '</div>';
-  return { route, content: renderShell({ type: 'blog', title: r.seo.title, description: r.seo.description, canonical, image, imageAlt, body, publishedByType, schema: r }) };
+  return { route, content: renderShell({ type: 'blog', title: r.seo.title, description: r.seo.description, canonical, image, imagePath, preloadImagePath: r.heroImage, imageAlt, body, publishedByType, schema: r, root }) };
 }
 
 function renderHub(type, items, origin, publishedByType) {
@@ -462,8 +513,8 @@ function buildContentPages(root = ROOT, options = {}) {
       outputs.set(hub.route, hub.content);
       for (const item of items) {
         const rendered = type.key === 'tour'
-          ? renderTour(item, published, origin, publishedByType)
-          : renderBlog(item, published, origin, publishedByType);
+          ? renderTour(item, published, origin, publishedByType, root)
+          : renderBlog(item, published, origin, publishedByType, root);
         outputs.set(rendered.route, rendered.content);
       }
     }

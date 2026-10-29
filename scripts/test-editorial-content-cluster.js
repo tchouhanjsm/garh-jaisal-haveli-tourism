@@ -64,7 +64,17 @@ for (const slug of EXPECTED_CLUSTER) {
   assert.ok(record.media.requirements.hero.subject.length >= 8, slug + ': hero requirements must be explicit');
   assert.ok(record.media.requirements.socialPreview.subject.length >= 8, slug + ': social preview requirements must be explicit');
   assert.equal(record.media.approvedAssets.length, 0, slug + ': no image may be pre-approved');
-  assert.ok(record.media.candidates.every(candidate => candidate.reviewStatus === 'unreviewed' && candidate.rightsStatus === 'unverified'), slug + ': candidates must stay unreviewed until evidence exists');
+  assert.ok(record.media.candidates.every(candidate =>
+    candidate.reviewStatus === 'unreviewed'
+    && candidate.rightsStatus === 'unverified'
+    && candidate.sourceEvidence.status === 'unverified'
+    && candidate.sourceEvidence.verifiedBy === null
+    && candidate.sourceEvidence.verifiedAt === null
+    && candidate.fit === 'not-assessed'
+    && candidate.visualReview.status === 'not_assessed'
+    && candidate.visualReview.reviewer === null
+    && candidate.visualReview.reviewedAt === null
+  ), slug + ': candidate fit, rights and visual review must remain unassessed without human evidence');
   assert.equal(record.editorialReview.mediaStatus, record.media.candidates.length ? 'pending' : 'missing', slug + ': media status must distinguish candidate review from missing assets');
   assert.equal(record.lastReviewed, null, slug + ': editor review must not be claimed');
   assert.equal(record.publishedAt, null, slug + ': publication date must remain unset');

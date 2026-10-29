@@ -60,6 +60,8 @@ function fixtureRoot() {
   fs.mkdirSync(path.join(root, 'content', 'blogs'), { recursive: true });
   fs.mkdirSync(path.join(root, 'content', 'schemas'), { recursive: true });
   fs.mkdirSync(path.join(root, 'blogs'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'content/paths.json'), path.join(root, 'content/paths.json'));
+  fs.cpSync(path.join(ROOT, 'assets/images'), path.join(root, 'assets/images'), { recursive: true });
   for (const slug of report.articles.map(article => article.slug)) {
     fs.copyFileSync(
       path.join(ROOT, 'content', 'blogs', slug + '.json'),
