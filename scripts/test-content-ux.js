@@ -732,4 +732,36 @@ if (errors.length) {
   process.exit(1);
 }
 
+const STAY_PLANNER_ROUTES = [
+  'index.html', 'rooms.html', 'experiences.html', 'experience-details.html',
+  'dining.html', 'about.html', 'directions.html', 'gallery.html'
+];
+for (const file of STAY_PLANNER_ROUTES) {
+  const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  if (!html.includes('data-stay-planner') ||
+      !html.includes('assets/css/stay-planner.css') ||
+      !html.includes('assets/stay-planner.js')) {
+    fail(file + ': shared enquiry planner must be present, styled and initialized');
+  }
+  if (!html.includes('Nothing is sent or stored.') ||
+      !html.includes('Prepare enquiry draft')) {
+    fail(file + ': planner must state its enquiry-only behavior clearly');
+  }
+}
+const stayPlannerScript = fs.readFileSync(path.join(ROOT, 'assets', 'stay-planner.js'), 'utf8');
+const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'stay-planner.css'), 'utf8');
+if (!/addEventListener\(['"]submit['"]/.test(stayPlannerScript) ||
+    !/preventDefault\(\)/.test(stayPlannerScript) ||
+    !/departure\.setCustomValidity/.test(stayPlannerScript) ||
+    !/navigator\.clipboard/.test(stayPlannerScript)) {
+  fail('stay planner must prevent form submission, validate date ranges and support copying a draft');
+}
+if (/\b(?:localStorage|sessionStorage|fetch|XMLHttpRequest)\b/.test(stayPlannerScript)) {
+  fail('stay planner must not persist trip details or send network requests');
+}
+if (!/@media \(max-width: 620px\)/.test(stayPlannerCss) ||
+    !/@media \(prefers-reduced-motion: reduce\)/.test(stayPlannerCss)) {
+  fail('stay planner must include narrow-screen and reduced-motion behavior');
+}
+
 console.log(`PASS: content/UX regression gate audited ${PAGE_RULES.length} pages for depth, unique metadata, internal discovery, room-reference cards, experience comparisons, dining/arrival image context and metadata budgets, local image paths/alt/geometry, duplicate images and canonical publication gates.`);
