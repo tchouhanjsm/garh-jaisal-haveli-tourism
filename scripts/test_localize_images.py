@@ -242,7 +242,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                         "height": decoded.height,
                     })
             source_record = [{
-                "sourceJpeg": "assets/images/rooms/opium.jpg",
+                "sourceJpeg": "assets/images/gallery/desert/camp-evening.jpeg",
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
