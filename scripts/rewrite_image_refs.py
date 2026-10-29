@@ -355,6 +355,8 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
             "(max-width: 900px) calc(100vw - 100px), "
             "min(610px, 44vw)"
         )
+    if "story-image" in ancestors and "dining-restaurant__panel" in ancestors:
+        return "(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"
     if "story-image" in ancestors:
         return "(max-width: 760px) calc(100vw - 36px), min(600px, 43vw)"
     if "arrival-visual__media" in ancestors:

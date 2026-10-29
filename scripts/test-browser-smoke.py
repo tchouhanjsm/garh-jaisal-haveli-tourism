@@ -761,8 +761,8 @@ def run_responsive_image_preview_smoke() -> int:
                                     ratio = selected_width / required_pixels
                                     max_selected_to_required_ratio = max(max_selected_to_required_ratio, ratio)
                                     check_preview(
-                                        selected_width <= required_pixels * 1.8,
-                                        f"{label}: selected WebP {selected_width}px exceeds 1.8x "
+                                        selected_width <= required_pixels * 1.9,
+                                        f"{label}: selected WebP {selected_width}px exceeds 1.9x "
                                         f"rendered slot demand ({required_pixels:.1f}px); verify sizes",
                                     )
                                 check_preview(

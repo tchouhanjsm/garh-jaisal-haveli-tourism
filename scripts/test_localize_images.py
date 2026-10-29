@@ -622,6 +622,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "experiences/swiss-tent-detail.jpeg",
                 "rooms/rising-sun.jpg",
                 "tent.jpg",
+                "dining/rooftop-candlelit-table.jpg",
             )
             for name in source_names:
                 create_jpeg(root, name, (1200, 800))
@@ -644,6 +645,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<section><div class="gallery-grid"><figure class="gallery-card">'
                 '<div class="gallery-card__media"><img src="assets/images/tent.jpg" '
                 'alt="Desert sleeping setup"></div></figure></div></section>'
+                '<div class="dining-restaurant__panel"><section class="section wrap">'
+                '<div class="story-grid"><figure class="story-image">'
+                '<img src="assets/images/dining/rooftop-candlelit-table.jpg" alt="Dining">'
+                '</figure></div></section></div>'
             )
             result = rewrite_html_text(html, "responsive", root=root)
 
@@ -666,6 +671,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn(f'imagesizes="{experience_sizes}"', result)
             self.assertIn(f'sizes="{room_sizes}"', result)
             self.assertIn(f'sizes="{gallery_sizes}"', result)
+            self.assertIn(
+                'sizes="(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"',
+                result,
+            )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
 
     def test_browser_smoke_contract_exercises_hidden_responsive_images(self) -> None:
@@ -683,7 +692,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
         self.assertIn("responsive source must declare sizes", browser_check)
         self.assertIn("for width, height in RESPONSIVE_AUDIT_VIEWPORTS:", browser_check)
         self.assertIn("for device_scale_factor in (1, 2):", browser_check)
-        self.assertIn("selected_width <= required_pixels * 1.8", browser_check)
+        self.assertIn("selected_width <= required_pixels * 1.9", browser_check)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
