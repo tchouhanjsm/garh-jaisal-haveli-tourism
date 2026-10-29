@@ -170,9 +170,9 @@ def validate_staging_target(raw_url: str, operator: str, report_path: str) -> st
 
 
 def validate_screenshot_directory(raw_path: str) -> Path:
-    """Require an empty evidence directory outside the checkout before staging access."""
+    """Require an empty screenshot-evidence directory outside the checkout."""
     if not raw_path or not raw_path.strip():
-        raise ValueError("a screenshot evidence directory is required for staging mode")
+        raise ValueError("a screenshot evidence directory is required")
     destination = Path(raw_path).expanduser().resolve()
     if destination == ROOT or ROOT in destination.parents:
         raise ValueError("write screenshots outside the repository checkout to avoid accidental commits")
@@ -182,6 +182,22 @@ def validate_screenshot_directory(raw_path: str) -> Path:
         raise ValueError("the screenshot evidence path must be a directory")
     if destination.exists() and any(destination.iterdir()):
         raise ValueError("the screenshot evidence directory must be empty so old and new runs cannot be mixed")
+    return destination
+
+
+def validate_local_report_path(raw_path: str) -> Path:
+    """Require a JSON evidence report outside the repository checkout."""
+    if not raw_path or not raw_path.strip():
+        raise ValueError("a visual-evidence report path is required")
+    destination = Path(raw_path).expanduser().resolve()
+    if destination == ROOT or ROOT in destination.parents:
+        raise ValueError("write visual-evidence reports outside the repository checkout")
+    if destination == Path(destination.anchor):
+        raise ValueError("the filesystem root cannot be used as a report path")
+    if destination.suffix.lower() != ".json":
+        raise ValueError("the visual-evidence report must use a .json extension")
+    if destination.exists() and destination.is_dir():
+        raise ValueError("the visual-evidence report path must be a file")
     return destination
 
 
@@ -2989,10 +3005,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Run focused Chromium checks against a generated local preview package.",
     )
     args = parser.parse_args(argv)
+    local_screenshots_raw = os.environ.get("BROWSER_SMOKE_SCREENSHOTS_DIR")
+    local_report_raw = os.environ.get("BROWSER_SMOKE_REPORT_PATH")
     if args.responsive_image_preview:
-        if args.base_url or args.operator or args.report or args.screenshots_dir:
+        if args.base_url or args.operator or args.report or args.screenshots_dir or local_screenshots_raw or local_report_raw:
             parser.error("--responsive-image-preview cannot be combined with staging or screenshot evidence options")
         return run_responsive_image_preview_smoke()
+    if bool(local_screenshots_raw) != bool(local_report_raw):
+        parser.error("BROWSER_SMOKE_SCREENSHOTS_DIR and BROWSER_SMOKE_REPORT_PATH must be set together")
     staging_mode = bool(args.base_url)
 
     if staging_mode:
@@ -3017,6 +3037,13 @@ def main(argv: list[str] | None = None) -> int:
         base_url = ""
         http_credentials = None
         screenshots_dir = None
+        local_report_path = None
+        if local_screenshots_raw:
+            try:
+                screenshots_dir = validate_screenshot_directory(local_screenshots_raw)
+                local_report_path = validate_local_report_path(local_report_raw or "")
+            except ValueError as error:
+                parser.error(f"local visual-evidence paths rejected before browser launch: {error}")
 
     unknown_route_evidence = None
     server = None
@@ -3027,8 +3054,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not staging_mode:
             server, base_url = start_server()
-            screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
-            screenshots_dir = Path(screenshot_tempdir.name)
+            if screenshots_dir is not None:
+                screenshots_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
+                screenshots_dir = Path(screenshot_tempdir.name)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             browser_version = browser.version
@@ -3137,7 +3167,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not staging_mode:
         local_visual_report = build_report(
-            "local-browser-smoke", base_url, None, browser_version, [],
+            "local-browser-smoke", base_url, None, browser_version, FAILURES,
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
             unknown_route_evidence=unknown_route_evidence,
@@ -3147,6 +3177,21 @@ def main(argv: list[str] | None = None) -> int:
                 f"Local browser smoke did not produce all {len(expected_screenshot_names())} valid full-page screenshot records; "
                 "visual evidence generation must be exercised by the standard quality suite."
             )
+        if local_report_raw and local_report_path is not None:
+            # Rebuild after completeness validation so the JSON result reflects capture failures.
+            local_visual_report = build_report(
+                "local-browser-smoke", base_url, None, browser_version, FAILURES,
+                PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
+                screenshot_evidence=SCREENSHOT_EVIDENCE,
+                unknown_route_evidence=unknown_route_evidence,
+            )
+            try:
+                report_destination = write_report(str(local_report_path), local_visual_report)
+                print(f"Visual baseline evidence report written locally: {report_destination}")
+            except Exception as error:
+                FAILURES.append(
+                    f"Could not write the visual baseline evidence report: {type(error).__name__}: {error}"
+                )
 
     if staging_mode:
         report = build_report(

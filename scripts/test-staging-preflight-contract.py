@@ -150,6 +150,22 @@ except ValueError:
 else:
     raise AssertionError("Screenshot evidence inside the repository must be refused")
 
+with tempfile.TemporaryDirectory(prefix="garh-local-visual-evidence-") as evidence_root:
+    report_path = Path(evidence_root) / "report.json"
+    assert browser_smoke.validate_local_report_path(str(report_path)) == report_path.resolve()
+    try:
+        browser_smoke.validate_local_report_path(str(ROOT / "artifacts" / "report.json"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Visual-evidence JSON reports must not be written inside the repository checkout")
+    try:
+        browser_smoke.validate_local_report_path(str(Path(evidence_root) / "report.txt"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Visual-evidence report path must use a .json extension")
+
 with tempfile.TemporaryDirectory() as temporary_directory:
     png_path = Path(temporary_directory) / "header-only.png"
     png_path.write_bytes(

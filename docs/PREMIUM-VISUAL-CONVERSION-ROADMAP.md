@@ -10,7 +10,9 @@
 - **M2 — Directions vertical slice in progress:** the current PR adds section navigation, qualified walking-distance facts, four-step arrival guidance, travel-choice cards and an exact-pin orientation panel. This refinement adds a prioritized hero summary, makes the map orientation visual, separates railway/airport/road decisions, and removes repeated lower-page contact/photo/checklist sections.
 - **Regression coverage:** static contracts and rendered Chromium checks include the hero summary, unique section targets, four-step route, differentiated transport options, source-qualified map guidance and responsive layout across the six audit widths. The mobile fixed Book Now bar yields when it would obscure the hero summary and restores when clear, with visible/accessible state checked in Chromium.
 - **CI contract correction:** retained a dedicated accessible facade-reference section, descriptive hero image alt text, and explicit contextual WhatsApp/phone arrival-confirmation copy required by the repository’s existing content/UX gate.
-- **Evidence state:** exact-head CI, screenshot inspection and human staging UAT are required before the milestone is marked verified. No blog content is published and canonical/robots/sitemap release gates remain unchanged.
+- **Exact-head CI:** all quality gates passed on `079a98a4091260f4854c451e2fe161f436f8faa3`, including source/content quality, the guarded staging package, packaged responsive-image budgets and the packaged Chromium preview. PR #66 remains open; no deployment was performed.
+- **M0 visual evidence capture:** the standard browser smoke now preserves its existing 24 full-page PNG captures (eight core routes at 390, 1280 and 1440 CSS px) plus a JSON integrity/evidence report as a short-lived GitHub Actions artifact. Responsive behavior remains exercised at 320, 360, 390, 768, 1280 and 1440 px. Human review of the artifact and owner-approved staging UAT are still required before assigning the final visual score or marking the release ready.
+- No blog content is published and canonical/robots/sitemap release gates remain unchanged.
 
 ## 1. Objective and bar
 
