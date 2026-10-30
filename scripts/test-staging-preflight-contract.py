@@ -298,6 +298,12 @@ assert delivery_evidence_contract["measurementClass"] == "packaged-chromium-labo
 assert delivery_evidence_contract["fieldDataAvailable"] is False
 assert delivery_evidence_contract["candidateBytesAreTransferMeasurements"] is False
 assert delivery_evidence_contract["candidateSavingsVersusJpegFallbackInferred"] is False
+assert set(delivery_evidence_contract) == {
+    "measurementClass",
+    "fieldDataAvailable",
+    "candidateBytesAreTransferMeasurements",
+    "candidateSavingsVersusJpegFallbackInferred",
+}
 
 
 incomplete_report = browser_smoke.build_report(
