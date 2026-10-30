@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 from rewrite_image_refs import (
     IMAGE_NAMES,
     RESPONSIVE_WIDTHS,
+    _save_webp,
     generate_responsive_variants,
     rewrite_html_text,
     rewrite_site,
@@ -109,6 +110,101 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     self.assertEqual(decoded.size, (item["width"], item["height"]))
                 self.assertGreater(item["bytes"], 0)
                 self.assertLess(item["bytes"], entry["fullSizeBytes"])
+
+    def test_budgeted_responsive_variant_uses_highest_quality_that_fits_and_package_revalidates_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_jpeg(root, "rest3.jpg", (1200, 800))
+            baseline = generate_responsive_variants(root, ("rest3.jpg",))
+            baseline_variant = next(
+                item for item in baseline["rest3.jpg"]["variants"] if item["width"] == 480
+            )
+            budget_path = "assets/images/responsive/rest3-480.webp"
+            byte_budget = baseline_variant["bytes"] - 1
+            page = root / "index.html"
+            page.write_text(
+                '<img src="assets/images/rest3.jpg" alt="Rooftop terrace">',
+                encoding="utf-8",
+            )
+
+            with patch(
+                "rewrite_image_refs.RESPONSIVE_VARIANT_MAX_BYTES",
+                {budget_path: byte_budget},
+            ):
+                rewritten_pages, generation = rewrite_site(
+                    root, "responsive", return_report=True
+                )
+
+            self.assertEqual([item.name for item in rewritten_pages], ["index.html"])
+            entry = generation["rest3.jpg"]
+            variant = next(item for item in entry["variants"] if item["path"] == budget_path)
+            self.assertEqual(variant["maxBytes"], byte_budget)
+            self.assertLess(variant["quality"], 82)
+            self.assertGreater(len(variant["qualityAttempts"]), 1)
+            self.assertEqual(variant["qualityAttempts"][0]["quality"], 82)
+            self.assertEqual(variant["qualityAttempts"][-1]["quality"], variant["quality"])
+            self.assertEqual(variant["qualityAttempts"][-1]["bytes"], variant["bytes"])
+            self.assertLessEqual(variant["bytes"], byte_budget)
+
+            candidate_paths = [
+                entry["fullSizePath"],
+                *(item["path"] for item in entry["variants"]),
+            ]
+            variant_by_path = {item["path"]: item for item in entry["variants"]}
+            generated_files = []
+            for relative in candidate_paths:
+                target = root / relative
+                with Image.open(target) as decoded:
+                    decoded.load()
+                    record = {
+                        "path": relative,
+                        "bytes": target.stat().st_size,
+                        "sha256": "0" * 64,
+                        "width": decoded.width,
+                        "height": decoded.height,
+                    }
+                variant_metadata = variant_by_path.get(relative)
+                if variant_metadata and variant_metadata["maxBytes"] is not None:
+                    record.update({
+                        "quality": variant_metadata["quality"],
+                        "qualityAttempts": variant_metadata["qualityAttempts"],
+                        "maxBytes": variant_metadata["maxBytes"],
+                    })
+                generated_files.append(record)
+
+            source_record = [{
+                "sourceJpeg": "assets/images/rest3.jpg",
+                "naturalWidth": entry["width"],
+                "naturalHeight": entry["height"],
+                "fullSizeWebp": entry["fullSizePath"],
+            }]
+            packaged = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root, generated_files, source_record, RESPONSIVE_WIDTHS
+            )
+            self.assertEqual(packaged["status"], "PASS")
+            self.assertEqual(packaged["responsivePictureCount"], 1)
+
+            budgeted_record = next(item for item in generated_files if item.get("maxBytes"))
+            budgeted_record["maxBytes"] = budgeted_record["bytes"] - 1
+            with self.assertRaises(SystemExit):
+                _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root, generated_files, source_record, RESPONSIVE_WIDTHS
+                )
+
+    def test_budget_failure_preserves_existing_responsive_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "assets" / "images" / "responsive" / "rest3-480.webp"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"previous-generated-output")
+            original = target.read_bytes()
+            image = Image.new("RGB", (480, 320), (55, 95, 120))
+
+            with self.assertRaisesRegex(RuntimeError, "cannot meet the 1-byte budget"):
+                _save_webp(image, target, None, max_bytes=1)
+
+            self.assertEqual(target.read_bytes(), original)
+            self.assertFalse(target.with_name(target.name + ".tmp").exists())
 
     def test_source_backed_art_direction_webp_is_preserved_and_responsive(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
