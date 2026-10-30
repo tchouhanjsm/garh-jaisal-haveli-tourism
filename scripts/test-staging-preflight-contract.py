@@ -269,8 +269,24 @@ def valid_performance_evidence() -> list[dict]:
                     "element": {"tagName": "IMG", "id": "hero-image", "className": "hero__image"},
                     "urlPath": "/assets/images/hero.webp",
                 },
-                "cumulativeLayoutShift": 0.0,
-                "layoutShiftEntries": 0,
+                "cumulativeLayoutShift": 0.2 if page_name == "experiences.html" and width == 1280 else (0.1 if page_name == "experiences.html" and width == 768 else 0.0),
+                "layoutShiftEntries": 2 if page_name == "experiences.html" and width == 1280 else (1 if page_name == "experiences.html" and width == 768 else 0),
+                "layoutShiftSources": [
+                    {
+                        "value": 0.1,
+                        "sources": [{
+                            "element": {"tagName": "H1", "id": None, "className": "experience-discovery-hero"},
+                            "previousRect": {"x": 0.0, "y": 0.0, "width": 640.0, "height": 100.0},
+                            "currentRect": {"x": 0.0, "y": 12.0, "width": 640.0, "height": 112.0},
+                        }],
+                    }
+                    for _ in range(2 if page_name == "experiences.html" and width == 1280 else (1 if page_name == "experiences.html" and width == 768 else 0))
+                ],
+                "fontReadiness": {
+                    "status": "loaded",
+                    "readyWithinCaptureWindow": True,
+                    "families": {"playfairDisplay": True, "dmSans": True},
+                },
                 "longTasks": {"count": 0, "totalDurationMs": 0.0},
                 "sameOriginResources": {
                     "count": 12,
@@ -313,7 +329,7 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 6
+assert incomplete_report["schemaVersion"] == 7
 assert incomplete_report["automatedResult"] == "FAIL"
 assert incomplete_report["automatedFailureCount"] == 6
 assert incomplete_report["evidenceCoverage"] == {
@@ -415,6 +431,23 @@ assert missing_performance_evidence["automatedFailureCount"] == 1
 assert missing_performance_evidence["performanceBaseline"]["complete"] is False
 assert missing_performance_evidence["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
 assert missing_performance_evidence["evidenceCoverage"]["complete"] is False
+
+missing_layout_diagnostics = [dict(record) for record in performance_evidence]
+missing_layout_diagnostics[0].pop("layoutShiftSources")
+invalid_layout_diagnostics = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_layout_diagnostics,
+)
+assert invalid_layout_diagnostics["automatedResult"] == "FAIL"
+assert invalid_layout_diagnostics["performanceBaseline"]["complete"] is False
+assert invalid_layout_diagnostics["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
