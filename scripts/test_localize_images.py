@@ -15,7 +15,9 @@ from PIL import Image, ImageDraw
 from rewrite_image_refs import (
     FULL_SIZE_WEBP_MAX_BYTES,
     IMAGE_NAMES,
+    RESPONSIVE_SOURCE_OVERRIDES,
     RESPONSIVE_VARIANT_MAX_BYTES,
+    SOURCE_QUALITY_OVERRIDES,
     RESPONSIVE_WIDTHS,
     _save_webp,
     generate_responsive_variants,
@@ -404,29 +406,56 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
-    def test_source_backed_gallery_hero_webp_is_responsive_and_preloaded(self) -> None:
+    def test_gallery_hero_webp_uses_authoritative_jpeg_quality_override(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fallback = create_jpeg(root, "directions/haveli-facade.jpg", (1333, 2000))
-            source_webp = create_webp(root, "directions/haveli-facade.webp", (1333, 2000))
-            original_webp = source_webp.read_bytes()
+            fallback_bytes = fallback.read_bytes()
+            existing_webp = create_webp(root, "directions/haveli-facade.webp", (1333, 2000))
+            previous_webp_bytes = existing_webp.read_bytes()
 
             self.assertIn("directions/haveli-facade.jpg", IMAGE_NAMES)
+            self.assertNotIn("directions/haveli-facade.jpg", RESPONSIVE_SOURCE_OVERRIDES)
+            self.assertEqual(SOURCE_QUALITY_OVERRIDES["courtyard.jpg"], 70)
+            self.assertEqual(SOURCE_QUALITY_OVERRIDES["directions/haveli-facade.jpg"], 70)
+            self.assertEqual(
+                FULL_SIZE_WEBP_MAX_BYTES["assets/images/directions/haveli-facade.webp"],
+                400_000,
+            )
+            self.assertEqual(
+                RESPONSIVE_VARIANT_MAX_BYTES["assets/images/responsive/directions/haveli-facade-1200.webp"],
+                250_000,
+            )
+
             generated = generate_responsive_variants(root, ("directions/haveli-facade.jpg",))
             entry = generated["directions/haveli-facade.jpg"]
-            self.assertEqual(source_webp.read_bytes(), original_webp)
-            self.assertEqual(entry["sourceFormat"], "WEBP")
-            self.assertEqual(entry["sourcePath"], "assets/images/directions/haveli-facade.webp")
+            full_size = root / entry["fullSizePath"]
+            self.assertEqual(entry["sourceFormat"], "JPEG")
+            self.assertEqual(entry["sourcePath"], "assets/images/directions/haveli-facade.jpg")
             self.assertEqual(entry["fullSizePath"], "assets/images/directions/haveli-facade.webp")
-            self.assertEqual(entry["fullSizeSavingsBytes"], 0)
+            self.assertEqual(entry["fullSizeQuality"], 70)
+            self.assertEqual(entry["fullSizeMaxBytes"], 400_000)
+            self.assertLessEqual(entry["fullSizeBytes"], 400_000)
+            self.assertGreater(entry["fullSizeSavingsBytes"], 0)
+            self.assertNotEqual(full_size.read_bytes(), previous_webp_bytes)
+            self.assertEqual(fallback.read_bytes(), fallback_bytes)
+            self.assertEqual(entry["sourceBytes"], fallback.stat().st_size)
             self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
-            self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
 
-            for width, budget in ((320, 50_000), (480, 90_000), (768, 200_000), (1200, 420_000)):
+            expected_budgets = (
+                (320, 50_000),
+                (480, 90_000),
+                (768, 200_000),
+                (1200, 250_000),
+            )
+            for width, budget in expected_budgets:
                 relative = f"assets/images/responsive/directions/haveli-facade-{width}.webp"
                 self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES[relative], budget)
                 candidate = next(item for item in entry["variants"] if item["width"] == width)
                 self.assertLessEqual(candidate["bytes"], budget)
+                self.assertEqual(candidate["maxBytes"], budget)
+                self.assertEqual(candidate["qualityAttempts"][-1]["quality"], candidate["quality"])
+                self.assertEqual(candidate["qualityAttempts"][-1]["bytes"], candidate["bytes"])
 
             preload_srcset = ", ".join(
                 [f"{item['path']} {item['width']}w" for item in entry["variants"]]
@@ -455,25 +484,43 @@ class RewriteImageReferencesTests(unittest.TestCase):
             page = root / "gallery.html"
             page.write_text(rewritten, encoding="utf-8")
             candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+            variant_by_path = {item["path"]: item for item in entry["variants"]}
             generated_files = []
             for relative in candidate_paths:
                 target = root / relative
                 with Image.open(target) as decoded:
                     decoded.load()
-                    generated_files.append({
+                    record = {
                         "path": relative,
                         "bytes": target.stat().st_size,
                         "sha256": "0" * 64,
                         "width": decoded.width,
                         "height": decoded.height,
+                    }
+                variant_metadata = variant_by_path.get(relative)
+                if variant_metadata and variant_metadata["maxBytes"] is not None:
+                    record.update({
+                        "quality": variant_metadata["quality"],
+                        "qualityAttempts": variant_metadata["qualityAttempts"],
+                        "maxBytes": variant_metadata["maxBytes"],
                     })
+                if relative == entry["fullSizePath"]:
+                    record.update({
+                        "quality": entry["fullSizeQuality"],
+                        "qualityAttempts": entry["fullSizeQualityAttempts"],
+                        "maxBytes": entry["fullSizeMaxBytes"],
+                    })
+                generated_files.append(record)
+
             source_record = [{
                 "sourceJpeg": "assets/images/directions/haveli-facade.jpg",
-                "sourceFormat": "WEBP",
-                "sourceWebp": "assets/images/directions/haveli-facade.webp",
+                "sourceFormat": "JPEG",
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
+                "fullSizeQuality": entry["fullSizeQuality"],
+                "fullSizeQualityAttempts": entry["fullSizeQualityAttempts"],
+                "fullSizeMaxBytes": entry["fullSizeMaxBytes"],
             }]
             report = _PACKAGE_PREVIEW.validate_responsive_markup(
                 root, generated_files, source_record, RESPONSIVE_WIDTHS
@@ -482,7 +529,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(report["responsivePictureCount"], 1)
             self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
             self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
-            self.assertEqual(source_webp.read_bytes(), original_webp)
+            self.assertEqual(fallback.read_bytes(), fallback_bytes)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
     def test_responsive_delivery_evidence_classifies_candidate_bytes_as_lab_only(self) -> None:

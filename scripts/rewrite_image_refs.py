@@ -40,12 +40,11 @@ IMAGE_NAMES = (
     "dining/rooftop-candlelit-table.jpg",
     "directions/haveli-facade.jpg",
 )
-# Sweet Purple, the Rooms hero, and the Gallery hero have source-backed WebP assets.
+# Sweet Purple and the Rooms hero have independently source-backed WebP assets.
 # Their JPEGs are compatibility fallbacks; never regenerate over the originals.
 RESPONSIVE_SOURCE_OVERRIDES = {
     "rooms/sweet-purple.jpg": "rooms/sweet-purple.webp",
     "rooms/haveli-interior.jpg": "rooms/haveli-sitting-room.webp",
-    "directions/haveli-facade.jpg": "directions/haveli-facade.webp",
 }
 SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
@@ -54,6 +53,12 @@ SOURCE_PREFIX = (
 RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
+# Mirrors quality_overrides in the authoritative source repository's
+# responsive-image-assets-manifest.json for these JPEG-derived images.
+SOURCE_QUALITY_OVERRIDES = {
+    "courtyard.jpg": 70,
+    "directions/haveli-facade.jpg": 70,
+}
 # Byte ceilings protect high-value responsive candidates without changing
 # JPEG fallbacks or independently source-backed WebP originals.
 RESPONSIVE_VARIANT_MAX_BYTES = {
@@ -64,12 +69,13 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
     "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
     "assets/images/responsive/directions/haveli-facade-768.webp": 200_000,
-    "assets/images/responsive/directions/haveli-facade-1200.webp": 420_000,
+    "assets/images/responsive/directions/haveli-facade-1200.webp": 250_000,
 }
-# The Directions hero's 2200px JPEG-derived WebP is generated in the isolated
-# package and may be quality-adjusted; the source JPEG remains the fallback.
+# JPEG-derived hero WebPs may be regenerated in the isolated package;
+# original JPEG fallbacks remain unchanged.
 FULL_SIZE_WEBP_MAX_BYTES = {
     "assets/images/courtyard.webp": 450_000,
+    "assets/images/directions/haveli-facade.webp": 400_000,
 }
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
@@ -331,6 +337,7 @@ def generate_responsive_variants(
                     image,
                     full_size,
                     icc_profile,
+                    quality=SOURCE_QUALITY_OVERRIDES.get(filename, WEBP_QUALITY),
                     # Only an explicitly budgeted JPEG-derived output may be replaced.
                     preserve_different_existing=full_size_max_bytes is None,
                     max_bytes=full_size_max_bytes,
@@ -357,7 +364,11 @@ def generate_responsive_variants(
                 target_relative = target.relative_to(root).as_posix()
                 max_bytes = RESPONSIVE_VARIANT_MAX_BYTES.get(target_relative)
                 encoding = _save_webp(
-                    resized, target, icc_profile, max_bytes=max_bytes
+                    resized,
+                    target,
+                    icc_profile,
+                    quality=SOURCE_QUALITY_OVERRIDES.get(filename, WEBP_QUALITY),
+                    max_bytes=max_bytes,
                 )
                 generated.append(
                     {
