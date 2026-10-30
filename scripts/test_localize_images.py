@@ -862,6 +862,14 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "deploymentPerformed": False,
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
                 "qualityGate": "PASS",
+                "responsiveImageDelivery": {
+                    "deliveryEvidence": {
+                        "measurementClass": "packaged-chromium-laboratory-diagnostic",
+                        "fieldDataAvailable": False,
+                        "candidateBytesAreTransferMeasurements": False,
+                        "candidateSavingsVersusJpegFallbackInferred": False,
+                    }
+                },
                 "editorialDraftIsolation": {
                     "status": "PASS",
                     "previewDirectoryExcluded": True,
