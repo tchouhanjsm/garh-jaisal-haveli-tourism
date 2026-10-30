@@ -2496,7 +2496,41 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             check(False, f"Directions: section navigation must reach a visible travel heading ({error})")
         finally:
             page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+
+    original_viewport = page.viewport_size or {"width": 1440, "height": 900}
+    page.set_viewport_size({"width": 360, "height": 800})
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    page.evaluate(
+        """() => {
+          document.documentElement.style.scrollBehavior = 'auto';
+          document.querySelector('#arrival-map-title')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        }"""
+    )
+    try:
+        page.wait_for_function(
+            """() => {
+              const nav = document.querySelector('nav.arrival-section-nav');
+              const active = nav?.querySelector('a[aria-current="location"]');
+              if (!nav || !active || active.getAttribute('href') !== '#arrival-map-title') return false;
+              const navRect = nav.getBoundingClientRect();
+              const linkRect = active.getBoundingClientRect();
+              const contentLeft = navRect.left + nav.clientLeft;
+              const contentRight = contentLeft + nav.clientWidth;
+              return nav.scrollWidth > nav.clientWidth + 1
+                && nav.scrollLeft > 0
+                && linkRect.left >= contentLeft - 1
+                && linkRect.right <= contentRight + 1;
+            }""",
+            timeout=5000,
+        )
+        check(True, "Directions: mobile section rail must reveal the current off-screen section link")
+    except Exception as error:
+        check(False, f"Directions: mobile active section link must remain visible ({error})")
+    finally:
+        page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+        page.set_viewport_size(original_viewport)
         page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+
     check(page.locator(".arrival-visual__media img").count() == 1,
           "Directions: the accessible facade reference section must load its local building image")
     check(page.locator(".arrival-visual__copy").get_by_role("heading", name="A visual reference for the final approach.").is_visible(),

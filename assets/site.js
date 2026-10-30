@@ -54,11 +54,39 @@
     if (!links.length || items.some(item => !item)) return;
 
     let framePending = false;
+    let activeItem = null;
+    const revealCurrentLink = link => {
+      if (sectionNav.scrollWidth <= sectionNav.clientWidth) return;
+      const navRect = sectionNav.getBoundingClientRect();
+      const contentLeft = navRect.left + sectionNav.clientLeft;
+      const contentRight = contentLeft + sectionNav.clientWidth;
+      const linkRect = link.getBoundingClientRect();
+      const inset = 12;
+      let nextLeft = sectionNav.scrollLeft;
+      if (linkRect.left < contentLeft + inset) {
+        nextLeft += linkRect.left - contentLeft - inset;
+      } else if (linkRect.right > contentRight - inset) {
+        nextLeft += linkRect.right - contentRight + inset;
+      }
+      const maxLeft = Math.max(0, sectionNav.scrollWidth - sectionNav.clientWidth);
+      nextLeft = Math.max(0, Math.min(maxLeft, nextLeft));
+      if (Math.abs(nextLeft - sectionNav.scrollLeft) < 1) return;
+      const reduceMotion = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (typeof sectionNav.scrollTo === 'function') {
+        sectionNav.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : 'smooth' });
+      } else {
+        sectionNav.scrollLeft = nextLeft;
+      }
+    };
     const setCurrent = currentItem => {
+      const changed = activeItem !== currentItem;
+      activeItem = currentItem;
       items.forEach(item => {
         if (item === currentItem) item.link.setAttribute('aria-current', 'location');
         else item.link.removeAttribute('aria-current');
       });
+      if (changed) revealCurrentLink(currentItem.link);
     };
 
     const updateCurrent = () => {
@@ -95,7 +123,10 @@
       if (item) setCurrent(item);
     });
     window.addEventListener('scroll', scheduleUpdate, { passive: true });
-    window.addEventListener('resize', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', () => {
+      scheduleUpdate();
+      if (activeItem) revealCurrentLink(activeItem.link);
+    }, { passive: true });
     // Re-evaluate after deep-link changes and browser scroll restoration.
     window.addEventListener('hashchange', scheduleUpdate);
     window.addEventListener('pageshow', scheduleUpdate);
