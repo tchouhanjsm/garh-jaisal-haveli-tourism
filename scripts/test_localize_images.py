@@ -45,6 +45,21 @@ def create_jpeg(root: Path, filename: str, size: tuple[int, int]) -> Path:
     return target
 
 
+def create_webp(
+    root: Path,
+    filename: str,
+    size: tuple[int, int],
+    color: tuple[int, int, int] = (55, 95, 120),
+) -> Path:
+    target = root / "assets" / "images" / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.new("RGB", size, color)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((size[0] // 4, size[1] // 4, size[0] * 3 // 4, size[1] * 3 // 4), fill=(180, 130, 75))
+    image.save(target, format="WEBP", quality=90, method=6)
+    return target
+
+
 class RewriteImageReferencesTests(unittest.TestCase):
     def test_webp_rewrites_local_and_legacy_remote_references(self) -> None:
         html = (
@@ -94,6 +109,82 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     self.assertEqual(decoded.size, (item["width"], item["height"]))
                 self.assertGreater(item["bytes"], 0)
                 self.assertLess(item["bytes"], entry["fullSizeBytes"])
+
+    def test_source_backed_art_direction_webp_is_preserved_and_responsive(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fallback = create_jpeg(root, "rooms/sweet-purple.jpg", (2000, 1333))
+            source_webp = create_webp(root, "rooms/sweet-purple.webp", (2000, 1333))
+            original_webp = source_webp.read_bytes()
+
+            generated = generate_responsive_variants(root, ("rooms/sweet-purple.jpg",))
+            entry = generated["rooms/sweet-purple.jpg"]
+            self.assertEqual(source_webp.read_bytes(), original_webp)
+            self.assertEqual(entry["sourceFormat"], "WEBP")
+            self.assertEqual(entry["sourcePath"], "assets/images/rooms/sweet-purple.webp")
+            self.assertEqual(entry["fullSizePath"], "assets/images/rooms/sweet-purple.webp")
+            self.assertEqual(entry["fullSizeSavingsBytes"], 0)
+            self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
+
+            html = (
+                '<picture><source type="image/webp" srcset="assets/images/rooms/sweet-purple.webp">'
+                '<img src="assets/images/rooms/sweet-purple.jpg" alt="Sweet Purple Room"></picture>'
+            )
+            rewritten = rewrite_html_text(html, "responsive", root=root)
+            self.assertEqual(rewritten.count("<source"), 1)
+            self.assertIn('data-responsive-image="true"', rewritten)
+            self.assertIn('sizes="(max-width: 760px) 100vw', rewritten)
+            self.assertIn("assets/images/responsive/rooms/sweet-purple-320.webp 320w", rewritten)
+            self.assertIn("assets/images/rooms/sweet-purple.webp 2000w", rewritten)
+            self.assertIn('data-responsive-image-fallback="true"', rewritten)
+            self.assertIn('src="assets/images/rooms/sweet-purple.jpg"', rewritten)
+            self.assertIn('width="2000"', rewritten)
+            self.assertIn('height="1333"', rewritten)
+            self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
+
+            page = root / "rooms.html"
+            page.write_text(rewritten, encoding="utf-8")
+            candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+            generated_files = []
+            for relative in candidate_paths:
+                target = root / relative
+                with Image.open(target) as decoded:
+                    decoded.load()
+                    generated_files.append({
+                        "path": relative,
+                        "bytes": target.stat().st_size,
+                        "sha256": "0" * 64,
+                        "width": decoded.width,
+                        "height": decoded.height,
+                    })
+            source_record = [{
+                "sourceJpeg": "assets/images/rooms/sweet-purple.jpg",
+                "sourceFormat": "WEBP",
+                "sourceWebp": "assets/images/rooms/sweet-purple.webp",
+                "naturalWidth": entry["width"],
+                "naturalHeight": entry["height"],
+                "fullSizeWebp": entry["fullSizePath"],
+            }]
+            report = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root, generated_files, source_record, RESPONSIVE_WIDTHS
+            )
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["responsivePictureCount"], 1)
+            self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
+            self.assertEqual(source_webp.read_bytes(), original_webp)
+
+    def test_generated_jpeg_derivative_refuses_to_overwrite_an_unmapped_webp_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_jpeg(root, "rest3.jpg", (1200, 800))
+            existing_webp = create_webp(root, "rest3.webp", (1200, 800), (15, 40, 90))
+            original_webp = existing_webp.read_bytes()
+
+            with self.assertRaisesRegex(FileExistsError, "Refusing to overwrite an existing WebP source"):
+                generate_responsive_variants(root, ("rest3.jpg",))
+
+            self.assertEqual(existing_webp.read_bytes(), original_webp)
+            self.assertFalse((root / "assets" / "images" / "rest3.webp.tmp").exists())
 
     def test_symlinked_image_paths_are_rejected_before_any_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
