@@ -25,6 +25,8 @@ assert.match(experiences, /<link rel="preconnect" href="https:\/\/fonts\.googlea
   'Experiences must warm the Google Fonts stylesheet connection');
 assert.match(experiences, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
   'Experiences must warm the cross-origin font-file connection');
+assert.match(experiences, /fonts\.googleapis\.com\/css2\?[^"]*display=optional/,
+  'Experiences must avoid a late font swap that moves hero text after first paint');
 assert.match(premiumCss, /\.page-hero--experiences \.page-hero__content > p:not\(\.eyebrow\)\s*\{[^}]*min-block-size:\s*4em/s,
   'Experiences desktop supporting copy must reserve two lines before font settlement');
 assert.match(premiumCss, /@media \(max-width: 1000px\)\s*\{[\s\S]*?\.page-hero--experiences \.page-hero__content > p:not\(\.eyebrow\)\s*\{[^}]*min-block-size:\s*6em/s,
