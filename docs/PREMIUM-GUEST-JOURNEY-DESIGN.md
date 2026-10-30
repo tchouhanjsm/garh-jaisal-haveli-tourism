@@ -55,3 +55,18 @@ Complete only against an owner-approved staging URL and attach evidence.
 - [ ] Human sign-off with exact URL, date/time, operator, device/browser and screenshot evidence.
 
 A green automated suite is necessary but does not replace this review.
+
+
+## M1 — readable editorial type roles
+
+The shared type-role tokens are owned by `assets/site.css` and consumed by the final-loaded `assets/css/premium-guest-journey.css` layer:
+
+| Role | Size | Intended use |
+|---|---:|---|
+| Micro | 11px | Secondary metadata and restrained utility labels |
+| Label | 12px | Navigation, form labels, planner choices and buttons |
+| Support | 13px | Card descriptions, itinerary details, FAQs and practical notes |
+| Body | 15px | Default readable body copy |
+| Lede | 17px | Introductory editorial emphasis |
+
+Decorative folios, eyebrow labels, step numbers and image indexes remain deliberately smaller; they are not reading copy. The quality suite checks computed font sizes on rendered core routes at the responsive audit widths, rather than relying only on CSS source assertions.

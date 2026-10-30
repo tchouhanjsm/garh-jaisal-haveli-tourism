@@ -2149,6 +2149,37 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             page.wait_for_selector("main#main", timeout=5000)
             page.wait_for_timeout(80)
             check_premium_guest_journey(page, page_name, width)
+            type_requirements = {
+                "index.html": [(".experience-card p", 13), (".proof-item span", 11),
+                               (".room-feature__copy > p:not(.fine-print)", 13), (".faq-item > p", 13)],
+                "rooms.html": [(".stay-planner__topic", 13), (".stay-planner__field", 12),
+                               (".stay-planner__form-note", 12)],
+                "experiences.html": [(".experience-card p", 13)],
+                "experience-details.html": [(".experience-itinerary li", 13),
+                                             (".experience-detail-facts p", 13),
+                                             (".experience-detail-topic-list li", 13)],
+                "dining.html": [(".dining-table-form label", 12),
+                                (".dining-table-form__privacy", 12),
+                                (".dining-table-form__status", 13)],
+                "directions.html": [(".arrival-quick-list p", 13),
+                                    (".arrival-enquiry-form__hint", 12),
+                                    (".arrival-section-nav a", 12)],
+                "about.html": [(".guest-journey__copy small", 12)],
+                "gallery.html": [(".guest-journey__copy small", 12)],
+            }
+            shared_type_requirements = [
+                ("body", 15),
+                (".button", 12),
+                (".text-link", 13),
+                (".guest-journey__copy small", 12),
+            ]
+            for selector, minimum in shared_type_requirements + type_requirements.get(page_name, []):
+                actual = page.locator(selector).evaluate_all(
+                    "(nodes) => nodes.map(node => Number.parseFloat(getComputedStyle(node).fontSize)).filter(Number.isFinite)"
+                )
+                if actual:
+                    check(min(actual) + 0.01 >= minimum,
+                          f"{page_name} at {width}px: {selector} minimum font size {minimum}px, found {min(actual):g}px")
             dimensions = page.evaluate(
                 """() => ({
                   viewport: window.innerWidth,

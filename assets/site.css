@@ -18,6 +18,13 @@
   --control-radius: 2px;
   --focus-ring: 3px solid #bb8647;
 
+  /* Text roles: micro labels remain editorial; all useful copy stays readable. */
+  --type-meta: 11px;
+  --type-label: 12px;
+  --type-support: 13px;
+  --type-body: 15px;
+  --type-lede: 17px;
+
   /* Shared visual effects */
   --shadow: 0 24px 70px rgba(26, 40, 33, .11);
   --premium-shadow: 0 18px 52px rgba(26, 40, 33, .09);

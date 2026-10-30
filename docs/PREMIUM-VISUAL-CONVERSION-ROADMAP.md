@@ -7,6 +7,9 @@
 
 ## Delivery log
 
+- **M1 — shared typographic legibility pass added to PR #66:** introduced canonical micro/label/support/body/lede roles; increased actual navigation/action, card descriptions, guest-journey descriptors, form instructions, arrival facts, itinerary details, FAQ answers and footer copy; retained compact decorative folios/overlines. Static and rendered Chromium assertions now check computed type sizes across the responsive audit widths. Exact-head CI and screenshot review are required before M1 is marked verified.
+
+
 - **M2 — Directions/arrival visual refinement:** the route now has an immediate hero summary, six-width-tested section navigation, qualified parking-distance facts, four-step access guidance, distinct rail/air/road choices and exact-pin/address orientation. Screenshot review exposed an underfilled map-side panel; it is replaced with a deliberate three-step arrival schematic that is explicitly not a scaled map or turn-by-turn directions. The duplicate generic stay enquiry builder is removed from Directions; its focused arrival form and a single contextual terminal CTA remain. Exact-head CI and human visual/staging acceptance are required before M2 is called release-ready.
 - **Regression coverage:** static contracts and rendered Chromium checks include the hero summary, unique section targets, four-step route, differentiated transport options, source-qualified map guidance and responsive layout across the six audit widths. The mobile fixed Book Now bar yields when it would obscure the hero summary and restores when clear, with visible/accessible state checked in Chromium.
 - **CI contract correction:** retained a dedicated accessible facade-reference section, descriptive hero image alt text, and explicit contextual WhatsApp/phone arrival-confirmation copy required by the repository’s existing content/UX gate.

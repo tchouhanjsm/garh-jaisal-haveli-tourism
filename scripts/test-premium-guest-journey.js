@@ -39,6 +39,21 @@ assert.match(siteCss, /--premium-shadow:\s*0 18px 52px/, 'shared premium shadow 
 assert.match(siteCss, /--button-height:\s*52px/, 'primary control height must use a shared token');
 assert.match(siteCss, /--control-radius:\s*2px/, 'control geometry must use a shared radius token');
 assert.match(siteCss, /--focus-ring:\s*3px solid/, 'keyboard focus ring must be centralized');
+assert.ok(siteCss.includes('--type-meta: 11px'), 'canonical CSS must own a compact metadata role');
+assert.ok(siteCss.includes('--type-label: 12px'), 'canonical CSS must own an interactive label role');
+assert.ok(siteCss.includes('--type-support: 13px'), 'canonical CSS must own a readable support-copy role');
+assert.ok(siteCss.includes('--type-body: 15px'), 'canonical CSS must retain a 15px body baseline');
+assert.ok(css.includes('.guest-journey__copy small') && css.includes('font-size: var(--type-label)'),
+  'guest-journey descriptions must use the shared readable label role');
+assert.ok(css.includes('.experience-card p') && css.includes('font-size: var(--type-support)'),
+  'experience-card descriptions must use the shared support-copy role');
+assert.ok(css.includes('.faq-item > p') && css.includes('font-size: var(--type-support)'),
+  'FAQ answers must use the shared support-copy role');
+assert.ok(css.includes('.stay-planner__topic') && css.includes('font-size: var(--type-support)'),
+  'planner topic choices must use the shared support-copy role');
+assert.ok(css.includes('.arrival-quick-card .arrival-quick-list p') && css.includes('font-size: var(--type-support)'),
+  'arrival summary copy must use the shared support-copy role');
+
 assert.match(css, /\.wrap\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
   'premium content wrapper must consume the shared canonical container width');
 assert.match(css, /\.guest-journey\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
