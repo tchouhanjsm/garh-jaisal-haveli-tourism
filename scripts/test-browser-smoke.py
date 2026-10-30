@@ -951,8 +951,9 @@ def build_responsive_image_evidence_report(
     selected_resource_evidence: list[dict],
     browser_version: str | None,
     failures: list[str],
+    page_resource_evidence: list[dict],
 ) -> dict:
-    """Build durable, per-picture Chromium evidence for the generated package only."""
+    """Build durable per-picture and page-resource evidence for the generated package only."""
     expected_routes = set(PAGES)
     observed_routes = set(route_picture_counts)
     report_failures = [sanitize_diagnostic_text(item) for item in failures]
@@ -1098,6 +1099,160 @@ def build_responsive_image_evidence_report(
             f"checked {checked_picture_count}"
         )
 
+    expected_page_contexts = len(PAGES) * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2
+    normalized_page_resources: list[dict] = []
+    page_resource_keys: set[tuple] = set()
+    page_resource_validation_failures: list[str] = []
+    expected_viewport_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
+    resource_buckets = ("images", "stylesheets", "scripts", "fonts", "other")
+
+    for context_index, item in enumerate(page_resource_evidence):
+        if not isinstance(item, dict):
+            page_resource_validation_failures.append(
+                f"Page-resource context {context_index + 1}: expected a JSON object"
+            )
+            continue
+        route = item.get("route")
+        viewport_width = item.get("viewportWidthCssPixels")
+        dpr = item.get("deviceScaleFactor")
+        resources = item.get("resources")
+        if (
+            route not in expected_routes
+            or isinstance(viewport_width, bool)
+            or viewport_width not in expected_viewport_widths
+            or isinstance(dpr, bool)
+            or dpr not in (1, 2)
+            or not isinstance(resources, list)
+            or not resources
+        ):
+            page_resource_validation_failures.append(
+                f"Page-resource context {context_index + 1}: malformed route, viewport, DPR or resource inventory"
+            )
+            continue
+
+        context_key = (route, viewport_width, dpr)
+        if context_key in page_resource_keys:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: duplicate page-resource context"
+            )
+        page_resource_keys.add(context_key)
+
+        normalized_resources: list[dict] = []
+        path_counts: dict[str, int] = {}
+        bucket_totals = {
+            bucket: {"count": 0, "encodedBodyBytes": 0, "transferBytes": 0, "decodedBodyBytes": 0}
+            for bucket in resource_buckets
+        }
+        for resource_index, resource in enumerate(resources):
+            if not isinstance(resource, dict):
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x resource {resource_index + 1}: expected a JSON object"
+                )
+                continue
+            resource_path = resource.get("path")
+            initiator_type = resource.get("initiatorType")
+            encoded_bytes = resource.get("encodedBodyBytes")
+            transfer_bytes = resource.get("transferBytes")
+            decoded_bytes = resource.get("decodedBodyBytes")
+            duration_ms = resource.get("durationMs")
+            valid_resource = (
+                isinstance(resource_path, str)
+                and resource_path.startswith("/")
+                and not resource_path.startswith("//")
+                and "?" not in resource_path
+                and "#" not in resource_path
+                and "://" not in resource_path
+                and "\\" not in resource_path
+                and all(part not in {".", ".."} for part in PurePosixPath(resource_path).parts)
+                and isinstance(initiator_type, str)
+                and 0 < len(initiator_type) <= 64
+                and all(
+                    not isinstance(value, bool) and isinstance(value, int) and value >= 0
+                    for value in (encoded_bytes, transfer_bytes, decoded_bytes)
+                )
+                and not isinstance(duration_ms, bool)
+                and isinstance(duration_ms, (int, float))
+                and 0 <= duration_ms <= 600000
+            )
+            if not valid_resource:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x resource {resource_index + 1}: malformed or unsafe same-origin resource evidence"
+                )
+                continue
+
+            suffix = PurePosixPath(resource_path.lower()).suffix
+            if suffix in {".avif", ".gif", ".jpe", ".jpeg", ".jpg", ".png", ".svg", ".webp"} or initiator_type == "img":
+                bucket = "images"
+            elif suffix == ".css" or initiator_type == "css":
+                bucket = "stylesheets"
+            elif suffix in {".js", ".mjs"} or initiator_type == "script":
+                bucket = "scripts"
+            elif suffix in {".woff", ".woff2", ".ttf", ".otf"}:
+                bucket = "fonts"
+            else:
+                bucket = "other"
+
+            normalized_resources.append({
+                "path": resource_path,
+                "initiatorType": initiator_type,
+                "resourceType": bucket,
+                "encodedBodyBytes": encoded_bytes,
+                "transferBytes": transfer_bytes,
+                "decodedBodyBytes": decoded_bytes,
+                "durationMs": round(float(duration_ms), 1),
+            })
+            path_counts[resource_path] = path_counts.get(resource_path, 0) + 1
+            totals = bucket_totals[bucket]
+            totals["count"] += 1
+            totals["encodedBodyBytes"] += encoded_bytes
+            totals["transferBytes"] += transfer_bytes
+            totals["decodedBodyBytes"] += decoded_bytes
+
+        if len(normalized_resources) != len(resources):
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: one or more resource entries were rejected"
+            )
+        if not normalized_resources:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: no same-origin subresources were captured"
+            )
+        normalized_resources.sort(key=lambda resource: (-resource["encodedBodyBytes"], resource["path"]))
+        normalized_page_resources.append({
+            "route": route,
+            "viewportWidthCssPixels": viewport_width,
+            "deviceScaleFactor": dpr,
+            "resourceCount": len(normalized_resources),
+            "encodedBodyBytes": sum(resource["encodedBodyBytes"] for resource in normalized_resources),
+            "transferBytes": sum(resource["transferBytes"] for resource in normalized_resources),
+            "decodedBodyBytes": sum(resource["decodedBodyBytes"] for resource in normalized_resources),
+            "byType": bucket_totals,
+            "duplicatePaths": [
+                {"path": path, "requestCount": count}
+                for path, count in sorted(path_counts.items()) if count > 1
+            ],
+            "resources": normalized_resources,
+        })
+
+    if len(normalized_page_resources) != expected_page_contexts:
+        page_resource_validation_failures.append(
+            f"Page-resource coverage is incomplete: expected {expected_page_contexts} contexts, "
+            f"captured {len(normalized_page_resources)}"
+        )
+    if len(page_resource_keys) != expected_page_contexts:
+        page_resource_validation_failures.append(
+            f"Page-resource contexts are not unique and complete: expected {expected_page_contexts}, "
+            f"observed {len(page_resource_keys)}"
+        )
+    validation_failures.extend(page_resource_validation_failures)
+    page_resources_complete = (
+        len(normalized_page_resources) == expected_page_contexts
+        and len(page_resource_keys) == expected_page_contexts
+        and not page_resource_validation_failures
+    )
+    normalized_page_resources.sort(
+        key=lambda item: (PAGES.index(item["route"]), item["viewportWidthCssPixels"], item["deviceScaleFactor"])
+    )
+
     route_summaries: dict[str, dict] = {}
     for route in PAGES:
         route_observations = [item for item in normalized_observations if item["route"] == route]
@@ -1121,6 +1276,7 @@ def build_responsive_image_evidence_report(
         and checked_picture_count == expected_samples
         and total_observations == expected_samples
         and len(unique_keys) == total_observations
+        and page_resources_complete
         and not validation_failures
     )
     report_failures.extend(validation_failures)
@@ -1137,7 +1293,7 @@ def build_responsive_image_evidence_report(
     commit_sha = os.environ.get("GITHUB_SHA", "")
     workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
     report = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
         "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
@@ -1154,11 +1310,25 @@ def build_responsive_image_evidence_report(
                 "Encoded, transfer and decoded byte counts are distinct Resource Timing fields.",
                 "Transfer size can include headers and may be zero when the browser does not expose a transfer for a resource.",
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
+                "Page-resource inventories are captured after the audit deliberately activates every responsive picture in the isolated test context.",
+                "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
+                "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
                 "No field Core Web Vitals or savings versus the JPEG fallback are inferred."
             ],
         },
         "browser": {"name": "Chromium", "version": browser_version or "unavailable"},
         "routes": route_summaries,
+        "pageResourceEvidence": {
+            "measurementClass": "packaged-route-resource-timing-after-image-activation",
+            "sameOriginOnly": True,
+            "allResponsivePicturesActivatedForAudit": True,
+            "initialNavigationPayloadClaimed": False,
+            "expectedContextCount": expected_page_contexts,
+            "capturedContextCount": len(normalized_page_resources),
+            "uniqueContextCount": len(page_resource_keys),
+            "complete": page_resources_complete,
+            "observations": normalized_page_resources,
+        },
         "pictureInstancesPerRoute": normalized_picture_counts,
         "viewportWidthsCssPixels": [width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS],
         "deviceScaleFactors": [1, 2],
@@ -1190,8 +1360,8 @@ def build_responsive_image_evidence_report(
 
 def validate_responsive_image_evidence_report(report: dict) -> None:
     """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
-    if not isinstance(report, dict) or report.get("schemaVersion") != 1:
-        raise ValueError("Responsive-image browser evidence must use schema version 1")
+    if not isinstance(report, dict) or report.get("schemaVersion") != 2:
+        raise ValueError("Responsive-image browser evidence must use schema version 2")
     if (
         report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
         or report.get("fieldDataAvailable") is not False
@@ -1211,6 +1381,95 @@ def validate_responsive_image_evidence_report(report: dict) -> None:
         or not isinstance(coverage.get("complete"), bool)
     ):
         raise ValueError("Responsive-image browser evidence has an invalid coverage or observation inventory")
+    page_resource_evidence = report.get("pageResourceEvidence")
+    if not isinstance(page_resource_evidence, dict):
+        raise ValueError("Packaged route-resource evidence is required")
+    if (
+        page_resource_evidence.get("measurementClass") != "packaged-route-resource-timing-after-image-activation"
+        or page_resource_evidence.get("sameOriginOnly") is not True
+        or page_resource_evidence.get("allResponsivePicturesActivatedForAudit") is not True
+        or page_resource_evidence.get("initialNavigationPayloadClaimed") is not False
+    ):
+        raise ValueError("Packaged route-resource evidence must remain same-origin and explicitly non-initial-navigation laboratory data")
+
+    expected_contexts = len(PAGES) * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2
+    page_observations = page_resource_evidence.get("observations")
+    if (
+        not isinstance(page_observations, list)
+        or page_resource_evidence.get("expectedContextCount") != expected_contexts
+        or page_resource_evidence.get("capturedContextCount") != len(page_observations)
+        or not isinstance(page_resource_evidence.get("uniqueContextCount"), int)
+        or page_resource_evidence["uniqueContextCount"] < 0
+        or page_resource_evidence["uniqueContextCount"] > len(page_observations)
+        or not isinstance(page_resource_evidence.get("complete"), bool)
+    ):
+        raise ValueError("Packaged route-resource evidence has invalid context coverage")
+
+    page_resource_keys: set[tuple] = set()
+    expected_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
+    for context_index, context in enumerate(page_observations):
+        if not isinstance(context, dict):
+            raise ValueError(f"Packaged route-resource context {context_index + 1} is malformed")
+        route = context.get("route")
+        width = context.get("viewportWidthCssPixels")
+        dpr = context.get("deviceScaleFactor")
+        resources = context.get("resources")
+        if (
+            route not in PAGES
+            or isinstance(width, bool)
+            or width not in expected_widths
+            or isinstance(dpr, bool)
+            or dpr not in (1, 2)
+            or not isinstance(resources, list)
+            or not resources
+            or context.get("resourceCount") != len(resources)
+        ):
+            raise ValueError(f"Packaged route-resource context {context_index + 1} has invalid route or resource inventory")
+        key = (route, width, dpr)
+        if key in page_resource_keys:
+            raise ValueError("Packaged route-resource evidence contains duplicate route/viewport/DPR contexts")
+        page_resource_keys.add(key)
+
+        for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+            value = context.get(field)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"Packaged route-resource context {context_index + 1} has invalid {field}")
+        for resource in resources:
+            if not isinstance(resource, dict):
+                raise ValueError("Packaged route-resource inventory contains a malformed resource")
+            resource_path = resource.get("path")
+            initiator_type = resource.get("initiatorType")
+            if (
+                not isinstance(resource_path, str)
+                or not resource_path.startswith("/")
+                or resource_path.startswith("//")
+                or "?" in resource_path
+                or "#" in resource_path
+                or "://" in resource_path
+                or "\\" in resource_path
+                or any(part in {".", ".."} for part in PurePosixPath(resource_path).parts)
+                or not isinstance(initiator_type, str)
+                or not initiator_type
+            ):
+                raise ValueError("Packaged route-resource evidence must contain sanitized same-origin paths only")
+            for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                value = resource.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                    raise ValueError(f"Packaged route-resource entry has invalid {field}")
+            duration = resource.get("durationMs")
+            if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not 0 <= duration <= 600000:
+                raise ValueError("Packaged route-resource entry has invalid duration")
+        if (
+            context["encodedBodyBytes"] != sum(item["encodedBodyBytes"] for item in resources)
+            or context["transferBytes"] != sum(item["transferBytes"] for item in resources)
+            or context["decodedBodyBytes"] != sum(item["decodedBodyBytes"] for item in resources)
+        ):
+            raise ValueError("Packaged route-resource context totals do not match its resource entries")
+
+    inventory_complete = len(page_observations) == expected_contexts and len(page_resource_keys) == expected_contexts
+    if page_resource_evidence.get("complete") is True and not inventory_complete:
+        raise ValueError("Packaged route-resource evidence cannot claim complete coverage with missing contexts")
+
     if report.get("automatedResult") not in {"PASS", "FAIL"} or not isinstance(report.get("automatedFailures"), list):
         raise ValueError("Responsive-image browser evidence must record its automated result and failures")
     if report["automatedResult"] == "PASS" and (
@@ -1234,6 +1493,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
     routes_with_responsive_images: set[str] = set()
     max_selected_to_required_ratio = 0.0
     selected_resource_evidence: list[dict] = []
+    page_resource_evidence: list[dict] = []
     picture_counts_by_route: dict[str, int] = {}
     browser_version = None
     server = None
@@ -1613,6 +1873,41 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 )
 
                             page.wait_for_timeout(50)
+                            try:
+                                page_resources = page.evaluate(
+                                    """() => {
+                                      const origin = location.origin;
+                                      return performance.getEntriesByType("resource")
+                                        .filter(entry => {
+                                          try { return new URL(entry.name).origin === origin; }
+                                          catch (_) { return false; }
+                                        })
+                                        .map(entry => {
+                                          const url = new URL(entry.name);
+                                          return {
+                                            path: url.pathname,
+                                            initiatorType: String(entry.initiatorType || "other"),
+                                            encodedBodyBytes: Math.max(0, Math.round(Number(entry.encodedBodySize) || 0)),
+                                            transferBytes: Math.max(0, Math.round(Number(entry.transferSize) || 0)),
+                                            decodedBodyBytes: Math.max(0, Math.round(Number(entry.decodedBodySize) || 0)),
+                                            durationMs: Math.max(0, Math.round((Number(entry.duration) || 0) * 10) / 10)
+                                          };
+                                        });
+                                    }"""
+                                )
+                            except Exception as error:
+                                page_resources = []
+                                failures.append(
+                                    f"{page_name} at {width}px @{device_scale_factor}x: "
+                                    f"could not capture packaged same-origin resource timing: "
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                )
+                            page_resource_evidence.append({
+                                "route": page_name,
+                                "viewportWidthCssPixels": width,
+                                "deviceScaleFactor": device_scale_factor,
+                                "resources": page_resources,
+                            })
                             for request_url, request_count in request_counts.items():
                                 request_path = urlsplit(request_url).path.lower()
                                 if request_path.endswith(".webp") and request_count > 1:
@@ -1655,6 +1950,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
         selected_resource_evidence=selected_resource_evidence,
         browser_version=browser_version,
         failures=failures,
+        page_resource_evidence=page_resource_evidence,
     )
     try:
         destination = write_responsive_image_evidence_report(report_path, report)
@@ -1682,9 +1978,11 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
         f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
         f"at {viewport_widths}px and DPR 1x/2x; maximum selected/required pixel ratio "
         f"{summary['maximumSelectedToRequiredPixelRatio']:.2f}x; "
-        f"{len(selected_resource_evidence)} selected-resource observations, "
-        f"average encoded body {summary['averageEncodedBodyBytes']} bytes. "
-        "The complete per-picture laboratory evidence is retained in the JSON artifact."
+        f"{len(selected_resource_evidence)} selected-resource observations and "
+        f"{len(page_resource_evidence)} packaged route-resource contexts. "
+        f"Average selected-image body {summary['averageEncodedBodyBytes']} bytes. "
+        "The artifact records full-page packaged resources after test-only image activation; "
+        "these are not initial-navigation or field measurements."
     )
     return 0
 
