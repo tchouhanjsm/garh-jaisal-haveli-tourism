@@ -535,38 +535,37 @@ def _srcset_urls(value: str) -> list[str]:
 
 
 def _rewrite_existing_picture_sources(text: str, root: Path) -> str:
-    """Upgrade only explicitly mapped art-direction sources, preserving their source image."""
+    """Upgrade existing full-size WebP picture sources to verified responsive candidates."""
     def rewrite_picture(match: re.Match[str]) -> str:
         picture = match.group(0)
-        for fallback_name, source_name in RESPONSIVE_SOURCE_OVERRIDES.items():
-            source_url = (PurePosixPath("assets/images") / PurePosixPath(source_name)).as_posix()
-            image_match = IMG_PATTERN.search(picture)
-            if image_match is None:
-                continue
-            image_tag = image_match.group(0)
-            if _image_name_for_reference(get_attribute(image_tag, "src") or "") != fallback_name:
-                continue
-            source_match = next(
-                (
-                    item for item in SOURCE_TAG_PATTERN.finditer(picture)
-                    if source_url in _srcset_urls(get_attribute(item.group(0), "srcset") or "")
-                ),
-                None,
-            )
-            if source_match is None:
-                continue
-            image_offset = match.start() + image_match.start()
-            sizes = _responsive_sizes(
-                image_tag,
-                _ancestor_classes_before(text, image_offset),
-            )
-            source_tag = source_match.group(0)
-            updated = set_attribute(source_tag, "data-responsive-image", "true")
-            updated = set_attribute(updated, "type", "image/webp")
-            updated = set_attribute(updated, "srcset", _srcset(root, fallback_name))
-            updated = set_attribute(updated, "sizes", sizes)
-            return picture[:source_match.start()] + updated + picture[source_match.end():]
-        return picture
+        image_match = IMG_PATTERN.search(picture)
+        if image_match is None:
+            return picture
+        image_tag = image_match.group(0)
+        fallback_name = _image_name_for_reference(get_attribute(image_tag, "src") or "")
+        if fallback_name is None:
+            return picture
+        full_size_url = _full_size_webp_url(fallback_name)
+        source_match = next(
+            (
+                item for item in SOURCE_TAG_PATTERN.finditer(picture)
+                if full_size_url in _srcset_urls(get_attribute(item.group(0), "srcset") or "")
+            ),
+            None,
+        )
+        if source_match is None:
+            return picture
+        image_offset = match.start() + image_match.start()
+        sizes = _responsive_sizes(
+            image_tag,
+            _ancestor_classes_before(text, image_offset),
+        )
+        source_tag = source_match.group(0)
+        updated = set_attribute(source_tag, "data-responsive-image", "true")
+        updated = set_attribute(updated, "type", "image/webp")
+        updated = set_attribute(updated, "srcset", _srcset(root, fallback_name))
+        updated = set_attribute(updated, "sizes", sizes)
+        return picture[:source_match.start()] + updated + picture[source_match.end():]
 
     return PICTURE_PATTERN.sub(rewrite_picture, text)
 
@@ -648,7 +647,9 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             remote_pattern = re.escape(SOURCE_PREFIX + name) + r"""(?:\?[^"'\s>]*)?"""
             text = re.sub(remote_pattern, destination, text)
         references = [source_url]
-        if not (extension == "responsive" and name in RESPONSIVE_SOURCE_OVERRIDES):
+        # In responsive mode, keep existing full-size WebP references intact until
+        # their containing picture can be upgraded to the generated responsive srcset.
+        if extension != "responsive":
             references.append(full_size_url)
         reference_pattern = "(?:" + "|".join(re.escape(item) for item in references) + ")"
         local_pattern = rf"(?<![\w:/]){reference_pattern}(?![\w.-])"
