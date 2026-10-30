@@ -128,7 +128,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
             full_size_path = baseline["rest3.jpg"]["fullSizePath"]
             full_size_budget = baseline["rest3.jpg"]["fullSizeBytes"] - 1
             self.assertEqual(FULL_SIZE_WEBP_MAX_BYTES["assets/images/courtyard.webp"], 450_000)
+            self.assertEqual(FULL_SIZE_WEBP_MAX_BYTES["assets/images/legacy/camel-day.webp"], 210_000)
+            self.assertEqual(FULL_SIZE_WEBP_MAX_BYTES["assets/images/legacy/fort-temple-spires.webp"], 120_000)
             self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES["assets/images/responsive/courtyard-1600.webp"], 250_000)
+            self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES["assets/images/responsive/legacy/camel-day-1200.webp"], 170_000)
+            self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES["assets/images/responsive/legacy/fort-temple-spires-1200.webp"], 100_000)
             page = root / "index.html"
             page.write_text(
                 '<img src="assets/images/rest3.jpg" alt="Rooftop terrace">',

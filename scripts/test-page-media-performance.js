@@ -44,6 +44,8 @@ const PATH_BUDGETS = new Map([
   ['assets/images/gallery/desert/camp-from-above.jpeg', 100 * KIB],
   ['assets/images/legacy/camel-sunset.jpg', 400 * KIB],
   ['assets/images/legacy/camel-day.jpg', 350 * KIB],
+  ['assets/images/legacy/camel-day.webp', 210_000],
+  ['assets/images/responsive/legacy/camel-day-1200.webp', 170_000],
   ['assets/images/experiences/cultural-programme.jpg', 300 * KIB],
   ['assets/images/experiences/open-air-sleeping-setup.jpeg', 150 * KIB],
   ['assets/images/experiences/sleep-under-stars-dusk-camp.jpeg', 150 * KIB],
@@ -53,6 +55,8 @@ const PATH_BUDGETS = new Map([
   ['assets/images/experiences/swiss-tent-exterior.webp', 200 * KIB],
   ['assets/images/experiences/swiss-tent-detail.jpeg', 250 * KIB],
   ['assets/images/legacy/fort-temple-spires.jpg', 500 * KIB],
+  ['assets/images/legacy/fort-temple-spires.webp', 120_000],
+  ['assets/images/responsive/legacy/fort-temple-spires-1200.webp', 100_000],
   ['assets/images/experiences/heritage-architecture.jpg', 300 * KIB],
   ['assets/images/legacy/rooftop-candlelight.webp', 100 * KIB],
   ['assets/images/courtyard.jpg', 650 * KIB],
@@ -68,7 +72,9 @@ const IS_PACKAGED_OUTPUT = ROOT !== CONTRACT_ROOT;
 const PACKAGE_GENERATED_DERIVATIVE_PATHS = new Set(
   [...PATH_BUDGETS.keys()].filter(assetPath => assetPath.includes('/responsive/')
     || assetPath === 'assets/images/courtyard.webp'
-    || assetPath === 'assets/images/directions/haveli-facade.webp')
+    || assetPath === 'assets/images/directions/haveli-facade.webp'
+    || assetPath === 'assets/images/legacy/camel-day.webp'
+    || assetPath === 'assets/images/legacy/fort-temple-spires.webp')
 );
 const errors = [];
 const referencedAssets = new Set();

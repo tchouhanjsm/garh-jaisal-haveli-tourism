@@ -70,12 +70,16 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
     "assets/images/responsive/directions/haveli-facade-768.webp": 200_000,
     "assets/images/responsive/directions/haveli-facade-1200.webp": 250_000,
+    "assets/images/responsive/legacy/camel-day-1200.webp": 170_000,
+    "assets/images/responsive/legacy/fort-temple-spires-1200.webp": 100_000,
 }
-# JPEG-derived hero WebPs may be regenerated in the isolated package;
+# JPEG-derived WebPs with explicit ceilings may be regenerated in the isolated package;
 # original JPEG fallbacks remain unchanged.
 FULL_SIZE_WEBP_MAX_BYTES = {
     "assets/images/courtyard.webp": 450_000,
     "assets/images/directions/haveli-facade.webp": 400_000,
+    "assets/images/legacy/camel-day.webp": 210_000,
+    "assets/images/legacy/fort-temple-spires.webp": 120_000,
 }
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
