@@ -760,14 +760,13 @@ def run_responsive_image_preview_smoke() -> int:
                         install_navigation_guard(context, base_url)
                         page = context.new_page()
                         request_counts: dict[str, int] = {}
-                        image_responses: dict[str, int] = {}
+                        image_responses: dict[str, dict] = {}
                         image_request_failures: dict[str, str] = {}
 
                         def record_request(request) -> None:
                             if same_origin(request.url, base_url):
                                 request_counts[request.url] = request_counts.get(request.url, 0) + 1
 
-                        image_response_headers: dict[str, dict] = {}
 
                         def record_image_response(response) -> None:
                             image_path = urlsplit(response.url).path.lower()
