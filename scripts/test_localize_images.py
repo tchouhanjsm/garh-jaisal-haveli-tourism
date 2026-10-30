@@ -213,12 +213,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 item for item in generated_files if item["path"] == entry["fullSizePath"]
             )
             actual_full_size_bytes = full_size_record["bytes"]
+            actual_final_attempt_bytes = full_size_record["qualityAttempts"][-1]["bytes"]
             full_size_record["bytes"] = actual_full_size_bytes - 1
+            full_size_record["qualityAttempts"][-1]["bytes"] = actual_full_size_bytes - 1
             with self.assertRaisesRegex(RuntimeError, "byte metadata does not match the actual file"):
                 _PACKAGE_PREVIEW.validate_responsive_markup(
                     root, generated_files, source_record, RESPONSIVE_WIDTHS
                 )
             full_size_record["bytes"] = actual_full_size_bytes
+            full_size_record["qualityAttempts"][-1]["bytes"] = actual_final_attempt_bytes
             full_size_record["maxBytes"] = actual_full_size_bytes - 1
             with self.assertRaisesRegex(RuntimeError, "exceeds its"):
                 _PACKAGE_PREVIEW.validate_responsive_markup(
