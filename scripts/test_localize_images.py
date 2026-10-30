@@ -132,7 +132,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 {budget_path: byte_budget},
             ):
                 rewritten_pages, generation = rewrite_site(
-                    root, "responsive", return_report=True
+                    root, "responsive", return_report=True, image_names=("rest3.jpg",)
                 )
 
             self.assertEqual([item.name for item in rewritten_pages], ["index.html"])
