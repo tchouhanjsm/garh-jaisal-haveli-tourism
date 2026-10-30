@@ -170,9 +170,9 @@ def validate_staging_target(raw_url: str, operator: str, report_path: str) -> st
 
 
 def validate_screenshot_directory(raw_path: str) -> Path:
-    """Require an empty evidence directory outside the checkout before staging access."""
+    """Require an empty screenshot-evidence directory outside the checkout."""
     if not raw_path or not raw_path.strip():
-        raise ValueError("a screenshot evidence directory is required for staging mode")
+        raise ValueError("a screenshot evidence directory is required")
     destination = Path(raw_path).expanduser().resolve()
     if destination == ROOT or ROOT in destination.parents:
         raise ValueError("write screenshots outside the repository checkout to avoid accidental commits")
@@ -182,6 +182,22 @@ def validate_screenshot_directory(raw_path: str) -> Path:
         raise ValueError("the screenshot evidence path must be a directory")
     if destination.exists() and any(destination.iterdir()):
         raise ValueError("the screenshot evidence directory must be empty so old and new runs cannot be mixed")
+    return destination
+
+
+def validate_local_report_path(raw_path: str) -> Path:
+    """Require a JSON evidence report outside the repository checkout."""
+    if not raw_path or not raw_path.strip():
+        raise ValueError("a visual-evidence report path is required")
+    destination = Path(raw_path).expanduser().resolve()
+    if destination == ROOT or ROOT in destination.parents:
+        raise ValueError("write visual-evidence reports outside the repository checkout")
+    if destination == Path(destination.anchor):
+        raise ValueError("the filesystem root cannot be used as a report path")
+    if destination.suffix.lower() != ".json":
+        raise ValueError("the visual-evidence report must use a .json extension")
+    if destination.exists() and destination.is_dir():
+        raise ValueError("the visual-evidence report path must be a file")
     return destination
 
 
@@ -352,7 +368,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete)
 
     return {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -381,11 +397,13 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "complete": False,
         },
         "visualEvidence": {
-            "required": mode == "staging-read-only",
+            "required": True,
             "captureMode": "full-page PNG",
             "expectedScreenshotCount": len(expected_screenshots),
             "capturedScreenshotCount": len(screenshot_records),
             "complete": screenshot_complete,
+            "reviewStatus": "PENDING_OWNER_REVIEW",
+            "ownerApproved": False,
             "capturedFiles": screenshot_records,
         },
         "crossOriginNavigationAttemptsBlocked": [
@@ -1234,9 +1252,21 @@ def check_404_recovery(page, base_url: str) -> dict:
 
 def check_stay_planner(page, base_url: str) -> None:
     """Exercise the shared enquiry planner, editable draft, and deliberate WhatsApp handoff."""
-    page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+
+    # The home page already has its own four-path planning panel; do not duplicate it.
+    home_response = page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+    check(home_response is not None and home_response.status == 200,
+          "Home conversion panel route should load")
+    check(page.locator("[data-stay-planner]").count() == 0,
+          "Home: avoid repeating the multi-topic planner after the purpose-built planning panel")
+    check(page.locator("#plan-stay .home-plan-path").count() == 4,
+          "Home: keep the four primary Stay / Explore / Dine / Arrive decision paths")
+    check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
+          "Home: do not load the generic planner runtime when its component is absent")
+    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
+    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
     planner = page.locator("[data-stay-planner]")
-    check(planner.count() == 1, "Stay planner should appear once on the home route")
+    check(planner.count() == 1, "Stay planner should appear once on the Rooms route")
     if planner.count() != 1:
         return
     details = planner.locator("[data-stay-planner-disclosure]")
@@ -1278,7 +1308,7 @@ def check_stay_planner(page, base_url: str) -> None:
           "Stay planner draft should preserve optional notes and clear enquiry-only language")
     check("Nothing has been sent or saved." in status.inner_text(),
           "Stay planner must confirm that the draft remains local to the page")
-    check(page.url.endswith("/index.html"), "Stay planner must not navigate away when building a draft")
+    check(page.url.endswith("/rooms.html"), "Stay planner must not navigate away when building a draft")
     check(not non_get_requests, "Stay planner must not submit the enquiry form over the network")
     check(page.evaluate("window.__stayPlanOpenedUrl") is None,
           "Preparing an enquiry must not launch WhatsApp automatically")
@@ -1314,7 +1344,7 @@ def check_stay_planner(page, base_url: str) -> None:
               "WhatsApp handoff must safely encode the exact guest-edited draft")
         check("press Send yourself" in status.inner_text(),
               "WhatsApp handoff must clearly require the guest to review and send manually")
-        check(page.url.endswith("/index.html"),
+        check(page.url.endswith("/rooms.html"),
               "WhatsApp handoff test must not navigate the site or send guest details from the page")
     page.evaluate("""() => {
       if (typeof window.__stayPlanOriginalOpen === 'function') window.open = window.__stayPlanOriginalOpen;
@@ -1350,7 +1380,7 @@ def check_stay_planner(page, base_url: str) -> None:
                 })();"""
             )
             rollover_page = rollover_context.new_page()
-            rollover_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            rollover_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             rollover_planner = rollover_page.locator("[data-stay-planner]")
             rollover_planner.locator("[data-stay-planner-disclosure] summary").click()
             rollover_arrival = rollover_planner.locator("#stay-plan-arrival")
@@ -1376,7 +1406,7 @@ def check_stay_planner(page, base_url: str) -> None:
         fallback_context = browser.new_context(java_script_enabled=False)
         try:
             fallback_page = fallback_context.new_page()
-            fallback_page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
+            fallback_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             fallback_planner = fallback_page.locator("[data-stay-planner]")
             fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
             fallback_notice = fallback_planner.locator(".stay-planner__no-script")
@@ -1421,15 +1451,33 @@ def check_stay_planner(page, base_url: str) -> None:
     check(planner.locator("[data-stay-plan-result]").is_hidden(),
           "Stay planner should let visitors revise their draft inputs")
 
-    # Exercise the same central contact handoff on every other planner integration.
+    # Keep the multi-topic planner only where a more specific conversion form is not present.
+    context_specific_routes = {
+        "experiences.html": "[data-guest-enquiry-form]",
+        "experience-details.html": "[data-guest-enquiry-form]",
+        "dining.html": "[data-restaurant-table-form]",
+    }
     for route in (
         "rooms.html", "experiences.html", "experience-details.html",
-        "dining.html", "about.html", "directions.html", "gallery.html",
+        "dining.html", "about.html", "gallery.html",
     ):
         response = page.goto(base_url + route, wait_until="domcontentloaded", timeout=15000)
         check(response is not None and response.status == 200,
-              f"{route}: planner route should load before handoff testing")
+              f"{route}: conversion route should load before handoff testing")
         route_planner = page.locator("[data-stay-planner]")
+        if route in context_specific_routes:
+            check(route_planner.count() == 0,
+                  f"{route}: a purpose-built enquiry route must not repeat the generic stay planner")
+            check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
+                  f"{route}: do not load unused generic planner runtime")
+            check(page.locator(context_specific_routes[route]).count() == 1,
+                  f"{route}: purpose-built conversion form should remain available")
+            if route == "dining.html":
+                check(page.locator("[data-guest-enquiry-form]").count() == 1,
+                      "Dining: retain the separate stay/experience enquiry as a distinct intent")
+                check("not reserved" in page.locator(".dining-table-panel__notice").inner_text().lower(),
+                      "Dining: the table request must be distinguished from a confirmed reservation")
+            continue
         check(route_planner.count() == 1, f"{route}: planner must appear exactly once")
         if route_planner.count() != 1:
             continue
@@ -1490,6 +1538,18 @@ def check_stay_planner(page, base_url: str) -> None:
         check(page.url.endswith("/" + route),
               f"{route}: preparing and opening a WhatsApp draft must not navigate the site")
 
+    directions_response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    check(directions_response is not None and directions_response.status == 200,
+          "Directions: dedicated arrival planner route should load")
+    check(page.locator("[data-stay-planner]").count() == 0,
+          "Directions: do not repeat the generic stay planner after the dedicated arrival form")
+    check(page.locator("[data-arrival-planning-form]").count() == 1,
+          "Directions: keep exactly one dedicated arrival enquiry form")
+    check(page.locator("#arrival-enquiry-title").is_visible(),
+          "Directions: the purpose-built arrival planner heading must remain visible")
+    check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
+          "Directions: do not load the redundant generic planner runtime")
+
     check(not non_get_requests,
           "Stay planner handoff must not submit guest details using a non-GET request")
 
@@ -1538,6 +1598,42 @@ def check_contact_hydration(page, base_url: str) -> None:
         check(link.get_attribute("target") == "_blank", "Hotel map pin must open in a separate tab")
         check(set((link.get_attribute("rel") or "").split()) >= {"noopener", "noreferrer"},
               "Hotel map pin must protect the new tab with noopener/noreferrer")
+    # Directions M2: validate in-page wayfinding and responsive navigation without opening external links.
+    section_nav = page.locator("nav.arrival-section-nav")
+    check(section_nav.count() == 1 and section_nav.is_visible(),
+          "Directions must expose one visible, named section navigation")
+    expected_sections = [
+        ("Quick directions", "#arrival-overview-title"),
+        ("Travel options", "#travel-options-title"),
+        ("Walking & mobility", "#walking-access-title"),
+        ("Map & navigation", "#arrival-map-title"),
+        ("FAQs", "#arrival-faq-title"),
+    ]
+    for label, href in expected_sections:
+        link = section_nav.get_by_role("link", name=label, exact=True)
+        check(link.count() == 1 and link.get_attribute("href") == href,
+              f"Directions section navigation must target {href}")
+        check(page.locator(href).count() == 1,
+              f"Directions section navigation target {href} must exist exactly once")
+    for width in (320, 390, 768, 1280):
+        page.set_viewport_size({"width": width, "height": 900})
+        dimensions = page.evaluate(
+            "() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth })"
+        )
+        check(dimensions["document"] <= dimensions["viewport"] + 1,
+              f"Directions section navigation must not cause horizontal page overflow at {width}px")
+    page.set_viewport_size({"width": 1280, "height": 900})
+    section_nav.get_by_role("link", name="Walking & mobility", exact=True).click()
+    check(urlparse(page.url).fragment == "walking-access-title",
+          "Walking & mobility navigation must update the in-page fragment")
+    check(page.locator("#walking-access-title").is_visible(),
+          "Walking & mobility navigation must target a visible heading")
+    section_nav.get_by_role("link", name="Map & navigation", exact=True).click()
+    check(urlparse(page.url).fragment == "arrival-map-title",
+          "Map & navigation must update the in-page fragment")
+    check(page.locator("#arrival-map-title").is_visible(),
+          "Map & navigation must target a visible heading")
+
     # This smoke test inspects the destination but never opens the external map.
 
     # This test only inspects links; it never navigates to the provider or submits guest data.
@@ -2039,7 +2135,7 @@ def check_staging_publication_guards(page, base_url: str) -> None:
 
 
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
-    """Audit six requested breakpoints while capturing full-page evidence at three representative widths."""
+    """Audit six responsive breakpoints and capture all eight routes at 390, 768 and 1280px."""
     screenshot_widths = {width for width, _height in VIEWPORTS}
     for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})
@@ -2053,6 +2149,37 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             page.wait_for_selector("main#main", timeout=5000)
             page.wait_for_timeout(80)
             check_premium_guest_journey(page, page_name, width)
+            type_requirements = {
+                "index.html": [(".experience-card p", 13), (".proof-item span", 11),
+                               (".room-feature__copy > p:not(.fine-print)", 13), (".faq-item > p", 13)],
+                "rooms.html": [(".stay-planner__topic", 13), (".stay-planner__field", 12),
+                               (".stay-planner__form-note", 12)],
+                "experiences.html": [(".experience-card p", 13)],
+                "experience-details.html": [(".experience-itinerary li", 13),
+                                             (".experience-detail-facts p", 13),
+                                             (".experience-detail-topic-list li", 13)],
+                "dining.html": [(".dining-table-form label", 12),
+                                (".dining-table-form__privacy", 12),
+                                (".dining-table-form__status", 13)],
+                "directions.html": [(".arrival-quick-list p", 13),
+                                    (".arrival-enquiry-form__hint", 12),
+                                    (".arrival-section-nav a", 12)],
+                "about.html": [(".guest-journey__copy small", 12)],
+                "gallery.html": [(".guest-journey__copy small", 12)],
+            }
+            shared_type_requirements = [
+                ("body", 15),
+                (".button", 12),
+                (".text-link", 13),
+                (".guest-journey__copy small", 12),
+            ]
+            for selector, minimum in shared_type_requirements + type_requirements.get(page_name, []):
+                actual = page.locator(selector).evaluate_all(
+                    "(nodes) => nodes.map(node => Number.parseFloat(getComputedStyle(node).fontSize)).filter(Number.isFinite)"
+                )
+                if actual:
+                    check(min(actual) + 0.01 >= minimum,
+                          f"{page_name} at {width}px: {selector} minimum font size {minimum}px, found {min(actual):g}px")
             dimensions = page.evaluate(
                 """() => ({
                   viewport: window.innerWidth,
@@ -2064,7 +2191,28 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                   f"{page_name} at {width}px: horizontal overflow ({dimensions})")
             if width <= 390:
                 bar = page.locator(".mobile-booking-bar")
-                check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
+                if page_name == "directions.html":
+                    state = page.evaluate("""() => {
+                      const card = document.querySelector('[data-arrival-quick-card]');
+                      const bar = document.querySelector('.mobile-booking-bar');
+                      if (!card || !bar) return null;
+                      const bounds = card.getBoundingClientRect();
+                      const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                      const overlaps = bounds.left < window.innerWidth && bounds.right > 0
+                        && bounds.top < window.innerHeight
+                        && bounds.bottom > Math.max(0, window.innerHeight - height);
+                      const expected = overlaps && !bar.contains(document.activeElement);
+                      return {expected, suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                        display: getComputedStyle(bar).display, ariaHidden: bar.getAttribute('aria-hidden'),
+                        inert: bar.hasAttribute('inert')};
+                    }""")
+                    check(state is not None and state["suppressed"] == state["expected"],
+                          f"{page_name}: mobile booking bar should yield only when it overlaps arrival summary")
+                    if state and state["expected"]:
+                        check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
+                              f"{page_name}: hidden booking bar must leave visual and keyboard access")
+                else:
+                    check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
                 box = bar.bounding_box()
                 if box:
                     check(box["x"] >= -1 and box["x"] + box["width"] <= width + 1,
@@ -2253,6 +2401,104 @@ def check_experience_discovery_journey(page, base_url: str) -> None:
               "Return-to-catalogue action must land on the experience options")
 
 
+def check_experience_detail_visual_refinement(page, base_url: str) -> None:
+    """Check real responsive layout, image decoding and text-first route caveats on itinerary details."""
+    expected = [
+        ("sunset-camel-safari-detail", "right", "assets/images/legacy/camel-sunset.jpg",
+         "Camel caravan silhouetted against the setting sun over desert dunes"),
+        ("cultural-safari-detail", "left", "assets/images/experiences/cultural-programme.jpg",
+         "Musicians performing on a small stage at a desert camp at night, with seated guests in the foreground"),
+        ("sleep-under-the-stars-detail", "right", "assets/images/experiences/open-air-sleeping-setup.jpeg",
+         "Mattress and bedding set out in the desert beside a small tent"),
+        ("swiss-tent-safari-detail", "left", "assets/images/experiences/swiss-tent-exterior.webp",
+         "White Swiss-style tents at a desert camp in warm evening light"),
+        ("half-day-jaisalmer-tour-detail", "right", "assets/images/experiences/half-day-jaisalmer-tour.jpg",
+         "Carved sandstone balconies on a historic Jaisalmer haveli"),
+        ("full-day-jaisalmer-tour-detail", "left", "assets/images/experiences/heritage-architecture.jpg",
+         "Carved sandstone architecture in historic Jaisalmer"),
+        ("fort-heritage-walk-detail", "right", "assets/images/legacy/fort-temple-spires.jpg",
+         "Carved sandstone Jain temple spires rising above Jaisalmer"),
+    ]
+    for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
+        page.set_viewport_size({"width": width, "height": height})
+        response = page.goto(base_url + "experience-details.html",
+                             wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"Experience details: expected HTTP 200 at {width}px")
+        if response is None or response.status != 200:
+            continue
+        check(page.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+              f"Experience details: no horizontal overflow at {width}px")
+
+        for section_id, side, expected_src, expected_alt in expected:
+            section = page.locator("#" + section_id)
+            check(section.count() == 1,
+                  f"Experience details: expected one section for {section_id}")
+            if section.count() != 1:
+                continue
+            figure = section.locator("figure.experience-detail-media")
+            image = figure.locator("img")
+            check(figure.count() == 1 and image.count() == 1,
+                  f"{section_id}: exactly one source-matched photo reference must render")
+            if image.count() != 1:
+                continue
+            check(image.get_attribute("src") == expected_src,
+                  f"{section_id}: image must use its reviewed local subject reference")
+            check(image.get_attribute("alt") == expected_alt,
+                  f"{section_id}: image must retain its descriptive, subject-accurate alt text")
+            check(image.get_attribute("loading") == "lazy" and image.get_attribute("decoding") == "async",
+                  f"{section_id}: supporting image must lazy-load and decode asynchronously")
+            image.scroll_into_view_if_needed()
+            try:
+                page.wait_for_function(
+                    "(selector) => { const image = document.querySelector(selector); return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0); }",
+                    arg=f"#{section_id} figure img",
+                    timeout=8000,
+                )
+            except Exception as error:
+                check(False, f"{section_id}: image did not decode at {width}px ({type(error).__name__})")
+                continue
+
+            layout = page.evaluate("""({id, side, width}) => {
+              const section = document.getElementById(id);
+              const header = section && section.querySelector('.experience-detail-section__header');
+              const figure = section && section.querySelector('.experience-detail-media');
+              const columns = section && section.querySelector('.experience-detail-columns');
+              if (!header || !figure || !columns) return null;
+              const h = header.getBoundingClientRect();
+              const f = figure.getBoundingClientRect();
+              const c = columns.getBoundingClientRect();
+              return {
+                headerRight: h.right, headerLeft: h.left, headerTop: h.top, headerBottom: h.bottom,
+                figureRight: f.right, figureLeft: f.left, figureTop: f.top, figureBottom: f.bottom,
+                columnsTop: c.top,
+                sideBySide: width > 900
+                  ? (side === 'right' ? f.left >= h.right - 1 : f.right <= h.left + 1)
+                  : false,
+                stacked: width <= 900 ? h.bottom <= f.top + 2 : true,
+                contentBelow: c.top >= Math.max(h.bottom, f.bottom) - 1
+              };
+            }""", {"id": section_id, "side": side, "width": width})
+            check(layout is not None, f"{section_id}: responsive image layout geometry must be measurable")
+            if layout:
+                if width > 900:
+                    check(layout["sideBySide"],
+                          f"{section_id}: the image must alternate to the {side} of its text on desktop")
+                    check(abs(layout["headerTop"] - layout["figureTop"]) < 70,
+                          f"{section_id}: editorial copy and image should share a balanced top alignment")
+                else:
+                    check(layout["stacked"],
+                          f"{section_id}: mobile/tablet order must keep the heading above its image")
+                check(layout["contentBelow"],
+                      f"{section_id}: itinerary and fact columns must follow the editorial image row")
+
+        for text_only_id in ("car-and-road-travel-detail", "other-routes"):
+            text_only = page.locator("#" + text_only_id)
+            check(text_only.count() == 1 and text_only.locator("img").count() == 0,
+                  f"{text_only_id}: keep unsupported transport/research topics text-led, with no misleading photo")
+        page.evaluate("window.scrollTo(0, 0)")
+
+
 def check_arrival_wayfinding_journey(page, base_url: str) -> None:
     """Verify the source-backed final-walk facts and their links from guest decision pages."""
     routes = [
@@ -2288,6 +2534,154 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
 
     response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
     check(response is not None and response.status == 200, "Directions: expected HTTP 200")
+    hero = page.locator(".arrival-hero")
+    quick_card = page.locator("[data-arrival-quick-card]")
+    check(hero.count() == 1 and hero.is_visible(),
+          "Directions: arrival-specific photo hero must be visible")
+    check(quick_card.count() == 1 and quick_card.is_visible(),
+          "Directions: one prioritized quick-arrival card must be visible")
+    if quick_card.count():
+        quick_text = quick_card.inner_text()
+        check("Fort Parking" in quick_text and "300 metres" in quick_text and "5–6 minutes" in quick_text,
+              "Directions: quick-arrival card must surface source-listed parking-walk guidance")
+        check("narrow" in quick_text.lower() and "steps" in quick_text.lower(),
+              "Directions: quick-arrival card must explain pedestrian access conditions")
+        check("Confirm the meeting point" in quick_text,
+              "Directions: quick-arrival card must prompt guests to confirm the meeting point")
+    check(page.locator("#walking-access .arrival-steps > .arrival-step").count() == 4,
+          "Directions: the arrival sequence must have four steps")
+    check(page.locator("#travel-options .arrival-travel-card").count() == 3,
+          "Directions: station, airport and road options should remain separate")
+
+    section_nav = page.get_by_role("navigation", name="Directions page sections")
+    for label, fragment in [
+        ("Quick directions", "#arrival-overview-title"),
+        ("Travel options", "#travel-options-title"),
+        ("Walking & mobility", "#walking-access-title"),
+        ("Map & navigation", "#arrival-map-title"),
+        ("FAQs", "#arrival-faq-title"),
+    ]:
+        link = section_nav.get_by_role("link", name=label, exact=True)
+        check(link.count() == 1 and link.get_attribute("href") == fragment,
+              f"Directions: {label} navigation must point to its real section heading")
+    page.evaluate(
+        """() => {
+          const heading = document.querySelector('#travel-options-title');
+          if (!heading) return;
+          document.documentElement.style.scrollBehavior = 'auto';
+          heading.scrollIntoView({ block: 'start', behavior: 'auto' });
+        }"""
+    )
+    try:
+        page.wait_for_function(
+            """() => {
+              const heading = document.querySelector('#travel-options-title');
+              const header = document.querySelector('.site-header');
+              const sectionNav = document.querySelector('.arrival-section-nav');
+              const current = document.querySelector('.arrival-section-nav a[aria-current="location"]');
+              if (!heading || !header || !sectionNav || !current || current.getAttribute('href') !== '#travel-options-title') return false;
+              const top = heading.getBoundingClientRect().top;
+              const headerBottom = header.getBoundingClientRect().bottom;
+              // At tablet/mobile widths the section rail sticks beneath the site header.
+              // Measure the heading against the lowest visible sticky obstruction, not the header alone.
+              const navBottom = sectionNav.getBoundingClientRect().bottom;
+              const clearanceBottom = Math.max(headerBottom, navBottom);
+              return top >= clearanceBottom + 8 && top <= clearanceBottom + 80;
+            }""",
+            timeout=5000,
+        )
+        check(True, "Directions: scroll position must select the nearest section and keep its heading clear of the sticky header")
+    except Exception as error:
+        check(False, f"Directions: active section link must follow scroll position ({error})")
+    finally:
+        page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+
+    travel_nav = section_nav.get_by_role("link", name="Travel options", exact=True)
+    if travel_nav.count() == 1:
+        page.evaluate("document.documentElement.style.scrollBehavior = 'auto'")
+        travel_nav.click()
+        try:
+            page.wait_for_function(
+                """() => {
+                  const heading = document.querySelector('#travel-options-title');
+                  const header = document.querySelector('.site-header');
+                  const sectionNav = document.querySelector('.arrival-section-nav');
+                  if (!heading || !header || !sectionNav || window.location.hash !== '#travel-options-title') return false;
+                  const top = heading.getBoundingClientRect().top;
+                  const headerBottom = header.getBoundingClientRect().bottom;
+                  // The section rail is sticky below the header at tablet/mobile widths.
+                  const navBottom = sectionNav.getBoundingClientRect().bottom;
+                  const clearanceBottom = Math.max(headerBottom, navBottom);
+                  return top >= clearanceBottom + 8 && top <= clearanceBottom + 80;
+                }""",
+                timeout=5000,
+            )
+            heading_top = page.locator("#travel-options-title").bounding_box()["y"]
+            header_box = page.locator(".site-header").bounding_box()
+            header_bottom = header_box["y"] + header_box["height"]
+            check(heading_top >= header_bottom + 8,
+                  "Directions: section navigation must leave clear space below the sticky site header")
+        except Exception as error:
+            check(False, f"Directions: section navigation must reach a visible travel heading ({error})")
+        finally:
+            page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+
+    original_viewport = page.viewport_size or {"width": 1440, "height": 900}
+    page.set_viewport_size({"width": 360, "height": 800})
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    page.evaluate(
+        """() => {
+          document.documentElement.style.scrollBehavior = 'auto';
+          document.querySelector('#arrival-map-title')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        }"""
+    )
+    try:
+        page.wait_for_function(
+            """() => {
+              const nav = document.querySelector('nav.arrival-section-nav');
+              const active = nav?.querySelector('a[aria-current="location"]');
+              if (!nav || !active || active.getAttribute('href') !== '#arrival-map-title') return false;
+              const navRect = nav.getBoundingClientRect();
+              const linkRect = active.getBoundingClientRect();
+              const contentLeft = navRect.left + nav.clientLeft;
+              const contentRight = contentLeft + nav.clientWidth;
+              return nav.scrollWidth > nav.clientWidth + 1
+                && nav.scrollLeft > 0
+                && linkRect.left >= contentLeft - 1
+                && linkRect.right <= contentRight + 1;
+            }""",
+            timeout=5000,
+        )
+        check(True, "Directions: mobile section rail must reveal the current off-screen section link")
+    except Exception as error:
+        check(False, f"Directions: mobile active section link must remain visible ({error})")
+    finally:
+        page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+        page.set_viewport_size(original_viewport)
+        page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+
+    check(page.locator(".arrival-visual__media img").count() == 1,
+          "Directions: the accessible facade reference section must load its local building image")
+    check(page.locator(".arrival-visual__copy").get_by_role("heading", name="A visual reference for the final approach.").is_visible(),
+          "Directions: the facade reference section must have a visible heading")
+
+    orientation = page.locator("#arrival-map .arrival-map__orientation")
+    check(orientation.count() == 1 and orientation.is_visible(),
+          "Directions: map panel must contain one visible arrival-orientation diagram")
+    check(orientation.locator(".arrival-map__route-stop").count() == 3,
+          "Directions: orientation diagram must show three ordered approach steps")
+    orientation_text = orientation.inner_text()
+    check("Confirm your vehicle stop" in orientation_text
+          and "Continue on foot" in orientation_text
+          and "Reach Garh Jaisal Haveli" in orientation_text,
+          "Directions: orientation diagram must explain the vehicle-to-foot sequence")
+    check("not a scaled map or turn-by-turn route" in orientation_text.lower(),
+          "Directions: orientation diagram must be labeled as illustrative, not measured")
+    check(page.locator(".arrival-next-step__panel a[href='#arrival-planning']").count() == 1,
+          "Directions: one terminal CTA must return guests to its dedicated arrival enquiry")
+    check(page.locator("[data-stay-planner]").count() == 0,
+          "Directions: remove the duplicated generic stay planner")
+
     section = page.locator("#arrival-walk-distances")
     check(section.count() == 1 and section.is_visible(),
           "Directions: source-backed arrival distance section must be visible")
@@ -2300,13 +2694,18 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         rickshaw = cards.nth(2).inner_text()
         check("300 metres" in parking and "5–6 minutes" in parking,
               "Directions: Fort Parking estimate must be about 300 metres / 5–6 minutes")
-        check("200 metres" in entrance and "3–4 minutes" in entrance,
-              "Directions: fort entrance estimate must be about 200 metres / 3–4 minutes")
+        check("fort entrance" in entrance.lower()
+              and "200 metres" in entrance
+              and "3–4 minutes" in entrance
+              and "approximate walk" in entrance.lower()
+              and "confirm your meeting point" in entrance.lower()
+              and "current access" in entrance.lower(),
+              "Directions: fort entrance card must retain the source-listed approximate 200 metres / 3–4 minutes and current-access caveat")
         check("Rickshaw access rules and drop-off points can vary" in rickshaw
               and "8:00 AM" not in section.inner_text(),
               "Directions: unconfirmed rickshaw hours must be omitted and current access confirmed")
 
-    for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
+    for width, height in [(320, 740), (360, 800), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
         page.set_viewport_size({"width": width, "height": height})
         dimensions = page.evaluate(
             "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"
@@ -2315,7 +2714,348 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance cards must not overflow horizontally at {width}px")
         check(page.locator("#arrival-walk-distances-title").is_visible(),
               f"Directions: arrival distance heading must remain available at {width}px")
+        travel_layout = page.evaluate("""() => {
+          const section = document.querySelector('#travel-options');
+          const grid = document.querySelector('#travel-options .arrival-travel__grid');
+          const cards = Array.from(document.querySelectorAll('#travel-options .arrival-travel-card'));
+          if (!section || !grid || cards.length !== 3) return null;
+          const rect = element => {
+            const box = element.getBoundingClientRect();
+            return {x: box.x, y: box.y, width: box.width, height: box.height};
+          };
+          return {section: rect(section), grid: rect(grid), cards: cards.map(rect)};
+        }""")
+        check(travel_layout is not None,
+              f"Directions: travel layout evidence must exist at {width}px")
+        if travel_layout:
+            check(travel_layout["grid"]["width"] >= travel_layout["section"]["width"] * 0.88,
+                  f"Directions: travel-card grid must use the main content width at {width}px, not a squeezed secondary column")
+            card_widths = [card["width"] for card in travel_layout["cards"]]
+            if width > 1000:
+                check(all(card_width >= travel_layout["grid"]["width"] * 0.27 for card_width in card_widths),
+                      f"Directions: three desktop travel cards must have useful width at {width}px ({card_widths})")
+                check(max(card["y"] for card in travel_layout["cards"]) - min(card["y"] for card in travel_layout["cards"]) <= 2,
+                      f"Directions: all three desktop travel cards must share the same row at {width}px")
+            elif width > 620:
+                check(all(card_width >= travel_layout["grid"]["width"] * 0.40 for card_width in card_widths[:2]),
+                      f"Directions: tablet travel cards must use two readable columns at {width}px ({card_widths})")
+            else:
+                check(all(card_width >= travel_layout["grid"]["width"] * 0.88 for card_width in card_widths),
+                      f"Directions: mobile travel cards must stack full width at {width}px ({card_widths})")
+        if width <= 760:
+            page.wait_for_timeout(80)
+            state = page.evaluate("""() => {
+              const card = document.querySelector('[data-arrival-quick-card]');
+              const bar = document.querySelector('.mobile-booking-bar');
+              if (!card || !bar) return null;
+              const bounds = card.getBoundingClientRect();
+              const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+              const overlaps = bounds.left < window.innerWidth && bounds.right > 0
+                && bounds.top < window.innerHeight
+                && bounds.bottom > Math.max(0, window.innerHeight - height);
+              const expected = overlaps && !bar.contains(document.activeElement);
+              return {expected, suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                display: getComputedStyle(bar).display, ariaHidden: bar.getAttribute('aria-hidden'),
+                inert: bar.hasAttribute('inert')};
+            }""")
+            check(state is not None and state["suppressed"] == state["expected"],
+                  f"Directions at {width}px: booking bar must yield only while it overlaps the hero summary")
+            if state and state["expected"]:
+                check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
+                      f"Directions at {width}px: suppressed bar must be visually and keyboard hidden")
+            elif state:
+                check(state["display"] != "none" and state["ariaHidden"] is None and not state["inert"],
+                      f"Directions at {width}px: booking bar must return when the hero summary clears")
 
+
+
+def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
+    """Exercise the local Journal prototype and capture preview-only design evidence."""
+    before_runtime_errors = len(RUNTIME_ERRORS)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    screenshots: list[dict] = []
+    archive_widths: list[int] = []
+    article_widths: list[int] = []
+    interactions = [
+        "draft record loading and count",
+        "search no-match state and clear recovery",
+        "topic and text filters intersect",
+        "keyboard open and keyboard back with focus restoration",
+        "table-of-contents target and navigation",
+        "safe source-link attributes",
+        "related draft navigation without route change",
+        "hero-caption and caption-review readiness",
+        "read-only candidate media evidence workbench",
+        "source manifest and role filters",
+        "candidate image decode and responsive overflow",
+        "archive/article/media-workbench overflow at six viewport widths",
+    ]
+
+    def check_no_horizontal_overflow(view: str, width: int) -> None:
+        dims = page.evaluate("() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})")
+        check(dims["document"] <= dims["viewport"] + 1,
+              f"Journal preview {view} at {width}px: document must not overflow horizontally ({dims})")
+
+    def capture(filename: str, view: str, width: int, height: int) -> None:
+        destination = evidence_dir / filename
+        try:
+            page.evaluate("() => window.scrollTo(0, 0)")
+            page.screenshot(path=str(destination), full_page=True, animations="disabled", caret="hide")
+            image_width, image_height = read_png_dimensions(destination)
+            payload = destination.read_bytes()
+            screenshots.append({
+                "filename": filename, "view": view, "route": "preview/journal.html",
+                "viewportWidthCssPixels": width, "viewportHeightCssPixels": height,
+                "imageWidthPixels": image_width, "imageHeightPixels": image_height,
+                "fullPage": True, "bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            })
+            check(image_width == width and len(payload) > 0,
+                  f"Journal preview {view} at {width}px: invalid screenshot geometry/bytes ({image_width}x{image_height}, {len(payload)} bytes)")
+        except Exception as error:
+            check(False, f"Journal preview {view} at {width}px: screenshot failed ({type(error).__name__}: {error})")
+
+    response = page.goto(base_url + "preview/journal.html", wait_until="domcontentloaded", timeout=15000)
+    check(response is not None and response.status == 200, "Journal preview: local prototype must load successfully")
+    if response is None or response.status != 200:
+        return
+    check(page.locator('meta[name="robots"][content="noindex,nofollow"]').count() == 1,
+          "Journal preview: must opt out of indexing")
+    check(page.locator('link[rel="canonical"]').count() == 0,
+          "Journal preview: must not claim a canonical URL")
+    check(page.locator("[data-preview-only]").is_visible(),
+          "Journal preview: draft-only disclosure must be visible")
+    check(page.locator("h1#journal-masthead-title").is_visible(),
+          "Journal preview: masthead must expose a visible H1")
+    check(page.locator(".journal-masthead__image img[alt]").count() == 1,
+          "Journal preview: masthead photo must keep descriptive alternative text")
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    except Exception as error:
+        check(False, f"Journal preview: all 12 draft cards should render from JSON ({error})")
+        return
+
+    check(page.locator("[data-journal-card]").count() == 12,
+          "Journal preview: exactly 12 current draft records should render")
+    check("12 draft guides" in page.locator("[data-journal-results]").inner_text().lower(),
+          "Journal preview: result count must announce all drafts")
+    check(page.locator("a[href*='/blogs/'], a[href^='../blogs/']").count() == 0,
+          "Journal preview: draft cards must not link to unpublished article URLs")
+    page.locator(".journal-masthead__image img").evaluate("(img) => img.decode().catch(() => null)")
+
+    media_cards = page.locator("[data-media-card]")
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-media-card]').length === 5", timeout=7000)
+    except Exception as error:
+        check(False, f"Journal media workbench: five unique candidate paths should render ({error})")
+        return
+    check(media_cards.count() == 5, "Journal media workbench: candidate paths must be deduplicated to five cards")
+    accessible_previews = media_cards.locator("img").evaluate_all(
+        "(images) => images.length === 5 && images.every(image => image.alt.trim().length > 0 && !image.hasAttribute('aria-hidden'))"
+    )
+    check(accessible_previews,
+          "Journal media workbench: candidate previews must expose a non-empty accessible name without being hidden from assistive technology")
+    try:
+        page.wait_for_function("document.querySelector('[data-media-workbench]')?.dataset.mediaManifestState === 'available'", timeout=10000)
+    except Exception as error:
+        check(False, f"Journal media workbench: source manifest should load independently of draft records ({error})")
+        return
+    check(page.locator("[data-media-placement]").count() == 13,
+          "Journal media workbench: all 13 article/role placements must remain visible in evidence details")
+    check(page.locator('[data-media-card][data-media-source="matched"]').count() == 2,
+          "Journal media workbench: only two exact source/target blob matches should be identified")
+    check(page.locator('[data-media-card][data-media-rights="unverified"]').count() == 5,
+          "Journal media workbench: source mapping must not imply usage rights approval")
+    check(page.locator('[data-media-card][data-media-review="unreviewed"]').count() == 5,
+          "Journal media workbench: all candidate assets must remain unreviewed")
+    check(page.locator("[data-media-approve]").count() == 0,
+          "Journal media workbench: no media approval action may be exposed")
+    check("13 candidate placements" in page.locator("[data-media-summary]").inner_text().lower(),
+          "Journal media workbench: summary must distinguish placements from unique asset paths")
+    decoded_candidates = page.locator("[data-media-card] img").evaluate_all(
+        "images => Promise.all(images.map(img => { img.loading = 'eager'; return img.decode().then(() => img.naturalWidth > 0).catch(() => false); }))"
+    )
+    check(len(decoded_candidates) == 5 and all(decoded_candidates),
+          f"Journal media workbench: all five local candidate images must decode ({decoded_candidates})")
+
+    media_workbench_widths: list[int] = []
+    for width, height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
+        page.set_viewport_size({"width":width,"height":height})
+        check_no_horizontal_overflow("media workbench", width)
+        media_workbench_widths.append(width)
+        if width == 390:
+            capture("journal-media-workbench-390px.png","media workbench",width,height)
+        elif width == 1280:
+            capture("journal-media-workbench-1280px.png","media workbench",width,height)
+
+    media_role = page.locator("[data-media-role-filter]")
+    media_source = page.locator("[data-media-source-filter]")
+    media_search = page.locator("[data-media-search]")
+    media_clear = page.locator("[data-media-clear]")
+    media_role.select_option("hero")
+    check(page.locator("[data-media-card]:visible").count() == 4,
+          "Journal media workbench: hero filter must show four unique candidate paths")
+    media_role.select_option("socialPreview")
+    check(page.locator("[data-media-card]:visible").count() == 3,
+          "Journal media workbench: social-preview filter must show three unique candidate paths")
+    media_role.select_option("all")
+    media_source.select_option("matched")
+    check(page.locator("[data-media-card]:visible").count() == 2,
+          "Journal media workbench: exact source-manifest filter must show two blob-matched assets")
+    media_source.select_option("unmatched")
+    check(page.locator("[data-media-card]:visible").count() == 3,
+          "Journal media workbench: unmatched source-manifest filter must show three unverified mappings")
+    media_source.select_option("all")
+    media_search.fill("Jain Temples")
+    check(page.locator("[data-media-card]:visible").count() == 1,
+          "Journal media workbench: search must find candidate uses by article title")
+    media_search.fill("zz-no-media-match-20261030")
+    check(page.locator("[data-media-empty]").is_visible(),
+          "Journal media workbench: no-match search must show an empty state")
+    media_clear.click()
+    check(page.locator("[data-media-card]:visible").count() == 5,
+          "Journal media workbench: clear must restore all candidate assets")
+
+    for width, height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
+        page.set_viewport_size({"width":width,"height":height})
+        check_no_horizontal_overflow("archive", width)
+        archive_widths.append(width)
+        if width == 390:
+            capture("journal-archive-390px.png","archive",width,height)
+        elif width == 1280:
+            capture("journal-archive-1280px.png","archive",width,height)
+
+    search=page.locator("[data-journal-search]")
+    topic=page.locator("[data-journal-topic]")
+    clear=page.locator("[data-journal-clear]")
+    results=page.locator("[data-journal-results]")
+    empty=page.locator("[data-journal-empty]")
+    search.fill("zz-no-journal-match-20261029")
+    check(empty.is_visible(),"Journal preview: a query with no matches must show a clear empty state")
+    check("0 draft guides" in results.inner_text().lower(),"Journal preview: no-match state must announce zero results")
+    check(page.locator("[data-journal-card]:visible").count()==0,"Journal preview: no-match state must hide all cards")
+    clear.click()
+    check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear must restore all cards")
+    topic.select_option("fort-and-heritage")
+    check(page.locator("[data-journal-card]:visible").count()==3,"Journal preview: Fort & heritage must show its three assigned drafts")
+    search.fill("Jaisalmer Fort Guide")
+    check(page.locator("[data-journal-card]:visible").count()==1,"Journal preview: text search must intersect with the selected topic")
+    clear.click()
+    check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear filters must restore all drafts")
+
+    article_trigger=page.locator('[data-journal-open="jaisalmer-fort-guide"]').first
+    article_trigger.focus()
+    check(page.evaluate("() => document.activeElement && document.activeElement.matches('[data-journal-open=\\\"jaisalmer-fort-guide\\\"]')"),
+          "Journal preview: the article card must receive keyboard focus before activation")
+    page.keyboard.press("Enter")
+    article=page.locator("[data-journal-article]")
+    try:
+        page.wait_for_function("() => { const panel = document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=5000)
+    except Exception as error:
+        check(False,f"Journal preview: Enter activation must reveal the article panel ({error})")
+    check(article.is_visible(),"Journal preview: keyboard activation must open an article")
+    check(article.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
+          "Journal preview: heading must come from the article record")
+    check("draft — not published" in article.locator("[data-review-record-status]").inner_text().lower(),
+          "Journal preview: article must expose draft-only status")
+    check("not approved" in article.locator("[data-review-owner-facts]").inner_text().lower(),
+          "Journal preview: owner-fact approval must remain pending")
+    check("none recorded" in article.locator("[data-review-approved-media]").inner_text().lower(),
+          "Journal preview: no article media may appear approved without review evidence")
+    check("not drafted" in article.locator("[data-review-hero-caption]").inner_text().lower(),
+          "Journal preview: draft without a caption must be clearly marked as missing one")
+    check("not recorded" in article.locator("[data-review-hero-caption-review]").inner_text().lower(),
+          "Journal preview: draft without caption review metadata must remain explicitly unreviewed")
+
+    toc=article.locator("[data-journal-toc] a")
+    check(toc.count()>0,"Journal preview: table of contents must be populated")
+    check(article.locator("[data-journal-sources] a").count()>=2,"Journal preview: sources must remain visible")
+    safe_sources=article.locator("[data-journal-sources] a").evaluate_all(
+        """links => links.length >= 2 && links.every(link =>
+          link.protocol === 'https:' && link.target === '_blank' &&
+          link.rel.includes('noopener') && link.rel.includes('noreferrer'))"""
+    )
+    check(safe_sources,"Journal preview: source links must use HTTPS and safe external-link attributes")
+    if toc.count()>0:
+        target=toc.first.get_attribute("href") or ""
+        check(bool(target) and article.locator(target).count()==1,"Journal preview: contents must target a real section")
+        if target:
+            toc.first.click()
+            try:
+                page.wait_for_function("(hash) => window.location.hash === hash", arg=target, timeout=5000)
+            except Exception as error:
+                check(False,f"Journal preview: contents navigation must reach the selected section ({error})")
+            check(article.locator(target).is_visible(),"Journal preview: selected contents target must remain visible")
+
+    related=article.locator("[data-journal-related] button").first
+    check(related.count()>0,"Journal preview: related drafts must be discoverable")
+    if related.count():
+        related_title=related.inner_text()
+        related.click()
+        check(article.locator("#journal-article-title").inner_text()==related_title,
+              "Journal preview: related-draft navigation must open the selected record")
+        check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
+              "Journal preview: related navigation must not create a public article route")
+
+    for width,height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
+        page.set_viewport_size({"width":width,"height":height})
+        check_no_horizontal_overflow("article",width)
+        article_widths.append(width)
+        if width==390:
+            capture("journal-article-390px.png","article",width,height)
+        elif width==1280:
+            capture("journal-article-1280px.png","article",width,height)
+
+    back=article.locator("[data-journal-back]").first
+    back.focus()
+    page.keyboard.press("Enter")
+    check(article.is_hidden(),"Journal preview: keyboard Back must return to the archive")
+    check(page.locator(".journal-archive").is_visible(),"Journal preview: archive must be visible after Back")
+    check(page.evaluate("() => document.activeElement && document.activeElement.id === 'journal-query'"),
+          "Journal preview: Back must restore focus to the search field")
+    check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
+          "Journal preview: interactions must remain on the local preview route")
+
+    # Verify Space activation on a separate draft card as well as Enter activation above.
+    space_trigger=page.locator('[data-journal-open="staying-inside-jaisalmer-fort"]').first
+    space_trigger.focus()
+    page.keyboard.press("Space")
+    try:
+        page.wait_for_function("() => { const panel = document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=5000)
+    except Exception as error:
+        check(False,f"Journal preview: Space activation must reveal the article panel ({error})")
+    check(article.is_visible(),"Journal preview: Space activation must open an article")
+    check(article.locator("#journal-article-title").inner_text()=="Staying Inside Jaisalmer Fort: What to Know",
+          "Journal preview: Space activation must open the focused draft card")
+    space_back=article.locator("[data-journal-back]").first
+    space_back.focus()
+    page.keyboard.press("Enter")
+    check(article.is_hidden(),"Journal preview: keyboard Back must close the Space-opened article")
+
+    evidence={
+        "schemaVersion":2,"scope":"local-only-editorial-preview","route":"preview/journal.html",
+        "indexability":"noindex,nofollow","articleRecordsLoaded":page.locator("[data-journal-card]").count(),
+        "publicArticleRoutesGenerated":0,"publicSitemapChanged":False,"canonicalHostApproved":False,
+        "archiveViewportWidthsCssPixels":archive_widths,"articleViewportWidthsCssPixels":article_widths,"mediaWorkbenchViewportWidthsCssPixels":media_workbench_widths,
+        "checksPerformed":interactions,"screenshots":screenshots,
+        "complete":len(screenshots)==6 and archive_widths==[320,360,390,768,1280,1440]
+            and article_widths==[320,360,390,768,1280,1440]
+            and media_workbench_widths==[320,360,390,768,1280,1440],
+    }
+    try:
+        destination=evidence_dir/"journal-preview-evidence.json"
+        destination.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
+        check(evidence["complete"],
+              "Journal preview: six screenshots and all three complete responsive-width matrices must be recorded")
+        print(f"Journal preview visual evidence captured locally: {destination}")
+    except Exception as error:
+        check(False,f"Journal preview: could not write evidence report ({type(error).__name__}: {error})")
+    check(len(RUNTIME_ERRORS)==before_runtime_errors,
+          f"Journal preview: browser JavaScript exception(s): {RUNTIME_ERRORS[before_runtime_errors:]}")
+
+
+def check_arrival_planning_deep_links(page, base_url: str) -> None:
+    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
 
 def check_arrival_planning_deep_links(page, base_url: str) -> None:
     """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
@@ -2916,13 +3656,23 @@ def main(argv: list[str] | None = None) -> int:
         help="Run focused Chromium checks against a generated local preview package.",
     )
     args = parser.parse_args(argv)
+    local_screenshots_raw = os.environ.get("BROWSER_SMOKE_SCREENSHOTS_DIR")
+    local_report_raw = os.environ.get("BROWSER_SMOKE_REPORT_PATH")
+    journal_screenshots_raw = os.environ.get("BROWSER_SMOKE_JOURNAL_EVIDENCE_DIR")
     if args.responsive_image_preview:
-        if args.base_url or args.operator or args.report or args.screenshots_dir:
-            parser.error("--responsive-image-preview cannot be combined with staging or screenshot evidence options")
+        if (args.base_url or args.operator or args.report or args.screenshots_dir
+                or local_screenshots_raw or local_report_raw or journal_screenshots_raw):
+            parser.error("Preview-image mode cannot be combined with staging or screenshot evidence options")
         return run_responsive_image_preview_smoke()
+    if bool(local_screenshots_raw) != bool(local_report_raw):
+        parser.error("BROWSER_SMOKE_SCREENSHOTS_DIR and BROWSER_SMOKE_REPORT_PATH must be set together")
     staging_mode = bool(args.base_url)
+    journal_screenshots_dir = None
+    journal_screenshot_tempdir = None
 
     if staging_mode:
+        if journal_screenshots_raw:
+            parser.error("Journal preview screenshots are local-only and cannot be captured in staging mode")
         if not args.operator or not args.report or not args.screenshots_dir:
             parser.error("--operator, --report and --screenshots-dir are required with --base-url")
         try:
@@ -2944,6 +3694,19 @@ def main(argv: list[str] | None = None) -> int:
         base_url = ""
         http_credentials = None
         screenshots_dir = None
+        local_report_path = None
+        if local_screenshots_raw:
+            try:
+                screenshots_dir = validate_screenshot_directory(local_screenshots_raw)
+                local_report_path = validate_local_report_path(local_report_raw or "")
+            except ValueError as error:
+                parser.error(f"local visual-evidence paths rejected before browser launch: {error}")
+        if journal_screenshots_raw:
+            try:
+                journal_screenshots_dir = validate_screenshot_directory(journal_screenshots_raw)
+                journal_screenshots_dir.mkdir(parents=True, exist_ok=True)
+            except ValueError as error:
+                parser.error(f"local Journal preview evidence path rejected before browser launch: {error}")
 
     unknown_route_evidence = None
     server = None
@@ -2954,8 +3717,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not staging_mode:
             server, base_url = start_server()
-            screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
-            screenshots_dir = Path(screenshot_tempdir.name)
+            if screenshots_dir is not None:
+                screenshots_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-visual-evidence-")
+                screenshots_dir = Path(screenshot_tempdir.name)
+            if journal_screenshots_dir is None:
+                journal_screenshot_tempdir = tempfile.TemporaryDirectory(prefix="garh-jaisal-journal-preview-")
+                journal_screenshots_dir = Path(journal_screenshot_tempdir.name)
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             browser_version = browser.version
@@ -3009,10 +3778,13 @@ def main(argv: list[str] | None = None) -> int:
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
+            check_experience_detail_visual_refinement(page, base_url)
             check_room_finder(page, base_url, browser)
             check_arrival_wayfinding_journey(page, base_url)
             check_arrival_planning_enquiry(page, base_url, browser)
             check_arrival_planning_deep_links(page, base_url)
+            if not staging_mode and journal_screenshots_dir is not None:
+                check_journal_preview(page, base_url, journal_screenshots_dir)
             check_dining_table_enquiry(page, base_url)
             check_staging_publication_guards(page, base_url)
             check_responsive_layout(page, base_url, screenshots_dir)
@@ -3061,10 +3833,12 @@ def main(argv: list[str] | None = None) -> int:
                 server.wait(timeout=5)
         if screenshot_tempdir is not None:
             screenshot_tempdir.cleanup()
+        if journal_screenshot_tempdir is not None:
+            journal_screenshot_tempdir.cleanup()
 
     if not staging_mode:
         local_visual_report = build_report(
-            "local-browser-smoke", base_url, None, browser_version, [],
+            "local-browser-smoke", base_url, None, browser_version, FAILURES,
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
             unknown_route_evidence=unknown_route_evidence,
@@ -3074,6 +3848,21 @@ def main(argv: list[str] | None = None) -> int:
                 f"Local browser smoke did not produce all {len(expected_screenshot_names())} valid full-page screenshot records; "
                 "visual evidence generation must be exercised by the standard quality suite."
             )
+        if local_report_raw and local_report_path is not None:
+            # Rebuild after completeness validation so the JSON result reflects capture failures.
+            local_visual_report = build_report(
+                "local-browser-smoke", base_url, None, browser_version, FAILURES,
+                PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
+                screenshot_evidence=SCREENSHOT_EVIDENCE,
+                unknown_route_evidence=unknown_route_evidence,
+            )
+            try:
+                report_destination = write_report(str(local_report_path), local_visual_report)
+                print(f"Visual baseline evidence report written locally: {report_destination}")
+            except Exception as error:
+                FAILURES.append(
+                    f"Could not write the visual baseline evidence report: {type(error).__name__}: {error}"
+                )
 
     if staging_mode:
         report = build_report(

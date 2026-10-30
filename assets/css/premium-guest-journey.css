@@ -4,21 +4,6 @@
  * so the site feels like one intentional hospitality brand without replacing
  * the source-backed markup or inventing new property/service claims.
  */
-:root {
-  --ink: #1a2821;
-  --ink-soft: #354239;
-  --sand: #eadcc5;
-  --paper: #faf8f3;
-  --gold: #c9a46a;
-  --gold-dark: #8c673a;
-  --line: #e0d7c8;
-  --muted: #69736a;
-  --white: #fffdf9;
-  --shadow: 0 24px 70px rgba(26, 40, 33, .11);
-  --premium-shadow: 0 18px 52px rgba(26, 40, 33, .09);
-  --premium-ease: cubic-bezier(.2, .7, .2, 1);
-}
-
 html {
   scroll-padding-top: 112px;
   text-size-adjust: 100%;
@@ -39,7 +24,7 @@ body {
 }
 
 .wrap {
-  width: min(1280px, calc(100% - 64px));
+  width: min(var(--container), calc(100% - 64px));
 }
 
 .announcement {
@@ -211,8 +196,8 @@ body {
 }
 
 .button {
-  min-height: 52px;
-  border-radius: 2px;
+  min-height: var(--button-height);
+  border-radius: var(--control-radius);
   letter-spacing: .055em;
   transition: transform .24s var(--premium-ease), background .24s var(--premium-ease), color .24s var(--premium-ease), box-shadow .24s var(--premium-ease);
 }
@@ -392,7 +377,7 @@ body {
   grid-template-columns: minmax(175px, .72fr) minmax(0, 2fr);
   align-items: center;
   gap: clamp(18px, 3vw, 42px);
-  width: min(1280px, calc(100% - 64px));
+  width: min(var(--container), calc(100% - 64px));
   margin: -22px auto 0;
   padding: 24px 26px;
   border: 1px solid rgba(140, 103, 58, .18);
@@ -812,4 +797,116 @@ body {
     animation: none !important;
     transition: none !important;
   }
+}
+
+
+/* M1 · Shared editorial type roles and high-intent reading legibility.
+   Decorative overlines, folios and step numbers intentionally retain their
+   compact scale; body/support text and interactive controls do not. */
+.button, .nav-book { font-size: var(--type-label); }
+.text-link { font-size: var(--type-support); }
+.primary-nav > a:not(.nav-book) { font-size: var(--type-label); }
+.hero__subhead, .page-hero__content > p:not(.eyebrow) {
+  font-size: var(--type-body);
+  line-height: 1.85;
+}
+.booking-panel__intro > p { font-size: var(--type-support); line-height: 1.8; }
+.booking-form .field > span { font-size: var(--type-label); }
+.booking-form .field input, .booking-form .field select { font-size: var(--type-body); }
+.booking-form__submit { font-size: var(--type-label); }
+.booking-form__note { font-size: var(--type-meta); line-height: 1.75; }
+.proof-item span { font-size: var(--type-meta); line-height: 1.75; }
+.section-heading__aside, .section-heading__center-copy,
+.rooftop-band__copy > p:not(.eyebrow), .values__intro > p:not(.eyebrow),
+.faq-intro > p:not(.eyebrow), .faq-item > p, .final-cta > p:not(.eyebrow) {
+  font-size: var(--type-support);
+  line-height: 1.85;
+}
+.experience-card p, .room-feature__copy > p:not(.fine-print), .feature-list li,
+.value-row p, .intro__copy > p:not(.eyebrow):not(.lead) {
+  font-size: var(--type-support);
+  line-height: 1.85;
+}
+.fine-print, .final-cta__note, .footer-column > h2, .footer-address > h2 {
+  font-size: var(--type-meta);
+}
+.footer-brand > p, .footer-column > a, .footer-address p, .site-footer__bottom {
+  font-size: var(--type-meta);
+  line-height: 1.8;
+}
+.guest-journey__intro > p:last-child, .guest-journey__copy small {
+  font-size: var(--type-label);
+  line-height: 1.55;
+}
+.direct-enquiry-dock__eyebrow { font-size: var(--type-meta); }
+.direct-enquiry-dock__copy p { font-size: var(--type-label); line-height: 1.55; }
+.direct-enquiry-dock__action { font-size: var(--type-label); }
+.stay-planner__quick-links a, .stay-planner__draft-label, .stay-planner__field {
+  font-size: var(--type-label);
+}
+.stay-planner__field input, .stay-planner__field select,
+.stay-planner__field textarea, .stay-planner__draft {
+  font-size: var(--type-body);
+}
+.stay-planner__topic { font-size: var(--type-support); line-height: 1.65; }
+.stay-planner__form-note { font-size: var(--type-label); line-height: 1.75; }
+.stay-planner__form > button, .stay-planner__result button {
+  font-size: var(--type-label);
+}
+.arrival-page .page-hero .arrival-quick-card .arrival-quick-list p,
+.arrival-quick-card .arrival-quick-list p {
+  font-size: var(--type-support);
+  line-height: 1.65;
+}
+.arrival-quick-card__note, .arrival-enquiry-form__hint, .arrival-enquiry-form__privacy {
+  font-size: var(--type-label);
+  line-height: 1.75;
+}
+.arrival-section-nav a { font-size: var(--type-label); }
+.experience-detail-jump a, .experience-detail-actions .text-link {
+  font-size: var(--type-label);
+  line-height: 1.65;
+}
+.experience-itinerary li, .experience-detail-facts p,
+.experience-detail-facts li, .experience-detail-topic-list li {
+  font-size: var(--type-support);
+  line-height: 1.8;
+}
+.experience-detail-media figcaption { font-size: var(--type-label); line-height: 1.7; }
+.dining-restaurant__tabs [role="tab"], .dining-table-form label {
+  font-size: var(--type-label);
+}
+.dining-table-form small, .dining-table-form__privacy {
+  font-size: var(--type-label);
+  line-height: 1.7;
+}
+.dining-table-form__status, .dining-menu-panel__status p,
+.dining-table-panel__notice, .dining-restaurant__next-step p:last-child,
+.dining-directions-quick p:last-child {
+  font-size: var(--type-support);
+  line-height: 1.8;
+}
+.content-page__facts dt { font-size: var(--type-meta); letter-spacing: .11em; }
+.content-page__cta p:not(.eyebrow) { font-size: var(--type-support); line-height: 1.8; }
+@media (max-width: 760px) {
+  .hero__subhead, .page-hero__content > p:not(.eyebrow) {
+    font-size: var(--type-support);
+    line-height: 1.8;
+  }
+  .guest-journey__copy small { font-size: var(--type-label); }
+  .direct-enquiry-dock__copy p, .direct-enquiry-dock__action {
+    font-size: var(--type-label);
+  }
+  .button, .nav-book { font-size: var(--type-label); }
+}
+@media (max-width: 420px) {
+  .announcement { font-size: 9px; letter-spacing: .07em; }
+}
+
+
+/* Preserve the support-copy role where route selectors are more specific. */
+.footer-address .text-link,
+.experience-detail-actions .text-link {
+  font-size: var(--type-support);
+  line-height: 1.65;
 }

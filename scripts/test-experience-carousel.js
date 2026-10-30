@@ -104,7 +104,7 @@ assert.match(swiss, /src=["']assets\/images\/experiences\/swiss-tent-exterior\.w
 assert.match(swiss, /src=["']assets\/images\/experiences\/swiss-tent-detail\.jpeg["']/);
 assert.match(swiss, /data-experience-carousel/, 'Swiss-tent carousel uses a second reviewed tent photograph');
 assert.match(swiss, /a visual reference, not a promise/i, 'Swiss-tent secondary photo has a clear availability caveat');
-assert.match(css, /a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible\{outline:3px solid/);
+assert.match(css, /a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible\{outline:var\(--focus-ring\)/);
 assert.match(css, /\.experience-carousel__button:focus-visible/);
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)\{\*,\*::before,\*::after\{scroll-behavior:auto!important;animation-duration:\.01ms!important;animation-iteration-count:1!important;transition-duration:\.01ms!important\}\}/);
 assert.match(css, /prefers-reduced-motion:\s*reduce/);

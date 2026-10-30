@@ -452,7 +452,7 @@ for (const rule of PAGE_RULES) {
     const catalogue = [
       { id: 'sunset-camel', title: 'Sunset camel safari', image: 'assets/images/legacy/camel-sunset.jpg' },
       { id: 'cultural-evening', title: 'Cultural desert evening', image: 'assets/images/experiences/cultural-programme.jpg' },
-      { id: 'open-sky', title: 'Sleep under the stars', image: 'assets/images/tent.jpg' },
+      { id: 'open-sky', title: 'Sleep under the stars', image: 'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg' },
       { id: 'swiss-tent', title: 'Swiss tent overnight', image: 'assets/images/experiences/swiss-tent-exterior.webp' },
       { id: 'half-day-city', title: 'Half-day guided Jaisalmer tour', image: 'assets/images/legacy/fort-temple-spires.jpg' },
       { id: 'full-day-city', title: 'Full-day guided Jaisalmer tour', image: 'assets/images/experiences/heritage-architecture.jpg' },
@@ -516,6 +516,15 @@ for (const rule of PAGE_RULES) {
       if (!/data-enquiry-link/.test(card) || !/aria-disabled="true"/.test(card)) {
         fail('experiences.html: enquiry action must remain disabled until endpoint verification: ' + option.title);
       }
+    }
+    const openSkyCard = cards.find((candidate) => candidate[1] === 'open-sky')?.[0] || '';
+    const openSkySlides = [...openSkyCard.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
+    const expectedOpenSkySlides = [
+      'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg',
+      'assets/images/experiences/sleep-under-stars-shelter.jpeg',
+    ];
+    if (JSON.stringify(openSkySlides) !== JSON.stringify(expectedOpenSkySlides)) {
+      fail('experiences.html: Sleep under the stars carousel must use the current source hero and a source-listed gallery image');
     }
     if (!/not confirmation that each option is currently operated/i.test(html)) {
       fail('experiences.html: source-listed concepts need an explicit non-live-offer disclaimer');
@@ -617,6 +626,63 @@ for (const rule of PAGE_RULES) {
     }
     if (/Today, we welcome guests who arrive curious about Rajasthan/i.test(html)) {
       fail('about.html: replace generic welcome filler with source-specific guest information');
+    }
+  }
+
+  if (rule.file === 'experience-details.html') {
+    const expectedMedia = [
+      { id: 'sunset-camel-safari-detail', side: 'right', src: 'assets/images/legacy/camel-sunset.jpg', alt: 'Camel caravan silhouetted against the setting sun over desert dunes', caption: /Desert route reference/ },
+      { id: 'cultural-safari-detail', side: 'left', src: 'assets/images/experiences/cultural-programme.jpg', alt: 'Musicians performing on a small stage at a desert camp at night, with seated guests in the foreground', caption: /visual reference to a desert-camp performance/ },
+      { id: 'sleep-under-the-stars-detail', side: 'right', src: 'assets/images/experiences/open-air-sleeping-setup.jpeg', alt: 'Mattress and bedding set out in the desert beside a small tent', caption: /Source comparison photo.*not a Swiss tent/i },
+      { id: 'swiss-tent-safari-detail', side: 'left', src: 'assets/images/experiences/swiss-tent-exterior.webp', alt: 'White Swiss-style tents at a desert camp in warm evening light', caption: /tent exterior reference only/ },
+      { id: 'half-day-jaisalmer-tour-detail', side: 'right', src: 'assets/images/experiences/half-day-jaisalmer-tour.jpg', alt: 'Carved sandstone balconies on a historic Jaisalmer haveli', caption: /A shorter route can focus on the Fort, carved havelis and heritage lanes/ },
+      { id: 'full-day-jaisalmer-tour-detail', side: 'left', src: 'assets/images/experiences/heritage-architecture.jpg', alt: 'Carved sandstone architecture in historic Jaisalmer', caption: /Plan enough time for each stop included in the route confirmed with your guide/ },
+      { id: 'fort-heritage-walk-detail', side: 'right', src: 'assets/images/legacy/fort-temple-spires.jpg', alt: 'Carved sandstone Jain temple spires rising above Jaisalmer', caption: /Confirm current visitor access and temple rules/ },
+    ];
+    const detailCss = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'experience-details.css'), 'utf8');
+    for (const item of expectedMedia) {
+      const sectionPattern = '<section class="experience-detail-section[^"]*" id="' + item.id + '"[\\s\\S]*?<\\/section>';
+      const section = html.match(new RegExp(sectionPattern, 'i'))?.[0] || '';
+      if (!section) {
+        fail('experience-details.html: missing itinerary section ' + item.id);
+        continue;
+      }
+      if (!section.includes('experience-detail-section--visual experience-detail-section--visual-' + item.side)) {
+        fail('experience-details.html: ' + item.id + ' must use the alternating ' + item.side + '-image editorial layout');
+      }
+      const figureMatch = section.match(/<figure class="experience-detail-media[^"]*">[\s\S]*?<\/figure>/i);
+      if (!figureMatch) {
+        fail('experience-details.html: ' + item.id + ' must have one contextual photo reference');
+        continue;
+      }
+      const figure = figureMatch[0];
+      const imageTag = (figure.match(/<img\b[^>]*>/i) || [])[0];
+      const attr = imageTag ? attributes(imageTag) : {};
+      if (attr.src !== item.src || attr.alt !== item.alt) {
+        fail('experience-details.html: ' + item.id + ' image path and descriptive alt must match the reviewed subject');
+      }
+      if (!attr.width || !attr.height || Number(attr.width) <= 0 || Number(attr.height) <= 0
+          || attr.loading !== 'lazy' || attr.decoding !== 'async') {
+        fail('experience-details.html: ' + item.id + ' image must have dimensions and lazy async delivery');
+      }
+      if (!item.caption.test(stripMarkup(figure))) {
+        fail('experience-details.html: ' + item.id + ' must clearly disclose the photo reference and date-specific confirmation caveat');
+      }
+    }
+    for (const id of ['car-and-road-travel-detail', 'other-routes']) {
+      const sectionPattern = '<section class="experience-detail-section[^"]*" id="' + id + '"[\\s\\S]*?<\\/section>';
+      const section = html.match(new RegExp(sectionPattern, 'i'))?.[0] || '';
+      if (!section || /<img\b/i.test(section)) {
+        fail('experience-details.html: ' + id + ' must remain text-led; no unrelated transport or research imagery is permitted');
+      }
+    }
+    if (!/grid-template-columns: minmax\(0, 1fr\)/.test(detailCss)
+        || !/@media\s*\(prefers-reduced-motion:\s*reduce\)/.test(detailCss)) {
+      fail('experience-details.css: photo-led itinerary sections must stack responsively and respect reduced motion');
+    }
+    if (!/\.experience-itinerary li \{\s*font-size: 13px/s.test(detailCss)
+        || !/\.experience-detail-facts p,\s*\.experience-detail-facts li \{\s*font-size: 12px/s.test(detailCss)) {
+      fail('experience-details.css: itinerary and fact copy must retain the enlarged readable type scale');
     }
   }
 
@@ -738,7 +804,19 @@ const STAY_PLANNER_ROUTES = [
 ];
 for (const file of STAY_PLANNER_ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-  if (!html.includes('data-stay-planner') ||
+  if (file === 'directions.html') {
+  if (html.includes('data-stay-planner') ||
+      html.includes('assets/css/stay-planner.css') ||
+      html.includes('assets/stay-planner.js')) {
+    fail(file + ': dedicated arrival enquiry must replace the duplicated generic stay planner');
+  }
+  if (!html.includes('data-arrival-planning-form') ||
+      !html.includes('arrival-next-step__panel') ||
+      !html.includes('does not save your details, book a transfer or confirm a reservation')) {
+    fail(file + ': Directions must retain its privacy-minimized, contextual arrival enquiry and terminal action');
+  }
+} else {
+if (!html.includes('data-stay-planner') ||
       !html.includes('assets/css/stay-planner.css') ||
       !html.includes('assets/stay-planner.js')) {
     fail(file + ': shared enquiry planner must be present, styled and initialized');
@@ -759,6 +837,8 @@ for (const file of STAY_PLANNER_ROUTES) {
       !html.includes('Prepare enquiry draft')) {
     fail(file + ': planner must state its enquiry-only behavior clearly');
   }
+}
+
 }
 const stayPlannerScript = fs.readFileSync(path.join(ROOT, 'assets', 'stay-planner.js'), 'utf8');
 const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'stay-planner.css'), 'utf8');

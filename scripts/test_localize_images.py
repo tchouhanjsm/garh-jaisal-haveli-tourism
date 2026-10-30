@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 
 from rewrite_image_refs import (
     IMAGE_NAMES,
+    RESPONSIVE_WIDTHS,
     generate_responsive_variants,
     rewrite_html_text,
     rewrite_site,
@@ -79,7 +80,12 @@ class RewriteImageReferencesTests(unittest.TestCase):
             entry = generated["rest3.jpg"]
             self.assertEqual((entry["width"], entry["height"]), (1200, 800))
             self.assertTrue((root / entry["fullSizePath"]).is_file())
-            self.assertEqual([item["width"] for item in entry["variants"]], [480, 768])
+            self.assertEqual(
+                [item["width"] for item in entry["variants"]],
+                [width for width in RESPONSIVE_WIDTHS if width < entry["width"]],
+            )
+            self.assertIn(320, [item["width"] for item in entry["variants"]],
+                          "narrow mobile layouts require a real 320px source candidate")
             for item in entry["variants"]:
                 target = root / item["path"]
                 with Image.open(target) as decoded:
@@ -191,7 +197,8 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertNotIn('<meta property="og:image" content="assets/images/rest3.webp">', result)
             self.assertIn('href="assets/images/rest3.webp"', result)
             self.assertIn('type="image/webp"', result)
-            self.assertIn('imagesrcset="assets/images/responsive/rest3-480.webp 480w', result)
+            self.assertIn('imagesrcset="assets/images/responsive/rest3-320.webp 320w', result)
+            self.assertIn("assets/images/responsive/rest3-480.webp 480w", result)
             self.assertIn("assets/images/rest3.webp 1200w", result)
             self.assertIn('imagesizes="100vw"', result)
             self.assertIn(
@@ -209,7 +216,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(entry["fullSizePath"], "assets/images/gallery/desert/camp-evening.webp")
             self.assertEqual(
                 entry["variants"][0]["path"],
-                "assets/images/responsive/gallery/desert/camp-evening-480.webp",
+                "assets/images/responsive/gallery/desert/camp-evening-320.webp",
             )
             self.assertEqual(entry["sourceBytes"], source.stat().st_size)
 
@@ -219,7 +226,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             rewritten = rewrite_html_text(html, "responsive", root=root)
             self.assertIn(
-                "assets/images/responsive/gallery/desert/camp-evening-480.webp 480w",
+                "assets/images/responsive/gallery/desert/camp-evening-320.webp 320w",
                 rewritten,
             )
             self.assertIn('href="assets/images/gallery/desert/camp-evening.webp"', rewritten)
@@ -248,7 +255,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "fullSizeWebp": entry["fullSizePath"],
             }]
             report = _PACKAGE_PREVIEW.validate_responsive_markup(
-                root, generated_files, source_record, (480, 768, 1200, 1600)
+                root, generated_files, source_record, RESPONSIVE_WIDTHS
             )
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["responsivePictureCount"], 1)
@@ -288,7 +295,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             }]
 
             result = _PACKAGE_PREVIEW.validate_responsive_markup(
-                root, generated_files, image_sources, (480, 768, 1200, 1600)
+                root, generated_files, image_sources, RESPONSIVE_WIDTHS
             )
             self.assertEqual(result["status"], "PASS")
             self.assertEqual(result["responsivePictureCount"], 1)
@@ -300,7 +307,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(RuntimeError, "descriptor width 481w does not match decoded asset width 480px"):
                 _PACKAGE_PREVIEW.validate_responsive_markup(
-                    root, generated_files, image_sources, (480, 768, 1200, 1600)
+                    root, generated_files, image_sources, RESPONSIVE_WIDTHS
                 )
 
     def test_packaged_runtime_asset_closure_checks_html_css_srcset_and_modules(self) -> None:
@@ -554,6 +561,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "deploymentPerformed": False,
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
                 "qualityGate": "PASS",
+                "editorialDraftIsolation": {
+                    "status": "PASS",
+                    "previewDirectoryExcluded": True,
+                    "draftSourceRecordsExcluded": True,
+                    "previewAssetsExcluded": True,
+                    "generatedBlogHtmlRoutes": 0,
+                },
                 "packageMetrics": {
                     "uncompressedPayloadBytes": len(payload),
                     "uncompressedBudgetBytes": 18 * 1024 * 1024,
@@ -603,6 +617,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
             # A complete manifest and matching payload must remain packageable.
             _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+
+            manifest["editorialDraftIsolation"]["previewAssetsExcluded"] = False
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "draft editorial content and preview assets are excluded"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["editorialDraftIsolation"]["previewAssetsExcluded"] = True
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             manifest["documentContract"]["status"] = "FAIL"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -732,6 +753,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "rooms/rising-sun.jpg",
                 "tent.jpg",
                 "dining/rooftop-candlelit-table.jpg",
+                "legacy/camel-sunset.jpg",
+                "experiences/open-air-sleeping-setup.jpeg",
+                "experiences/sleep-under-stars-dusk-camp.jpeg",
+                "experiences/sleep-under-stars-shelter.jpeg",
+                "experiences/half-day-jaisalmer-tour.jpg",
             )
             for name in source_names:
                 create_jpeg(root, name, (1200, 800))
@@ -758,6 +784,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<div class="story-grid"><figure class="story-image">'
                 '<img src="assets/images/dining/rooftop-candlelit-table.jpg" alt="Dining">'
                 '</figure></div></section></div>'
+                '<section class="experience-detail-section experience-detail-section--visual">'
+                '<figure class="experience-detail-media"><img src="assets/images/legacy/camel-sunset.jpg" '
+                'alt="Camel caravan"></figure></section>'
             )
             result = rewrite_html_text(html, "responsive", root=root)
 
@@ -775,11 +804,17 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '(max-width: 760px) calc(100vw - 36px), '
                 'calc((min(100vw, 1304px) - 88px) / 2)'
             )
+            detail_sizes = (
+                '(max-width: 900px) min(620px, calc(100vw - 76px)), '
+                'min(460px, 36vw)'
+            )
             self.assertIn('sizes="100vw"', result)
             self.assertIn(f'sizes="{experience_sizes}"', result)
             self.assertIn(f'imagesizes="{experience_sizes}"', result)
             self.assertIn(f'sizes="{room_sizes}"', result)
             self.assertIn(f'sizes="{gallery_sizes}"', result)
+            self.assertIn(f'sizes="{detail_sizes}"', result)
+            self.assertIn('assets/images/responsive/legacy/camel-sunset-320.webp 320w', result)
             self.assertIn(
                 'sizes="(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"',
                 result,

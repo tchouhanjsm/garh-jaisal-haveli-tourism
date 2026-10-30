@@ -4,7 +4,7 @@
 
 
 
-<link rel="stylesheet" href="assets/css/stay-planner.css">
+
   <link rel="stylesheet" href="assets/css/premium-guest-journey.css">
   
 <link rel="preload" as="image" href="assets/images/rest3.jpg" fetchpriority="high">
@@ -92,75 +92,7 @@
 <div class="guest-enquiry-form__row"><div class="guest-enquiry-form__field"><label for="guest-enquiry-arrival">Date of experience / arrival</label><input id="guest-enquiry-arrival" name="arrival" type="date" required></div><div class="guest-enquiry-form__field"><label for="guest-enquiry-departure">Departure date <span data-departure-requirement-label>(optional)</span></label><input id="guest-enquiry-departure" name="departure" type="date" aria-describedby="guest-enquiry-departure-hint"><small id="guest-enquiry-departure-hint" data-departure-hint>For day experiences or planning questions, leave this blank for a single-date enquiry. For overnight stays and room-availability enquiries, departure is required; if supplied, it must be after the requested date.</small></div></div>
 <div class="guest-enquiry-form__field"><label for="guest-enquiry-guests">Guests</label><select id="guest-enquiry-guests" name="guests" required><option value="1">1 guest</option><option value="2" selected>2 guests</option><option value="3">3 guests</option><option value="4">4 guests</option><option value="5+">5 or more guests</option></select></div>
 <div class="guest-enquiry-form__field"><label for="guest-enquiry-notes">Anything we should know? <span>(optional)</span></label><textarea id="guest-enquiry-notes" name="notes" rows="3" maxlength="500" placeholder="Room preference, dietary needs, arrival details…"></textarea><small>Do not include payment details or sensitive personal information.</small></div>
-<button class="button button--dark guest-enquiry-form__submit" type="submit" data-guest-enquiry-submit disabled>Prepare WhatsApp enquiry <span aria-hidden="true">↗</span></button><section class="guest-enquiry-recovery" data-guest-enquiry-recovery aria-labelledby="guest-enquiry-recovery-title" hidden><h3 id="guest-enquiry-recovery-title">Message text fallback</h3><p>If your browser blocks the WhatsApp tab, copy this prepared message and paste it into the hotel chat. This website never sends it automatically.</p><label for="guest-enquiry-draft">Prepared message</label><textarea id="guest-enquiry-draft" data-guest-enquiry-draft rows="8" readonly spellcheck="false"></textarea><button class="button button--light" type="button" data-guest-enquiry-copy disabled>Copy prepared message</button></section><p class="guest-enquiry-form__status" data-guest-enquiry-status aria-live="polite">Checking the approved contact channel…</p></form></section><section class="stay-planner wrap" data-stay-planner aria-labelledby="stay-planner-title">
-  <div class="stay-planner__intro">
-    <p class="eyebrow">Bring the details together</p>
-    <h2 class="display-title" id="stay-planner-title">One clear note.<br><em>A better-prepared visit.</em></h2>
-    <p>Planning a room, an experience, a rooftop meal or your arrival? Select the topics that matter and prepare one enquiry draft to review, edit and deliberately share. Nothing is sent or stored by this page.</p>
-    <nav class="stay-planner__quick-links" aria-label="Explore stay details">
-      <a href="rooms.html">Compare rooms</a>
-      <a href="experiences.html">Explore experiences</a>
-      <a href="dining.html">Dining details</a>
-      <a href="directions.html#arrival-planning">Arrival guide</a>
-      <a href="gallery.html">Browse gallery</a>
-    </nav>
-  </div>
-  <details class="stay-planner__details" data-stay-planner-disclosure>
-    <summary>Build my stay enquiry</summary>
-    <form class="stay-planner__form" data-stay-planner-form method="dialog">
-        <noscript>
-          <p class="stay-planner__no-script" role="note">This planner needs JavaScript to prepare an enquiry draft. Nothing entered here is sent or saved by this form. Enable JavaScript to prepare a draft, or continue planning with the room, experience, dining and arrival pages.</p>
-        </noscript>
-      <div class="stay-planner__fields">
-        <label class="stay-planner__field" for="stay-plan-arrival">Arrival date
-          <input id="stay-plan-arrival" name="arrival" type="date" required>
-        </label>
-        <label class="stay-planner__field" for="stay-plan-departure">Departure date
-          <input id="stay-plan-departure" name="departure" type="date" required>
-        </label>
-        <label class="stay-planner__field" for="stay-plan-guests">Travelling party
-          <select id="stay-plan-guests" name="guests" required>
-            <option value="1">1 person</option>
-            <option value="2" selected>2 people</option>
-            <option value="3">3 people</option>
-            <option value="4">4 people</option>
-            <option value="5">5 people</option>
-            <option value="6">6 people</option>
-            <option value="7">7 people</option>
-            <option value="8">8 people</option>
-            <option value="9">9 people</option>
-            <option value="10">10 people</option>
-            <option value="11">11+ people</option>
-          </select>
-        </label>
-      </div>
-      <fieldset class="stay-planner__topics">
-        <legend>What would you like to plan?</legend>
-        <div class="stay-planner__topic-grid">
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="room options and total rates" data-stay-plan-topic>Room options and total rates</label>
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="desert or guided-city experiences" data-stay-plan-topic>Desert or guided-city experiences</label>
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="rooftop dining, menu and table availability" data-stay-plan-topic>Rooftop dining and menu</label>
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="arrival route and meeting point" data-stay-plan-topic>Arrival route and meeting point</label>
-        </div>
-      </fieldset>
-      <label class="stay-planner__field" for="stay-plan-notes">Anything else to include? <span>(optional)</span>
-        <textarea id="stay-plan-notes" name="notes" maxlength="280" rows="3" placeholder="For example: approximate arrival time, room preferences or a special occasion."></textarea>
-      </label>
-      <p class="stay-planner__form-note">This prepares an enquiry only. Availability and prices are not live-checked. Opening WhatsApp creates a draft for you to review; you must press Send yourself. No booking is created here.</p>
-      <button class="button button--gold" type="submit">Prepare enquiry draft <span aria-hidden="true">↗</span></button>
-    </form>
-    <div class="stay-planner__result" data-stay-plan-result hidden>
-      <p class="stay-planner__result-status" data-stay-plan-status role="status" aria-live="polite"></p>
-      <label class="stay-planner__draft-label" for="stay-plan-draft">Review and edit your message</label>
-      <textarea class="stay-planner__draft" id="stay-plan-draft" data-stay-plan-draft rows="8" spellcheck="true"></textarea>
-      <div class="stay-planner__result-actions">
-        <button type="button" data-open-stay-plan-whatsapp disabled>Open WhatsApp draft <span aria-hidden="true">↗</span></button>
-        <button type="button" data-copy-stay-plan disabled>Copy enquiry</button>
-        <button type="button" data-edit-stay-plan>Adjust details</button>
-      </div>
-    </div>
-  </details>
-</section>
+<button class="button button--dark guest-enquiry-form__submit" type="submit" data-guest-enquiry-submit disabled>Prepare WhatsApp enquiry <span aria-hidden="true">↗</span></button><section class="guest-enquiry-recovery" data-guest-enquiry-recovery aria-labelledby="guest-enquiry-recovery-title" hidden><h3 id="guest-enquiry-recovery-title">Message text fallback</h3><p>If your browser blocks the WhatsApp tab, copy this prepared message and paste it into the hotel chat. This website never sends it automatically.</p><label for="guest-enquiry-draft">Prepared message</label><textarea id="guest-enquiry-draft" data-guest-enquiry-draft rows="8" readonly spellcheck="false"></textarea><button class="button button--light" type="button" data-guest-enquiry-copy disabled>Copy prepared message</button></section><p class="guest-enquiry-form__status" data-guest-enquiry-status aria-live="polite">Checking the approved contact channel…</p></form></section>
 </main><div class="contact-status-banner wrap" id="contact-status" role="status" aria-live="polite" hidden><strong>Some contact options need attention.</strong> One or more configured contact channels could not load. This website does not itself confirm a reservation; refresh this page and try again. No enquiry message was sent and no reservation was created. If you need help now, use contact details already supplied directly by the hotel.</div>
   <footer class="site-footer"><div class="site-footer__main wrap"><div class="footer-brand"><a class="brand brand--footer" href="index.html"><span class="brand__mark">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a><p>A heritage stay inside the historic walls of Jaisalmer Fort. Explore the setting, then confirm current room, dining and experience details for your dates.</p></div><div class="footer-column"><h2>Explore</h2><a href="rooms.html">Rooms</a><a href="experiences.html">Experiences</a><a href="dining.html">Rooftop dining</a><a href="about.html">Our story</a><a href="gallery.html">Gallery</a></div><div class="footer-column"><h2>Plan your visit</h2><a href="directions.html">Getting here</a><a href="#contact-status" data-booking-link aria-disabled="true" aria-describedby="contact-status">Book Now ↗</a><a href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to make an enquiry. Please share the current details." aria-disabled="true" aria-describedby="contact-status">WhatsApp us ↗</a><a href="#contact-status" data-contact-phone data-contact-prefix="Call" aria-disabled="true" aria-describedby="contact-status">Call the hotel</a><a href="#contact-status" data-contact-alt-phone data-contact-prefix="Landline" aria-disabled="true" aria-describedby="contact-status">Landline</a><a href="#contact-status" data-contact-email data-contact-prefix="Email" aria-disabled="true" aria-describedby="contact-status">Email</a></div><div class="footer-address"><h2>Find the haveli</h2><p>Kotari Para, inside Jaisalmer Fort<br>Jaisalmer, Rajasthan 345001, India</p><a href="#contact-status" data-property-map-link aria-disabled="true" aria-describedby="contact-status" class="text-link text-link--light">Open exact hotel pin ↗</a></div></div><div class="site-footer__bottom wrap"><span>© <span data-current-year>2026</span> Garh Jaisal Haveli</span><span>Made with a sense of place in Jaisalmer, Rajasthan.</span><a href="#main">Back to top ↑</a></div></footer><div class="mobile-booking-bar"><span>Inside the Golden Fort</span><a href="#contact-status" data-booking-link aria-disabled="true" aria-describedby="contact-status">Book Now ↗</a></div>  <aside class="direct-enquiry-dock" data-direct-enquiry-dock aria-label="Ask the hotel directly" hidden>
     <div class="direct-enquiry-dock__copy">
@@ -171,5 +103,5 @@
     <button class="direct-enquiry-dock__dismiss" type="button" data-direct-enquiry-dismiss aria-label="Dismiss direct enquiry">×</button>
   </aside>
 
-<script src="assets/site.js" defer></script><script src="assets/dining-tabs.js" defer></script>  <script src="assets/stay-planner.js" defer></script>
+<script src="assets/site.js" defer></script><script src="assets/dining-tabs.js" defer></script>  
 </body></html>

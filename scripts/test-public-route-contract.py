@@ -20,9 +20,9 @@ EXPECTED_ROUTES = [
     ("gallery.html", "Gallery"),
 ]
 EXPECTED_VIEWPORTS = [
-    {"width": 360, "height": 800, "label": "Mobile"},
+    {"width": 390, "height": 844, "label": "Mobile"},
     {"width": 768, "height": 1024, "label": "Tablet"},
-    {"width": 1440, "height": 900, "label": "Desktop"},
+    {"width": 1280, "height": 900, "label": "Laptop"},
 ]
 EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS = [
     {"width": 320, "height": 800, "label": "Narrow mobile"},
@@ -54,7 +54,7 @@ for item in routes:
 
 viewports = contract.get("viewports")
 assert viewports == EXPECTED_VIEWPORTS, (
-    "Full-page screenshot evidence must cover Mobile 360x800, Tablet 768x1024 and Desktop 1440x900"
+    "Full-page screenshot evidence must cover Mobile 390x844, Tablet 768x1024 and Laptop 1280x900"
 )
 responsive_audit_viewports = contract.get("responsiveAuditViewports")
 assert responsive_audit_viewports == EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS, (
@@ -110,5 +110,5 @@ assert "experience-details.html" in readme and "experience-details.html" in laun
 
 print(
     "PASS: one shared eight-route contract drives six responsive-audit breakpoints, "
-    "three screenshot viewports and a 24-image evidence bundle; media checks and release docs agree."
+    "390px mobile, 768px tablet and 1280px laptop screenshots with a 24-image evidence bundle; media checks and release docs agree."
 )

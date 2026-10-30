@@ -22,6 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 # used by the static runtime. Keep it out of staging artifacts unless the site
 # deliberately migrates those assets into the supported `assets/` tree.
 RUNTIME_DIRECTORIES = ("assets", "blogs", "tours", "gallery")
+# The Journal is a local editorial review surface, not a staging/runtime route.
+# Its preview-only assets must not hitchhike into the broad runtime assets tree.
+EDITORIAL_PREVIEW_ONLY_ASSETS = frozenset({
+    "assets/css/journal-preview.css",
+    "assets/js/journal-preview.js",
+})
 MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
 LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
@@ -142,7 +148,10 @@ def validate_responsive_markup(
                 or fallback_path != source_record["sourceJpeg"]
                 or not fallback_path.lower().endswith((".jpg", ".jpeg"))
             ):
-                fail(f"{page.name}: responsive picture has an unapproved or mismatched JPEG fallback.")
+                fail(
+                    f"{page.name}: responsive picture has an unapproved or mismatched JPEG "
+                    f"fallback: {fallback_path or '[missing src]'}."
+                )
             natural_width = int(source_record["naturalWidth"])
             natural_height = int(source_record["naturalHeight"])
             if (
@@ -996,6 +1005,51 @@ def validate_runtime_asset_closure(output: Path) -> dict:
     }
 
 
+
+def validate_editorial_draft_isolation(output: Path) -> dict:
+    """Fail closed if draft source records, the Journal preview, or draft routes enter a release payload."""
+    raw_output = Path(output)
+    if raw_output.is_symlink():
+        fail("Editorial draft isolation root must not be a symlink.")
+    root = raw_output.resolve(strict=True)
+    if not root.is_dir():
+        fail("Editorial draft isolation root must be a directory.")
+
+    forbidden_paths = [
+        ("preview directory", root / "preview"),
+        ("draft source records", root / "content" / "blogs"),
+    ]
+    forbidden_paths.extend(
+        (f"preview-only asset {relative}", root / relative)
+        for relative in sorted(EDITORIAL_PREVIEW_ONLY_ASSETS)
+    )
+    for label, candidate in forbidden_paths:
+        if candidate.is_symlink() or candidate.exists():
+            fail(f"Editorial draft isolation failed: {label} must not enter the staging runtime.")
+
+    blog_output = root / "blogs"
+    if blog_output.is_symlink():
+        fail("Editorial draft isolation failed: generated blog output must not be a symlink.")
+    if blog_output.exists():
+        if not blog_output.is_dir():
+            fail("Editorial draft isolation failed: generated blog output must be a directory.")
+        for candidate in blog_output.rglob("*"):
+            if candidate.is_symlink():
+                fail(f"Editorial draft isolation failed: symlink in blog output: {candidate.relative_to(root)}")
+            if candidate.is_file() and candidate.suffix.lower() == ".html":
+                fail(
+                    "Editorial draft isolation failed: generated blog routes must remain absent "
+                    f"while editorial records are draft-only ({candidate.relative_to(root)})."
+                )
+
+    return {
+        "status": "PASS",
+        "previewDirectoryExcluded": True,
+        "draftSourceRecordsExcluded": True,
+        "previewAssetsExcluded": True,
+        "generatedBlogHtmlRoutes": 0,
+    }
+
 def validate_no_legacy_image_tree_references(output: Path) -> dict:
     """Fail closed if a runtime file references the excluded legacy /img asset library."""
     raw_output = Path(output)
@@ -1127,6 +1181,9 @@ def checked_paths() -> list[Path]:
             if candidate.is_symlink():
                 fail(f"Symlinks are not allowed in the staging package: {candidate.relative_to(ROOT)}")
             if candidate.is_dir() or not candidate.is_file() or candidate.name == ".gitkeep":
+                continue
+            relative = candidate.relative_to(ROOT).as_posix()
+            if relative in EDITORIAL_PREVIEW_ONLY_ASSETS:
                 continue
             files.add(candidate)
 
@@ -1300,6 +1357,46 @@ def inventory_package_files(output: Path) -> list[dict]:
     return entries
 
 
+def collect_responsive_fallback_sources(
+    output: Path, allowed_sources: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Collect the allowlisted JPEGs actually rewritten into responsive picture markup."""
+    allowed = set(allowed_sources)
+    source_names: list[str] = []
+    for page in sorted(output.glob("*.html")):
+        if page.is_symlink() or not page.is_file():
+            fail(f"Responsive markup route is unsafe: {page.name}")
+        parser = ResponsivePictureParser()
+        try:
+            parser.feed(page.read_text(encoding="utf-8"))
+            parser.close()
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            fail(f"Responsive markup could not be read in {page.name}: {error}")
+        for picture in parser.pictures:
+            for fallback in picture["fallbacks"]:
+                fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
+                try:
+                    relative = PurePosixPath(fallback_path).relative_to(
+                        PurePosixPath("assets/images")
+                    )
+                except ValueError:
+                    fail(
+                        f"{page.name}: responsive JPEG fallback must remain under "
+                        f"assets/images/: {fallback_path or '[missing src]'}."
+                    )
+                filename = relative.as_posix()
+                if filename not in allowed or not filename.lower().endswith((".jpg", ".jpeg")):
+                    fail(
+                        f"{page.name}: responsive JPEG fallback is outside the approved "
+                        f"image-source allowlist: {fallback_path or '[missing src]'}."
+                    )
+                if filename not in source_names:
+                    source_names.append(filename)
+    if not source_names:
+        fail("No allowlisted JPEG fallbacks were found in responsive picture markup.")
+    return tuple(source_names)
+
+
 def apply_responsive_image_delivery(output: Path) -> dict:
     """Generate and verify WebP variants against real source photos in the temporary package."""
     generator_path = ROOT / "scripts" / "rewrite_image_refs.py"
@@ -1310,26 +1407,9 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     spec.loader.exec_module(generator)
 
     rewritten = generator.rewrite_site(output, "responsive")
-    sources = (
-        "rest3.jpg",
-        "courtyard.jpg",
-        "scarlet.jpg",
-        "tent.jpg",
-        "legacy/camel-day.jpg",
-        "legacy/camel-sunset.jpg",
-        "legacy/fort-temple-spires.jpg",
-        "rooms/rising-sun.jpg",
-        "rooms/opium.jpg",
-        "rooms/red-maharani.jpg",
-        "rooms/green.jpg",
-        "rooms/bluesky.jpg",
-        "experiences/cultural-programme.jpg",
-        "experiences/swiss-tent-detail.jpeg",
-        "experiences/heritage-architecture.jpg",
-        "gallery/desert/camp-evening.jpeg",
-        "gallery/desert/camp-from-above.jpeg",
-        "dining/rooftop-candlelit-table.jpg",
-    )
+    # Derive the package manifest from the rewritten markup instead of maintaining
+    # a second, drift-prone list beside the generator's explicit source allowlist.
+    sources = collect_responsive_fallback_sources(output, tuple(generator.IMAGE_NAMES))
     generated_files: list[dict] = []
     image_sources: list[dict] = []
     for filename in sources:
@@ -1484,6 +1564,16 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             _validate_archive_member_path(name, "Archive")
 
         names = set(member_names)
+        for name in names:
+            if (
+                name == "preview"
+                or name.startswith("preview/")
+                or name == "content/blogs"
+                or name.startswith("content/blogs/")
+                or name in EDITORIAL_PREVIEW_ONLY_ASSETS
+                or (name.startswith("blogs/") and name.lower().endswith(".html"))
+            ):
+                fail(f"Staging archive contains draft-only editorial payload: {name}")
         if "RELEASE-MANIFEST.json" not in names:
             fail("The staging archive does not contain RELEASE-MANIFEST.json.")
         try:
@@ -1492,6 +1582,16 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             fail(f"Release manifest is not valid UTF-8 JSON: {error}")
         if not isinstance(manifest, dict):
             fail("Release manifest must be a JSON object.")
+        editorial_isolation = manifest.get("editorialDraftIsolation")
+        if (
+            not isinstance(editorial_isolation, dict)
+            or editorial_isolation.get("status") != "PASS"
+            or editorial_isolation.get("previewDirectoryExcluded") is not True
+            or editorial_isolation.get("draftSourceRecordsExcluded") is not True
+            or editorial_isolation.get("previewAssetsExcluded") is not True
+            or editorial_isolation.get("generatedBlogHtmlRoutes") != 0
+        ):
+            fail("The release manifest must attest that draft editorial content and preview assets are excluded.")
         metrics = manifest.get("packageMetrics")
         if not isinstance(metrics, dict) or metrics.get("sizeBudgetPassed") is not True:
             fail("The release manifest must record a passing package-size budget.")
@@ -1677,6 +1777,7 @@ def main() -> int:
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     document_contract_report = validate_document_contract(output)
+    editorial_draft_isolation_report = validate_editorial_draft_isolation(output)
     entries = inventory_package_files(output)
     legacy_inventory = legacy_source_image_inventory()
     package_metrics = package_size_metrics(entries, legacy_inventory)
@@ -1695,6 +1796,7 @@ def main() -> int:
         "packageMetrics": package_metrics,
         "runtimeAssetClosure": runtime_asset_report,
         "documentContract": document_contract_report,
+        "editorialDraftIsolation": editorial_draft_isolation_report,
         "hostingDelivery": hosting_delivery_report,
         "responsiveImageDelivery": responsive_report,
         "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
@@ -1712,6 +1814,7 @@ def main() -> int:
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
     print(f"Runtime files: {len(entries)}")
+    print("Draft editorial source records, preview route/assets and generated draft blog routes excluded: PASS")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
     print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
     print(f"Responsive source photos optimized: {responsive_report['sourceImageCount']}")

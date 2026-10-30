@@ -236,6 +236,20 @@ function validateLiveRecord(item, root, siteConfig) {
     if (!isValidDate(review.reviewedAt) || typeof review.reviewer !== 'string' || review.reviewer.trim().length < 2) {
       fail('Live article requires a valid editorial review date and named reviewer: ' + sourcePath);
     }
+    if (typeof record.heroCaption !== 'string'
+        || record.heroCaption.trim().length < 20
+        || record.heroCaption.trim().length > 180) {
+      fail('Live article requires a reviewed hero caption between 20 and 180 characters: ' + sourcePath);
+    }
+    const captionReview = record.heroCaptionReview || {};
+    if (captionReview.status !== 'approved'
+        || typeof captionReview.reviewer !== 'string'
+        || captionReview.reviewer.trim().length < 2
+        || !isValidDate(captionReview.reviewedAt)
+        || typeof captionReview.evidenceReference !== 'string'
+        || captionReview.evidenceReference.trim().length < 8) {
+      fail('Live article requires approved hero-caption review metadata with a named reviewer, valid date and evidence reference: ' + sourcePath);
+    }
     if (!record.heroImage || typeof record.heroAlt !== 'string' || record.heroAlt.trim().length < 5
         || !record.seo || !record.seo.ogImage || typeof record.seo.ogAlt !== 'string' || record.seo.ogAlt.trim().length < 5) {
       fail('Live article requires hero and OG image assets with meaningful alt text: ' + sourcePath);
@@ -442,7 +456,11 @@ function renderBlog(item, allPublished, origin, publishedByType, root = ROOT) {
   const tocHtml = toc.length ? '<nav class="content-page__toc" aria-label="On this page"><h2>On this page</h2><ol>' + toc.map(entry => '<li><a href="#' + escapeHtml(entry.id) + '">' + escapeHtml(entry.label) + '</a></li>').join('') + '</ol></nav>' : '';
   const sections = r.sections.map(section => '<section class="content-page__section" id="' + escapeHtml(section.id) + '"><h2>' + escapeHtml(section.heading) + '</h2>' + (section.image ? '<figure>' + renderLocalImage(root, section.image, section.imageAlt || section.heading) + '</figure>' : '') + (section.body || []).map(paragraph => '<p>' + escapeHtml(paragraph) + '</p>').join('') + '</section>').join('');
   const sources = '<section class="content-page__section" aria-labelledby="sources-title"><h2 id="sources-title">Sources and further reading</h2><ul class="content-page__sources">' + r.sources.map(source => '<li><a href="' + escapeHtml(source.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.label) + ' ↗</a></li>').join('') + '</ul></section>';
-  const body = '<section class="page-hero content-page__hero"><div class="wrap"><p class="eyebrow">Jaisalmer travel guide</p><h1 class="display-title">' + escapeHtml(r.title) + '</h1><p class="lead">' + escapeHtml(r.lede) + '</p>' + (r.heroImage ? renderLocalImage(root, r.heroImage, r.heroAlt, { className: 'content-page__hero-image', priority: true }) : '') + '</div></section>' +
+  const heroFigure = r.heroImage
+    ? '<figure class="content-page__hero-figure">' + renderLocalImage(root, r.heroImage, r.heroAlt, { className: 'content-page__hero-image', priority: true })
+      + '<figcaption class="content-page__hero-caption">' + escapeHtml(r.heroCaption) + '</figcaption></figure>'
+    : '';
+  const body = '<section class="page-hero content-page__hero"><div class="wrap"><p class="eyebrow">Jaisalmer travel guide</p><h1 class="display-title">' + escapeHtml(r.title) + '</h1><p class="lead">' + escapeHtml(r.lede) + '</p>' + heroFigure + '</div></section>' +
     '<div class="section content-page wrap">' + tocHtml + '<article class="content-page__article">' + sections + '</article>' + sources + renderRelated(r, allPublished) + renderCta(item.cta) + '</div>';
   return { route, content: renderShell({ type: 'blog', title: r.seo.title, description: r.seo.description, canonical, image, imagePath, preloadImagePath: r.heroImage, imageAlt, body, publishedByType, schema: r, root }) };
 }

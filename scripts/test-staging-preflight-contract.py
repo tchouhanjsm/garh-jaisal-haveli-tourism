@@ -150,6 +150,22 @@ except ValueError:
 else:
     raise AssertionError("Screenshot evidence inside the repository must be refused")
 
+with tempfile.TemporaryDirectory(prefix="garh-local-visual-evidence-") as evidence_root:
+    report_path = Path(evidence_root) / "report.json"
+    assert browser_smoke.validate_local_report_path(str(report_path)) == report_path.resolve()
+    try:
+        browser_smoke.validate_local_report_path(str(ROOT / "artifacts" / "report.json"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Visual-evidence JSON reports must not be written inside the repository checkout")
+    try:
+        browser_smoke.validate_local_report_path(str(Path(evidence_root) / "report.txt"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Visual-evidence report path must use a .json extension")
+
 with tempfile.TemporaryDirectory() as temporary_directory:
     png_path = Path(temporary_directory) / "header-only.png"
     png_path.write_bytes(
@@ -238,7 +254,7 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 4
+assert incomplete_report["schemaVersion"] == 5
 assert incomplete_report["automatedResult"] == "FAIL"
 assert incomplete_report["automatedFailureCount"] == 5
 assert incomplete_report["evidenceCoverage"] == {
@@ -250,6 +266,9 @@ assert incomplete_report["evidenceCoverage"] == {
 }
 assert incomplete_report["unknownRouteEvidence"]["complete"] is False
 assert incomplete_report["visualEvidence"]["complete"] is False
+assert incomplete_report["visualEvidence"]["required"] is True
+assert incomplete_report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
+assert incomplete_report["visualEvidence"]["ownerApproved"] is False
 assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 24
 assert incomplete_report["pagesAttempted"] == []
 assert incomplete_report["pagesWithHttp200OnTargetOrigin"] == []
@@ -281,6 +300,9 @@ assert report["evidenceCoverage"] == {
 }
 assert report["unknownRouteEvidence"]["complete"] is True
 assert report["visualEvidence"]["complete"] is True
+assert report["visualEvidence"]["required"] is True
+assert report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
+assert report["visualEvidence"]["ownerApproved"] is False
 assert report["visualEvidence"]["capturedScreenshotCount"] == 24
 assert report["visualEvidence"]["capturedFiles"] == complete_screenshots
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
@@ -318,6 +340,9 @@ missing_visual_evidence = browser_smoke.build_report(
     unknown_route_evidence=valid_unknown_route_evidence(),
 )
 assert missing_visual_evidence["automatedResult"] == "FAIL"
+assert missing_visual_evidence["visualEvidence"]["required"] is True
+assert missing_visual_evidence["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
+assert missing_visual_evidence["visualEvidence"]["ownerApproved"] is False
 assert missing_visual_evidence["automatedFailureCount"] == 1
 assert missing_visual_evidence["evidenceCoverage"]["complete"] is False
 
@@ -391,7 +416,61 @@ if PACKAGE_SPEC is None or PACKAGE_SPEC.loader is None:
     raise RuntimeError("Could not load the staging preview packager")
 staging_packager = importlib.util.module_from_spec(PACKAGE_SPEC)
 PACKAGE_SPEC.loader.exec_module(staging_packager)
+
+# The package source inventory must be derived from every responsive JPEG
+# fallback actually emitted by the rewrite step, not a second hard-coded list.
+with tempfile.TemporaryDirectory(prefix="garh-responsive-source-inventory-") as temporary_directory:
+    responsive_root = Path(temporary_directory)
+    responsive_page = responsive_root / "experience-details.html"
+    responsive_page.write_text(
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/experiences/open-air-sleeping-setup-320.webp 320w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/experiences/open-air-sleeping-setup.jpeg"></picture>'
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/experiences/half-day-jaisalmer-tour-320.webp 320w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/experiences/half-day-jaisalmer-tour.jpg"></picture>'
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/experiences/open-air-sleeping-setup-480.webp 480w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/experiences/open-air-sleeping-setup.jpeg"></picture>',
+        encoding="utf-8",
+    )
+    allowed_sources = (
+        "experiences/open-air-sleeping-setup.jpeg",
+        "experiences/half-day-jaisalmer-tour.jpg",
+    )
+    assert staging_packager.collect_responsive_fallback_sources(
+        responsive_root, allowed_sources
+    ) == allowed_sources
+
+    responsive_page.write_text(
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/unreviewed/unknown-320.webp 320w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/unreviewed/unknown.jpg"></picture>',
+        encoding="utf-8",
+    )
+    try:
+        staging_packager.collect_responsive_fallback_sources(
+            responsive_root, allowed_sources
+        )
+    except RuntimeError as error:
+        assert "outside the approved image-source allowlist" in str(error)
+    else:
+        raise AssertionError("Responsive package must reject fallback sources outside the allowlist")
+
 assert "img" not in staging_packager.RUNTIME_DIRECTORIES
+selected_runtime_paths = {
+    path.relative_to(ROOT).as_posix() for path in staging_packager.checked_paths()
+}
+assert "preview/journal.html" not in selected_runtime_paths
+assert "assets/css/journal-preview.css" not in selected_runtime_paths
+assert "assets/js/journal-preview.js" not in selected_runtime_paths
+assert not any(path.startswith("preview/") for path in selected_runtime_paths)
+assert not any(path.startswith("content/blogs/") for path in selected_runtime_paths)
+assert not any(path.startswith("blogs/") and path.lower().endswith(".html") for path in selected_runtime_paths)
 
 with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_directory:
     package_root = Path(temporary_directory)
@@ -403,6 +482,14 @@ with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_dir
     clean_closure = staging_packager.validate_no_legacy_image_tree_references(package_root)
     assert clean_closure["status"] == "PASS"
     assert clean_closure["legacyImageReferences"] == 0
+    clean_isolation = staging_packager.validate_editorial_draft_isolation(package_root)
+    assert clean_isolation == {
+        "status": "PASS",
+        "previewDirectoryExcluded": True,
+        "draftSourceRecordsExcluded": True,
+        "previewAssetsExcluded": True,
+        "generatedBlogHtmlRoutes": 0,
+    }
 
     stylesheet = package_root / "assets" / "site.css"
     stylesheet.write_text(".legacy { background: url('../img/unused-large.jpg'); }", encoding="utf-8")
@@ -412,6 +499,27 @@ with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_dir
         assert "site.css" in str(error) and "img/" in str(error)
     else:
         raise AssertionError("Package must fail closed if runtime CSS references the excluded img/ library")
+
+for forbidden_relative in (
+    "preview/journal.html",
+    "assets/css/journal-preview.css",
+    "assets/js/journal-preview.js",
+    "content/blogs/jaisalmer-fort-guide.json",
+    "blogs/jaisalmer-fort-guide.html",
+):
+    with tempfile.TemporaryDirectory(prefix="garh-draft-isolation-") as temporary_directory:
+        isolated_root = Path(temporary_directory)
+        forbidden = isolated_root / forbidden_relative
+        forbidden.parent.mkdir(parents=True, exist_ok=True)
+        forbidden.write_text("draft-only fixture", encoding="utf-8")
+        try:
+            staging_packager.validate_editorial_draft_isolation(isolated_root)
+        except RuntimeError as error:
+            assert "Editorial draft isolation failed" in str(error), forbidden_relative
+        else:
+            raise AssertionError(
+                "Release package must reject draft-only editorial payload: " + forbidden_relative
+            )
 
 metrics = staging_packager.package_size_metrics(
     [{"path": "index.html", "bytes": 4, "sha256": "0" * 64}],

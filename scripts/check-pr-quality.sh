@@ -8,6 +8,7 @@ echo "== Static website integrity =="
 bash scripts/check-site.sh
 node scripts/test-content-ux.js
 node scripts/test-premium-guest-journey.js
+node scripts/test-conversion-hierarchy.js
 node scripts/test-about-story.js
 node scripts/test-arrival-wayfinding.js
 node scripts/test-arrival-planning-enquiry.js
@@ -57,6 +58,7 @@ echo "== Content contract =="
 node scripts/validate-content.js
 node scripts/test-content-contract.js
 node scripts/test-editorial-content-cluster.js
+node scripts/test-journal-preview.js
 node scripts/test-editorial-readiness.js
 node scripts/test-editorial-media-readiness.js
 node scripts/audit-editorial-media-readiness.js --check

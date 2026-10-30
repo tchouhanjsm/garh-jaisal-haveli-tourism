@@ -24,7 +24,7 @@
   }
   </script>
 
-<link rel="stylesheet" href="assets/css/stay-planner.css">
+
   <link rel="stylesheet" href="assets/css/premium-guest-journey.css">
   
 <link rel="preload" as="image" href="assets/images/rest3.jpg" fetchpriority="high">
@@ -174,75 +174,7 @@
       </div>
       <span class="final-cta__note">Book Now opens the external booking flow. It does not itself confirm room availability or a reservation.</span>
     </section>
-  <section class="stay-planner wrap" data-stay-planner aria-labelledby="stay-planner-title">
-  <div class="stay-planner__intro">
-    <p class="eyebrow">Bring the details together</p>
-    <h2 class="display-title" id="stay-planner-title">One clear note.<br><em>A better-prepared visit.</em></h2>
-    <p>Planning a room, an experience, a rooftop meal or your arrival? Select the topics that matter and prepare one enquiry draft to review, edit and deliberately share. Nothing is sent or stored by this page.</p>
-    <nav class="stay-planner__quick-links" aria-label="Explore stay details">
-      <a href="rooms.html">Compare rooms</a>
-      <a href="experiences.html">Explore experiences</a>
-      <a href="dining.html">Dining details</a>
-      <a href="directions.html#arrival-planning">Arrival guide</a>
-      <a href="gallery.html">Browse gallery</a>
-    </nav>
-  </div>
-  <details class="stay-planner__details" data-stay-planner-disclosure>
-    <summary>Build my stay enquiry</summary>
-    <form class="stay-planner__form" data-stay-planner-form method="dialog">
-        <noscript>
-          <p class="stay-planner__no-script" role="note">This planner needs JavaScript to prepare an enquiry draft. Nothing entered here is sent or saved by this form. Enable JavaScript to prepare a draft, or continue planning with the room, experience, dining and arrival pages.</p>
-        </noscript>
-      <div class="stay-planner__fields">
-        <label class="stay-planner__field" for="stay-plan-arrival">Arrival date
-          <input id="stay-plan-arrival" name="arrival" type="date" required>
-        </label>
-        <label class="stay-planner__field" for="stay-plan-departure">Departure date
-          <input id="stay-plan-departure" name="departure" type="date" required>
-        </label>
-        <label class="stay-planner__field" for="stay-plan-guests">Travelling party
-          <select id="stay-plan-guests" name="guests" required>
-            <option value="1">1 person</option>
-            <option value="2" selected>2 people</option>
-            <option value="3">3 people</option>
-            <option value="4">4 people</option>
-            <option value="5">5 people</option>
-            <option value="6">6 people</option>
-            <option value="7">7 people</option>
-            <option value="8">8 people</option>
-            <option value="9">9 people</option>
-            <option value="10">10 people</option>
-            <option value="11">11+ people</option>
-          </select>
-        </label>
-      </div>
-      <fieldset class="stay-planner__topics">
-        <legend>What would you like to plan?</legend>
-        <div class="stay-planner__topic-grid">
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="room options and total rates" data-stay-plan-topic>Room options and total rates</label>
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="desert or guided-city experiences" data-stay-plan-topic>Desert or guided-city experiences</label>
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="rooftop dining, menu and table availability" data-stay-plan-topic>Rooftop dining and menu</label>
-          <label class="stay-planner__topic"><input type="checkbox" name="topic" value="arrival route and meeting point" data-stay-plan-topic>Arrival route and meeting point</label>
-        </div>
-      </fieldset>
-      <label class="stay-planner__field" for="stay-plan-notes">Anything else to include? <span>(optional)</span>
-        <textarea id="stay-plan-notes" name="notes" maxlength="280" rows="3" placeholder="For example: approximate arrival time, room preferences or a special occasion."></textarea>
-      </label>
-      <p class="stay-planner__form-note">This prepares an enquiry only. Availability and prices are not live-checked. Opening WhatsApp creates a draft for you to review; you must press Send yourself. No booking is created here.</p>
-      <button class="button button--gold" type="submit">Prepare enquiry draft <span aria-hidden="true">↗</span></button>
-    </form>
-    <div class="stay-planner__result" data-stay-plan-result hidden>
-      <p class="stay-planner__result-status" data-stay-plan-status role="status" aria-live="polite"></p>
-      <label class="stay-planner__draft-label" for="stay-plan-draft">Review and edit your message</label>
-      <textarea class="stay-planner__draft" id="stay-plan-draft" data-stay-plan-draft rows="8" spellcheck="true"></textarea>
-      <div class="stay-planner__result-actions">
-        <button type="button" data-open-stay-plan-whatsapp disabled>Open WhatsApp draft <span aria-hidden="true">↗</span></button>
-        <button type="button" data-copy-stay-plan disabled>Copy enquiry</button>
-        <button type="button" data-edit-stay-plan>Adjust details</button>
-      </div>
-    </div>
-  </details>
-</section>
+  
 </main>
 
   <div class="contact-status-banner wrap" id="contact-status" role="status" aria-live="polite" hidden><strong>Some contact options need attention.</strong> One or more configured contact channels could not load. This website does not itself confirm a reservation; refresh this page and try again. No enquiry message was sent and no reservation was created. If you need help now, use contact details already supplied directly by the hotel.</div>
@@ -261,6 +193,6 @@
   </aside>
 
 <script src="assets/site.js" defer></script>
-  <script src="assets/stay-planner.js" defer></script>
+  
 </body>
 </html>

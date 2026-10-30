@@ -5,6 +5,8 @@
   const nav = document.querySelector('#primary-navigation');
   const contactStatus = document.querySelector('#contact-status');
   const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
+  const mobileBookingBar = document.querySelector('.mobile-booking-bar');
+  const arrivalQuickCard = document.querySelector('[data-arrival-quick-card]');
   const directEnquiryDismiss = directEnquiryDock ? directEnquiryDock.querySelector('[data-direct-enquiry-dismiss]') : null;
   const enquiryLinks = Array.from(document.querySelectorAll('[data-enquiry-link]'));
   const phoneLinks = Array.from(document.querySelectorAll('[data-contact-phone]'));
@@ -35,6 +37,103 @@
 
   window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
   focusArrivalPlannerFromFragment();
+
+  // Keep the Directions section rail oriented to the heading nearest its reading line.
+  // Native fragment links remain usable when this enhancement is unavailable.
+  function initArrivalSectionNavigation() {
+    const sectionNav = document.querySelector('.arrival-section-nav');
+    if (!sectionNav) return;
+
+    const links = Array.from(sectionNav.querySelectorAll('a[href^="#"]'));
+    const items = links.map(link => {
+      const target = document.getElementById(link.getAttribute('href').slice(1));
+      return target ? { link, target } : null;
+    });
+
+    // Do not advertise a partial scrollspy if any navigation target is missing.
+    if (!links.length || items.some(item => !item)) return;
+
+    let framePending = false;
+    let activeItem = null;
+    const revealCurrentLink = link => {
+      if (sectionNav.scrollWidth <= sectionNav.clientWidth) return;
+      const navRect = sectionNav.getBoundingClientRect();
+      const contentLeft = navRect.left + sectionNav.clientLeft;
+      const contentRight = contentLeft + sectionNav.clientWidth;
+      const linkRect = link.getBoundingClientRect();
+      const inset = 12;
+      let nextLeft = sectionNav.scrollLeft;
+      if (linkRect.left < contentLeft + inset) {
+        nextLeft += linkRect.left - contentLeft - inset;
+      } else if (linkRect.right > contentRight - inset) {
+        nextLeft += linkRect.right - contentRight + inset;
+      }
+      const maxLeft = Math.max(0, sectionNav.scrollWidth - sectionNav.clientWidth);
+      nextLeft = Math.max(0, Math.min(maxLeft, nextLeft));
+      if (Math.abs(nextLeft - sectionNav.scrollLeft) < 1) return;
+      const reduceMotion = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (typeof sectionNav.scrollTo === 'function') {
+        sectionNav.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : 'smooth' });
+      } else {
+        sectionNav.scrollLeft = nextLeft;
+      }
+    };
+    const setCurrent = currentItem => {
+      const changed = activeItem !== currentItem;
+      activeItem = currentItem;
+      items.forEach(item => {
+        if (item === currentItem) item.link.setAttribute('aria-current', 'location');
+        else item.link.removeAttribute('aria-current');
+      });
+      if (changed) revealCurrentLink(currentItem.link);
+    };
+
+    const updateCurrent = () => {
+      framePending = false;
+      // Keep the reading line below the sticky header and sticky section rail; global scroll padding plus route-specific margin places targets around 162px.
+      const activationLine = Math.max(168, sectionNav.getBoundingClientRect().bottom + 32);
+      let currentItem = items[0];
+      let currentTop = Number.NEGATIVE_INFINITY;
+      // Navigation order is editorial, not necessarily document order. Select
+      // the closest target above the reading line by geometry instead of array order.
+      items.forEach(item => {
+        const targetTop = item.target.getBoundingClientRect().top;
+        if (targetTop <= activationLine && targetTop > currentTop) {
+          currentItem = item;
+          currentTop = targetTop;
+        }
+      });
+      setCurrent(currentItem);
+    };
+
+    const scheduleUpdate = () => {
+      if (framePending) return;
+      framePending = true;
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(updateCurrent);
+      } else {
+        updateCurrent();
+      }
+    };
+
+    sectionNav.addEventListener('click', event => {
+      const link = event.target.closest('a[href^="#"]');
+      const item = items.find(candidate => candidate.link === link);
+      if (item) setCurrent(item);
+    });
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', () => {
+      scheduleUpdate();
+      if (activeItem) revealCurrentLink(activeItem.link);
+    }, { passive: true });
+    // Re-evaluate after deep-link changes and browser scroll restoration.
+    window.addEventListener('hashchange', scheduleUpdate);
+    window.addEventListener('pageshow', scheduleUpdate);
+    updateCurrent();
+  }
+
+  initArrivalSectionNavigation();
 
   function disableContactLink(link, fallbackText) {
     link.setAttribute('href', '#contact-status');
@@ -691,13 +790,62 @@
     }
   }
 
+  let knownMobileBookingBarHeight = 0;
+
+  function updateMobileBookingBar() {
+    if (!mobileBookingBar) return;
+    const compact = typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 760px)').matches;
+    if (!compact || !arrivalQuickCard) {
+      mobileBookingBar.classList.remove('is-suppressed-by-arrival-card');
+      mobileBookingBar.removeAttribute('aria-hidden');
+      mobileBookingBar.removeAttribute('inert');
+      return;
+    }
+
+    const bounds = arrivalQuickCard.getBoundingClientRect();
+    const measuredHeight = Number.parseFloat(window.getComputedStyle(mobileBookingBar).height) || 0;
+    if (measuredHeight > 0) knownMobileBookingBarHeight = measuredHeight;
+    const barHeight = Math.max(64, measuredHeight, knownMobileBookingBarHeight);
+    const overlaps = bounds.left < window.innerWidth
+      && bounds.right > 0
+      && bounds.top < window.innerHeight
+      && bounds.bottom > Math.max(0, window.innerHeight - barHeight);
+    const shouldSuppress = overlaps && !mobileBookingBar.contains(document.activeElement);
+    mobileBookingBar.classList.toggle('is-suppressed-by-arrival-card', shouldSuppress);
+    if (shouldSuppress) {
+      mobileBookingBar.setAttribute('aria-hidden', 'true');
+      mobileBookingBar.setAttribute('inert', '');
+    } else {
+      mobileBookingBar.removeAttribute('aria-hidden');
+      mobileBookingBar.removeAttribute('inert');
+    }
+  }
+
+  if (mobileBookingBar) {
+    mobileBookingBar.addEventListener('focusin', updateMobileBookingBar);
+    mobileBookingBar.addEventListener('focusout', () => {
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(updateMobileBookingBar);
+      } else {
+        updateMobileBookingBar();
+      }
+    });
+  }
+
   function updateHeader() {
     if (header) header.classList.toggle('is-scrolled', window.scrollY > 20);
     updateDirectEnquiryDock();
+    updateMobileBookingBar();
   }
   updateHeader();
   window.addEventListener('scroll', updateHeader, { passive: true });
-  window.addEventListener('resize', updateDirectEnquiryDock);
+  window.addEventListener('resize', () => {
+    updateDirectEnquiryDock();
+    updateMobileBookingBar();
+  });
+  window.addEventListener('orientationchange', updateMobileBookingBar);
+  window.addEventListener('load', updateMobileBookingBar, { once: true });
 
   if (menuToggle && nav) {
     menuToggle.addEventListener('click', () => {

@@ -10,7 +10,7 @@
 .about-plan__number{display:block;color:var(--gold);font-size:9px;letter-spacing:.13em;text-transform:uppercase}
 .about-plan__item h3{margin:14px 0 10px;color:var(--white);font-family:var(--serif);font-size:24px;font-weight:400;line-height:1.2}
 .about-plan__item p{margin:0 0 17px;color:#c3c5bc;font-size:12px;line-height:1.9}
-.about-plan__item .text-link{display:inline-block;font-size:11px}
+.about-plan__item .text-link{display:inline-block;font-size:var(--type-support)}
 @media(max-width:1000px){
   .about-plan__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .about-plan__item{margin-right:22px;padding:23px 22px 24px 0}

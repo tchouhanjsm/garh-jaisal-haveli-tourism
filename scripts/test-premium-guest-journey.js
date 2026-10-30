@@ -7,23 +7,64 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const ROUTES = [
-  { file: 'index.html', journey: false },
+  { file: 'index.html', journey: false, planner: false },
   { file: 'rooms.html', journey: true, current: 'rooms.html' },
-  { file: 'experiences.html', journey: true, current: 'experiences.html' },
-  { file: 'experience-details.html', journey: true },
-  { file: 'dining.html', journey: true, current: 'dining.html' },
+  { file: 'experiences.html', journey: true, current: 'experiences.html', planner: false },
+  { file: 'experience-details.html', journey: true, planner: false },
+  { file: 'dining.html', journey: true, current: 'dining.html', planner: false },
   { file: 'about.html', journey: true },
-  { file: 'directions.html', journey: true, current: 'directions.html#arrival-planning' },
+  { file: 'directions.html', journey: true, current: 'directions.html#arrival-planning', planner: false },
   { file: 'gallery.html', journey: true },
 ];
 
 const stylesheet = 'assets/css/premium-guest-journey.css';
 const cssPath = path.join(ROOT, stylesheet);
 const css = fs.readFileSync(cssPath, 'utf8');
+const siteCssPath = path.join(ROOT, 'assets/site.css');
+const siteCss = fs.readFileSync(siteCssPath, 'utf8');
 const siteJs = fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8');
 const stayPlannerJs = fs.readFileSync(path.join(ROOT, 'assets/stay-planner.js'), 'utf8');
 const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets/css/stay-planner.css'), 'utf8');
-assert.match(css, /--premium-ease:\s*cubic-bezier\(/, 'premium motion tokens must be centralized');
+
+assert.equal((siteCss.match(/:root\s*\{/g) || []).length, 1,
+  'the main stylesheet must own exactly one canonical design-token root');
+assert.doesNotMatch(css, /:root\s*\{/,
+  'the premium layer must consume canonical design tokens, not redefine the palette');
+assert.match(siteCss, /--ink:\s*#1a2821/i, 'the canonical ink token must match the approved premium palette');
+assert.match(siteCss, /--paper:\s*#faf8f3/i, 'the canonical paper token must match the approved premium palette');
+assert.match(siteCss, /--gold-dark:\s*#8c673a/i, 'the canonical accessible gold-ink token must be explicit');
+assert.match(siteCss, /--container:\s*1280px/i, 'the canonical content rail must be 1280px');
+assert.match(siteCss, /--premium-ease:\s*cubic-bezier\(/, 'shared motion easing must be centralized');
+assert.match(siteCss, /--premium-shadow:\s*0 18px 52px/, 'shared premium shadow must be centralized');
+assert.match(siteCss, /--button-height:\s*52px/, 'primary control height must use a shared token');
+assert.match(siteCss, /--control-radius:\s*2px/, 'control geometry must use a shared radius token');
+assert.match(siteCss, /--focus-ring:\s*3px solid/, 'keyboard focus ring must be centralized');
+assert.ok(siteCss.includes('--type-meta: 11px'), 'canonical CSS must own a compact metadata role');
+assert.ok(siteCss.includes('--type-label: 12px'), 'canonical CSS must own an interactive label role');
+assert.ok(siteCss.includes('--type-support: 13px'), 'canonical CSS must own a readable support-copy role');
+assert.ok(siteCss.includes('--type-body: 15px'), 'canonical CSS must retain a 15px body baseline');
+assert.ok(css.includes('.guest-journey__copy small') && css.includes('font-size: var(--type-label)'),
+  'guest-journey descriptions must use the shared readable label role');
+assert.ok(css.includes('.experience-card p') && css.includes('font-size: var(--type-support)'),
+  'experience-card descriptions must use the shared support-copy role');
+assert.ok(css.includes('.faq-item > p') && css.includes('font-size: var(--type-support)'),
+  'FAQ answers must use the shared support-copy role');
+assert.ok(css.includes('.stay-planner__topic') && css.includes('font-size: var(--type-support)'),
+  'planner topic choices must use the shared support-copy role');
+assert.ok(css.includes('.arrival-quick-card .arrival-quick-list p') && css.includes('font-size: var(--type-support)'),
+  'arrival summary copy must use the shared support-copy role');
+assert.ok(css.includes('.footer-address .text-link') && css.includes('font-size: var(--type-support)'),
+  'the exact hotel-pin footer link must not be reduced by the more-specific legacy footer rule');
+assert.ok(css.includes('.experience-detail-actions .text-link') && css.includes('font-size: var(--type-support)'),
+  'experience-detail action links must retain the readable support role');
+
+
+assert.match(css, /\.wrap\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
+  'premium content wrapper must consume the shared canonical container width');
+assert.match(css, /\.guest-journey\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
+  'guest-journey rail must align to the same canonical container width');
+assert.match(css, /\.button\s*\{[\s\S]*?min-height:\s*var\(--button-height\)[\s\S]*?border-radius:\s*var\(--control-radius\)/,
+  'shared buttons must consume the canonical interaction geometry tokens');
 assert.match(css, /\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
   'desktop journey needs four consistently aligned steps');
 assert.match(css, /@media\s*\(max-width:\s*760px\)[\s\S]*?\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
@@ -87,6 +128,32 @@ for (const route of ROUTES) {
   assert.ok(allStyles.length, route.file + ': expected linked stylesheets');
   assert.ok(allStyles[allStyles.length - 1][0].includes('assets/css/premium-guest-journey.css'),
     route.file + ': premium visual layer must load after route-specific styles');
+  if (route.planner === false) {
+    assert.equal((html.match(/data-stay-planner/g) || []).length, 0,
+      route.file + ': this route must not repeat the generic multi-topic stay planner');
+    assert.doesNotMatch(html, /assets\/css\/stay-planner\.css|assets\/stay-planner\.js/,
+      route.file + ': do not load unused generic planner assets');
+    const contextualContracts = {
+      'index.html': /<section id="plan-stay" class="booking-panel wrap home-plan-panel"/,
+      'experiences.html': /<form class="guest-enquiry-form" data-guest-enquiry-form>/,
+      'experience-details.html': /<form class="guest-enquiry-form" data-guest-enquiry-form>/,
+      'dining.html': /data-restaurant-table-form/,
+      'directions.html': /data-arrival-planning-form/,
+    };
+    assert.ok(contextualContracts[route.file], route.file + ': an explicit conversion contract must be defined');
+    assert.match(html, contextualContracts[route.file],
+      route.file + ': route-specific booking/enquiry path must remain present');
+    if (route.file === 'dining.html') {
+      assert.equal((html.match(/data-restaurant-table-form/g) || []).length, 1,
+        'dining.html: retain one dedicated table enquiry form');
+      assert.match(html, /Your table is not reserved until the restaurant replies and confirms it/,
+        'dining.html: table enquiry must not be presented as a reservation');
+    }
+    if (route.file === 'directions.html') {
+      assert.match(html, /class="arrival-next-step__panel"/,
+        'directions.html: terminal action must return guests to the arrival planner');
+    }
+  } else {
   const plannerMatch = html.match(/<section class="stay-planner wrap" data-stay-planner[\s\S]*?<\/section>/);
   assert.ok(plannerMatch, route.file + ': each core route must expose the shared stay planner');
   assert.equal((html.match(/<section class="stay-planner wrap" data-stay-planner\b/g) || []).length, 1,
@@ -105,6 +172,8 @@ for (const route of ROUTES) {
     route.file + ': guests must be able to edit their generated message directly');
   assert.match(planner, /Opening WhatsApp creates a draft for you to review; you must press Send yourself/,
     route.file + ': handoff disclosure must distinguish an enquiry from a sent message or booking');
+  }
+
   if (!route.journey) {
     assert.doesNotMatch(html, /<section class="guest-journey"/,
       route.file + ': homepage must retain its own planning panel instead of duplicating the shared rail');
