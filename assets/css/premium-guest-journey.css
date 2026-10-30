@@ -902,3 +902,11 @@ body {
 @media (max-width: 420px) {
   .announcement { font-size: 9px; letter-spacing: .07em; }
 }
+
+
+/* Preserve the support-copy role where route selectors are more specific. */
+.footer-address .text-link,
+.experience-detail-actions .text-link {
+  font-size: var(--type-support);
+  line-height: 1.65;
+}

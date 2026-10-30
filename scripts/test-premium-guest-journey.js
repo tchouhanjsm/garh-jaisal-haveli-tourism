@@ -53,6 +53,11 @@ assert.ok(css.includes('.stay-planner__topic') && css.includes('font-size: var(-
   'planner topic choices must use the shared support-copy role');
 assert.ok(css.includes('.arrival-quick-card .arrival-quick-list p') && css.includes('font-size: var(--type-support)'),
   'arrival summary copy must use the shared support-copy role');
+assert.ok(css.includes('.footer-address .text-link') && css.includes('font-size: var(--type-support)'),
+  'the exact hotel-pin footer link must not be reduced by the more-specific legacy footer rule');
+assert.ok(css.includes('.experience-detail-actions .text-link') && css.includes('font-size: var(--type-support)'),
+  'experience-detail action links must retain the readable support role');
+
 
 assert.match(css, /\.wrap\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
   'premium content wrapper must consume the shared canonical container width');
