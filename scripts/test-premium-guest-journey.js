@@ -175,6 +175,15 @@ assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
+  const pageImages = [...html.matchAll(/<img\\b[^>]*>/g)].map(match => match[0]);
+  assert.ok(pageImages.length > 0, route.file + ': each core route must expose its hero image');
+  assert.match(pageImages[0], /\\bloading="eager"/, route.file + ': the first-view hero must load eagerly');
+  assert.match(pageImages[0], /\\bfetchpriority="high"/, route.file + ': the first-view hero must retain high fetch priority');
+  for (const [imageIndex, image] of pageImages.entries()) {
+    if (imageIndex === 0) continue;
+    assert.match(image, /\\bloading="lazy"/, route.file + ': non-hero images must remain lazy');
+    assert.match(image, /\\bfetchpriority="low"/, route.file + ': non-hero images must not compete with the first-view hero');
+  }
   const dockMatches = [...html.matchAll(/<aside class="direct-enquiry-dock" data-direct-enquiry-dock[\s\S]*?<\/aside>/g)];
   assert.equal(dockMatches.length, 1, route.file + ': each core route must expose exactly one contextual enquiry dock');
   const dock = dockMatches[0] ? dockMatches[0][0] : '';
