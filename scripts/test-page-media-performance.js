@@ -17,7 +17,7 @@ const HERO_BUDGETS = new Map([
   ['about.html', 450 * KIB],
   ['experiences.html', 200 * KIB],
   ['experience-details.html', 100 * KIB],
-  ['gallery.html', 600 * KIB],
+  ['gallery.html', 900 * KIB],
   ['directions.html', 650 * KIB],
 ]);
 const PATH_BUDGETS = new Map([
@@ -33,7 +33,12 @@ const PATH_BUDGETS = new Map([
   ['assets/images/rooms/green.jpg', 150 * KIB],
   ['assets/images/rooms/bluesky.jpg', 150 * KIB],
   ['assets/images/dining/rooftop-candlelit-table.jpg', 100 * KIB],
+  ['assets/images/directions/haveli-facade.jpg', 900 * KIB],
   ['assets/images/directions/haveli-facade.webp', 600 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-320.webp', 50 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-480.webp', 90 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-768.webp', 200 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-1200.webp', 420 * KIB],
   ['assets/images/gallery/hotel/fort-from-roof.webp', 400 * KIB],
   ['assets/images/gallery/desert/camp-evening.jpeg', 150 * KIB],
   ['assets/images/gallery/desert/camp-from-above.jpeg', 100 * KIB],

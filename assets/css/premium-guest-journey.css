@@ -985,7 +985,7 @@ body {
 .page-hero--photo.page-hero--dining { min-height:clamp(480px,56vw,650px); }
 .page-hero--experiences>img,.page-hero--experiences .page-hero__picture img { object-position:center 52%; }
 .page-hero--experience-details .page-hero__picture img { object-position:center 55%; }
-.page-hero--gallery>img { object-position:center 56%; }
+.page-hero--gallery>img,.page-hero--gallery .page-hero__picture img { object-position:center 56%; }
 .page-hero--dining>img,.page-hero--dining .page-hero__picture img { object-position:center 68%; }
 .hero__image { object-position:center 72%; }
 @media(max-width:760px) {

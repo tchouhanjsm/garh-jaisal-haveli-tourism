@@ -146,7 +146,7 @@ for (const [label, foreground, background] of [
 const photoHeroContracts = {
   'experiences.html': ['assets/images/experiences/half-day-jaisalmer-tour.jpg', 'Ornately carved sandstone havelis overlooking the historic lanes of Jaisalmer'],
   'experience-details.html': ['assets/images/gallery/desert/camp-from-above.jpeg', 'Desert camp viewed from above at night, with illuminated tent clusters and the central camp area'],
-  'gallery.html': ['assets/images/directions/haveli-facade.webp', 'Carved sandstone facade of Hotel Garh Jaisal, with the hotel name visible beside the entrance'],
+  'gallery.html': ['assets/images/directions/haveli-facade.jpg', 'Carved sandstone facade of Hotel Garh Jaisal, with the hotel name visible beside the entrance'],
   'dining.html': ['assets/images/dining/rooftop-candlelit-table.jpg', 'Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond'],
 };
 for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) {
@@ -162,6 +162,25 @@ for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) 
   assert.match(html, /rel="preload" as="image"[^>]*fetchpriority="high"/,
     route + ': hero image must be preloaded');
 }
+
+const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
+const galleryHeroSrcset = [
+  'assets/images/responsive/directions/haveli-facade-320.webp 320w',
+  'assets/images/responsive/directions/haveli-facade-480.webp 480w',
+  'assets/images/responsive/directions/haveli-facade-768.webp 768w',
+  'assets/images/responsive/directions/haveli-facade-1200.webp 1200w',
+  'assets/images/directions/haveli-facade.webp 1333w',
+].join(', ');
+assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture responsive-image">'),
+  'gallery.html: the source-backed hero must use a responsive picture wrapper');
+assert.ok(galleryHeroHtml.includes('srcset="' + galleryHeroSrcset + '"'),
+  'gallery.html: responsive hero candidates must match the generated width ladder');
+assert.ok(galleryHeroHtml.includes('imagesrcset="' + galleryHeroSrcset + '"'),
+  'gallery.html: the high-priority preload must use the same responsive candidate set');
+assert.ok(galleryHeroHtml.includes('imagesizes="100vw"'),
+  'gallery.html: responsive hero preload must declare the 100vw slot');
+assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade.webp"'),
+  'gallery.html: hero preload must retain the original source-backed WebP');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');

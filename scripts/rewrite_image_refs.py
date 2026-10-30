@@ -38,12 +38,14 @@ IMAGE_NAMES = (
     "gallery/desert/camp-evening.jpeg",
     "gallery/desert/camp-from-above.jpeg",
     "dining/rooftop-candlelit-table.jpg",
+    "directions/haveli-facade.jpg",
 )
-# Sweet Purple and the Rooms hero have separately source-backed WebP assets.
+# Sweet Purple, the Rooms hero, and the Gallery hero have source-backed WebP assets.
 # Their JPEGs are compatibility fallbacks; never regenerate over the originals.
 RESPONSIVE_SOURCE_OVERRIDES = {
     "rooms/sweet-purple.jpg": "rooms/sweet-purple.webp",
     "rooms/haveli-interior.jpg": "rooms/haveli-sitting-room.webp",
+    "directions/haveli-facade.jpg": "directions/haveli-facade.webp",
 }
 SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
@@ -59,6 +61,10 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/courtyard-1600.webp": 250_000,
     "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
     "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
+    "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
+    "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
+    "assets/images/responsive/directions/haveli-facade-768.webp": 200_000,
+    "assets/images/responsive/directions/haveli-facade-1200.webp": 420_000,
 }
 # The Directions hero's 2200px JPEG-derived WebP is generated in the isolated
 # package and may be quality-adjusted; the source JPEG remains the fallback.
