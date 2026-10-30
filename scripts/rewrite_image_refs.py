@@ -11,8 +11,8 @@ import tempfile
 
 from PIL import Image, ImageOps
 
-# Explicitly allow only source photos confirmed in current runtime routes. Existing
-# picture elements with a separate WebP art direction remain intentionally excluded.
+# Explicitly allow only source photos confirmed in current runtime routes.
+# Art-directed pictures are included only with a source-backed WebP override below.
 IMAGE_NAMES = (
     "rest3.jpg",
     "courtyard.jpg",
@@ -23,6 +23,7 @@ IMAGE_NAMES = (
     "legacy/fort-temple-spires.jpg",
     "rooms/rising-sun.jpg",
     "rooms/opium.jpg",
+    "rooms/sweet-purple.jpg",
     "rooms/red-maharani.jpg",
     "rooms/green.jpg",
     "rooms/bluesky.jpg",
