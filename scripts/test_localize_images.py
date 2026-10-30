@@ -436,8 +436,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<link rel="preload" as="image" href="assets/images/directions/haveli-facade.webp" '
                 f'type="image/webp" imagesrcset="{preload_srcset}" imagesizes="100vw" fetchpriority="high">'
                 '<picture class="page-hero__picture responsive-image">'
-                '<source type="image/webp" data-responsive-image="true" '
-                'srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'
+                '<source type="image/webp" srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'
                 '<img src="assets/images/directions/haveli-facade.jpg" '
                 'alt="Carved sandstone facade of Hotel Garh Jaisal, with the hotel name visible beside the entrance" '
                 'width="1333" height="2000" fetchpriority="high" loading="eager" decoding="async" '
@@ -1169,6 +1168,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 create_jpeg(root, name, size)
             create_webp(root, "rooms/sweet-purple.webp", (900, 600))
             create_webp(root, "rooms/haveli-sitting-room.webp", (900, 600))
+            create_webp(root, "directions/haveli-facade.webp", (900, 600))
             home = root / "index.html"
             rooms = root / "rooms.html"
             home.write_text(
