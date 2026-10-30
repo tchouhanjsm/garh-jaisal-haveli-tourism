@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const assert=require('node:assert/strict'),crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..'),page=fs.readFileSync(path.join(ROOT,'experience-details.html'),'utf8'),options=fs.readFileSync(path.join(ROOT,'experiences.html'),'utf8'),config=JSON.parse(fs.readFileSync(path.join(ROOT,'content/site-config.json'),'utf8'));
 function meta(html,selector){const tag=html.match(selector);if(!tag)return null;const attrs={},re=/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;let m;while((m=re.exec(tag[0])))attrs[m[1].toLowerCase()]=m[2]??m[3]??m[4]??'';return attrs;}
 function plain(s){return s.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<!--[\s\S]*?-->/g,' ').replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();}
@@ -19,4 +19,16 @@ assert.ok(!/<link\b[^>]*\brel=["']canonical["']/i.test(page),'canonical remains 
 assert.ok((page.match(/data-enquiry-link/g)||[]).length>=9,'detail enquiry actions');
 const checks=[['sunset-camel-safari-detail',/Khuldhara/i,/natural pond/i,/camel riding/i],['cultural-safari-detail',/folk music/i,/vegetarian dinner/i],['sleep-under-the-stars-detail',/mattress and blankets/i,/bathroom access/i,/breakfast/i],['swiss-tent-safari-detail',/king-size bed/i,/attached bathroom/i,/hot and cold shower/i],['half-day-jaisalmer-tour-detail',/local guide/i,/havelis/i,/markets/i],['full-day-jaisalmer-tour-detail',/full-day/i,/heritage route/i,/guide availability/i],['fort-heritage-walk-detail',/Jain temples/i,/Palace Museum/i,/heritage street/i],['car-and-road-travel-detail',/SUV/i,/sedan/i,/Rajasthan and Delhi/i],['other-routes',/not confirmed packages/i,/Kuldhara/i,/current price/i]];
 for(const [id,...patterns] of checks){const t=plain(section(id));for(const re of patterns)assert.ok(re.test(t),id+' missing source-backed detail '+re);}
+const sourceMedia=[
+  {target:'assets/images/legacy/camel-sunset.jpg',source:'img/desert7.jpg',sha:'567fd89b1dc8d824f4b124473a64d6f5105f9767'},
+  {target:'assets/images/experiences/cultural-programme.jpg',source:'img/Desert_Camp/Prog.jpeg',sha:'155f21590ac4ae9fdc7cc802013d288470048228'},
+  {target:'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg',source:'img/sleeping_under_stars/tour_9.jpeg',sha:'86c604f27f5bed16f130f91651e8a6ef395eae9e'},
+  {target:'assets/images/experiences/sleep-under-stars-shelter.jpeg',source:'img/sleeping_under_stars/tour_3.jpeg',sha:'c90c28b372d51d1b2135c5eb981bc9676c390ce5'},
+  {target:'assets/images/experiences/open-air-sleeping-setup.jpeg',source:'img/sleeping_under_stars/Tour_1.jpeg',sha:'fcc18da8b908b4db85dbfc7c5cb760f78db2c500'},
+  {target:'assets/images/experiences/swiss-tent-exterior.webp',source:'img/v2/swiss-tent.webp',sha:'0b7afe139c7c619a47198559442cca20e3a18e37'},
+  {target:'assets/images/experiences/half-day-jaisalmer-tour.jpg',source:'img/j5.jpg',sha:'4b95149605b57d24567b2baf582f31f6dca9eb5e'},
+  {target:'assets/images/experiences/heritage-architecture.jpg',source:'img/j2.jpg',sha:'5da16be5530a0416d0dc12c1476b92ac0d0e1390'},
+  {target:'assets/images/legacy/fort-temple-spires.jpg',source:'img/j10.jpg',sha:'c4c1e4211d572b38308de3aaa3d6f13a4ad761e6'},
+];
+for(const {target,source,sha} of sourceMedia){const bytes=fs.readFileSync(path.join(ROOT,target));const header=Buffer.from('blob '+bytes.length+'\\0');const actual=crypto.createHash('sha1').update(header).update(bytes).digest('hex');assert.equal(actual,sha,target+' must remain byte-identical to '+source+'; source identity does not establish usage rights');}
 console.log('PASS: nine detail anchors, source-backed itinerary content, social metadata, contact and publication safeguards verified.');

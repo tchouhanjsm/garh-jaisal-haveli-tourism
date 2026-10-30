@@ -754,6 +754,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "tent.jpg",
                 "dining/rooftop-candlelit-table.jpg",
                 "legacy/camel-sunset.jpg",
+                "experiences/open-air-sleeping-setup.jpeg",
+                "experiences/sleep-under-stars-dusk-camp.jpeg",
+                "experiences/sleep-under-stars-shelter.jpeg",
+                "experiences/half-day-jaisalmer-tour.jpg",
             )
             for name in source_names:
                 create_jpeg(root, name, (1200, 800))

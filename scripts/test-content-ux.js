@@ -452,7 +452,7 @@ for (const rule of PAGE_RULES) {
     const catalogue = [
       { id: 'sunset-camel', title: 'Sunset camel safari', image: 'assets/images/legacy/camel-sunset.jpg' },
       { id: 'cultural-evening', title: 'Cultural desert evening', image: 'assets/images/experiences/cultural-programme.jpg' },
-      { id: 'open-sky', title: 'Sleep under the stars', image: 'assets/images/tent.jpg' },
+      { id: 'open-sky', title: 'Sleep under the stars', image: 'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg' },
       { id: 'swiss-tent', title: 'Swiss tent overnight', image: 'assets/images/experiences/swiss-tent-exterior.webp' },
       { id: 'half-day-city', title: 'Half-day guided Jaisalmer tour', image: 'assets/images/legacy/fort-temple-spires.jpg' },
       { id: 'full-day-city', title: 'Full-day guided Jaisalmer tour', image: 'assets/images/experiences/heritage-architecture.jpg' },
@@ -516,6 +516,15 @@ for (const rule of PAGE_RULES) {
       if (!/data-enquiry-link/.test(card) || !/aria-disabled="true"/.test(card)) {
         fail('experiences.html: enquiry action must remain disabled until endpoint verification: ' + option.title);
       }
+    }
+    const openSkyCard = cards.find((candidate) => candidate[1] === 'open-sky')?.[0] || '';
+    const openSkySlides = [...openSkyCard.matchAll(/<img\\b[^>]*\\bsrc="([^"]+)"/gi)].map((image) => image[1]);
+    const expectedOpenSkySlides = [
+      'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg',
+      'assets/images/experiences/sleep-under-stars-shelter.jpeg',
+    ];
+    if (JSON.stringify(openSkySlides) !== JSON.stringify(expectedOpenSkySlides)) {
+      fail('experiences.html: Sleep under the stars carousel must use the current source hero and a source-listed gallery image');
     }
     if (!/not confirmation that each option is currently operated/i.test(html)) {
       fail('experiences.html: source-listed concepts need an explicit non-live-offer disclaimer');
@@ -624,10 +633,10 @@ for (const rule of PAGE_RULES) {
     const expectedMedia = [
       { id: 'sunset-camel-safari-detail', side: 'right', src: 'assets/images/legacy/camel-sunset.jpg', alt: 'Camel caravan silhouetted against the setting sun over desert dunes', caption: /Desert route reference/ },
       { id: 'cultural-safari-detail', side: 'left', src: 'assets/images/experiences/cultural-programme.jpg', alt: 'Musicians performing on a small stage at a desert camp at night, with seated guests in the foreground', caption: /visual reference to a desert-camp performance/ },
-      { id: 'sleep-under-the-stars-detail', side: 'right', src: 'assets/images/tent.jpg', alt: 'Open-air sleeping setup beneath a star-filled desert sky', caption: /not a Swiss tent/ },
+      { id: 'sleep-under-the-stars-detail', side: 'right', src: 'assets/images/experiences/open-air-sleeping-setup.jpeg', alt: 'Mattress and bedding set out in the desert beside a small tent', caption: /Source comparison photo.*not a Swiss tent/i },
       { id: 'swiss-tent-safari-detail', side: 'left', src: 'assets/images/experiences/swiss-tent-exterior.webp', alt: 'White Swiss-style tents at a desert camp in warm evening light', caption: /tent exterior reference only/ },
-      { id: 'half-day-jaisalmer-tour-detail', side: 'right', src: 'assets/images/gallery/hotel/fort-from-roof.webp', alt: 'Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk', caption: /not a promise of this tour's stops or route/ },
-      { id: 'full-day-jaisalmer-tour-detail', side: 'left', src: 'assets/images/experiences/heritage-architecture.jpg', alt: 'Ornate sandstone pavilion with carved arches, domed rooflines and stone railings', caption: /Stops and the route for a full-day visit depend on the agreed plan/ },
+      { id: 'half-day-jaisalmer-tour-detail', side: 'right', src: 'assets/images/experiences/half-day-jaisalmer-tour.jpg', alt: 'Carved sandstone balconies on a historic Jaisalmer haveli', caption: /A shorter route can focus on the Fort, carved havelis and heritage lanes/ },
+      { id: 'full-day-jaisalmer-tour-detail', side: 'left', src: 'assets/images/experiences/heritage-architecture.jpg', alt: 'Carved sandstone architecture in historic Jaisalmer', caption: /Plan enough time for each stop included in the route confirmed with your guide/ },
       { id: 'fort-heritage-walk-detail', side: 'right', src: 'assets/images/legacy/fort-temple-spires.jpg', alt: 'Carved sandstone Jain temple spires rising above Jaisalmer', caption: /Confirm current visitor access and temple rules/ },
     ];
     const detailCss = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'experience-details.css'), 'utf8');
