@@ -381,6 +381,29 @@ def build_report(mode: str, base_url: str, operator: str | None,
             and record["largestContentfulPaint"]["valueMs"] > 0
             and isinstance(record.get("cumulativeLayoutShift"), (int, float))
             and record["cumulativeLayoutShift"] >= 0
+            and isinstance(record.get("layoutShiftSources"), list)
+            and len(record["layoutShiftSources"]) == record.get("layoutShiftEntries")
+            and all(
+                isinstance(shift, dict)
+                and isinstance(shift.get("value"), (int, float))
+                and shift["value"] >= 0
+                and isinstance(shift.get("sources"), list)
+                and len(shift["sources"]) <= 4
+                and all(
+                    isinstance(source, dict)
+                    and (source.get("element") is None or isinstance(source.get("element"), dict))
+                    and isinstance(source.get("previousRect"), dict)
+                    and isinstance(source.get("currentRect"), dict)
+                    for source in shift["sources"]
+                )
+                for shift in record["layoutShiftSources"]
+            )
+            and isinstance(record.get("fontReadiness"), dict)
+            and record["fontReadiness"].get("status") in ("loaded", "loading")
+            and isinstance(record["fontReadiness"].get("readyWithinCaptureWindow"), bool)
+            and isinstance(record["fontReadiness"].get("families"), dict)
+            and isinstance(record["fontReadiness"]["families"].get("playfairDisplay"), bool)
+            and isinstance(record["fontReadiness"]["families"].get("dmSans"), bool)
             and isinstance(record.get("sameOriginResources"), dict)
             and isinstance(record["sameOriginResources"].get("encodedBodyBytes"), int)
             and record["sameOriginResources"]["encodedBodyBytes"] >= 0
@@ -412,7 +435,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete and performance_complete)
 
     return {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -452,6 +475,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "metrics": [
                 "largestContentfulPaint",
                 "cumulativeLayoutShift",
+                "layoutShiftSourceAttribution",
+                "fontReadinessDiagnostics",
                 "navigationTiming",
                 "sameOriginEncodedResourceBytes",
                 "longTasks"
@@ -506,6 +531,7 @@ def install_performance_observers(context) -> None:
             lcp: null,
             cls: 0,
             layoutShiftEntries: 0,
+            layoutShiftSources: [],
             longTaskCount: 0,
             longTaskDurationMs: 0,
             observerSupport: {lcp: false, layoutShift: false, longTask: false}
@@ -540,11 +566,36 @@ def install_performance_observers(context) -> None:
             state.observerSupport.lcp = true;
           } catch (_) {}
           try {
+            const describeNode = node => {
+              if (!node) return null;
+              const className = typeof node.className === "string"
+                ? node.className
+                : (node.className && node.className.baseVal) || "";
+              return {
+                tagName: node.tagName || null,
+                id: node.id ? String(node.id).slice(0, 120) : null,
+                className: className ? String(className).slice(0, 160) : null
+              };
+            };
+            const describeRect = rect => rect ? {
+              x: round(rect.x),
+              y: round(rect.y),
+              width: round(rect.width),
+              height: round(rect.height)
+            } : null;
             new PerformanceObserver(list => {
               for (const entry of list.getEntries()) {
                 if (!entry.hadRecentInput) {
                   state.cls += entry.value;
                   state.layoutShiftEntries += 1;
+                  state.layoutShiftSources.push({
+                    value: round(entry.value),
+                    sources: Array.from(entry.sources || []).slice(0, 4).map(source => ({
+                      element: describeNode(source.node),
+                      previousRect: describeRect(source.previousRect),
+                      currentRect: describeRect(source.currentRect)
+                    }))
+                  });
                 }
               }
             }).observe({type: "layout-shift", buffered: true});
@@ -574,8 +625,9 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
         page.wait_for_load_state("load", timeout=10000)
         sample = page.evaluate(
             r"""async () => {
+              let fontsReadyWithinCaptureWindow = false;
               await Promise.race([
-                document.fonts.ready,
+                document.fonts.ready.then(() => { fontsReadyWithinCaptureWindow = true; }),
                 new Promise(resolve => setTimeout(resolve, 1500))
               ]);
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -628,6 +680,15 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
                 largestContentfulPaint: lcp,
                 cumulativeLayoutShift: round(Number(state.cls) || 0),
                 layoutShiftEntries: Number(state.layoutShiftEntries) || 0,
+                layoutShiftSources: Array.isArray(state.layoutShiftSources) ? state.layoutShiftSources : [],
+                fontReadiness: {
+                  status: document.fonts.status,
+                  readyWithinCaptureWindow: fontsReadyWithinCaptureWindow,
+                  families: {
+                    playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
+                    dmSans: document.fonts.check('400 16px "DM Sans"')
+                  }
+                },
                 longTasks: {
                   count: Number(state.longTaskCount) || 0,
                   totalDurationMs: round(Number(state.longTaskDurationMs) || 0)
