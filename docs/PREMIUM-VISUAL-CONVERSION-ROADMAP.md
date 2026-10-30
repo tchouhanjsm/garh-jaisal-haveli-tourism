@@ -19,6 +19,22 @@
 - **CI regression repair:** the live-article hero-caption guard remains fail-closed; its test contract now matches the renderer's current error message rather than a stale string.
 - No blog content is published and canonical/robots/sitemap release gates remain unchanged.
 
+## Latest verified execution — 30 October 2026
+
+**Exact tested head:** `31cea722b6c5f566de44f26e18531988b94a3cdf`  
+**Workflow:** [Site Quality Gates run #40999330111](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40999330111) — **PASS**.
+
+- **M0 — automated visual baseline:** all eight core routes returned HTTP 200 on the local browser target; 24/24 full-page captures completed at 360, 768 and 1440 CSS px. The six-width responsive matrix (320, 360, 390, 768, 1280 and 1440 px), unknown-route 404 recovery, and evidence-integrity checks passed with zero automated failures. The evidence report deliberately remains `PENDING_OWNER_REVIEW`; no owner visual approval is inferred.
+- **M2 — Directions:** source-qualified arrival facts, hero summary, route steps, travel choices, section navigation, map/address guidance and arrival enquiry passed the static and Chromium contracts. Responsive section navigation and sticky-booking-bar obstruction behavior passed across the six-width matrix. The 360px and 1440px page captures are available in the visual artifact. Human visual/staging UAT remains pending.
+- **M3 — local Journal preview:** all 12 draft records loaded. Archive, article and media workbench rendered and passed overflow/interaction checks at all six viewport widths. Six complete full-page archive/article/media captures were produced at 390 and 1280 px. Search/topic intersection, no-match recovery, Enter/Space article activation, Back/focus restoration, live TOC targets, safe HTTPS source links and related-draft navigation passed.
+- **M3 — Journal DOM defect resolved:** the article panel was a descendant of the archive element that the UI hides when an article opens. The panel was moved to a sibling of the hideable archive and a source-level contract now protects that ownership boundary. This resolves the previous keyboard/TOC visibility failure; it was a markup hierarchy defect, not a missing key handler.
+- **M4 — contextual conversion:** the existing route-specific conversion hierarchy and browser checks passed. Enquiry controls remain user-controlled; no booking or message is silently submitted.
+- **Guarded staging package:** package build, responsive-image manifest validation and packaged Chromium verification all passed. The package manifest reports 124 payload files and 65.36% of the 18 MiB budget; 63 WebP files/45 responsive variants were generated, responsive markup validated 39 picture elements and 138 `srcset` candidates, and packaged Chromium selection checks passed.
+- **Release isolation:** `RELEASE-MANIFEST.json` reports `deploymentPerformed=false`, `releaseStatus=BLOCKED_PENDING_MANUAL_UAT`, `publicIndexingEnabled=false`, `canonicalHostApproved=false`, `robotsPolicy=DISALLOW_ALL`, and `sitemapUrlCount=0`. Editorial isolation is PASS: all draft source records and Journal preview assets/directories are excluded and zero public blog HTML routes are generated.
+- **Artifacts:** [24-page visual baseline](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40999330111/artifacts/12953011242) · [Journal preview evidence](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40999330111/artifacts/12952707589) · [Guarded staging preview package](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/40999330111/artifacts/12952418223).
+
+**Still outstanding:** owner review of the screenshot artifact, manual owner-approved staging UAT, final visual score and explicit release approval. No production deployment or merge was performed.
+
 ## 1. Objective and bar
 
 Move Garh Jaisal Haveli from a coherent, well-structured static site to a distinctive, art-directed heritage-hospitality experience that can credibly compete with a high-budget custom website on visual craft, guest confidence, direct-enquiry clarity and operational quality.
