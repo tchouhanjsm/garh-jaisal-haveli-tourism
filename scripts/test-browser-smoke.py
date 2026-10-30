@@ -2721,6 +2721,11 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         check(False, f"Journal media workbench: five unique candidate paths should render ({error})")
         return
     check(media_cards.count() == 5, "Journal media workbench: candidate paths must be deduplicated to five cards")
+    accessible_previews = media_cards.locator("img").evaluate_all(
+        "(images) => images.length === 5 && images.every(image => image.alt.trim().length > 0 && !image.hasAttribute('aria-hidden'))"
+    )
+    check(accessible_previews,
+          "Journal media workbench: candidate previews must expose a non-empty accessible name without being hidden from assistive technology")
     try:
         page.wait_for_function("document.querySelector('[data-media-workbench]')?.dataset.mediaManifestState === 'available'", timeout=10000)
     except Exception as error:
