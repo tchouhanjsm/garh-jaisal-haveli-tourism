@@ -286,6 +286,30 @@ def valid_performance_evidence() -> list[dict]:
                     "status": "loaded",
                     "readyWithinCaptureWindow": True,
                     "families": {"playfairDisplay": True, "dmSans": True},
+                    "layoutSnapshots": [
+                        {
+                            "phase": "sample-before-font-wait",
+                            "atMs": 12.0,
+                            "fontStatus": "loading",
+                            "families": {"playfairDisplay": False, "dmSans": False},
+                            "elements": {
+                                "content": {"x": 0.0, "y": 100.0, "width": 640.0, "height": 360.0},
+                                "heading": {"x": 0.0, "y": 180.0, "width": 640.0, "height": 112.0},
+                                "supportingCopy": {"x": 0.0, "y": 310.0, "width": 640.0, "height": 50.0},
+                            },
+                        },
+                        {
+                            "phase": "sample-after-font-wait",
+                            "atMs": 28.0,
+                            "fontStatus": "loaded",
+                            "families": {"playfairDisplay": True, "dmSans": True},
+                            "elements": {
+                                "content": {"x": 0.0, "y": 88.0, "width": 640.0, "height": 372.0},
+                                "heading": {"x": 0.0, "y": 168.0, "width": 640.0, "height": 124.0},
+                                "supportingCopy": {"x": 0.0, "y": 310.0, "width": 640.0, "height": 62.0},
+                            },
+                        },
+                    ],
                 },
                 "longTasks": {"count": 0, "totalDurationMs": 0.0},
                 "sameOriginResources": {
@@ -329,7 +353,7 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 7
+assert incomplete_report["schemaVersion"] == 8
 assert incomplete_report["automatedResult"] == "FAIL"
 assert incomplete_report["automatedFailureCount"] == 6
 assert incomplete_report["evidenceCoverage"] == {
@@ -448,6 +472,24 @@ invalid_layout_diagnostics = browser_smoke.build_report(
 assert invalid_layout_diagnostics["automatedResult"] == "FAIL"
 assert invalid_layout_diagnostics["performanceBaseline"]["complete"] is False
 assert invalid_layout_diagnostics["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+
+missing_font_layout_snapshots = [dict(record) for record in performance_evidence]
+missing_font_layout_snapshots[0]["fontReadiness"] = dict(missing_font_layout_snapshots[0]["fontReadiness"])
+missing_font_layout_snapshots[0]["fontReadiness"].pop("layoutSnapshots")
+invalid_font_layout_snapshots = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_font_layout_snapshots,
+)
+assert invalid_font_layout_snapshots["automatedResult"] == "FAIL"
+assert invalid_font_layout_snapshots["performanceBaseline"]["complete"] is False
+assert invalid_font_layout_snapshots["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
