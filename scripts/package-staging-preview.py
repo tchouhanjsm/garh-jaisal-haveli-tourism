@@ -1565,6 +1565,21 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     markup_validation = validate_responsive_markup(
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS)
     )
+    delivery_evidence = {
+        "measurementClass": "packaged-chromium-laboratory-diagnostic",
+        "fieldDataAvailable": False,
+        "candidateBytesAreTransferMeasurements": False,
+        "candidateSavingsVersusJpegFallbackInferred": False,
+        "sourceImageCount": len(image_sources),
+        "responsiveCandidateCount": len(responsive_variants),
+        "responsiveCandidateBytes": responsive_variant_bytes,
+        "packageValidation": markup_validation,
+        "notes": [
+            "Candidate byte counts are exact packaged file sizes, not browser transfer measurements.",
+            "Packaged Chromium records selected-candidate HTTP status, encoded body bytes and transfer bytes separately.",
+            "No field Core Web Vitals or production performance claim is inferred."
+        ],
+    }
     source_jpeg_bytes = sum(item["fallbackBytes"] for item in image_sources)
     optimized_jpeg_source_bytes = sum(
         item["sourceBytes"] for item in image_sources if item["sourceFormat"] == "JPEG"
@@ -1621,6 +1636,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         "verifiedWebpCandidateCount": len(generated_files),
         "verifiedWebpCandidates": sorted(generated_files, key=lambda item: item["path"]),
         "responsiveMarkupValidation": markup_validation,
+        "deliveryEvidence": delivery_evidence,
         "rewrittenHtmlRoutes": [path.relative_to(output).as_posix() for path in rewritten],
     }
 
