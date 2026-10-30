@@ -374,6 +374,11 @@ def build_report(mode: str, base_url: str, operator: str | None,
                 and record["navigation"][key] >= 0
                 for key in ("responseStartMs", "domContentLoadedMs", "loadEventEndMs")
             )
+            and record.get("observerSupport", {}).get("lcp") is True
+            and record.get("observerSupport", {}).get("layoutShift") is True
+            and isinstance(record.get("largestContentfulPaint"), dict)
+            and isinstance(record["largestContentfulPaint"].get("valueMs"), (int, float))
+            and record["largestContentfulPaint"]["valueMs"] > 0
             and isinstance(record.get("cumulativeLayoutShift"), (int, float))
             and record["cumulativeLayoutShift"] >= 0
             and isinstance(record.get("sameOriginResources"), dict)
@@ -404,7 +409,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
     page_http_complete = http_ok_pages == planned_pages
     viewport_complete = completed_viewport_list == planned_viewports
     evidence_complete = (page_attempts_complete and page_http_complete and viewport_complete
-                         and screenshot_complete and unknown_route_complete)
+                         and screenshot_complete and unknown_route_complete and performance_complete)
 
     return {
         "schemaVersion": 6,
@@ -423,6 +428,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "pageHttp200Complete": page_http_complete,
             "responsiveViewportsComplete": viewport_complete,
             "unknownRouteRecoveryComplete": unknown_route_complete,
+            "routePerformanceBaselineComplete": performance_complete,
             "complete": evidence_complete,
         },
         "automatedResult": "PASS" if not reported_failures else "FAIL",
@@ -501,7 +507,8 @@ def install_performance_observers(context) -> None:
             cls: 0,
             layoutShiftEntries: 0,
             longTaskCount: 0,
-            longTaskDurationMs: 0
+            longTaskDurationMs: 0,
+            observerSupport: {lcp: false, layoutShift: false, longTask: false}
           };
           try {
             new PerformanceObserver(list => {
@@ -530,6 +537,7 @@ def install_performance_observers(context) -> None:
                 }
               }
             }).observe({type: "largest-contentful-paint", buffered: true});
+            state.observerSupport.lcp = true;
           } catch (_) {}
           try {
             new PerformanceObserver(list => {
@@ -540,6 +548,7 @@ def install_performance_observers(context) -> None:
                 }
               }
             }).observe({type: "layout-shift", buffered: true});
+            state.observerSupport.layoutShift = true;
           } catch (_) {}
           try {
             new PerformanceObserver(list => {
@@ -548,6 +557,7 @@ def install_performance_observers(context) -> None:
                 state.longTaskDurationMs += entry.duration;
               }
             }).observe({type: "longtask", buffered: true});
+            state.observerSupport.longTask = true;
           } catch (_) {}
           Object.defineProperty(window, "__gjhPerformance", {
             configurable: false,
@@ -563,7 +573,7 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
     try:
         page.wait_for_load_state("load", timeout=10000)
         sample = page.evaluate(
-            """async () => {
+            r"""async () => {
               await Promise.race([
                 document.fonts.ready,
                 new Promise(resolve => setTimeout(resolve, 1500))
@@ -607,6 +617,7 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
               }
               const lcp = state.lcp && Number.isFinite(state.lcp.valueMs) ? state.lcp : null;
               return {
+                observerSupport: state.observerSupport || {lcp: false, layoutShift: false, longTask: false},
                 navigation: navigation ? {
                   responseStartMs: round(navigation.responseStart),
                   domContentLoadedMs: round(navigation.domContentLoadedEventEnd),
