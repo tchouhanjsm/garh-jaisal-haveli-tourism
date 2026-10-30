@@ -50,7 +50,7 @@ assert.match(siteCss, /--focus-ring:\s*3px solid/, 'keyboard focus ring must be 
 assert.ok(siteCss.includes('--type-meta: 11px'), 'canonical CSS must own a compact metadata role');
 assert.ok(siteCss.includes('--type-label: 12px'), 'canonical CSS must own an interactive label role');
 assert.ok(siteCss.includes('--type-support: 14px'), 'canonical CSS must own a readable support-copy role');
-assert.ok(siteCss.includes('--type-body: 16px'), 'canonical CSS must retain a 15px body baseline');
+assert.ok(siteCss.includes('--type-body: 16px'), 'canonical CSS must retain a 16px body baseline');
 assert.ok(css.includes('.guest-journey__copy small') && css.includes('font-size: var(--type-label)'),
   'guest-journey descriptions must use the shared readable label role');
 assert.ok(css.includes('.experience-card p') && css.includes('font-size: var(--type-support)'),
@@ -116,6 +116,32 @@ assert.match(stayPlannerJs, /whatsappButton\.addEventListener\('click'/,
   'the planner must only launch its external handoff after an explicit click');
 assert.match(stayPlannerCss, /\.stay-planner__quick-links a:focus-visible/,
   'quick decision links must have a visible keyboard focus state');
+
+function tokenHex(name) {
+  const tokenLine = siteCss.split(/\r?\n/).find(line => line.trim().startsWith('--' + name + ':'));
+  const match = tokenLine && tokenLine.match(/#[0-9a-f]{6}/i);
+  assert.ok(match, 'expected canonical colour token --' + name);
+  return match[0];
+}
+function relativeLuminance(hex) {
+  const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+function contrastRatio(foreground, background) {
+  const first = relativeLuminance(foreground);
+  const second = relativeLuminance(background);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+for (const [label, foreground, background] of [
+  ['primary saffron action', tokenHex('saffron'), tokenHex('white')],
+  ['deep brass text', tokenHex('gold-dark'), tokenHex('paper')],
+  ['fort-green body contrast', tokenHex('ink'), tokenHex('paper')],
+  ['peacock focus state', tokenHex('peacock'), tokenHex('white')],
+]) {
+  const ratio = contrastRatio(foreground, background);
+  assert.ok(ratio >= 4.5, label + ' must meet WCAG AA normal-text contrast; observed ' + ratio.toFixed(2));
+}
 
 const photoHeroContracts = {
   'experiences.html': ['assets/images/gallery/desert/camp-evening.jpeg', 'White desert-camp tents illuminated after dark beneath the open night sky'],

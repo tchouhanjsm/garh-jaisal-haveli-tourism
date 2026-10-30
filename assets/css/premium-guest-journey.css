@@ -1012,3 +1012,19 @@ body {
   .guest-journey { padding-inline:16px; }
 }
 @media(prefers-reduced-motion:reduce) { #plan-stay .home-plan-path,.guest-journey__step { transition:none; } }
+
+
+/* M16 finishing detail: controls share the canonical radius and warm surface. */
+.field input,
+.field select,
+.booking-form input,
+.booking-form select,
+.guest-enquiry-form input,
+.guest-enquiry-form select,
+.guest-enquiry-form textarea,
+.dining-restaurant input,
+.dining-restaurant select,
+.dining-restaurant textarea,
+.guest-enquiry-recovery textarea {
+  border-radius: var(--control-radius);
+}
