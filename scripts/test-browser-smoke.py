@@ -3225,10 +3225,16 @@ def check_room_finder(page, base_url: str, browser) -> None:
         """() => {
           window.__roomCompareOpenCalls = [];
           window.__roomCompareClipboardWrites = [];
+          window.__roomFinderClipboardWrites = [];
           Object.defineProperty(navigator, 'clipboard', {
             configurable: true,
             value: { writeText: async function(text) {
-              window.__roomCompareClipboardWrites.push(String(text));
+              const value = String(text);
+              if (value.includes('#room-finder?')) {
+                window.__roomFinderClipboardWrites.push(value);
+              } else {
+                window.__roomCompareClipboardWrites.push(value);
+              }
             } }
           });
           window.open = function(url, target, features) {
@@ -3261,6 +3267,31 @@ def check_room_finder(page, base_url: str, browser) -> None:
           "Rooms: Ground floor filter must show only the three source-listed ground-floor rooms")
     check("3 of seven" in (status.text_content() or ""),
           "Rooms: live result status must announce the ground-floor count")
+    share_button = finder.locator("[data-room-share]")
+    check(not share_button.is_disabled(),
+          "Rooms: active catalogue filters must enable the share-link control")
+    share_button.click()
+    page.wait_for_function(
+        "() => Array.isArray(window.__roomFinderClipboardWrites) && window.__roomFinderClipboardWrites.length === 1",
+        timeout=5000,
+    )
+    copied_filter_url = page.evaluate("window.__roomFinderClipboardWrites[0]")
+    check("#room-finder?floor=ground" in copied_filter_url,
+          "Rooms: copied filter link must encode the selected floor in the URL fragment")
+    check("Filter link copied" in (status.text_content() or ""),
+          "Rooms: successful clipboard copy must be announced accessibly")
+    shared_page = page.context.new_page()
+    try:
+        shared_page.goto(copied_filter_url, wait_until="domcontentloaded", timeout=15000)
+        shared_finder = shared_page.locator("[data-room-finder]")
+        shared_cards = shared_page.locator("#room-card-grid .room-card--named")
+        check(shared_finder.locator("[data-room-floor-filter]").input_value() == "ground",
+              "Rooms: opening a shared filter URL must restore the floor selection")
+        check(shared_cards.evaluate_all("items => items.filter(card => !card.hidden).map(card => card.id)")
+              == ["room-sweet-purple", "room-rising-sun", "room-scarlet"],
+              "Rooms: opening a shared filter URL must restore the matching visible catalogue cards")
+    finally:
+        shared_page.close()
 
     floor.select_option("first")
     finder.locator('[data-room-feature-filter][value="king-bed"]').check()
