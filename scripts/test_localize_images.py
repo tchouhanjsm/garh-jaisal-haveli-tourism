@@ -173,6 +173,88 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
             self.assertEqual(source_webp.read_bytes(), original_webp)
 
+    def test_source_backed_rooms_hero_webp_is_responsive_and_preloaded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fallback = create_jpeg(root, "rooms/haveli-interior.jpg", (1600, 1066))
+            source_webp = create_webp(root, "rooms/haveli-sitting-room.webp", (1600, 1066))
+            original_webp = source_webp.read_bytes()
+
+            generated = generate_responsive_variants(root, ("rooms/haveli-interior.jpg",))
+            entry = generated["rooms/haveli-interior.jpg"]
+            self.assertEqual(source_webp.read_bytes(), original_webp)
+            self.assertEqual(entry["sourceFormat"], "WEBP")
+            self.assertEqual(entry["sourcePath"], "assets/images/rooms/haveli-sitting-room.webp")
+            self.assertEqual(entry["fullSizePath"], "assets/images/rooms/haveli-sitting-room.webp")
+            self.assertEqual(entry["fullSizeSavingsBytes"], 0)
+            self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
+            self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
+
+            html = (
+                '<link rel="preload" as="image" href="assets/images/rooms/haveli-interior.jpg" '
+                'type="image/jpeg" fetchpriority="high">'
+                '<picture class="page-hero__picture">'
+                '<source type="image/webp" srcset="assets/images/rooms/haveli-sitting-room.webp">'
+                '<img src="assets/images/rooms/haveli-interior.jpg" '
+                'alt="Traditional sandstone sitting area with carved wooden furniture and patterned textiles inside the haveli" '
+                'width="1600" height="1066" fetchpriority="high" loading="eager" decoding="async">'
+                '</picture>'
+            )
+            rewritten = rewrite_html_text(html, "responsive", root=root)
+            self.assertEqual(rewritten.count("<source"), 1)
+            self.assertIn('data-responsive-image="true"', rewritten)
+            self.assertIn(
+                "assets/images/responsive/rooms/haveli-interior-320.webp 320w",
+                rewritten,
+            )
+            self.assertIn(
+                "assets/images/rooms/haveli-sitting-room.webp 1600w",
+                rewritten,
+            )
+            self.assertIn('sizes="100vw"', rewritten)
+            self.assertIn('src="assets/images/rooms/haveli-interior.jpg"', rewritten)
+            self.assertIn('data-responsive-image-fallback="true"', rewritten)
+            self.assertIn('href="assets/images/rooms/haveli-sitting-room.webp"', rewritten)
+            self.assertIn(
+                'imagesrcset="assets/images/responsive/rooms/haveli-interior-320.webp 320w',
+                rewritten,
+            )
+            self.assertIn('imagesizes="100vw"', rewritten)
+            self.assertIn('type="image/webp"', rewritten)
+
+            page = root / "rooms.html"
+            page.write_text(rewritten, encoding="utf-8")
+            candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+            generated_files = []
+            for relative in candidate_paths:
+                target = root / relative
+                with Image.open(target) as decoded:
+                    decoded.load()
+                    generated_files.append({
+                        "path": relative,
+                        "bytes": target.stat().st_size,
+                        "sha256": "0" * 64,
+                        "width": decoded.width,
+                        "height": decoded.height,
+                    })
+            source_record = [{
+                "sourceJpeg": "assets/images/rooms/haveli-interior.jpg",
+                "sourceFormat": "WEBP",
+                "sourceWebp": "assets/images/rooms/haveli-sitting-room.webp",
+                "naturalWidth": entry["width"],
+                "naturalHeight": entry["height"],
+                "fullSizeWebp": entry["fullSizePath"],
+            }]
+            report = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root, generated_files, source_record, RESPONSIVE_WIDTHS
+            )
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["responsivePictureCount"], 1)
+            self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
+            self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
+            self.assertEqual(source_webp.read_bytes(), original_webp)
+            self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
+
     def test_generated_jpeg_derivative_refuses_to_overwrite_an_unmapped_webp_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -813,6 +895,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 size = (1200, 800) if Path(name).name in {"rest3.jpg", "courtyard.jpg"} else (900, 600)
                 create_jpeg(root, name, size)
             create_webp(root, "rooms/sweet-purple.webp", (900, 600))
+            create_webp(root, "rooms/haveli-sitting-room.webp", (900, 600))
             home = root / "index.html"
             rooms = root / "rooms.html"
             home.write_text(

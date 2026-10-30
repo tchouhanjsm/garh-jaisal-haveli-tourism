@@ -23,6 +23,7 @@ IMAGE_NAMES = (
     "legacy/fort-temple-spires.jpg",
     "rooms/rising-sun.jpg",
     "rooms/opium.jpg",
+    "rooms/haveli-interior.jpg",
     "rooms/sweet-purple.jpg",
     "rooms/red-maharani.jpg",
     "rooms/green.jpg",
@@ -38,10 +39,11 @@ IMAGE_NAMES = (
     "gallery/desert/camp-from-above.jpeg",
     "dining/rooftop-candlelit-table.jpg",
 )
-# Sweet Purple has a separately source-backed alternate WebP framing. Its JPEG is
-# only the compatibility fallback; never regenerate over the original WebP.
+# Sweet Purple and the Rooms hero have separately source-backed WebP assets.
+# Their JPEGs are compatibility fallbacks; never regenerate over the originals.
 RESPONSIVE_SOURCE_OVERRIDES = {
     "rooms/sweet-purple.jpg": "rooms/sweet-purple.webp",
+    "rooms/haveli-interior.jpg": "rooms/haveli-sitting-room.webp",
 }
 SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
