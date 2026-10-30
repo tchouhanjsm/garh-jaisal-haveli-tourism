@@ -725,7 +725,11 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
 
 
 def rewrite_site(
-    root: Path, extension: str, *, return_report: bool = False
+    root: Path,
+    extension: str,
+    *,
+    return_report: bool = False,
+    image_names: tuple[str, ...] = IMAGE_NAMES,
 ) -> list[Path] | tuple[list[Path], dict[str, dict]]:
     """Rewrite regular root-level HTML pages; optionally return responsive generation evidence."""
     root = _resolve_site_root(root)
@@ -736,7 +740,7 @@ def rewrite_site(
             raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
 
     if extension == "responsive":
-        generation_report = generate_responsive_variants(root)
+        generation_report = generate_responsive_variants(root, image_names)
 
     # Render every page before writing any of them. A bad later page must not leave a
     # partially rewritten site, and a symlinked route must never redirect writes outside root.
