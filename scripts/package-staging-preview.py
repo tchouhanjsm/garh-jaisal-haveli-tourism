@@ -148,7 +148,10 @@ def validate_responsive_markup(
                 or fallback_path != source_record["sourceJpeg"]
                 or not fallback_path.lower().endswith((".jpg", ".jpeg"))
             ):
-                fail(f"{page.name}: responsive picture has an unapproved or mismatched JPEG fallback.")
+                fail(
+                    f"{page.name}: responsive picture has an unapproved or mismatched JPEG "
+                    f"fallback: {fallback_path or '[missing src]'}."
+                )
             natural_width = int(source_record["naturalWidth"])
             natural_height = int(source_record["naturalHeight"])
             if (
@@ -1354,6 +1357,46 @@ def inventory_package_files(output: Path) -> list[dict]:
     return entries
 
 
+def collect_responsive_fallback_sources(
+    output: Path, allowed_sources: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Collect the allowlisted JPEGs actually rewritten into responsive picture markup."""
+    allowed = set(allowed_sources)
+    source_names: list[str] = []
+    for page in sorted(output.glob("*.html")):
+        if page.is_symlink() or not page.is_file():
+            fail(f"Responsive markup route is unsafe: {page.name}")
+        parser = ResponsivePictureParser()
+        try:
+            parser.feed(page.read_text(encoding="utf-8"))
+            parser.close()
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            fail(f"Responsive markup could not be read in {page.name}: {error}")
+        for picture in parser.pictures:
+            for fallback in picture["fallbacks"]:
+                fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
+                try:
+                    relative = PurePosixPath(fallback_path).relative_to(
+                        PurePosixPath("assets/images")
+                    )
+                except ValueError:
+                    fail(
+                        f"{page.name}: responsive JPEG fallback must remain under "
+                        f"assets/images/: {fallback_path or '[missing src]'}."
+                    )
+                filename = relative.as_posix()
+                if filename not in allowed or not filename.lower().endswith((".jpg", ".jpeg")):
+                    fail(
+                        f"{page.name}: responsive JPEG fallback is outside the approved "
+                        f"image-source allowlist: {fallback_path or '[missing src]'}."
+                    )
+                if filename not in source_names:
+                    source_names.append(filename)
+    if not source_names:
+        fail("No allowlisted JPEG fallbacks were found in responsive picture markup.")
+    return tuple(source_names)
+
+
 def apply_responsive_image_delivery(output: Path) -> dict:
     """Generate and verify WebP variants against real source photos in the temporary package."""
     generator_path = ROOT / "scripts" / "rewrite_image_refs.py"
@@ -1364,26 +1407,9 @@ def apply_responsive_image_delivery(output: Path) -> dict:
     spec.loader.exec_module(generator)
 
     rewritten = generator.rewrite_site(output, "responsive")
-    sources = (
-        "rest3.jpg",
-        "courtyard.jpg",
-        "scarlet.jpg",
-        "tent.jpg",
-        "legacy/camel-day.jpg",
-        "legacy/camel-sunset.jpg",
-        "legacy/fort-temple-spires.jpg",
-        "rooms/rising-sun.jpg",
-        "rooms/opium.jpg",
-        "rooms/red-maharani.jpg",
-        "rooms/green.jpg",
-        "rooms/bluesky.jpg",
-        "experiences/cultural-programme.jpg",
-        "experiences/swiss-tent-detail.jpeg",
-        "experiences/heritage-architecture.jpg",
-        "gallery/desert/camp-evening.jpeg",
-        "gallery/desert/camp-from-above.jpeg",
-        "dining/rooftop-candlelit-table.jpg",
-    )
+    # Derive the package manifest from the rewritten markup instead of maintaining
+    # a second, drift-prone list beside the generator's explicit source allowlist.
+    sources = collect_responsive_fallback_sources(output, tuple(generator.IMAGE_NAMES))
     generated_files: list[dict] = []
     image_sources: list[dict] = []
     for filename in sources:
