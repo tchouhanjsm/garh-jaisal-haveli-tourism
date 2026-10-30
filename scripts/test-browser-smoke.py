@@ -2814,8 +2814,16 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     clear.click()
     check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear filters must restore all drafts")
 
-    page.locator('[data-journal-open="jaisalmer-fort-guide"]').first.press("Enter")
+    article_trigger=page.locator('[data-journal-open="jaisalmer-fort-guide"]').first
+    article_trigger.focus()
+    check(page.evaluate("() => document.activeElement && document.activeElement.matches('[data-journal-open=\\\"jaisalmer-fort-guide\\\"]')"),
+          "Journal preview: the article card must receive keyboard focus before activation")
+    page.keyboard.press("Enter")
     article=page.locator("[data-journal-article]")
+    try:
+        page.wait_for_function("() => { const panel = document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=5000)
+    except Exception as error:
+        check(False,f"Journal preview: Enter activation must reveal the article panel ({error})")
     check(article.is_visible(),"Journal preview: keyboard activation must open an article")
     check(article.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
           "Journal preview: heading must come from the article record")
@@ -2878,6 +2886,22 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
           "Journal preview: Back must restore focus to the search field")
     check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
           "Journal preview: interactions must remain on the local preview route")
+
+    # Verify Space activation on a separate draft card as well as Enter activation above.
+    space_trigger=page.locator('[data-journal-open="staying-inside-jaisalmer-fort"]').first
+    space_trigger.focus()
+    page.keyboard.press("Space")
+    try:
+        page.wait_for_function("() => { const panel = document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=5000)
+    except Exception as error:
+        check(False,f"Journal preview: Space activation must reveal the article panel ({error})")
+    check(article.is_visible(),"Journal preview: Space activation must open an article")
+    check(article.locator("#journal-article-title").inner_text()=="Staying Inside Jaisalmer Fort: What to Know",
+          "Journal preview: Space activation must open the focused draft card")
+    space_back=article.locator("[data-journal-back]").first
+    space_back.focus()
+    page.keyboard.press("Enter")
+    check(article.is_hidden(),"Journal preview: keyboard Back must close the Space-opened article")
 
     evidence={
         "schemaVersion":2,"scope":"local-only-editorial-preview","route":"preview/journal.html",

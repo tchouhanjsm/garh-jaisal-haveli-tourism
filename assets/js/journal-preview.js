@@ -257,11 +257,20 @@ if(!sources.children.length)sources.append(el('li','','No validated source links
 (r.relatedBlogs||[]).forEach(slug=>{const match=records.find(other=>other.slug===slug);if(!match||match.slug===r.slug)return;const btn=el('button','',match.title);btn.type='button';btn.dataset.journalRelated=match.slug;related.append(btn);});
 if(!related.children.length)related.append(el('p','','No related draft notes are linked yet.'));
 panel.focus({preventScroll:true});panel.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
+function openFromKeyboard(event){
+if(event.defaultPrevented||event.repeat||event.isComposing||(event.key!=='Enter'&&event.key!==' '))return;
+const trigger=event.target&&typeof event.target.closest==='function'?event.target.closest('[data-journal-open]'):null;
+if(!trigger||trigger.disabled)return;
+const record=records.find(item=>item.slug===trigger.dataset.journalOpen);
+if(!record)return;
+event.preventDefault();
+showArticle(record);
+}
 function back(){panel.hidden=true;archive.hidden=false;search.focus({preventScroll:true});search.scrollIntoView({block:'center',behavior:'auto'});}
 function openFrom(event){const btn=event.target.closest('[data-journal-open],[data-journal-related]');if(!btn)return;const slug=btn.dataset.journalOpen||btn.dataset.journalRelated;const r=records.find(x=>x.slug===slug);if(r)showArticle(r);}
 search.addEventListener('input',renderArchive);topic.addEventListener('change',renderArchive);clear.addEventListener('click',()=>{search.value='';topic.value='all';renderArchive();search.focus();});
 if(mediaSearch)mediaSearch.addEventListener('input',renderMediaWorkbench);if(mediaRole)mediaRole.addEventListener('change',renderMediaWorkbench);if(mediaSource)mediaSource.addEventListener('change',renderMediaWorkbench);if(mediaClear)mediaClear.addEventListener('click',()=>{mediaSearch.value='';mediaRole.value='all';mediaSource.value='all';renderMediaWorkbench();mediaSearch.focus();});
-related.addEventListener('click',openFrom);backs.forEach(b=>b.addEventListener('click',back));
+related.addEventListener('click',openFrom);root.addEventListener('keydown',openFromKeyboard,true);backs.forEach(b=>b.addEventListener('click',back));
 const recordRequest=Promise.all(slugs.map(slug=>fetch('../content/blogs/'+slug+'.json',{credentials:'omit',cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Missing draft '+slug);return response.json();}).then(record=>{if(record.slug!==slug||record.status!=='draft'||!labels[record.topic])throw new Error('Ineligible draft '+slug);return record;})));
 const manifestRequest=fetch('../docs/MEDIA-MIGRATION-MANIFEST.json',{credentials:'omit',cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Media migration manifest unavailable');return response.json();}).catch(()=>null);
 recordRequest.then(data=>{records=data;buildTopics();renderArchive();buildMediaWorkbench();manifestRequest.then(manifest=>{mediaManifest=manifest;buildMediaWorkbench();});}).catch(()=>{results.textContent='The draft preview could not load its records.';error.hidden=false;featured.replaceChildren();grid.replaceChildren();if(mediaSummary)mediaSummary.textContent='Candidate media evidence could not be loaded because the draft records are unavailable.';if(mediaWorkbench)mediaWorkbench.setAttribute('aria-busy','false');});
