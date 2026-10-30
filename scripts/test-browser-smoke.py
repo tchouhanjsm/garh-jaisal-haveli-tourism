@@ -1834,26 +1834,14 @@ def check_404_recovery(page, base_url: str) -> dict:
 
 
 def activate_disclosure_summary(page, disclosure, description: str) -> None:
-    """Scroll a native disclosure summary into a stable viewport before pointer activation."""
+    """Open a native disclosure with keyboard input under the reduced-motion preference."""
     summary = disclosure.locator("summary")
-    summary.evaluate(
-        """async (element) => {
-          element.scrollIntoView({
-            block: "center",
-            inline: "nearest",
-            behavior: "instant"
-          });
-          await new Promise(requestAnimationFrame);
-          await new Promise(requestAnimationFrame);
-          const rect = element.getBoundingClientRect();
-          if (rect.top < 0 || rect.bottom > window.innerHeight ||
-              rect.left < 0 || rect.right > window.innerWidth) {
-            throw new Error("Disclosure summary did not settle inside the viewport");
-          }
-        }"""
-    )
-    summary.click(timeout=5000)
-    check(disclosure.evaluate("(element) => element.open"), description)
+    page.emulate_media(reduced_motion="reduce")
+    try:
+        summary.press("Enter", timeout=5000)
+        check(disclosure.get_attribute("open") is not None, description)
+    finally:
+        page.emulate_media(reduced_motion="no-preference")
 
 
 def check_stay_planner(page, base_url: str) -> None:
