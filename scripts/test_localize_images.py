@@ -435,7 +435,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             html = (
                 '<link rel="preload" as="image" href="assets/images/directions/haveli-facade.webp" '
                 f'type="image/webp" imagesrcset="{preload_srcset}" imagesizes="100vw" fetchpriority="high">'
-                '<picture class="page-hero__picture responsive-image">'
+                '<picture class="page-hero__picture">'
                 '<source type="image/webp" srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'
                 '<img src="assets/images/directions/haveli-facade.jpg" '
                 'alt="Carved sandstone facade of Hotel Garh Jaisal, with the hotel name visible beside the entrance" '

@@ -164,23 +164,14 @@ for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) 
 }
 
 const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
-const galleryHeroSrcset = [
-  'assets/images/responsive/directions/haveli-facade-320.webp 320w',
-  'assets/images/responsive/directions/haveli-facade-480.webp 480w',
-  'assets/images/responsive/directions/haveli-facade-768.webp 768w',
-  'assets/images/responsive/directions/haveli-facade-1200.webp 1200w',
-  'assets/images/directions/haveli-facade.webp 1333w',
-].join(', ');
-assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture responsive-image">'),
-  'gallery.html: the source-backed hero must use a responsive picture wrapper');
-assert.ok(galleryHeroHtml.includes('srcset="' + galleryHeroSrcset + '"'),
-  'gallery.html: responsive hero candidates must match the generated width ladder');
-assert.ok(galleryHeroHtml.includes('imagesrcset="' + galleryHeroSrcset + '"'),
-  'gallery.html: the high-priority preload must use the same responsive candidate set');
-assert.ok(galleryHeroHtml.includes('imagesizes="100vw"'),
-  'gallery.html: responsive hero preload must declare the 100vw slot');
+assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture">'),
+  'gallery.html: the source-backed hero must use the shared page-hero picture wrapper');
+assert.ok(galleryHeroHtml.includes('<source type="image/webp" srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'),
+  'gallery.html: source HTML must retain only the verified full-size WebP; packaging generates the responsive candidates');
 assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade.webp"'),
   'gallery.html: hero preload must retain the original source-backed WebP');
+assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
+  'gallery.html: generated preload candidates must not reference files before the staging pipeline creates them');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
