@@ -52,12 +52,18 @@ SOURCE_PREFIX = (
 RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
-# Byte ceilings are limited to the largest/highest-value 1200px derivatives.
-# Original JPEG/WebP sources and unbudgeted candidates remain untouched.
+# Byte ceilings protect high-value responsive candidates without changing
+# JPEG fallbacks or independently source-backed WebP originals.
 RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/courtyard-1200.webp": 250_000,
+    "assets/images/responsive/courtyard-1600.webp": 250_000,
     "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
     "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
+}
+# The Directions hero's 2200px JPEG-derived WebP is generated in the isolated
+# package and may be quality-adjusted; the source JPEG remains the fallback.
+FULL_SIZE_WEBP_MAX_BYTES = {
+    "assets/images/courtyard.webp": 450_000,
 }
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
@@ -310,12 +316,18 @@ def generate_responsive_variants(
                 image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
             width, height = image.size
             full_size = root / _full_size_webp_url(filename)
+            full_size_relative = full_size.relative_to(root).as_posix()
+            full_size_max_bytes = None
+            full_size_encoding = None
             if source_filename == filename:
-                _save_webp(
+                full_size_max_bytes = FULL_SIZE_WEBP_MAX_BYTES.get(full_size_relative)
+                full_size_encoding = _save_webp(
                     image,
                     full_size,
                     icc_profile,
-                    preserve_different_existing=True,
+                    # Only an explicitly budgeted JPEG-derived output may be replaced.
+                    preserve_different_existing=full_size_max_bytes is None,
+                    max_bytes=full_size_max_bytes,
                 )
                 if full_size.stat().st_size >= source.stat().st_size:
                     raise RuntimeError(f"WebP derivative is not smaller than its JPEG source: {filename}")
@@ -366,6 +378,9 @@ def generate_responsive_variants(
                     source.stat().st_size - full_size.stat().st_size
                     if source_format == "JPEG" else 0
                 ),
+                "fullSizeQuality": full_size_encoding["quality"] if full_size_encoding else None,
+                "fullSizeQualityAttempts": full_size_encoding["qualityAttempts"] if full_size_encoding else [],
+                "fullSizeMaxBytes": full_size_encoding["maxBytes"] if full_size_encoding else None,
                 "variants": generated,
             }
     return output

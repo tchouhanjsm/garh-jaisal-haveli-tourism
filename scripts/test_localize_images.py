@@ -13,7 +13,9 @@ from unittest.mock import MagicMock, patch
 from PIL import Image, ImageDraw
 
 from rewrite_image_refs import (
+    FULL_SIZE_WEBP_MAX_BYTES,
     IMAGE_NAMES,
+    RESPONSIVE_VARIANT_MAX_BYTES,
     RESPONSIVE_WIDTHS,
     _save_webp,
     generate_responsive_variants,
@@ -121,6 +123,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             budget_path = "assets/images/responsive/rest3-480.webp"
             byte_budget = baseline_variant["bytes"] - 1
+            full_size_path = baseline["rest3.jpg"]["fullSizePath"]
+            full_size_budget = baseline["rest3.jpg"]["fullSizeBytes"] - 1
+            self.assertEqual(FULL_SIZE_WEBP_MAX_BYTES["assets/images/courtyard.webp"], 450_000)
+            self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES["assets/images/responsive/courtyard-1600.webp"], 250_000)
             page = root / "index.html"
             page.write_text(
                 '<img src="assets/images/rest3.jpg" alt="Rooftop terrace">',
@@ -130,6 +136,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             with patch(
                 "rewrite_image_refs.RESPONSIVE_VARIANT_MAX_BYTES",
                 {budget_path: byte_budget},
+            ), patch(
+                "rewrite_image_refs.FULL_SIZE_WEBP_MAX_BYTES",
+                {full_size_path: full_size_budget},
             ):
                 rewritten_pages, generation = rewrite_site(
                     root, "responsive", return_report=True, image_names=("rest3.jpg",)
@@ -145,6 +154,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(variant["qualityAttempts"][-1]["quality"], variant["quality"])
             self.assertEqual(variant["qualityAttempts"][-1]["bytes"], variant["bytes"])
             self.assertLessEqual(variant["bytes"], byte_budget)
+            self.assertEqual(entry["fullSizeMaxBytes"], full_size_budget)
+            self.assertLess(entry["fullSizeQuality"], 82)
+            self.assertGreater(len(entry["fullSizeQualityAttempts"]), 1)
+            self.assertEqual(entry["fullSizeQualityAttempts"][0]["quality"], 82)
+            self.assertEqual(entry["fullSizeQualityAttempts"][-1]["quality"], entry["fullSizeQuality"])
+            self.assertEqual(entry["fullSizeQualityAttempts"][-1]["bytes"], entry["fullSizeBytes"])
+            self.assertLessEqual(entry["fullSizeBytes"], full_size_budget)
 
             candidate_paths = [
                 entry["fullSizePath"],
@@ -170,6 +186,12 @@ class RewriteImageReferencesTests(unittest.TestCase):
                         "qualityAttempts": variant_metadata["qualityAttempts"],
                         "maxBytes": variant_metadata["maxBytes"],
                     })
+                if relative == entry["fullSizePath"] and entry["fullSizeMaxBytes"] is not None:
+                    record.update({
+                        "quality": entry["fullSizeQuality"],
+                        "qualityAttempts": entry["fullSizeQualityAttempts"],
+                        "maxBytes": entry["fullSizeMaxBytes"],
+                    })
                 generated_files.append(record)
 
             source_record = [{
@@ -177,6 +199,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
+                "fullSizeQuality": entry["fullSizeQuality"],
+                "fullSizeQualityAttempts": entry["fullSizeQualityAttempts"],
+                "fullSizeMaxBytes": entry["fullSizeMaxBytes"],
             }]
             packaged = _PACKAGE_PREVIEW.validate_responsive_markup(
                 root, generated_files, source_record, RESPONSIVE_WIDTHS
@@ -194,8 +219,14 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     root, generated_files, source_record, RESPONSIVE_WIDTHS
                 )
             full_size_record["bytes"] = actual_full_size_bytes
+            full_size_record["maxBytes"] = full_size_budget - 1
+            with self.assertRaisesRegex(RuntimeError, "exceeds its"):
+                _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root, generated_files, source_record, RESPONSIVE_WIDTHS
+                )
+            full_size_record["maxBytes"] = full_size_budget
 
-            budgeted_record = next(item for item in generated_files if item.get("maxBytes"))
+            budgeted_record = next(item for item in generated_files if item["path"] == budget_path)
             budgeted_record["maxBytes"] = budgeted_record["bytes"] - 1
             with self.assertRaisesRegex(RuntimeError, "exceeds its"):
                 _PACKAGE_PREVIEW.validate_responsive_markup(

@@ -235,6 +235,7 @@ def validate_responsive_markup(
                         or normalized_attempts[-1]["quality"] != quality
                         or normalized_attempts[-1]["bytes"] != metadata.get("bytes")
                         or normalized_attempts[-1]["bytes"] > max_bytes
+                        or any(attempt["bytes"] <= max_bytes for attempt in normalized_attempts[:-1])
                     ):
                         fail(f"{page.name}: responsive candidate quality-ladder evidence does not match its final bytes: {relative}")
                 if relative in seen_paths or declared_width in seen_widths:
@@ -1476,6 +1477,11 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         for source_record in generated_variants.values()
         for variant in source_record["variants"]
     }
+    full_size_metadata_by_path = {
+        source_record["fullSizePath"]: source_record
+        for source_record in generated_variants.values()
+        if source_record.get("fullSizeMaxBytes") is not None
+    }
     # Derive the package manifest from the rewritten markup instead of maintaining
     # a second, drift-prone list beside the generator's explicit source allowlist.
     sources = collect_responsive_fallback_sources(output, tuple(generator.IMAGE_NAMES))
@@ -1529,6 +1535,9 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             "fullSizeWebp": full_size.relative_to(output).as_posix(),
             "fullSizeBytes": full_size_bytes,
             "fullSizeSavingsBytes": savings_bytes,
+            "fullSizeQuality": generated_variants[filename].get("fullSizeQuality"),
+            "fullSizeQualityAttempts": generated_variants[filename].get("fullSizeQualityAttempts", []),
+            "fullSizeMaxBytes": generated_variants[filename].get("fullSizeMaxBytes"),
         })
         candidates = [full_size]
         responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
@@ -1557,6 +1566,13 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                     "quality": variant_metadata["quality"],
                     "qualityAttempts": variant_metadata["qualityAttempts"],
                     "maxBytes": variant_metadata["maxBytes"],
+                })
+            full_size_metadata = full_size_metadata_by_path.get(candidate_path)
+            if full_size_metadata is not None:
+                candidate_record.update({
+                    "quality": full_size_metadata["fullSizeQuality"],
+                    "qualityAttempts": full_size_metadata["fullSizeQualityAttempts"],
+                    "maxBytes": full_size_metadata["fullSizeMaxBytes"],
                 })
             generated_files.append(candidate_record)
             if candidate.resolve() != source_asset.resolve():
@@ -1594,6 +1610,21 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         }
         for item in budgeted_variants
     ]
+    budgeted_full_size_candidates = [
+        item for item in image_sources if item.get("fullSizeMaxBytes") is not None
+    ]
+    enforced_full_size_budgets = [
+        {
+            "path": item["fullSizeWebp"],
+            "maxBytes": item["fullSizeMaxBytes"],
+            "bytes": item["fullSizeBytes"],
+            "headroomBytes": item["fullSizeMaxBytes"] - item["fullSizeBytes"],
+            "quality": item["fullSizeQuality"],
+            "qualityAttempts": item["fullSizeQualityAttempts"],
+            "status": "PASS",
+        }
+        for item in budgeted_full_size_candidates
+    ]
     savings_bytes = sum(item["fullSizeSavingsBytes"] for item in image_sources)
     savings_percent = round((savings_bytes / optimized_jpeg_source_bytes) * 100, 2) if optimized_jpeg_source_bytes else 0
     delivery_evidence = {
@@ -1605,6 +1636,8 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         "responsiveCandidateCount": len(responsive_variants),
         "responsiveCandidateBytes": responsive_variant_bytes,
         "fullSizeJpegToWebpSavingsBytes": savings_bytes,
+        "enforcedFullSizeBudgetCount": len(enforced_full_size_budgets),
+        "enforcedFullSizeBudgetHeadroomBytes": sum(item["headroomBytes"] for item in enforced_full_size_budgets),
         "packageValidation": markup_validation,
         "notes": [
             "Candidate byte counts are exact packaged file sizes, not browser transfer measurements.",
@@ -1631,6 +1664,12 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             1 for item in enforced_variant_budgets if len(item["qualityAttempts"]) > 1
         ),
         "enforcedVariantByteBudgets": sorted(enforced_variant_budgets, key=lambda item: item["path"]),
+        "enforcedFullSizeBudgetCount": len(enforced_full_size_budgets),
+        "enforcedFullSizeBudgetHeadroomBytes": sum(item["headroomBytes"] for item in enforced_full_size_budgets),
+        "qualityAdjustedFullSizeCount": sum(
+            1 for item in enforced_full_size_budgets if len(item["qualityAttempts"]) > 1
+        ),
+        "enforcedFullSizeByteBudgets": sorted(enforced_full_size_budgets, key=lambda item: item["path"]),
         "sourceImages": image_sources,
         "generatedWebpFileCount": len(generated_output_files),
         "generatedWebpFiles": sorted(generated_output_files, key=lambda item: item["path"]),

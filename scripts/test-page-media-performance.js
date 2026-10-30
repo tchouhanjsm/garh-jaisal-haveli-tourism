@@ -51,6 +51,9 @@ const PATH_BUDGETS = new Map([
   ['assets/images/experiences/heritage-architecture.jpg', 300 * KIB],
   ['assets/images/legacy/rooftop-candlelight.webp', 100 * KIB],
   ['assets/images/courtyard.jpg', 650 * KIB],
+  ['assets/images/courtyard.webp', 450_000],
+  ['assets/images/responsive/courtyard-1200.webp', 250_000],
+  ['assets/images/responsive/courtyard-1600.webp', 250_000],
 ]);
 const errors = [];
 const referencedAssets = new Set();
