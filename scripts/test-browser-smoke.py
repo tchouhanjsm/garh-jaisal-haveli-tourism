@@ -2370,6 +2370,104 @@ def check_experience_discovery_journey(page, base_url: str) -> None:
               "Return-to-catalogue action must land on the experience options")
 
 
+def check_experience_detail_visual_refinement(page, base_url: str) -> None:
+    """Check real responsive layout, image decoding and text-first route caveats on itinerary details."""
+    expected = [
+        ("sunset-camel-safari-detail", "right", "assets/images/legacy/camel-sunset.jpg",
+         "Camel caravan silhouetted against the setting sun over desert dunes"),
+        ("cultural-safari-detail", "left", "assets/images/experiences/cultural-programme.jpg",
+         "Musicians performing on a small stage at a desert camp at night, with seated guests in the foreground"),
+        ("sleep-under-the-stars-detail", "right", "assets/images/tent.jpg",
+         "Open-air sleeping setup beneath a star-filled desert sky"),
+        ("swiss-tent-safari-detail", "left", "assets/images/experiences/swiss-tent-exterior.webp",
+         "White Swiss-style tents at a desert camp in warm evening light"),
+        ("half-day-jaisalmer-tour-detail", "right", "assets/images/gallery/hotel/fort-from-roof.webp",
+         "Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk"),
+        ("full-day-jaisalmer-tour-detail", "left", "assets/images/experiences/heritage-architecture.jpg",
+         "Ornate sandstone pavilion with carved arches, domed rooflines and stone railings"),
+        ("fort-heritage-walk-detail", "right", "assets/images/legacy/fort-temple-spires.jpg",
+         "Carved sandstone Jain temple spires rising above Jaisalmer"),
+    ]
+    for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
+        page.set_viewport_size({"width": width, "height": height})
+        response = page.goto(base_url + "experience-details.html",
+                             wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              f"Experience details: expected HTTP 200 at {width}px")
+        if response is None or response.status != 200:
+            continue
+        check(page.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+              f"Experience details: no horizontal overflow at {width}px")
+
+        for section_id, side, expected_src, expected_alt in expected:
+            section = page.locator("#" + section_id)
+            check(section.count() == 1,
+                  f"Experience details: expected one section for {section_id}")
+            if section.count() != 1:
+                continue
+            figure = section.locator("figure.experience-detail-media")
+            image = figure.locator("img")
+            check(figure.count() == 1 and image.count() == 1,
+                  f"{section_id}: exactly one source-matched photo reference must render")
+            if image.count() != 1:
+                continue
+            check(image.get_attribute("src") == expected_src,
+                  f"{section_id}: image must use its reviewed local subject reference")
+            check(image.get_attribute("alt") == expected_alt,
+                  f"{section_id}: image must retain its descriptive, subject-accurate alt text")
+            check(image.get_attribute("loading") == "lazy" and image.get_attribute("decoding") == "async",
+                  f"{section_id}: supporting image must lazy-load and decode asynchronously")
+            image.scroll_into_view_if_needed()
+            try:
+                page.wait_for_function(
+                    "(selector) => { const image = document.querySelector(selector); return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0); }",
+                    arg=f"#{section_id} figure img",
+                    timeout=8000,
+                )
+            except Exception as error:
+                check(False, f"{section_id}: image did not decode at {width}px ({type(error).__name__})")
+                continue
+
+            layout = page.evaluate("""({id, side, width}) => {
+              const section = document.getElementById(id);
+              const header = section && section.querySelector('.experience-detail-section__header');
+              const figure = section && section.querySelector('.experience-detail-media');
+              const columns = section && section.querySelector('.experience-detail-columns');
+              if (!header || !figure || !columns) return null;
+              const h = header.getBoundingClientRect();
+              const f = figure.getBoundingClientRect();
+              const c = columns.getBoundingClientRect();
+              return {
+                headerRight: h.right, headerLeft: h.left, headerTop: h.top, headerBottom: h.bottom,
+                figureRight: f.right, figureLeft: f.left, figureTop: f.top, figureBottom: f.bottom,
+                columnsTop: c.top,
+                sideBySide: width > 900
+                  ? (side === 'right' ? f.left >= h.right - 1 : f.right <= h.left + 1)
+                  : false,
+                stacked: width <= 900 ? h.bottom <= f.top + 2 : true,
+                contentBelow: c.top >= Math.max(h.bottom, f.bottom) - 1
+              };
+            }""", {"id": section_id, "side": side, "width": width})
+            check(layout is not None, f"{section_id}: responsive image layout geometry must be measurable")
+            if layout:
+                if width > 900:
+                    check(layout["sideBySide"],
+                          f"{section_id}: the image must alternate to the {side} of its text on desktop")
+                    check(abs(layout["headerTop"] - layout["figureTop"]) < 70,
+                          f"{section_id}: editorial copy and image should share a balanced top alignment")
+                else:
+                    check(layout["stacked"],
+                          f"{section_id}: mobile/tablet order must keep the heading above its image")
+                check(layout["contentBelow"],
+                      f"{section_id}: itinerary and fact columns must follow the editorial image row")
+
+        for text_only_id in ("car-and-road-travel-detail", "other-routes"):
+            text_only = page.locator("#" + text_only_id)
+            check(text_only.count() == 1 and text_only.locator("img").count() == 0,
+                  f"{text_only_id}: keep unsupported transport/research topics text-led, with no misleading photo")
+        page.evaluate("window.scrollTo(0, 0)")
+
+
 def check_arrival_wayfinding_journey(page, base_url: str) -> None:
     """Verify the source-backed final-walk facts and their links from guest decision pages."""
     routes = [
@@ -3618,6 +3716,7 @@ def main(argv: list[str] | None = None) -> int:
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)
             check_experience_discovery_journey(page, base_url)
+            check_experience_detail_visual_refinement(page, base_url)
             check_room_finder(page, base_url, browser)
             check_arrival_wayfinding_journey(page, base_url)
             check_arrival_planning_enquiry(page, base_url, browser)

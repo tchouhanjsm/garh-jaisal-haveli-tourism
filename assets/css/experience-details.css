@@ -36,3 +36,129 @@
 .experience-detail-note>p:not(.eyebrow){max-width:920px;color:var(--ink-soft);font-size:13px;line-height:1.9}
 @media(max-width:900px){.experience-detail-jump{grid-template-columns:repeat(2,minmax(0,1fr))}.experience-detail-columns{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:760px){.experience-detail-jump{grid-template-columns:minmax(0,1fr)}.experience-detail-section{padding:22px}.experience-detail-facts{padding:18px}.experience-detail-topic-list{columns:1}.experience-detail-actions{align-items:flex-start;flex-direction:column}.experience-detail-actions .button{width:100%}}
+
+
+/* Editorial photo rhythm for itinerary decisions — M1 premium visual pass. */
+.experience-detail-section--visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(280px, .88fr);
+  column-gap: clamp(24px, 4vw, 48px);
+  row-gap: 26px;
+  align-items: start;
+}
+.experience-detail-section--visual .experience-detail-section__header {
+  grid-column: 1;
+  grid-row: 1;
+  max-width: 100%;
+  margin: 0;
+}
+.experience-detail-section--visual .experience-detail-media {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  align-self: start;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.experience-detail-section--visual .experience-detail-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  max-height: 360px;
+  object-fit: cover;
+  object-position: center;
+}
+.experience-detail-section--visual .experience-detail-media--portrait img {
+  aspect-ratio: 4 / 5;
+  max-height: 420px;
+}
+.experience-detail-section--visual .experience-detail-media--square img {
+  aspect-ratio: 1;
+  max-height: 340px;
+}
+.experience-detail-media figcaption {
+  padding: 12px 15px 14px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.7;
+}
+.experience-detail-media__label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--gold-dark);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.experience-detail-section--visual-left .experience-detail-section__header {
+  grid-column: 2;
+}
+.experience-detail-section--visual-left .experience-detail-media {
+  grid-column: 1;
+}
+.experience-detail-section--visual .experience-detail-columns,
+.experience-detail-section--visual .experience-detail-actions {
+  grid-column: 1 / -1;
+}
+.experience-detail-section h2 {
+  font-size: clamp(31px, 3.7vw, 46px);
+}
+.experience-detail-lede {
+  font-size: 14px;
+  line-height: 1.85;
+}
+.experience-itinerary li {
+  font-size: 13px;
+  line-height: 1.85;
+}
+.experience-detail-facts p,
+.experience-detail-facts li {
+  font-size: 12px;
+  line-height: 1.85;
+}
+@media(max-width:900px) {
+  .experience-detail-section--visual {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 20px;
+  }
+  .experience-detail-section--visual .experience-detail-section__header,
+  .experience-detail-section--visual-left .experience-detail-section__header {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .experience-detail-section--visual .experience-detail-media,
+  .experience-detail-section--visual-left .experience-detail-media {
+    grid-column: 1;
+    grid-row: 2;
+    width: min(100%, 620px);
+  }
+  .experience-detail-section--visual .experience-detail-media img {
+    aspect-ratio: 16 / 10;
+    max-height: 300px;
+  }
+  .experience-detail-section--visual .experience-detail-media--portrait img {
+    aspect-ratio: 5 / 4;
+  }
+  .experience-detail-section--visual .experience-detail-media--square img {
+    aspect-ratio: 1;
+    max-height: 280px;
+  }
+  .experience-detail-section--visual .experience-detail-columns {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .experience-detail-section--visual .experience-detail-actions {
+    grid-column: 1;
+    grid-row: 4;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .experience-detail-media img {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}
