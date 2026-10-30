@@ -219,12 +219,20 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     root, generated_files, source_record, RESPONSIVE_WIDTHS
                 )
             full_size_record["bytes"] = actual_full_size_bytes
-            full_size_record["maxBytes"] = full_size_budget - 1
+            full_size_record["maxBytes"] = actual_full_size_bytes - 1
             with self.assertRaisesRegex(RuntimeError, "exceeds its"):
                 _PACKAGE_PREVIEW.validate_responsive_markup(
                     root, generated_files, source_record, RESPONSIVE_WIDTHS
                 )
             full_size_record["maxBytes"] = full_size_budget
+
+            first_attempt_bytes = full_size_record["qualityAttempts"][0]["bytes"]
+            full_size_record["qualityAttempts"][0]["bytes"] = full_size_budget - 1
+            with self.assertRaisesRegex(RuntimeError, "quality-ladder evidence"):
+                _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root, generated_files, source_record, RESPONSIVE_WIDTHS
+                )
+            full_size_record["qualityAttempts"][0]["bytes"] = first_attempt_bytes
 
             budgeted_record = next(item for item in generated_files if item["path"] == budget_path)
             budgeted_record["maxBytes"] = budgeted_record["bytes"] - 1
