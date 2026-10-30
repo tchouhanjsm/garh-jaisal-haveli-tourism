@@ -60,6 +60,16 @@ const PATH_BUDGETS = new Map([
   ['assets/images/responsive/courtyard-1200.webp', 250_000],
   ['assets/images/responsive/courtyard-1600.webp', 250_000],
 ]);
+// The source-tree gate runs before the isolated staging package is generated. Its
+// committed WebP files may therefore be pre-optimization inputs. Keep a general
+// source-file ceiling here; the package pass (ROOT !== CONTRACT_ROOT) enforces
+// the strict derivative budgets against the newly generated, packaged bytes.
+const IS_PACKAGED_OUTPUT = ROOT !== CONTRACT_ROOT;
+const PACKAGE_GENERATED_DERIVATIVE_PATHS = new Set(
+  [...PATH_BUDGETS.keys()].filter(assetPath => assetPath.includes('/responsive/')
+    || assetPath === 'assets/images/courtyard.webp'
+    || assetPath === 'assets/images/directions/haveli-facade.webp')
+);
 const errors = [];
 const referencedAssets = new Set();
 let imageCount = 0;
@@ -92,7 +102,11 @@ function inspectAsset(reference, page, role, heroBudget = null) {
     return;
   }
   const bytes = fs.statSync(absolute).size;
-  const roleBudget = PATH_BUDGETS.get(relative) || DEFAULT_MAX_BYTES;
+  const configuredBudget = PATH_BUDGETS.get(relative) || DEFAULT_MAX_BYTES;
+  const sourceTreeBudget = PACKAGE_GENERATED_DERIVATIVE_PATHS.has(relative)
+    ? DEFAULT_MAX_BYTES
+    : configuredBudget;
+  const roleBudget = IS_PACKAGED_OUTPUT ? configuredBudget : sourceTreeBudget;
   const budget = heroBudget === null ? roleBudget : Math.min(roleBudget, heroBudget);
   if (bytes <= 0 || bytes > budget) fail(page + ': ' + role + ' is ' + bytes + ' bytes; budget is ' + budget + ': ' + relative);
   referencedAssets.add(relative);
