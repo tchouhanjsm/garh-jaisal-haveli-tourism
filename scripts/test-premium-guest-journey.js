@@ -144,7 +144,7 @@ for (const [label, foreground, background] of [
 }
 
 const photoHeroContracts = {
-  'experiences.html': ['assets/images/gallery/desert/camp-evening.jpeg', 'White desert-camp tents illuminated after dark beneath the open night sky'],
+  'experiences.html': ['assets/images/experiences/swiss-tent-exterior.webp', 'White Swiss-style tents at a desert camp in warm evening light'],
   'experience-details.html': ['assets/images/gallery/desert/camp-from-above.jpeg', 'Desert camp viewed from above at night, with illuminated tent clusters and the central camp area'],
   'gallery.html': ['assets/images/directions/haveli-facade.webp', 'Carved sandstone facade of Hotel Garh Jaisal, with the hotel name visible beside the entrance'],
   'dining.html': ['assets/images/dining/rooftop-candlelit-table.jpg', 'Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond'],
