@@ -13,8 +13,11 @@ const PAGES = routeContract.routes.map(route => route.file);
 const HERO_BUDGETS = new Map([
   ['index.html', 150 * KIB],
   ['rooms.html', 550 * KIB],
-  ['dining.html', 150 * KIB],
+  ['dining.html', 100 * KIB],
   ['about.html', 450 * KIB],
+  ['experiences.html', 150 * KIB],
+  ['experience-details.html', 100 * KIB],
+  ['gallery.html', 600 * KIB],
   ['directions.html', 650 * KIB],
 ]);
 const PATH_BUDGETS = new Map([

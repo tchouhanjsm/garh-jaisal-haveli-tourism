@@ -1,31 +1,28 @@
 :root {
-  /* Canonical heritage palette: intentionally matches the approved premium layer. */
+  /* Canonical heritage palette: quiet fort greens, limestone and restrained brass. */
   --ink: #1a2821;
   --ink-soft: #354239;
   --sand: #eadcc5;
-  --paper: #faf8f3;
+  --paper: #f7f3ea;
   --gold: #c9a46a;
-  --gold-dark: #8c673a;
-  --line: #e0d7c8;
-  --muted: #69736a;
-  --white: #fffdf9;
-
-  /* Typography and layout */
+  --gold-dark: #765735;
+  --saffron: #b94a0e;
+  --saffron-hover: #913b0b;
+  --peacock: #1d7472;
+  --line: #ded3c1;
+  --muted: #657066;
+  --white: #fffdf8;
   --serif: "Playfair Display", Georgia, serif;
   --sans: "DM Sans", Arial, sans-serif;
   --container: 1280px;
   --button-height: 52px;
-  --control-radius: 2px;
-  --focus-ring: 3px solid #bb8647;
-
-  /* Text roles: micro labels remain editorial; all useful copy stays readable. */
+  --control-radius: 6px;
+  --focus-ring: 3px solid #1d7472;
   --type-meta: 11px;
   --type-label: 12px;
-  --type-support: 13px;
-  --type-body: 15px;
-  --type-lede: 17px;
-
-  /* Shared visual effects */
+  --type-support: 14px;
+  --type-body: 16px;
+  --type-lede: 18px;
   --shadow: 0 24px 70px rgba(26, 40, 33, .11);
   --premium-shadow: 0 18px 52px rgba(26, 40, 33, .09);
   --premium-ease: cubic-bezier(.2, .7, .2, 1);

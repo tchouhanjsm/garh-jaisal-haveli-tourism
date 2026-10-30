@@ -315,9 +315,25 @@ Exact-head Site Quality Gates run [#41055514368](https://github.com/tchouhanjsm/
 - Validate the evidence schema and measurement labels in the quality suite, write partial reports on failed browser checks when possible, and upload the JSON report as a seven-day GitHub Actions artifact.
 - No page content, public indexing, canonical host, production or staging deployment, or release approval changes.
 
+
+## M16 — premium art direction, palette and first-view conversion
+
+**Audit finding:** the existing rendered screenshots showed a coherent but over-repeated template. Experiences, Experience Details and Gallery were text-only green-gradient heroes; the homepage first-screen mobile crop gave too much space to empty sky; white outlined planning panels and brass-filled actions weakened action hierarchy.
+
+**Bulk implementation:**
+- refine the existing canonical palette: limestone/ivory page surfaces, fort pine/olive brand surfaces, brass as a controlled architectural accent, saffron/copper for primary actions and peacock for functional focus;
+- replace the floating-card treatment of homepage planning paths and shared inner-route journey with full-width editorial decision bands;
+- art-direct the mobile homepage rooftop crop and move the headline/primary action higher in the viewport;
+- introduce source-backed photography to Experiences, Experience Details, Gallery and Dining using the approved media manifest and existing runtime asset set;
+- retain the responsive-image rewrite pipeline and page-specific byte budgets; do not commit generated variants or duplicate image binaries;
+- expand regression coverage for palette roles, photo-first hero subject/alt text, preload/fetch priority and per-route hero payload budgets.
+
+**Acceptance:** compare exact-head desktop/mobile first views for all eight routes; confirm a clear primary action, route-appropriate image crops, accurate alt text, responsive picture/preload parity, legible overlays and no text/fixed-control obstruction. Automated evidence is necessary but not owner visual sign-off. No prices, hours, availability, room features, tour inclusions or operational promises change. No public SEO, canonical, robots, sitemap, staging or production release setting changes.
+
+
 ## 6. Immediate next execution batch
 
-**M3 — local Journal preview QA — now has browser interaction coverage and four dedicated screenshot captures in CI. Next: M1 — screenshot-driven premium design-system refinement.** Use the uploaded archive/article evidence at 390 and 1280px to review title hierarchy, text measure, card rhythm, filter/focus states, TOC readability, image framing and source/related-link behavior. Keep text-only editorial card art until real article-specific media has passed subject, rights, crop and owner review.
+**M16 — premium visual system — now has a coordinated first-view and palette implementation. Next: M17 — rendered screenshot QA and visual calibration. Review all eight route first views at 390 and 1280px, plus the six-width suite; inspect heading placement, photo crops, saffron/ivory contrast, full-bleed planner rhythm, touch targets and fixed-control overlap. Owner review and staging UAT remain mandatory before any design score or release sign-off. Keep editorial card art text-only until article-specific media is individually approved.
 
 The M0 screenshot artifact exists, but final human visual scoring and owner-approved staging UAT are still outstanding. The separate Journal artifact is for human review only; it does not authorize publication or change the public route/package. Keep all 12 records as drafts, canonical approval false, robots blocking and sitemap empty. Do not merge or deploy automatically.
 
