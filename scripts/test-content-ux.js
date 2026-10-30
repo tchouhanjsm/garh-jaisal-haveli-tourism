@@ -672,7 +672,7 @@ for (const rule of PAGE_RULES) {
       fail('experience-details.css: photo-led itinerary sections must stack responsively and respect reduced motion');
     }
     if (!/\.experience-itinerary li \{\s*font-size: 13px/s.test(detailCss)
-        || !/\.experience-detail-facts p,\.experience-detail-facts li \{\s*font-size: 12px/s.test(detailCss)) {
+        || !/\.experience-detail-facts p,\s*\.experience-detail-facts li \{\s*font-size: 12px/s.test(detailCss)) {
       fail('experience-details.css: itinerary and fact copy must retain the enlarged readable type scale');
     }
   }
