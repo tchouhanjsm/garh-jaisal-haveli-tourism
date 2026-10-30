@@ -347,7 +347,7 @@ def inspect_bundle(report: dict, screenshots: Path) -> tuple[list[dict], list[st
     viewport_map = {width: (height, label) for width, height, label in VIEWPORTS}
     results: list[dict] = []
     for filename in expected:
-        match = re.fullmatch(r"([a-z-]+)-(360|768|1440)px\.png", filename)
+        match = re.fullmatch(r"([a-z-]+)-(\d+)px\.png", filename)
         assert match is not None
         page_stem, width_text = match.groups()
         width = int(width_text)
