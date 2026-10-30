@@ -792,12 +792,41 @@ for route in browser_smoke.PAGES:
                 "requestCount": 1,
             })
 
+fixture_page_resource_evidence = []
+for route in browser_smoke.PAGES:
+    for viewport_width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS:
+        for dpr in (1, 2):
+            fixture_page_resource_evidence.append({
+                "route": route,
+                "viewportWidthCssPixels": viewport_width,
+                "deviceScaleFactor": dpr,
+                "resources": [
+                    {
+                        "path": "/assets/site.css",
+                        "initiatorType": "link",
+                        "encodedBodyBytes": 1024,
+                        "transferBytes": 1324,
+                        "decodedBodyBytes": 4096,
+                        "durationMs": 12.5,
+                    },
+                    {
+                        "path": "/assets/images/responsive/rooms/fixture-640.webp",
+                        "initiatorType": "img",
+                        "encodedBodyBytes": 24576,
+                        "transferBytes": 24880,
+                        "decodedBodyBytes": 92160,
+                        "durationMs": 18.2,
+                    },
+                ],
+            })
+
 responsive_evidence = browser_smoke.build_responsive_image_evidence_report(
     route_picture_counts=fixture_picture_counts,
     checked_picture_count=len(fixture_observations),
     selected_resource_evidence=fixture_observations,
     browser_version="Chromium test fixture",
     failures=[],
+    page_resource_evidence=fixture_page_resource_evidence,
 )
 assert responsive_evidence["automatedResult"] == "PASS"
 assert responsive_evidence["coverage"] == {
@@ -811,6 +840,15 @@ assert responsive_evidence["summary"]["encodedBodyBytesObserved"] == 96 * 24576
 assert responsive_evidence["summary"]["transferBytesObserved"] == 96 * 24880
 assert responsive_evidence["summary"]["decodedBodyBytesObserved"] == 96 * 92160
 assert responsive_evidence["summary"]["maximumSelectedToRequiredPixelRatio"] == 1.067
+assert responsive_evidence["pageResourceEvidence"]["expectedContextCount"] == 96
+assert responsive_evidence["pageResourceEvidence"]["capturedContextCount"] == 96
+assert responsive_evidence["pageResourceEvidence"]["uniqueContextCount"] == 96
+assert responsive_evidence["pageResourceEvidence"]["complete"] is True
+assert responsive_evidence["pageResourceEvidence"]["allResponsivePicturesActivatedForAudit"] is True
+assert responsive_evidence["pageResourceEvidence"]["initialNavigationPayloadClaimed"] is False
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["resourceCount"] == 2
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["images"]["encodedBodyBytes"] == 24576
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["stylesheets"]["encodedBodyBytes"] == 1024
 assert responsive_evidence["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
 assert responsive_evidence["fieldDataAvailable"] is False
 assert responsive_evidence["candidateBytesAreTransferMeasurements"] is False
@@ -825,6 +863,7 @@ with tempfile.TemporaryDirectory(prefix="garh-responsive-evidence-") as temporar
     round_trip_evidence = json.loads(written_evidence.read_text(encoding="utf-8"))
     assert round_trip_evidence["coverage"]["complete"] is True
     assert len(round_trip_evidence["observations"]) == 96
+    assert len(round_trip_evidence["pageResourceEvidence"]["observations"]) == 96
     assert round_trip_evidence["browser"]["name"] == "Chromium"
 
 mislabelled_evidence = dict(responsive_evidence)
@@ -836,12 +875,41 @@ except ValueError as error:
 else:
     raise AssertionError("Responsive-image evidence must reject false field-data claims")
 
+incomplete_page_resources = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=fixture_page_resource_evidence[:-1],
+)
+assert incomplete_page_resources["automatedResult"] == "FAIL"
+assert incomplete_page_resources["pageResourceEvidence"]["complete"] is False
+assert incomplete_page_resources["pageResourceEvidence"]["capturedContextCount"] == 95
+
+unsafe_page_resources = [dict(item) for item in fixture_page_resource_evidence]
+unsafe_page_resources[0] = dict(unsafe_page_resources[0])
+unsafe_page_resources[0]["resources"] = [dict(item) for item in unsafe_page_resources[0]["resources"]]
+unsafe_page_resources[0]["resources"][0]["path"] = "/assets/site.css?private=must-not-be-retained"
+unsafe_resource_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=unsafe_page_resources,
+)
+assert unsafe_resource_report["automatedResult"] == "FAIL"
+assert unsafe_resource_report["pageResourceEvidence"]["complete"] is False
+assert any("unsafe same-origin resource evidence" in failure for failure in unsafe_resource_report["automatedFailures"])
+
 incomplete_evidence = browser_smoke.build_responsive_image_evidence_report(
     route_picture_counts=fixture_picture_counts,
     checked_picture_count=len(fixture_observations),
     selected_resource_evidence=fixture_observations[:-1],
     browser_version="Chromium test fixture",
     failures=[],
+    page_resource_evidence=fixture_page_resource_evidence,
 )
 assert incomplete_evidence["automatedResult"] == "FAIL"
 assert incomplete_evidence["coverage"]["complete"] is False
