@@ -30,7 +30,7 @@
 .experience-detail-topic-list{columns:2;column-gap:30px;margin:0;padding-left:20px}
 .experience-detail-topic-list li{break-inside:avoid;padding:0 0 10px 4px;color:var(--muted);font-size:12px;line-height:1.75}
 .experience-detail-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;margin-top:26px}
-.experience-detail-actions .text-link{font-size:11px}
+.experience-detail-actions .text-link{font-size:var(--type-support)}
 .experience-detail-final{padding-top:clamp(36px,5vw,60px)}
 .experience-detail-note{padding:clamp(24px,4vw,46px);border-left:3px solid var(--gold-dark);background:var(--sand)}
 .experience-detail-note>p:not(.eyebrow){max-width:920px;color:var(--ink-soft);font-size:13px;line-height:1.9}
