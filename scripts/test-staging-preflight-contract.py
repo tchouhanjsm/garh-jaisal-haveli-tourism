@@ -308,6 +308,10 @@ def valid_performance_evidence() -> list[dict]:
                                 "heading": {"x": 0.0, "y": 180.0, "width": 640.0, "height": 112.0},
                                 "supportingCopy": {"x": 0.0, "y": 310.0, "width": 640.0, "height": 50.0},
                             },
+                            "textRanges": {
+                                "heading": {"x": 0.0, "y": 182.0, "width": 620.0, "height": 110.0},
+                                "supportingCopy": {"x": 0.0, "y": 312.0, "width": 610.0, "height": 48.0},
+                            },
                         },
                         {
                             "phase": "sample-after-font-wait",
@@ -318,6 +322,10 @@ def valid_performance_evidence() -> list[dict]:
                                 "content": {"x": 0.0, "y": 88.0, "width": 640.0, "height": 372.0},
                                 "heading": {"x": 0.0, "y": 168.0, "width": 640.0, "height": 124.0},
                                 "supportingCopy": {"x": 0.0, "y": 310.0, "width": 640.0, "height": 62.0},
+                            },
+                            "textRanges": {
+                                "heading": {"x": 0.0, "y": 170.0, "width": 632.0, "height": 122.0},
+                                "supportingCopy": {"x": 0.0, "y": 312.0, "width": 626.0, "height": 60.0},
                             },
                         },
                     ],
@@ -364,7 +372,7 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 9
+assert incomplete_report["schemaVersion"] == 10
 assert incomplete_report["automatedResult"] == "FAIL"
 assert incomplete_report["automatedFailureCount"] == 6
 assert incomplete_report["evidenceCoverage"] == {
@@ -523,6 +531,27 @@ invalid_layout_context = browser_smoke.build_report(
 assert invalid_layout_context["automatedResult"] == "FAIL"
 assert invalid_layout_context["performanceBaseline"]["complete"] is False
 assert invalid_layout_context["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+
+missing_font_text_ranges = [dict(record) for record in performance_evidence]
+missing_font_text_ranges[0]["fontReadiness"] = dict(missing_font_text_ranges[0]["fontReadiness"])
+missing_font_text_ranges[0]["fontReadiness"]["layoutSnapshots"] = [
+    dict(snapshot) for snapshot in missing_font_text_ranges[0]["fontReadiness"]["layoutSnapshots"]
+]
+missing_font_text_ranges[0]["fontReadiness"]["layoutSnapshots"][0].pop("textRanges")
+invalid_font_text_ranges = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_font_text_ranges,
+)
+assert invalid_font_text_ranges["automatedResult"] == "FAIL"
+assert invalid_font_text_ranges["performanceBaseline"]["complete"] is False
+assert invalid_font_text_ranges["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
