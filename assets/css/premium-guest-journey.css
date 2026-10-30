@@ -1028,3 +1028,49 @@ body {
 .guest-enquiry-recovery textarea {
   border-radius: var(--control-radius);
 }
+
+
+/* M22 — Reserve responsive hero line boxes before remote font settlement. */
+.page-hero--rooms h1 {
+  min-block-size: 2.1em;
+}
+
+.page-hero--rooms .page-hero__content > p:not(.eyebrow) {
+  min-block-size: 4.6em;
+}
+
+.page-hero--experiences .page-hero__content > p:not(.eyebrow) {
+  min-block-size: 4em;
+}
+
+@media (max-width: 1000px) {
+  .page-hero--experiences .page-hero__content > p:not(.eyebrow) {
+    min-block-size: 6em;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-hero--rooms h1 {
+    min-block-size: 4.2em;
+  }
+
+  .page-hero--rooms .page-hero__content > p:not(.eyebrow) {
+    min-block-size: 5.5em;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-hero--rooms h1 {
+    min-block-size: 4.2em;
+  }
+}
+
+@media (max-width: 360px) {
+  .page-hero--rooms h1 {
+    min-block-size: 5.2em;
+  }
+
+  .page-hero--rooms .page-hero__content > p:not(.eyebrow) {
+    min-block-size: 7.2em;
+  }
+}
