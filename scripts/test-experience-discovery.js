@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const experiences = fs.readFileSync(path.join(ROOT, 'experiences.html'), 'utf8');
 const details = fs.readFileSync(path.join(ROOT, 'experience-details.html'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'experience-discovery.css'), 'utf8');
+const premiumCss = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'premium-guest-journey.css'), 'utf8');
 const plain = text => text.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 const tagContent = (html, tag, attr, value) => {
   const open = html.indexOf(attr + '="' + value + '"');
@@ -20,6 +21,14 @@ const tagContent = (html, tag, attr, value) => {
 };
 
 assert.match(experiences, /class="page-hero page-hero--photo page-hero--experiences experience-discovery-hero"/, 'Experiences has a dedicated photo-led hero style');
+assert.match(experiences, /<link rel="preconnect" href="https:\/\/fonts\.googleapis\.com">/,
+  'Experiences must warm the Google Fonts stylesheet connection');
+assert.match(experiences, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
+  'Experiences must warm the cross-origin font-file connection');
+assert.match(premiumCss, /\.page-hero--experiences \.page-hero__content > p:not\(\.eyebrow\)\s*\{[^}]*min-block-size:\s*4em/s,
+  'Experiences desktop supporting copy must reserve two lines before font settlement');
+assert.match(premiumCss, /@media \(max-width: 1000px\)\s*\{[\s\S]*?\.page-hero--experiences \.page-hero__content > p:not\(\.eyebrow\)\s*\{[^}]*min-block-size:\s*6em/s,
+  'Experiences tablet supporting copy must reserve three lines before font settlement');
 assert.match(css, /experience-discovery-hero h1\s*\{[^}]*min-block-size:\s*2\.1em/s, 'Experiences reserves two headline lines before web fonts settle');
 assert.match(experiences, /<h1>Jaisalmer, at your own <em>pace\.<\/em><\/h1>/, 'Experiences uses the editorial headline');
 assert.match(experiences, /assets\/css\/experience-discovery\.css/, 'Experiences loads the page-specific discovery styling');
