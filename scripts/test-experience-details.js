@@ -30,5 +30,5 @@ const sourceMedia=[
   {target:'assets/images/experiences/heritage-architecture.jpg',source:'img/j2.jpg',sha:'5da16be5530a0416d0dc12c1476b92ac0d0e1390'},
   {target:'assets/images/legacy/fort-temple-spires.jpg',source:'img/j10.jpg',sha:'c4c1e4211d572b38308de3aaa3d6f13a4ad761e6'},
 ];
-for(const {target,source,sha} of sourceMedia){const bytes=fs.readFileSync(path.join(ROOT,target));const header=Buffer.from('blob '+bytes.length+'\\0');const actual=crypto.createHash('sha1').update(header).update(bytes).digest('hex');assert.equal(actual,sha,target+' must remain byte-identical to '+source+'; source identity does not establish usage rights');}
+for(const {target,source,sha} of sourceMedia){const bytes=fs.readFileSync(path.join(ROOT,target));const header=Buffer.from('blob '+bytes.length+'\0');const actual=crypto.createHash('sha1').update(header).update(bytes).digest('hex');assert.equal(actual,sha,target+' must remain byte-identical to '+source+'; source identity does not establish usage rights');}
 console.log('PASS: nine detail anchors, source-backed itinerary content, social metadata, contact and publication safeguards verified.');
