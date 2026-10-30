@@ -2135,7 +2135,7 @@ def check_staging_publication_guards(page, base_url: str) -> None:
 
 
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
-    """Audit six requested breakpoints while capturing full-page evidence at three representative widths."""
+    """Audit six responsive breakpoints and capture all eight routes at 390, 768 and 1280px."""
     screenshot_widths = {width for width, _height in VIEWPORTS}
     for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})

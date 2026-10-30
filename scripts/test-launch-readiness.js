@@ -15,7 +15,7 @@ assert.equal(routeContract.schemaVersion, 1, 'Staging route contract schema must
 const PAGE_NAMES = routeContract.routes.map(route => route.file);
 assert.equal(PAGE_NAMES.length, 8, 'Launch wiring must cover all eight core public HTML routes');
 assert.equal(new Set(PAGE_NAMES).size, PAGE_NAMES.length, 'Public route filenames must be unique');
-assert.deepEqual(routeContract.viewports.map(viewport => viewport.width), [360, 768, 1440],
+assert.deepEqual(routeContract.viewports.map(viewport => viewport.width), [390, 768, 1280],
   'Staging visual evidence must cover mobile, tablet and desktop widths');
 const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'site-config.json'), 'utf8'));
 const launchDoc = fs.readFileSync(path.join(ROOT, 'docs', 'LAUNCH-READINESS-CHECKLIST.md'), 'utf8');

@@ -157,7 +157,7 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     page = review.build_html(report, screenshots, checked, issues)
     assert page.count('class="card"') == review.EXPECTED_SCREENSHOT_COUNT
     assert page.count('<section id="page-') == len(review.PAGES)
-    assert 'src="screenshots/index-360px.png"' in page
+    assert 'src="screenshots/index-390px.png"' in page
     assert "staging.example.test" in page
     assert "BLOCKED — manual UAT required" in page
     assert "PASS — report records no external actions" in page
@@ -250,16 +250,16 @@ with tempfile.TemporaryDirectory(prefix="gjh-visual-review-test-") as temp:
     assert "STG-18" in rendered_html
 
     # Tampering with a real PNG while leaving the JSON unchanged must fail closed.
-    target = screenshots / "rooms-360px.png"
+    target = screenshots / "rooms-390px.png"
     target.write_bytes(make_png(360, 3, 201))
     changed, changed_issues = review.inspect_bundle(report, screenshots)
-    changed_room = next(item for item in changed if item["filename"] == "rooms-360px.png")
+    changed_room = next(item for item in changed if item["filename"] == "rooms-390px.png")
     assert not changed_room["valid"]
     assert any("SHA-256 mismatch" in issue for issue in changed_issues)
     changed_html = review.build_html(report, screenshots, changed, changed_issues)
     assert "Evidence integrity issues" in changed_html
     assert "Screenshot integrity mismatch" in changed_html
-    assert 'src="screenshots/rooms-360px.png"' not in changed_html
+    assert 'src="screenshots/rooms-390px.png"' not in changed_html
     assert review.main([
         "--report", str(report_path),
         "--screenshots-dir", str(screenshots),

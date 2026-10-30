@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "purpose": "Single source of truth for core public routes, three full-page screenshot viewports and six responsive-audit breakpoints. This is a QA inventory, not a production sitemap.",
+  "purpose": "Single source of truth for core public routes, matching mobile/tablet/laptop visual-review screenshots and six responsive-audit breakpoints. This is a QA inventory, not a production sitemap.",
   "routes": [
     {
       "file": "index.html",
@@ -37,8 +37,8 @@
   ],
   "viewports": [
     {
-      "width": 360,
-      "height": 800,
+      "width": 390,
+      "height": 844,
       "label": "Mobile"
     },
     {
@@ -47,9 +47,9 @@
       "label": "Tablet"
     },
     {
-      "width": 1440,
+      "width": 1280,
       "height": 900,
-      "label": "Desktop"
+      "label": "Laptop"
     }
   ],
   "responsiveAuditViewports": [
