@@ -143,6 +143,20 @@ for (const [label, foreground, background] of [
   assert.ok(ratio >= 4.5, label + ' must meet WCAG AA normal-text contrast; observed ' + ratio.toFixed(2));
 }
 
+const roomsHtml = fs.readFileSync(path.join(ROOT, 'rooms.html'), 'utf8');
+assert.match(roomsHtml, /class="page-hero page-hero--rooms"/,
+  'Rooms hero must expose a route-specific class for responsive line-box reservation');
+assert.match(roomsHtml, /<link rel="preconnect" href="https:\/\/fonts\.googleapis\.com">/,
+  'Rooms must warm the Google Fonts stylesheet connection before the font CSS is discovered');
+assert.match(roomsHtml, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
+  'Rooms must warm the cross-origin font-file connection');
+assert.match(css, /\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*2\.1em/s,
+  'Rooms desktop hero must reserve its two-line headline footprint');
+assert.match(css, /@media \(max-width: 760px\)\s*\{[\s\S]*?\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*4\.2em/s,
+  'Rooms phone hero must reserve four headline lines before font settlement');
+assert.match(css, /@media \(max-width: 360px\)\s*\{[\s\S]*?\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*5\.2em/s,
+  'Very narrow Rooms layouts must reserve the fifth headline line');
+
 const photoHeroContracts = {
   'experiences.html': ['assets/images/experiences/half-day-jaisalmer-tour.jpg', 'Ornately carved sandstone havelis overlooking the historic lanes of Jaisalmer'],
   'experience-details.html': ['assets/images/gallery/desert/camp-from-above.jpeg', 'Desert camp viewed from above at night, with illuminated tent clusters and the central camp area'],
