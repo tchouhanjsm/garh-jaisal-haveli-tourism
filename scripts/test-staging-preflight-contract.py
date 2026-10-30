@@ -274,6 +274,17 @@ def valid_performance_evidence() -> list[dict]:
                 "layoutShiftSources": [
                     {
                         "value": 0.1,
+                        "hadRecentInput": False,
+                        "context": {
+                            "scrollY": 0.0,
+                            "header": {
+                                "className": "site-header is-scrolled",
+                                "rect": {"x": 0.0, "y": 34.0, "width": width, "height": 84.0},
+                            },
+                            "announcement": {"x": 0.0, "y": 0.0, "width": width, "height": 34.0},
+                            "hero": {"x": 0.0, "y": 118.0, "width": width, "height": 680.0},
+                            "viewport": {"width": width, "height": height},
+                        },
                         "sources": [{
                             "element": {"tagName": "H1", "id": None, "className": "experience-discovery-hero"},
                             "previousRect": {"x": 0.0, "y": 0.0, "width": 640.0, "height": 100.0},
@@ -353,7 +364,7 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 8
+assert incomplete_report["schemaVersion"] == 9
 assert incomplete_report["automatedResult"] == "FAIL"
 assert incomplete_report["automatedFailureCount"] == 6
 assert incomplete_report["evidenceCoverage"] == {
@@ -490,6 +501,28 @@ invalid_font_layout_snapshots = browser_smoke.build_report(
 assert invalid_font_layout_snapshots["automatedResult"] == "FAIL"
 assert invalid_font_layout_snapshots["performanceBaseline"]["complete"] is False
 assert invalid_font_layout_snapshots["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+
+missing_layout_context = [dict(record) for record in performance_evidence]
+shift_record_index = next(index for index, record in enumerate(missing_layout_context) if record["layoutShiftEntries"] > 0)
+missing_layout_context[shift_record_index] = dict(missing_layout_context[shift_record_index])
+missing_layout_context[shift_record_index]["layoutShiftSources"] = [
+    dict(shift) for shift in missing_layout_context[shift_record_index]["layoutShiftSources"]
+]
+missing_layout_context[shift_record_index]["layoutShiftSources"][0].pop("context")
+invalid_layout_context = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_layout_context,
+)
+assert invalid_layout_context["automatedResult"] == "FAIL"
+assert invalid_layout_context["performanceBaseline"]["complete"] is False
+assert invalid_layout_context["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
