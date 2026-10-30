@@ -404,6 +404,21 @@ def build_report(mode: str, base_url: str, operator: str | None,
             and isinstance(record["fontReadiness"].get("families"), dict)
             and isinstance(record["fontReadiness"]["families"].get("playfairDisplay"), bool)
             and isinstance(record["fontReadiness"]["families"].get("dmSans"), bool)
+            and isinstance(record["fontReadiness"].get("layoutSnapshots"), list)
+            and len(record["fontReadiness"]["layoutSnapshots"]) >= 2
+            and all(
+                isinstance(snapshot, dict)
+                and isinstance(snapshot.get("phase"), str)
+                and snapshot.get("fontStatus") in ("loaded", "loading")
+                and isinstance(snapshot.get("elements"), dict)
+                and all(
+                    isinstance(snapshot["elements"].get(element_name), dict)
+                    and all(isinstance(snapshot["elements"][element_name].get(axis), (int, float))
+                            for axis in ("x", "y", "width", "height"))
+                    for element_name in ("content", "heading")
+                )
+                for snapshot in record["fontReadiness"]["layoutSnapshots"]
+            )
             and isinstance(record.get("sameOriginResources"), dict)
             and isinstance(record["sameOriginResources"].get("encodedBodyBytes"), int)
             and record["sameOriginResources"]["encodedBodyBytes"] >= 0
@@ -435,7 +450,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete and performance_complete)
 
     return {
-        "schemaVersion": 7,
+        "schemaVersion": 8,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -477,6 +492,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                 "cumulativeLayoutShift",
                 "layoutShiftSourceAttribution",
                 "fontReadinessDiagnostics",
+                "fontSettlementGeometry",
                 "navigationTiming",
                 "sameOriginEncodedResourceBytes",
                 "longTasks"
@@ -532,6 +548,7 @@ def install_performance_observers(context) -> None:
             cls: 0,
             layoutShiftEntries: 0,
             layoutShiftSources: [],
+            fontLayoutSnapshots: [],
             longTaskCount: 0,
             longTaskDurationMs: 0,
             observerSupport: {lcp: false, layoutShift: false, longTask: false}
@@ -584,6 +601,35 @@ def install_performance_observers(context) -> None:
               width: round(rect.width),
               height: round(rect.height)
             } : null;
+            const captureFontLayoutSnapshot = phase => {
+              if (state.fontLayoutSnapshots.length >= 4) return;
+              const hero = document.querySelector(".page-hero__content, .hero__content");
+              if (!hero) return;
+              const supportingCopy = Array.from(hero.children).find(node =>
+                node.tagName === "P" && !node.classList.contains("eyebrow")
+              );
+              state.fontLayoutSnapshots.push({
+                phase,
+                atMs: round(performance.now()),
+                fontStatus: document.fonts.status,
+                families: {
+                  playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
+                  dmSans: document.fonts.check('400 16px "DM Sans"')
+                },
+                elements: {
+                  content: describeRect(hero.getBoundingClientRect()),
+                  heading: describeRect(hero.querySelector("h1")?.getBoundingClientRect()),
+                  supportingCopy: describeRect(supportingCopy?.getBoundingClientRect())
+                }
+              });
+            };
+            document.addEventListener("DOMContentLoaded", () => captureFontLayoutSnapshot("dom-content-loaded"), {once: true});
+            try {
+              document.fonts.addEventListener("loading", () => captureFontLayoutSnapshot("font-loading"));
+              document.fonts.addEventListener("loadingdone", () => captureFontLayoutSnapshot("font-loading-done"));
+              document.fonts.addEventListener("loadingerror", () => captureFontLayoutSnapshot("font-loading-error"));
+              document.fonts.ready.then(() => captureFontLayoutSnapshot("fonts-ready"));
+            } catch (_) {}
             new PerformanceObserver(list => {
               for (const entry of list.getEntries()) {
                 if (!entry.hadRecentInput) {
@@ -626,13 +672,41 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
         page.wait_for_load_state("load", timeout=10000)
         sample = page.evaluate(
             r"""async () => {
+              const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+              const snapshotHeroLayout = phase => {
+                const hero = document.querySelector(".page-hero__content, .hero__content");
+                if (!hero) return null;
+                const rect = node => {
+                  if (!node) return null;
+                  const box = node.getBoundingClientRect();
+                  return {x: round(box.x), y: round(box.y), width: round(box.width), height: round(box.height)};
+                };
+                const supportingCopy = Array.from(hero.children).find(node =>
+                  node.tagName === "P" && !node.classList.contains("eyebrow")
+                );
+                return {
+                  phase,
+                  atMs: round(performance.now()),
+                  fontStatus: document.fonts.status,
+                  families: {
+                    playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
+                    dmSans: document.fonts.check('400 16px "DM Sans"')
+                  },
+                  elements: {
+                    content: rect(hero),
+                    heading: rect(hero.querySelector("h1")),
+                    supportingCopy: rect(supportingCopy)
+                  }
+                };
+              };
+              const sampleBeforeFontWait = snapshotHeroLayout("sample-before-font-wait");
               let fontsReadyWithinCaptureWindow = false;
               await Promise.race([
                 document.fonts.ready.then(() => { fontsReadyWithinCaptureWindow = true; }),
                 new Promise(resolve => setTimeout(resolve, 1500))
               ]);
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-              const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+              const sampleAfterFontWait = snapshotHeroLayout("sample-after-font-wait");
               const navigation = performance.getEntriesByType("navigation")[0];
               const state = window.__gjhPerformance || {};
               const resources = performance.getEntriesByType("resource").filter(entry => {
@@ -688,7 +762,12 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
                   families: {
                     playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
                     dmSans: document.fonts.check('400 16px "DM Sans"')
-                  }
+                  },
+                  layoutSnapshots: [
+                    ...(Array.isArray(state.fontLayoutSnapshots) ? state.fontLayoutSnapshots.slice(0, 4) : []),
+                    sampleBeforeFontWait,
+                    sampleAfterFontWait
+                  ].filter(Boolean)
                 },
                 longTasks: {
                   count: Number(state.longTaskCount) || 0,
