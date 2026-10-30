@@ -387,6 +387,20 @@ def build_report(mode: str, base_url: str, operator: str | None,
                 isinstance(shift, dict)
                 and isinstance(shift.get("value"), (int, float))
                 and shift["value"] >= 0
+                and isinstance(shift.get("hadRecentInput"), bool)
+                and shift["hadRecentInput"] is False
+                and isinstance(shift.get("context"), dict)
+                and isinstance(shift["context"].get("scrollY"), (int, float))
+                and isinstance(shift["context"].get("header"), dict)
+                and isinstance(shift["context"]["header"].get("rect"), dict)
+                and all(isinstance(shift["context"]["header"]["rect"].get(axis), (int, float))
+                        for axis in ("x", "y", "width", "height"))
+                and isinstance(shift["context"].get("hero"), dict)
+                and all(isinstance(shift["context"]["hero"].get(axis), (int, float))
+                        for axis in ("x", "y", "width", "height"))
+                and isinstance(shift["context"].get("viewport"), dict)
+                and all(isinstance(shift["context"]["viewport"].get(axis), (int, float))
+                        for axis in ("width", "height"))
                 and isinstance(shift.get("sources"), list)
                 and len(shift["sources"]) <= 4
                 and all(
@@ -450,7 +464,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete and performance_complete)
 
     return {
-        "schemaVersion": 8,
+        "schemaVersion": 9,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -491,6 +505,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                 "largestContentfulPaint",
                 "cumulativeLayoutShift",
                 "layoutShiftSourceAttribution",
+                "layoutShiftContext",
                 "fontReadinessDiagnostics",
                 "fontSettlementGeometry",
                 "navigationTiming",
@@ -586,13 +601,16 @@ def install_performance_observers(context) -> None:
             const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
             const describeNode = node => {
               if (!node) return null;
-              const className = typeof node.className === "string"
-                ? node.className
-                : (node.className && node.className.baseVal) || "";
+              const element = node.nodeType === 1 ? node : (node.parentElement || node.parentNode);
+              if (!element) return {tagName: null, id: null, className: null, sourceNodeType: node.nodeType || null};
+              const className = typeof element.className === "string"
+                ? element.className
+                : (element.className && element.className.baseVal) || "";
               return {
-                tagName: node.tagName || null,
-                id: node.id ? String(node.id).slice(0, 120) : null,
-                className: className ? String(className).slice(0, 160) : null
+                tagName: element.tagName || null,
+                id: element.id ? String(element.id).slice(0, 120) : null,
+                className: className ? String(className).slice(0, 160) : null,
+                sourceNodeType: node.nodeType || null
               };
             };
             const describeRect = rect => rect ? {
@@ -601,6 +619,21 @@ def install_performance_observers(context) -> None:
               width: round(rect.width),
               height: round(rect.height)
             } : null;
+            const describeLayoutContext = () => {
+              const header = document.querySelector(".site-header");
+              const announcement = document.querySelector(".announcement");
+              const hero = document.querySelector(".page-hero, .hero");
+              return {
+                scrollY: round(window.scrollY),
+                header: {
+                  className: header ? String(header.className).slice(0, 120) : null,
+                  rect: describeRect(header && header.getBoundingClientRect())
+                },
+                announcement: describeRect(announcement && announcement.getBoundingClientRect()),
+                hero: describeRect(hero && hero.getBoundingClientRect()),
+                viewport: {width: round(window.innerWidth), height: round(window.innerHeight)}
+              };
+            };
             const captureFontLayoutSnapshot = phase => {
               if (state.fontLayoutSnapshots.length >= 4) return;
               const hero = document.querySelector(".page-hero__content, .hero__content");
@@ -616,6 +649,8 @@ def install_performance_observers(context) -> None:
                   playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
                   dmSans: document.fonts.check('400 16px "DM Sans"')
                 },
+                scrollY: round(window.scrollY),
+                header: describeLayoutContext().header,
                 elements: {
                   content: describeRect(hero.getBoundingClientRect()),
                   heading: describeRect(hero.querySelector("h1")?.getBoundingClientRect()),
@@ -637,6 +672,8 @@ def install_performance_observers(context) -> None:
                   state.layoutShiftEntries += 1;
                   state.layoutShiftSources.push({
                     value: round(entry.value),
+                    hadRecentInput: Boolean(entry.hadRecentInput),
+                    context: describeLayoutContext(),
                     sources: Array.from(entry.sources || []).slice(0, 4).map(source => ({
                       element: describeNode(source.node),
                       previousRect: describeRect(source.previousRect),
@@ -692,6 +729,13 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
                     playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
                     dmSans: document.fonts.check('400 16px "DM Sans"')
                   },
+                  scrollY: round(window.scrollY),
+                  header: {
+                    className: (document.querySelector(".site-header") || {}).className || null,
+                    rect: rect(document.querySelector(".site-header"))
+                  },
+                  announcement: rect(document.querySelector(".announcement")),
+                  heroSection: rect(document.querySelector(".page-hero, .hero")),
                   elements: {
                     content: rect(hero),
                     heading: rect(hero.querySelector("h1")),
