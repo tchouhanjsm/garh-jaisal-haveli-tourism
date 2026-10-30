@@ -52,6 +52,15 @@ SOURCE_PREFIX = (
 RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
+# Byte ceilings are limited to the largest/highest-value 1200px derivatives.
+# Original JPEG/WebP sources and unbudgeted candidates remain untouched.
+RESPONSIVE_VARIANT_MAX_BYTES = {
+    "assets/images/responsive/courtyard-1200.webp": 250_000,
+    "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
+    "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
+}
+BUDGET_QUALITY_FLOOR = 58
+BUDGET_QUALITY_STEP = 2
 
 
 def _resolve_site_root(root: Path) -> Path:
@@ -124,42 +133,77 @@ def _save_webp(
     icc_profile: bytes | None,
     *,
     preserve_different_existing: bool = False,
-) -> None:
-    """Write a verified WebP and optionally refuse to replace a different source image."""
+    quality: int = WEBP_QUALITY,
+    max_bytes: int | None = None,
+) -> dict:
+    """Write a verified WebP; budgeted variants keep the highest quality that fits."""
     if target.parent.is_symlink():
         raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
+    if isinstance(quality, bool) or not isinstance(quality, int) or not 1 <= quality <= 100:
+        raise ValueError(f"Invalid WebP quality: {quality!r}")
+    if max_bytes is not None and (
+        isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1
+    ):
+        raise ValueError(f"Invalid responsive image byte budget: {max_bytes!r}")
+    if max_bytes is not None and quality < BUDGET_QUALITY_FLOOR:
+        raise ValueError("Budget quality floor exceeds the starting WebP quality")
+
+    qualities = (
+        [quality]
+        if max_bytes is None
+        else list(range(quality, BUDGET_QUALITY_FLOOR - 1, -BUDGET_QUALITY_STEP))
+    )
+    attempts: list[dict] = []
     temporary = target.with_name(target.name + ".tmp")
-    for candidate in (target, temporary):
-        if candidate.is_symlink():
-            raise ValueError(f"Refusing to replace a symlinked image output: {candidate}")
-        if candidate.exists() and not candidate.is_file():
-            raise ValueError(f"Image output is not a regular file: {candidate}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        kwargs = {"quality": WEBP_QUALITY, "method": 6}
-        if icc_profile:
-            kwargs["icc_profile"] = icc_profile
-        image.save(temporary, format="WEBP", **kwargs)
-        with Image.open(temporary) as check:
-            check.load()
-            if check.format != "WEBP" or check.size != image.size:
-                raise RuntimeError(f"WebP verification mismatch: {target}")
-        if target.is_file():
-            if target.read_bytes() == temporary.read_bytes():
-                temporary.unlink()
-            elif preserve_different_existing:
-                raise FileExistsError(
-                    f"Refusing to overwrite an existing WebP source with a generated derivative: {target}"
-                )
+    for candidate_quality in qualities:
+        for candidate in (target, temporary):
+            if candidate.is_symlink():
+                raise ValueError(f"Refusing to replace a symlinked image output: {candidate}")
+            if candidate.exists() and not candidate.is_file():
+                raise ValueError(f"Image output is not a regular file: {candidate}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            kwargs = {"quality": candidate_quality, "method": 6}
+            if icc_profile:
+                kwargs["icc_profile"] = icc_profile
+            image.save(temporary, format="WEBP", **kwargs)
+            with Image.open(temporary) as check:
+                check.load()
+                if check.format != "WEBP" or check.size != image.size:
+                    raise RuntimeError(f"WebP verification mismatch: {target}")
+            candidate_bytes = temporary.stat().st_size
+            attempts.append({"quality": candidate_quality, "bytes": candidate_bytes})
+            if max_bytes is not None and candidate_bytes > max_bytes:
+                temporary.unlink(missing_ok=True)
+                continue
+
+            if target.is_file():
+                if target.read_bytes() == temporary.read_bytes():
+                    temporary.unlink()
+                elif preserve_different_existing:
+                    raise FileExistsError(
+                        f"Refusing to overwrite an existing WebP source with a generated derivative: {target}"
+                    )
+                else:
+                    temporary.replace(target)
             else:
                 temporary.replace(target)
-        else:
-            temporary.replace(target)
-    except Exception:
-        temporary.unlink(missing_ok=True)
-        raise
+            return {
+                "quality": candidate_quality,
+                "qualityAttempts": attempts,
+                "maxBytes": max_bytes,
+            }
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
 
-
+    attempt_summary = ", ".join(
+        f"q{item['quality']}={item['bytes']}B" for item in attempts
+    )
+    raise RuntimeError(
+        f"Responsive WebP cannot meet the {max_bytes}-byte budget at or above "
+        f"quality {BUDGET_QUALITY_FLOOR}: {target} ({attempt_summary})"
+    )
 
 
 def _validate_source_image_header(image: Image.Image, filename: str) -> None:
@@ -292,13 +336,20 @@ def generate_responsive_variants(
                     Image.Resampling.LANCZOS,
                 )
                 target = responsive_parent / f"{relative.stem}-{target_width}.webp"
-                _save_webp(resized, target, icc_profile)
+                target_relative = target.relative_to(root).as_posix()
+                max_bytes = RESPONSIVE_VARIANT_MAX_BYTES.get(target_relative)
+                encoding = _save_webp(
+                    resized, target, icc_profile, max_bytes=max_bytes
+                )
                 generated.append(
                     {
                         "width": target_width,
                         "height": target_height,
-                        "path": target.relative_to(root).as_posix(),
+                        "path": target_relative,
                         "bytes": target.stat().st_size,
+                        "quality": encoding["quality"],
+                        "qualityAttempts": encoding["qualityAttempts"],
+                        "maxBytes": max_bytes,
                     }
                 )
             source_format = "WEBP" if source_filename != filename else "JPEG"
@@ -673,16 +724,19 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
     return text
 
 
-def rewrite_site(root: Path, extension: str) -> list[Path]:
-    """Rewrite regular root-level HTML pages only after every transformation succeeds."""
+def rewrite_site(
+    root: Path, extension: str, *, return_report: bool = False
+) -> list[Path] | tuple[list[Path], dict[str, dict]]:
+    """Rewrite regular root-level HTML pages; optionally return responsive generation evidence."""
     root = _resolve_site_root(root)
+    generation_report: dict[str, dict] = {}
     pages = sorted(root.glob("*.html"))
     for page in pages:
         if page.is_symlink() or not page.is_file():
             raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
 
     if extension == "responsive":
-        generate_responsive_variants(root)
+        generation_report = generate_responsive_variants(root)
 
     # Render every page before writing any of them. A bad later page must not leave a
     # partially rewritten site, and a symlinked route must never redirect writes outside root.
@@ -696,7 +750,7 @@ def rewrite_site(root: Path, extension: str) -> list[Path]:
             pending.append((page, original, updated, page.stat().st_mode & 0o777))
 
     if not pending:
-        return []
+        return ([], generation_report) if return_report else []
 
     staged: list[tuple[Path, Path, str, int]] = []
     replaced: list[tuple[Path, str, int]] = []
@@ -746,7 +800,8 @@ def rewrite_site(root: Path, extension: str) -> list[Path]:
                 ) from error
             raise
 
-        return [page for page, _, _, _ in pending]
+        rewritten_pages = [page for page, _, _, _ in pending]
+        return (rewritten_pages, generation_report) if return_report else rewritten_pages
     finally:
         for temporary, _, _, _ in staged:
             temporary.unlink(missing_ok=True)
