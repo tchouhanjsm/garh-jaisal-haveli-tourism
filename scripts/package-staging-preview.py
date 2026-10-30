@@ -1732,6 +1732,19 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             fail(f"Release manifest is not valid UTF-8 JSON: {error}")
         if not isinstance(manifest, dict):
             fail("Release manifest must be a JSON object.")
+        responsive_delivery = manifest.get("responsiveImageDelivery")
+        delivery_evidence = (
+            responsive_delivery.get("deliveryEvidence")
+            if isinstance(responsive_delivery, dict) else None
+        )
+        if (
+            not isinstance(delivery_evidence, dict)
+            or delivery_evidence.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
+            or delivery_evidence.get("fieldDataAvailable") is not False
+            or delivery_evidence.get("candidateBytesAreTransferMeasurements") is not False
+            or delivery_evidence.get("candidateSavingsVersusJpegFallbackInferred") is not False
+        ):
+            fail("The release manifest must distinguish packaged candidate sizes from measured transfer and field data.")
         editorial_isolation = manifest.get("editorialDraftIsolation")
         if (
             not isinstance(editorial_isolation, dict)
