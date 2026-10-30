@@ -30,6 +30,16 @@ assert.equal((siteCss.match(/:root\s*\{/g) || []).length, 1,
   'the main stylesheet must own exactly one canonical design-token root');
 assert.doesNotMatch(css, /:root\s*\{/,
   'the premium layer must consume canonical design tokens, not redefine the palette');
+const headerRule = (siteCss.match(/\.site-header\{[^}]*\}/) || [])[0] || '';
+const scrolledHeaderRule = (siteCss.match(/\.site-header\.is-scrolled\{[^}]*\}/) || [])[0] || '';
+assert.match(headerRule, /min-height:84px/,
+  'desktop header must reserve its full document-flow height');
+assert.doesNotMatch(headerRule, /transition:[^;}]*min-height/,
+  'header scroll state must not animate document-flow height');
+assert.match(scrolledHeaderRule, /min-height:84px/,
+  'scrolled desktop header must retain the same reserved document-flow height');
+assert.match(siteCss, /@media\(min-width:761px\)\{\.site-header\.is-scrolled \.brand__mark\{transform:scale\(\.91\)\}\}/,
+  'desktop compact header treatment must scale the brand mark without changing layout geometry');
 assert.match(siteCss, /--ink:\s*#1a2821/i, 'the canonical ink token must match the approved premium palette');
 assert.match(siteCss, /--paper:\s*#f7f3ea/i, 'the canonical paper token must match the approved premium palette');
 assert.match(siteCss, /--gold-dark:\s*#765735/i, 'the canonical accessible gold-ink token must be explicit');
