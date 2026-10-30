@@ -362,6 +362,27 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
+    def test_responsive_delivery_evidence_classifies_candidate_bytes_as_lab_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_jpeg(root, "rest3.jpg", (1200, 800))
+            generated = generate_responsive_variants(root, ("rest3.jpg",))
+            entry = generated["rest3.jpg"]
+            evidence = {
+                "measurementClass": "packaged-chromium-laboratory-diagnostic",
+                "fieldDataAvailable": False,
+                "candidateBytesAreTransferMeasurements": False,
+                "candidateSavingsVersusJpegFallbackInferred": False,
+                "responsiveCandidateCount": len(entry["variants"]),
+                "responsiveCandidateBytes": sum(item["bytes"] for item in entry["variants"]),
+            }
+            self.assertEqual(evidence["measurementClass"], "packaged-chromium-laboratory-diagnostic")
+            self.assertIs(evidence["fieldDataAvailable"], False)
+            self.assertIs(evidence["candidateBytesAreTransferMeasurements"], False)
+            self.assertIs(evidence["candidateSavingsVersusJpegFallbackInferred"], False)
+            self.assertGreater(evidence["responsiveCandidateCount"], 0)
+            self.assertGreater(evidence["responsiveCandidateBytes"], 0)
+
     def test_generated_jpeg_derivative_refuses_to_overwrite_an_unmapped_webp_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
