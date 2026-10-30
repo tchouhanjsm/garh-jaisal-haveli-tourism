@@ -924,6 +924,19 @@ class RewriteImageReferencesTests(unittest.TestCase):
             manifest_path = output / "RELEASE-MANIFEST.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
+            # The release gate must reject evidence that mislabels candidate sizes as field or transfer measurements.
+            manifest["responsiveImageDelivery"]["deliveryEvidence"]["fieldDataAvailable"] = True
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "distinguish packaged candidate sizes"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["responsiveImageDelivery"]["deliveryEvidence"]["fieldDataAvailable"] = False
+            manifest["responsiveImageDelivery"]["deliveryEvidence"]["candidateBytesAreTransferMeasurements"] = True
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "distinguish packaged candidate sizes"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["responsiveImageDelivery"]["deliveryEvidence"]["candidateBytesAreTransferMeasurements"] = False
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
             # A complete manifest and matching payload must remain packageable.
             _PACKAGE_PREVIEW.deterministic_archive(output, archive)
 
