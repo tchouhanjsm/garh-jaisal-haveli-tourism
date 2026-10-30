@@ -566,6 +566,7 @@ def install_performance_observers(context) -> None:
             state.observerSupport.lcp = true;
           } catch (_) {}
           try {
+            const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
             const describeNode = node => {
               if (!node) return null;
               const className = typeof node.className === "string"
