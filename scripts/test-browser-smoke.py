@@ -2814,8 +2814,7 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     clear.click()
     check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear filters must restore all drafts")
 
-    page.locator('[data-journal-open="jaisalmer-fort-guide"]').first.focus()
-    page.keyboard.press("Enter")
+    page.locator('[data-journal-open="jaisalmer-fort-guide"]').first.press("Enter")
     article=page.locator("[data-journal-article]")
     check(article.is_visible(),"Journal preview: keyboard activation must open an article")
     check(article.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
