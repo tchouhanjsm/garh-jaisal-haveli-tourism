@@ -2721,6 +2721,11 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         check(False, f"Journal media workbench: five unique candidate paths should render ({error})")
         return
     check(media_cards.count() == 5, "Journal media workbench: candidate paths must be deduplicated to five cards")
+    try:
+        page.wait_for_function("document.querySelector('[data-media-workbench]')?.dataset.mediaManifestState === 'available'", timeout=10000)
+    except Exception as error:
+        check(False, f"Journal media workbench: source manifest should load independently of draft records ({error})")
+        return
     check(page.locator("[data-media-placement]").count() == 13,
           "Journal media workbench: all 13 article/role placements must remain visible in evidence details")
     check(page.locator('[data-media-card][data-media-source="matched"]').count() == 2,

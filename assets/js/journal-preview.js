@@ -112,6 +112,7 @@ grouped.get(candidate.path).placements.push({record:record,candidate:candidate,r
 });
 });
 const manifestIndex=mediaManifestIndex(mediaManifest);
+mediaWorkbench.dataset.mediaManifestState=manifestIndex.available?'available':'unavailable';
 mediaGroups=Array.from(grouped.values()).sort((a,b)=>a.path.localeCompare(b.path));
 mediaGroups.forEach(group=>{
 const entry=manifestIndex.entries.get(group.path)||null;
@@ -262,5 +263,5 @@ if(mediaSearch)mediaSearch.addEventListener('input',renderMediaWorkbench);if(med
 grid.addEventListener('click',openFrom);featured.addEventListener('click',openFrom);related.addEventListener('click',openFrom);backs.forEach(b=>b.addEventListener('click',back));
 const recordRequest=Promise.all(slugs.map(slug=>fetch('../content/blogs/'+slug+'.json',{credentials:'omit',cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Missing draft '+slug);return response.json();}).then(record=>{if(record.slug!==slug||record.status!=='draft'||!labels[record.topic])throw new Error('Ineligible draft '+slug);return record;})));
 const manifestRequest=fetch('../docs/MEDIA-MIGRATION-MANIFEST.json',{credentials:'omit',cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Media migration manifest unavailable');return response.json();}).catch(()=>null);
-Promise.all([recordRequest,manifestRequest]).then(data=>{records=data[0];mediaManifest=data[1];buildTopics();renderArchive();buildMediaWorkbench();}).catch(()=>{results.textContent='The draft preview could not load its records.';error.hidden=false;featured.replaceChildren();grid.replaceChildren();if(mediaSummary)mediaSummary.textContent='Candidate media evidence could not be loaded because the draft records are unavailable.';});
+recordRequest.then(data=>{records=data;buildTopics();renderArchive();buildMediaWorkbench();manifestRequest.then(manifest=>{mediaManifest=manifest;buildMediaWorkbench();});}).catch(()=>{results.textContent='The draft preview could not load its records.';error.hidden=false;featured.replaceChildren();grid.replaceChildren();if(mediaSummary)mediaSummary.textContent='Candidate media evidence could not be loaded because the draft records are unavailable.';if(mediaWorkbench)mediaWorkbench.setAttribute('aria-busy','false');});
 })();
