@@ -43,6 +43,7 @@ RESPONSIVE_AUDIT_VIEWPORTS = [
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
 NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
+ROUTE_PERFORMANCE_EVIDENCE: list[dict] = []
 FAILURES: list[str] = []
 RUNTIME_ERRORS: list[str] = []
 HTTP_ERRORS: list[str] = []
@@ -270,7 +271,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
                  completed_viewports: list[int] | None = None,
                  blocked_navigation_attempts: list[str] | None = None,
                  screenshot_evidence: list[dict] | None = None,
-                 unknown_route_evidence: dict | None = None) -> dict:
+                 unknown_route_evidence: dict | None = None,
+                 performance_evidence: list[dict] | None = None) -> dict:
     manual_checks = [
         ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
@@ -350,6 +352,43 @@ def build_report(mode: str, base_url: str, operator: str | None,
             f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
         )
 
+    performance_records = list(performance_evidence or [])
+    expected_performance_samples = len(PAGES) * len(VIEWPORTS)
+    performance_keys = [
+        (record.get("route"), record.get("viewportWidthCssPixels"))
+        for record in performance_records
+    ]
+    expected_performance_keys = {
+        (page_name, width)
+        for page_name in PAGES
+        for width, _height in VIEWPORTS
+    }
+    performance_complete = (
+        len(performance_records) == expected_performance_samples
+        and len(set(performance_keys)) == expected_performance_samples
+        and set(performance_keys) == expected_performance_keys
+        and all(
+            isinstance(record.get("navigation"), dict)
+            and all(
+                isinstance(record["navigation"].get(key), (int, float))
+                and record["navigation"][key] >= 0
+                for key in ("responseStartMs", "domContentLoadedMs", "loadEventEndMs")
+            )
+            and isinstance(record.get("cumulativeLayoutShift"), (int, float))
+            and record["cumulativeLayoutShift"] >= 0
+            and isinstance(record.get("sameOriginResources"), dict)
+            and isinstance(record["sameOriginResources"].get("encodedBodyBytes"), int)
+            and record["sameOriginResources"]["encodedBodyBytes"] >= 0
+            for record in performance_records
+        )
+    )
+    if not performance_complete:
+        evidence_failures.append(
+            "Incomplete route performance baseline: expected one valid navigation/LCP/CLS/resource sample "
+            f"for each of {len(PAGES)} routes at {len(VIEWPORTS)} representative widths "
+            f"({len(performance_records)}/{expected_performance_samples} valid samples captured)."
+        )
+
     unknown_route_complete = unknown_route_evidence_is_complete(unknown_route_evidence)
     if not unknown_route_complete:
         evidence_failures.append(
@@ -368,7 +407,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete)
 
     return {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -395,6 +434,23 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "recoveryLinks": [],
             "viewportChecks": [],
             "complete": False,
+        },
+        "performanceBaseline": {
+            "environment": "local-static-http-chromium" if mode == "local-browser-smoke" else "approved-staging-origin-read-only",
+            "dataClass": "laboratory-diagnostic-not-field-core-web-vitals",
+            "fieldDataAvailable": False,
+            "thresholdsEnforced": False,
+            "expectedSampleCount": expected_performance_samples,
+            "capturedSampleCount": len(performance_records),
+            "complete": performance_complete,
+            "metrics": [
+                "largestContentfulPaint",
+                "cumulativeLayoutShift",
+                "navigationTiming",
+                "sameOriginEncodedResourceBytes",
+                "longTasks"
+            ],
+            "samples": performance_records,
         },
         "visualEvidence": {
             "required": True,
@@ -434,6 +490,157 @@ def write_report(report_path: str, report: dict) -> Path:
 def check(condition: bool, message: str) -> None:
     if not condition:
         FAILURES.append(message)
+
+
+def install_performance_observers(context) -> None:
+    """Collect buffered LCP, CLS and long-task entries without changing page behavior."""
+    context.add_init_script(
+        """(() => {
+          const state = {
+            lcp: null,
+            cls: 0,
+            layoutShiftEntries: 0,
+            longTaskCount: 0,
+            longTaskDurationMs: 0
+          };
+          try {
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                const element = entry.element;
+                let urlPath = null;
+                if (entry.url) {
+                  try {
+                    const url = new URL(entry.url, location.href);
+                    urlPath = url.origin === location.origin ? url.pathname : "cross-origin-resource";
+                  } catch (_) {}
+                }
+                if (!state.lcp || entry.startTime >= state.lcp.valueMs) {
+                  state.lcp = {
+                    valueMs: Math.round(entry.startTime * 10) / 10,
+                    size: Number(entry.size) || 0,
+                    element: element ? {
+                      tagName: element.tagName || null,
+                      id: element.id || null,
+                      className: typeof element.className === "string"
+                        ? element.className
+                        : (element.className && element.className.baseVal) || null
+                    } : null,
+                    urlPath
+                  };
+                }
+              }
+            }).observe({type: "largest-contentful-paint", buffered: true});
+          } catch (_) {}
+          try {
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                if (!entry.hadRecentInput) {
+                  state.cls += entry.value;
+                  state.layoutShiftEntries += 1;
+                }
+              }
+            }).observe({type: "layout-shift", buffered: true});
+          } catch (_) {}
+          try {
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                state.longTaskCount += 1;
+                state.longTaskDurationMs += entry.duration;
+              }
+            }).observe({type: "longtask", buffered: true});
+          } catch (_) {}
+          Object.defineProperty(window, "__gjhPerformance", {
+            configurable: false,
+            enumerable: false,
+            value: state
+          });
+        })();"""
+    )
+
+
+def capture_route_performance(page, page_name: str, width: int, height: int) -> None:
+    """Record a repeatable local-browser performance sample; this is not field CWV data."""
+    try:
+        page.wait_for_load_state("load", timeout=10000)
+        sample = page.evaluate(
+            """async () => {
+              await Promise.race([
+                document.fonts.ready,
+                new Promise(resolve => setTimeout(resolve, 1500))
+              ]);
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+              const navigation = performance.getEntriesByType("navigation")[0];
+              const state = window.__gjhPerformance || {};
+              const resources = performance.getEntriesByType("resource").filter(entry => {
+                try { return new URL(entry.name).origin === location.origin; }
+                catch (_) { return false; }
+              });
+              const summary = {
+                count: resources.length,
+                encodedBodyBytes: 0,
+                transferBytesObserved: 0,
+                images: {count: 0, encodedBodyBytes: 0},
+                stylesheets: {count: 0, encodedBodyBytes: 0},
+                scripts: {count: 0, encodedBodyBytes: 0},
+                fonts: {count: 0, encodedBodyBytes: 0},
+                other: {count: 0, encodedBodyBytes: 0}
+              };
+              for (const entry of resources) {
+                const bytes = Math.max(0, Number(entry.encodedBodySize) || 0);
+                const transfer = Math.max(0, Number(entry.transferSize) || 0);
+                summary.encodedBodyBytes += bytes;
+                summary.transferBytesObserved += transfer;
+                const pathname = new URL(entry.name).pathname.toLowerCase();
+                let bucket = "other";
+                if (/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(pathname) || entry.initiatorType === "img") {
+                  bucket = "images";
+                } else if (/\.(?:woff2?|ttf|otf)$/i.test(pathname)) {
+                  bucket = "fonts";
+                } else if (/\.css$/i.test(pathname) || entry.initiatorType === "css") {
+                  bucket = "stylesheets";
+                } else if (/\.m?js$/i.test(pathname) || entry.initiatorType === "script") {
+                  bucket = "scripts";
+                }
+                summary[bucket].count += 1;
+                summary[bucket].encodedBodyBytes += bytes;
+              }
+              const lcp = state.lcp && Number.isFinite(state.lcp.valueMs) ? state.lcp : null;
+              return {
+                navigation: navigation ? {
+                  responseStartMs: round(navigation.responseStart),
+                  domContentLoadedMs: round(navigation.domContentLoadedEventEnd),
+                  loadEventEndMs: round(navigation.loadEventEnd),
+                  documentEncodedBodyBytes: Math.max(0, Number(navigation.encodedBodySize) || 0),
+                  documentTransferBytesObserved: Math.max(0, Number(navigation.transferSize) || 0)
+                } : null,
+                largestContentfulPaint: lcp,
+                cumulativeLayoutShift: round(Number(state.cls) || 0),
+                layoutShiftEntries: Number(state.layoutShiftEntries) || 0,
+                longTasks: {
+                  count: Number(state.longTaskCount) || 0,
+                  totalDurationMs: round(Number(state.longTaskDurationMs) || 0)
+                },
+                sameOriginResources: summary
+              };
+            }"""
+        )
+        if not isinstance(sample, dict) or not isinstance(sample.get("navigation"), dict):
+            raise ValueError("navigation timing entry was unavailable")
+        if sample.get("cumulativeLayoutShift") is None:
+            raise ValueError("layout-shift measurement was unavailable")
+        ROUTE_PERFORMANCE_EVIDENCE.append({
+            "route": page_name,
+            "viewportWidthCssPixels": width,
+            "viewportHeightCssPixels": height,
+            **sample,
+        })
+    except Exception as error:
+        check(
+            False,
+            f"{page_name} at {width}px: route performance sample could not be captured: "
+            f"{type(error).__name__}: {sanitize_diagnostic_text(error)}",
+        )
 
 
 def capture_visual_evidence(page, page_name: str, width: int, height: int,
@@ -2148,6 +2355,8 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                       f"{page_name} at {width}px: navigation redirected away from the requested site origin")
             page.wait_for_selector("main#main", timeout=5000)
             page.wait_for_timeout(80)
+            if width in screenshot_widths:
+                capture_route_performance(page, page_name, width, height)
             check_premium_guest_journey(page, page_name, width)
             type_requirements = {
                 "index.html": [(".experience-card p", 13), (".proof-item span", 11),
@@ -3732,6 +3941,7 @@ def main(argv: list[str] | None = None) -> int:
                 viewport={"width": 1440, "height": 900},
                 http_credentials=http_credentials,
             )
+            install_performance_observers(context)
             install_navigation_guard(context, base_url)
             page = context.new_page()
             page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{safe_url_label(page.url)}: {error}"))
@@ -3842,6 +4052,7 @@ def main(argv: list[str] | None = None) -> int:
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
             unknown_route_evidence=unknown_route_evidence,
+            performance_evidence=ROUTE_PERFORMANCE_EVIDENCE,
         )
         if not local_visual_report["visualEvidence"]["complete"]:
             FAILURES.append(
@@ -3855,6 +4066,7 @@ def main(argv: list[str] | None = None) -> int:
                 PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
                 screenshot_evidence=SCREENSHOT_EVIDENCE,
                 unknown_route_evidence=unknown_route_evidence,
+                performance_evidence=ROUTE_PERFORMANCE_EVIDENCE,
             )
             try:
                 report_destination = write_report(str(local_report_path), local_visual_report)
@@ -3870,6 +4082,7 @@ def main(argv: list[str] | None = None) -> int:
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
             unknown_route_evidence=unknown_route_evidence,
+            performance_evidence=ROUTE_PERFORMANCE_EVIDENCE,
         )
         # The console result and JSON report must agree. Missing route/viewport
         # evidence is a failure even when no individual assertion raised.
@@ -3891,6 +4104,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     mode_label = "staging" if staging_mode else "local"
+    print(
+        f"Route performance baseline captured {len(ROUTE_PERFORMANCE_EVIDENCE)}/"
+        f"{len(PAGES) * len(VIEWPORTS)} route/viewport samples. LCP, CLS, navigation timing, "
+        "same-origin encoded resource bytes and long tasks are laboratory diagnostics only; "
+        "no field Core Web Vitals claim or performance threshold is inferred."
+    )
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, shared enquiry draft generation/date validation/no network submission, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
