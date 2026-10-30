@@ -19,7 +19,7 @@ const tagContent = (html, tag, attr, value) => {
   return html.slice(start, end);
 };
 
-assert.match(experiences, /class="page-hero page-hero--plain experience-discovery-hero"/, 'Experiences has a dedicated hero style');
+assert.match(experiences, /class="page-hero page-hero--photo page-hero--experiences experience-discovery-hero"/, 'Experiences has a dedicated photo-led hero style');
 assert.match(experiences, /<h1>Jaisalmer, at your own <em>pace\.<\/em><\/h1>/, 'Experiences uses the editorial headline');
 assert.match(experiences, /assets\/css\/experience-discovery\.css/, 'Experiences loads the page-specific discovery styling');
 assert.match(experiences, /Explore the desert, the Fort and the road beyond\./, 'Catalogue heading covers the broader guest journey');
