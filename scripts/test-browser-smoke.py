@@ -1833,6 +1833,29 @@ def check_404_recovery(page, base_url: str) -> dict:
     return evidence
 
 
+def activate_disclosure_summary(page, disclosure, description: str) -> None:
+    """Scroll a native disclosure summary into a stable viewport before pointer activation."""
+    summary = disclosure.locator("summary")
+    summary.evaluate(
+        """async (element) => {
+          element.scrollIntoView({
+            block: "center",
+            inline: "nearest",
+            behavior: "instant"
+          });
+          await new Promise(requestAnimationFrame);
+          await new Promise(requestAnimationFrame);
+          const rect = element.getBoundingClientRect();
+          if (rect.top < 0 || rect.bottom > window.innerHeight ||
+              rect.left < 0 || rect.right > window.innerWidth) {
+            throw new Error("Disclosure summary did not settle inside the viewport");
+          }
+        }"""
+    )
+    summary.click(timeout=5000)
+    check(disclosure.evaluate("(element) => element.open"), description)
+
+
 def check_stay_planner(page, base_url: str) -> None:
     """Exercise the shared enquiry planner, editable draft, and deliberate WhatsApp handoff."""
 
@@ -1847,13 +1870,12 @@ def check_stay_planner(page, base_url: str) -> None:
     check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
           "Home: do not load the generic planner runtime when its component is absent")
     page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
-    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
     planner = page.locator("[data-stay-planner]")
     check(planner.count() == 1, "Stay planner should appear once on the Rooms route")
     if planner.count() != 1:
         return
     details = planner.locator("[data-stay-planner-disclosure]")
-    details.locator("summary").click()
+    activate_disclosure_summary(page, details, "Stay planner disclosure should open from its visible summary")
     form = planner.locator("[data-stay-planner-form]")
     arrival = form.locator("#stay-plan-arrival")
     departure = form.locator("#stay-plan-departure")
@@ -1965,7 +1987,11 @@ def check_stay_planner(page, base_url: str) -> None:
             rollover_page = rollover_context.new_page()
             rollover_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             rollover_planner = rollover_page.locator("[data-stay-planner]")
-            rollover_planner.locator("[data-stay-planner-disclosure] summary").click()
+            activate_disclosure_summary(
+                rollover_page,
+                rollover_planner.locator("[data-stay-planner-disclosure]"),
+                "Stay planner disclosure should open in the local-midnight scenario",
+            )
             rollover_arrival = rollover_planner.locator("#stay-plan-arrival")
             rollover_departure = rollover_planner.locator("#stay-plan-departure")
             rollover_arrival.fill("2099-01-10")
@@ -1991,7 +2017,11 @@ def check_stay_planner(page, base_url: str) -> None:
             fallback_page = fallback_context.new_page()
             fallback_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             fallback_planner = fallback_page.locator("[data-stay-planner]")
-            fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
+            activate_disclosure_summary(
+                fallback_page,
+                fallback_planner.locator("[data-stay-planner-disclosure]"),
+                "Stay planner disclosure should open without JavaScript",
+            )
             fallback_notice = fallback_planner.locator(".stay-planner__no-script")
             check(
                 fallback_notice.is_visible(),
