@@ -738,6 +738,7 @@ def run_responsive_image_preview_smoke() -> int:
     checked_pictures = 0
     routes_with_responsive_images: set[str] = set()
     max_selected_to_required_ratio = 0.0
+    selected_resource_evidence: list[dict] = []
     server = None
     browser = None
 
@@ -766,10 +767,20 @@ def run_responsive_image_preview_smoke() -> int:
                             if same_origin(request.url, base_url):
                                 request_counts[request.url] = request_counts.get(request.url, 0) + 1
 
+                        image_response_headers: dict[str, dict] = {}
+
                         def record_image_response(response) -> None:
                             image_path = urlsplit(response.url).path.lower()
                             if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
-                                image_responses[response.url] = response.status
+                                headers = response.headers
+                                try:
+                                    length = int(headers.get("content-length", "0"))
+                                except (TypeError, ValueError):
+                                    length = 0
+                                image_responses[response.url] = {
+                                    "status": response.status,
+                                    "contentLengthBytes": max(0, length),
+                                }
 
                         def record_image_request_failed(request) -> None:
                             image_path = urlsplit(request.url).path.lower()
@@ -1054,6 +1065,39 @@ def run_responsive_image_preview_smoke() -> int:
                                     )
 
                                 selected_request_count = request_counts.get(details["currentSrc"], 0)
+                                selected_response = image_responses.get(details["currentSrc"], {})
+                                selected_transfer = page.evaluate(
+                                    """(url) => {
+                                      const entries = performance.getEntriesByName(url, "resource");
+                                      const entry = entries.length ? entries[entries.length - 1] : null;
+                                      return entry ? {
+                                        encodedBodyBytes: Number(entry.encodedBodySize) || 0,
+                                        transferBytes: Number(entry.transferSize) || 0,
+                                        decodedBodyBytes: Number(entry.decodedBodySize) || 0
+                                      } : null;
+                                    }""",
+                                    details["currentSrc"],
+                                )
+                                check_preview(
+                                    selected_response.get("status") == 200,
+                                    f"{label}: selected WebP candidate must return HTTP 200; observed {selected_response.get('status')!r}",
+                                )
+                                check_preview(
+                                    isinstance(selected_transfer, dict)
+                                    and selected_transfer.get("encodedBodyBytes", 0) > 0,
+                                    f"{label}: selected WebP candidate must expose non-zero encoded body bytes",
+                                )
+                                selected_resource_evidence.append({
+                                    "route": page_name,
+                                    "viewportWidthCssPixels": width,
+                                    "deviceScaleFactor": device_scale_factor,
+                                    "selectedWebpPath": selected_path,
+                                    "selectedWidth": selected_width,
+                                    "encodedBodyBytes": selected_transfer.get("encodedBodyBytes", 0) if isinstance(selected_transfer, dict) else 0,
+                                    "transferBytes": selected_transfer.get("transferBytes", 0) if isinstance(selected_transfer, dict) else 0,
+                                    "httpStatus": selected_response.get("status"),
+                                    "requestCount": selected_request_count,
+                                })
                                 check_preview(
                                     selected_request_count == 1,
                                     f"{label}: selected WebP candidate should be requested once, "
@@ -1103,12 +1147,18 @@ def run_responsive_image_preview_smoke() -> int:
             print(f" - {failure}")
         return 1
 
+    average_selected_bytes = (
+        round(sum(item["encodedBodyBytes"] for item in selected_resource_evidence) / len(selected_resource_evidence))
+        if selected_resource_evidence else 0
+    )
+
     viewport_widths = ", ".join(str(width) for width, _height in RESPONSIVE_AUDIT_VIEWPORTS)
     print(
         "PASS: packaged responsive-image browser smoke checked "
         f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
         f"at {viewport_widths}px and DPR 1x/2x; maximum selected/required pixel ratio "
-        f"{max_selected_to_required_ratio:.2f}x. Chromium selected declared WebP candidates, "
+        f"{max_selected_to_required_ratio:.2f}x; {len(selected_resource_evidence)} selected-resource observations, "
+        f"average encoded body {average_selected_bytes} bytes. Chromium selected declared WebP candidates, "
         "retained JPEG fallbacks, matched hero responsive preloads, and issued no duplicate WebP requests."
     )
     return 0
