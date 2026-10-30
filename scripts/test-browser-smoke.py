@@ -431,6 +431,10 @@ def build_report(mode: str, base_url: str, operator: str | None,
                             for axis in ("x", "y", "width", "height"))
                     for element_name in ("content", "heading")
                 )
+                and isinstance(snapshot.get("textRanges"), dict)
+                and isinstance(snapshot["textRanges"].get("heading"), dict)
+                and all(isinstance(snapshot["textRanges"]["heading"].get(axis), (int, float))
+                        for axis in ("x", "y", "width", "height"))
                 for snapshot in record["fontReadiness"]["layoutSnapshots"]
             )
             and isinstance(record.get("sameOriginResources"), dict)
@@ -464,7 +468,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                          and screenshot_complete and unknown_route_complete and performance_complete)
 
     return {
-        "schemaVersion": 9,
+        "schemaVersion": 10,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -508,6 +512,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
                 "layoutShiftContext",
                 "fontReadinessDiagnostics",
                 "fontSettlementGeometry",
+                "fontTextGeometry",
                 "navigationTiming",
                 "sameOriginEncodedResourceBytes",
                 "longTasks"
@@ -619,6 +624,12 @@ def install_performance_observers(context) -> None:
               width: round(rect.width),
               height: round(rect.height)
             } : null;
+            const describeTextRange = element => {
+              if (!element) return null;
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              return describeRect(range.getBoundingClientRect());
+            };
             const describeLayoutContext = () => {
               const header = document.querySelector(".site-header");
               const announcement = document.querySelector(".announcement");
@@ -655,6 +666,10 @@ def install_performance_observers(context) -> None:
                   content: describeRect(hero.getBoundingClientRect()),
                   heading: describeRect(hero.querySelector("h1")?.getBoundingClientRect()),
                   supportingCopy: describeRect(supportingCopy?.getBoundingClientRect())
+                },
+                textRanges: {
+                  heading: describeTextRange(hero.querySelector("h1")),
+                  supportingCopy: describeTextRange(supportingCopy)
                 }
               });
             };
@@ -721,6 +736,12 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
                 const supportingCopy = Array.from(hero.children).find(node =>
                   node.tagName === "P" && !node.classList.contains("eyebrow")
                 );
+                const textRange = element => {
+                  if (!element) return null;
+                  const range = document.createRange();
+                  range.selectNodeContents(element);
+                  return rect(range);
+                };
                 return {
                   phase,
                   atMs: round(performance.now()),
@@ -740,6 +761,10 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
                     content: rect(hero),
                     heading: rect(hero.querySelector("h1")),
                     supportingCopy: rect(supportingCopy)
+                  },
+                  textRanges: {
+                    heading: textRange(hero.querySelector("h1")),
+                    supportingCopy: textRange(supportingCopy)
                   }
                 };
               };
