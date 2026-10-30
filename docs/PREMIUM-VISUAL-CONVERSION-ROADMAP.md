@@ -301,6 +301,20 @@ A milestone does not count as complete because code was pushed.
 - Do not infer percentage savings versus JPEG fallbacks from candidate metadata; browser transfer observations remain local laboratory diagnostics.
 - Exact-head CI and reviewed package evidence remain required. No deployment, canonical/indexing activation or public release is implied.
 
+
+### M14 — exact-head verification
+
+Exact-head Site Quality Gates run [#41055514368](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/41055514368) passed all 13 workflow steps on `4b4a945b01337e401133c565808bf616615a280c`. The guarded staging archive was 14,207,108 bytes (77.34% of the 18 MiB uncompressed payload budget). Packaged Chromium verified 576 picture instances across eight routes, six viewport widths and DPR 1x/2x, with 576 selected-resource observations, an average encoded body of 55,409 bytes and maximum selected/required pixel ratio of 1.66x. These are package-only laboratory observations; owner visual review and manual staging UAT remain pending.
+
+## M15 — durable per-picture responsive-image evidence
+
+- Persist every packaged Chromium selection observation in a versioned JSON report rather than leaving the detailed evidence only in transient workflow logs.
+- Bind the report to the exact commit SHA, workflow run ID and Chromium version; record route, picture index, viewport, DPR, selected WebP path/width, required physical pixel width, selection ratio, HTTP status, request count, and encoded/transfer/decoded body bytes.
+- Require complete route × responsive picture × six viewport × DPR 1x/2x coverage, unique observations, HTTP 200, one request per selected candidate, positive encoded body bytes and the existing 1.9x pixel-demand ceiling.
+- Keep laboratory measurements, packaged file sizes and field Core Web Vitals distinct. Never infer JPEG fallback savings or real-user performance.
+- Validate the evidence schema and measurement labels in the quality suite, write partial reports on failed browser checks when possible, and upload the JSON report as a seven-day GitHub Actions artifact.
+- No page content, public indexing, canonical host, production or staging deployment, or release approval changes.
+
 ## 6. Immediate next execution batch
 
 **M3 — local Journal preview QA — now has browser interaction coverage and four dedicated screenshot captures in CI. Next: M1 — screenshot-driven premium design-system refinement.** Use the uploaded archive/article evidence at 390 and 1280px to review title hierarchy, text measure, card rhythm, filter/focus states, TOC readability, image framing and source/related-link behavior. Keep text-only editorial card art until real article-specific media has passed subject, rights, crop and owner review.

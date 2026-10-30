@@ -631,6 +631,86 @@ except RuntimeError as error:
 else:
     raise AssertionError("Package-size regression must fail when the payload crosses its budget")
 
+
+# M15: the packaged Chromium report is a complete, durable laboratory record,
+# not field data or an inferred saving against the JPEG fallback.
+fixture_picture_counts = {route: 1 for route in browser_smoke.PAGES}
+fixture_observations = []
+for route in browser_smoke.PAGES:
+    for viewport_width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS:
+        for dpr in (1, 2):
+            fixture_observations.append({
+                "route": route,
+                "pictureIndex": 0,
+                "viewportWidthCssPixels": viewport_width,
+                "deviceScaleFactor": dpr,
+                "selectedWebpPath": "assets/images/responsive/rooms/fixture-640.webp",
+                "selectedWidth": 640,
+                "requiredPixelWidth": 600.0,
+                "selectionPixelRatio": round(640 / 600, 3),
+                "encodedBodyBytes": 24576,
+                "transferBytes": 24880,
+                "decodedBodyBytes": 92160,
+                "httpStatus": 200,
+                "requestCount": 1,
+            })
+
+responsive_evidence = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+)
+assert responsive_evidence["automatedResult"] == "PASS"
+assert responsive_evidence["coverage"] == {
+    "expectedObservationCount": 96,
+    "capturedObservationCount": 96,
+    "decodedPictureCount": 96,
+    "uniqueObservationCount": 96,
+    "complete": True,
+}
+assert responsive_evidence["summary"]["encodedBodyBytesObserved"] == 96 * 24576
+assert responsive_evidence["summary"]["transferBytesObserved"] == 96 * 24880
+assert responsive_evidence["summary"]["decodedBodyBytesObserved"] == 96 * 92160
+assert responsive_evidence["summary"]["maximumSelectedToRequiredPixelRatio"] == 1.067
+assert responsive_evidence["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
+assert responsive_evidence["fieldDataAvailable"] is False
+assert responsive_evidence["candidateBytesAreTransferMeasurements"] is False
+assert responsive_evidence["candidateSavingsVersusJpegFallbackInferred"] is False
+browser_smoke.validate_responsive_image_evidence_report(responsive_evidence)
+
+with tempfile.TemporaryDirectory(prefix="garh-responsive-evidence-") as temporary_directory:
+    evidence_path = Path(temporary_directory) / "responsive-image-evidence.json"
+    written_evidence = browser_smoke.write_responsive_image_evidence_report(
+        str(evidence_path), responsive_evidence
+    )
+    round_trip_evidence = json.loads(written_evidence.read_text(encoding="utf-8"))
+    assert round_trip_evidence["coverage"]["complete"] is True
+    assert len(round_trip_evidence["observations"]) == 96
+    assert round_trip_evidence["browser"]["name"] == "Chromium"
+
+mislabelled_evidence = dict(responsive_evidence)
+mislabelled_evidence["fieldDataAvailable"] = True
+try:
+    browser_smoke.validate_responsive_image_evidence_report(mislabelled_evidence)
+except ValueError as error:
+    assert "distinguish laboratory observations" in str(error)
+else:
+    raise AssertionError("Responsive-image evidence must reject false field-data claims")
+
+incomplete_evidence = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations[:-1],
+    browser_version="Chromium test fixture",
+    failures=[],
+)
+assert incomplete_evidence["automatedResult"] == "FAIL"
+assert incomplete_evidence["coverage"]["complete"] is False
+assert incomplete_evidence["coverage"]["capturedObservationCount"] == 95
+
+
 print(
     "PASS: staging preflight refuses HTTP, credentials, path/query/fragment, local/IP and configured "
     "production targets; artifact packaging excludes unused legacy images, fails closed on broken "

@@ -732,13 +732,300 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
     raise RuntimeError("Temporary static HTTP server did not become ready within 10 seconds")
 
 
-def run_responsive_image_preview_smoke() -> int:
+
+
+def build_responsive_image_evidence_report(
+    *,
+    route_picture_counts: dict[str, int],
+    checked_picture_count: int,
+    selected_resource_evidence: list[dict],
+    browser_version: str | None,
+    failures: list[str],
+) -> dict:
+    """Build durable, per-picture Chromium evidence for the generated package only."""
+    expected_routes = set(PAGES)
+    observed_routes = set(route_picture_counts)
+    report_failures = [sanitize_diagnostic_text(item) for item in failures]
+    validation_failures: list[str] = []
+
+    normalized_picture_counts: dict[str, int] = {}
+    for route in PAGES:
+        count = route_picture_counts.get(route)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+            validation_failures.append(
+                f"{route}: expected a positive responsive-picture count for the packaged evidence matrix"
+            )
+            normalized_picture_counts[route] = 0
+        else:
+            normalized_picture_counts[route] = count
+    unexpected_routes = sorted(observed_routes - expected_routes)
+    if unexpected_routes:
+        validation_failures.append(
+            "Responsive-image evidence contains unexpected routes: " + ", ".join(unexpected_routes)
+        )
+    if observed_routes != expected_routes:
+        validation_failures.append("Responsive-image evidence must cover every core route exactly once in its route inventory")
+
+    expected_samples = (
+        sum(normalized_picture_counts.values())
+        * len(RESPONSIVE_AUDIT_VIEWPORTS)
+        * 2
+    )
+    normalized_observations: list[dict] = []
+    unique_keys: set[tuple] = set()
+    responsive_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
+
+    for index, item in enumerate(selected_resource_evidence):
+        if not isinstance(item, dict):
+            validation_failures.append(f"Observation {index + 1}: expected a JSON object")
+            continue
+
+        route = item.get("route")
+        viewport_width = item.get("viewportWidthCssPixels")
+        dpr = item.get("deviceScaleFactor")
+        picture_index = item.get("pictureIndex")
+        selected_path = item.get("selectedWebpPath")
+        selected_width = item.get("selectedWidth")
+        required_width = item.get("requiredPixelWidth")
+        ratio = item.get("selectionPixelRatio")
+        encoded_bytes = item.get("encodedBodyBytes")
+        transfer_bytes = item.get("transferBytes")
+        decoded_bytes = item.get("decodedBodyBytes")
+        http_status = item.get("httpStatus")
+        request_count = item.get("requestCount")
+
+        valid = True
+        if route not in expected_routes:
+            valid = False
+        if isinstance(viewport_width, bool) or viewport_width not in responsive_widths:
+            valid = False
+        if isinstance(dpr, bool) or dpr not in (1, 2):
+            valid = False
+        if (
+            isinstance(picture_index, bool)
+            or not isinstance(picture_index, int)
+            or picture_index < 0
+            or (route in normalized_picture_counts and picture_index >= normalized_picture_counts[route])
+        ):
+            valid = False
+        if (
+            not isinstance(selected_path, str)
+            or not selected_path.startswith("assets/images/")
+            or not selected_path.endswith(".webp")
+            or "\\" in selected_path
+            or ".." in selected_path.split("/")
+            or "?" in selected_path
+            or "#" in selected_path
+        ):
+            valid = False
+        if isinstance(selected_width, bool) or not isinstance(selected_width, int) or selected_width < 1:
+            valid = False
+        if (
+            isinstance(required_width, bool)
+            or not isinstance(required_width, (int, float))
+            or required_width <= 0
+        ):
+            valid = False
+        if (
+            isinstance(ratio, bool)
+            or not isinstance(ratio, (int, float))
+            or ratio <= 0
+        ):
+            valid = False
+        for byte_value in (encoded_bytes, transfer_bytes, decoded_bytes, request_count):
+            if isinstance(byte_value, bool) or not isinstance(byte_value, int) or byte_value < 0:
+                valid = False
+        if isinstance(http_status, bool) or not isinstance(http_status, int):
+            valid = False
+
+        if not valid:
+            validation_failures.append(f"Observation {index + 1}: malformed route, candidate, pixel-demand or resource evidence")
+            continue
+
+        calculated_ratio = selected_width / float(required_width)
+        if abs(calculated_ratio - float(ratio)) > 0.02:
+            validation_failures.append(f"Observation {index + 1}: selected/required pixel ratio does not match its widths")
+        if http_status != 200:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate did not return HTTP 200")
+        if encoded_bytes < 1:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate has no encoded body bytes")
+        if request_count != 1:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate was not requested exactly once")
+        if calculated_ratio > 1.9:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate exceeds the 1.9x pixel-demand guard")
+
+        unique_key = (route, viewport_width, dpr, picture_index)
+        unique_keys.add(unique_key)
+        normalized_observations.append({
+            "route": route,
+            "pictureIndex": picture_index,
+            "viewportWidthCssPixels": viewport_width,
+            "deviceScaleFactor": dpr,
+            "selectedWebpPath": selected_path,
+            "selectedWidth": selected_width,
+            "requiredPixelWidth": round(float(required_width), 1),
+            "selectionPixelRatio": round(calculated_ratio, 3),
+            "httpStatus": http_status,
+            "encodedBodyBytes": encoded_bytes,
+            "transferBytes": transfer_bytes,
+            "decodedBodyBytes": decoded_bytes,
+            "requestCount": request_count,
+        })
+
+    if len(unique_keys) != len(normalized_observations):
+        validation_failures.append("Responsive-image evidence contains duplicate route/viewport/DPR/picture observations")
+    if isinstance(checked_picture_count, bool) or not isinstance(checked_picture_count, int) or checked_picture_count < 0:
+        validation_failures.append("Responsive-image evidence contains an invalid decoded picture count")
+        checked_picture_count = 0
+    if len(normalized_observations) != expected_samples:
+        validation_failures.append(
+            f"Responsive-image evidence is incomplete: expected {expected_samples} observations, "
+            f"captured {len(normalized_observations)}"
+        )
+    if checked_picture_count != expected_samples:
+        validation_failures.append(
+            f"Responsive-image browser coverage is incomplete: expected {expected_samples} decoded pictures, "
+            f"checked {checked_picture_count}"
+        )
+
+    route_summaries: dict[str, dict] = {}
+    for route in PAGES:
+        route_observations = [item for item in normalized_observations if item["route"] == route]
+        route_encoded = sum(item["encodedBodyBytes"] for item in route_observations)
+        route_summaries[route] = {
+            "responsivePictureCount": normalized_picture_counts[route],
+            "expectedObservationCount": normalized_picture_counts[route] * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2,
+            "capturedObservationCount": len(route_observations),
+            "encodedBodyBytesObserved": route_encoded,
+            "transferBytesObserved": sum(item["transferBytes"] for item in route_observations),
+            "averageEncodedBodyBytes": round(route_encoded / len(route_observations)) if route_observations else 0,
+            "maximumEncodedBodyBytes": max((item["encodedBodyBytes"] for item in route_observations), default=0),
+        }
+
+    encoded_values = [item["encodedBodyBytes"] for item in normalized_observations]
+    total_encoded = sum(encoded_values)
+    total_observations = len(normalized_observations)
+    coverage_complete = (
+        observed_routes == expected_routes
+        and expected_samples > 0
+        and checked_picture_count == expected_samples
+        and total_observations == expected_samples
+        and len(unique_keys) == total_observations
+        and not validation_failures
+    )
+    report_failures.extend(validation_failures)
+    report_failures = list(dict.fromkeys(report_failures))
+    sorted_observations = sorted(
+        normalized_observations,
+        key=lambda item: (
+            PAGES.index(item["route"]),
+            item["viewportWidthCssPixels"],
+            item["deviceScaleFactor"],
+            item["pictureIndex"],
+        ),
+    )
+    commit_sha = os.environ.get("GITHUB_SHA", "")
+    workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
+    report = {
+        "schemaVersion": 1,
+        "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
+        "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
+        "measurementClass": "packaged-chromium-laboratory-diagnostic",
+        "fieldDataAvailable": False,
+        "candidateBytesAreTransferMeasurements": False,
+        "candidateSavingsVersusJpegFallbackInferred": False,
+        "scope": {
+            "target": "generated-staging-preview-package",
+            "origin": "temporary-loopback-http",
+            "dataClass": "laboratory-diagnostic-not-field-core-web-vitals",
+            "notes": [
+                "Observations are from isolated Chromium contexts loading the generated package on loopback.",
+                "Encoded, transfer and decoded byte counts are distinct Resource Timing fields.",
+                "Transfer size can include headers and may be zero when the browser does not expose a transfer for a resource.",
+                "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
+                "No field Core Web Vitals or savings versus the JPEG fallback are inferred."
+            ],
+        },
+        "browser": {"name": "Chromium", "version": browser_version or "unavailable"},
+        "routes": route_summaries,
+        "pictureInstancesPerRoute": normalized_picture_counts,
+        "viewportWidthsCssPixels": [width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS],
+        "deviceScaleFactors": [1, 2],
+        "coverage": {
+            "expectedObservationCount": expected_samples,
+            "capturedObservationCount": total_observations,
+            "decodedPictureCount": checked_picture_count,
+            "uniqueObservationCount": len(unique_keys),
+            "complete": coverage_complete,
+        },
+        "summary": {
+            "encodedBodyBytesObserved": total_encoded,
+            "transferBytesObserved": sum(item["transferBytes"] for item in normalized_observations),
+            "decodedBodyBytesObserved": sum(item["decodedBodyBytes"] for item in normalized_observations),
+            "averageEncodedBodyBytes": round(total_encoded / total_observations) if total_observations else 0,
+            "maximumEncodedBodyBytes": max(encoded_values, default=0),
+            "maximumSelectedToRequiredPixelRatio": round(
+                max((item["selectionPixelRatio"] for item in normalized_observations), default=0),
+                3,
+            ),
+        },
+        "automatedResult": "PASS" if coverage_complete and not report_failures else "FAIL",
+        "automatedFailures": report_failures,
+        "observations": sorted_observations,
+    }
+    validate_responsive_image_evidence_report(report)
+    return report
+
+
+def validate_responsive_image_evidence_report(report: dict) -> None:
+    """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
+    if not isinstance(report, dict) or report.get("schemaVersion") != 1:
+        raise ValueError("Responsive-image browser evidence must use schema version 1")
+    if (
+        report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
+        or report.get("fieldDataAvailable") is not False
+        or report.get("candidateBytesAreTransferMeasurements") is not False
+        or report.get("candidateSavingsVersusJpegFallbackInferred") is not False
+    ):
+        raise ValueError("Responsive-image evidence must distinguish laboratory observations from field and candidate-size claims")
+    coverage = report.get("coverage")
+    observations = report.get("observations")
+    if (
+        not isinstance(coverage, dict)
+        or not isinstance(observations, list)
+        or coverage.get("capturedObservationCount") != len(observations)
+        or not isinstance(coverage.get("uniqueObservationCount"), int)
+        or coverage["uniqueObservationCount"] < 0
+        or coverage["uniqueObservationCount"] > len(observations)
+        or not isinstance(coverage.get("complete"), bool)
+    ):
+        raise ValueError("Responsive-image browser evidence has an invalid coverage or observation inventory")
+    if report.get("automatedResult") not in {"PASS", "FAIL"} or not isinstance(report.get("automatedFailures"), list):
+        raise ValueError("Responsive-image browser evidence must record its automated result and failures")
+    if report["automatedResult"] == "PASS" and (
+        coverage.get("complete") is not True or report["automatedFailures"]
+    ):
+        raise ValueError("Responsive-image browser evidence cannot pass with incomplete coverage or failures")
+
+
+def write_responsive_image_evidence_report(report_path: str, report: dict) -> Path:
+    """Write the packaged-image evidence outside the source checkout."""
+    validate_responsive_image_evidence_report(report)
+    destination = validate_local_report_path(report_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    return write_report(str(destination), report)
+
+
+def run_responsive_image_preview_smoke(report_path: str) -> int:
     """Audit packaged responsive image selection at six breakpoints and DPR 1/2."""
     failures: list[str] = []
     checked_pictures = 0
     routes_with_responsive_images: set[str] = set()
     max_selected_to_required_ratio = 0.0
     selected_resource_evidence: list[dict] = []
+    picture_counts_by_route: dict[str, int] = {}
+    browser_version = None
     server = None
     browser = None
 
@@ -750,6 +1037,7 @@ def run_responsive_image_preview_smoke() -> int:
         server, base_url = start_server()
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
+            browser_version = browser.version
             for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
                 for device_scale_factor in (1, 2):
                     for page_name in PAGES:
@@ -820,6 +1108,11 @@ def run_responsive_image_preview_smoke() -> int:
                                 'picture:has(source[data-responsive-image="true"])'
                             )
                             picture_count = pictures.count()
+                            previous_picture_count = picture_counts_by_route.setdefault(page_name, picture_count)
+                            check_preview(
+                                previous_picture_count == picture_count,
+                                f"{page_name}: responsive picture inventory changed across viewport/DPR contexts",
+                            )
 
                             for index in range(picture_count):
                                 picture = pictures.nth(index)
@@ -1002,6 +1295,8 @@ def run_responsive_image_preview_smoke() -> int:
                                     details["renderedWidth"] > 0,
                                     f"{label}: responsive image slot must have a measurable rendered width",
                                 )
+                                required_pixels = 0.0
+                                ratio = None
                                 if selected_width is not None and details["renderedWidth"] > 0:
                                     required_pixels = float(details["renderedWidth"]) * device_scale_factor
                                     ratio = selected_width / required_pixels
@@ -1091,9 +1386,13 @@ def run_responsive_image_preview_smoke() -> int:
                                     "viewportWidthCssPixels": width,
                                     "deviceScaleFactor": device_scale_factor,
                                     "selectedWebpPath": selected_path,
-                                    "selectedWidth": selected_width,
+                                    "pictureIndex": index,
+                                    "selectedWidth": selected_width if selected_width is not None else 0,
+                                    "requiredPixelWidth": round(required_pixels, 1),
+                                    "selectionPixelRatio": round(ratio, 3) if ratio is not None else 0,
                                     "encodedBodyBytes": selected_transfer.get("encodedBodyBytes", 0) if isinstance(selected_transfer, dict) else 0,
                                     "transferBytes": selected_transfer.get("transferBytes", 0) if isinstance(selected_transfer, dict) else 0,
+                                    "decodedBodyBytes": selected_transfer.get("decodedBodyBytes", 0) if isinstance(selected_transfer, dict) else 0,
                                     "httpStatus": selected_response.get("status"),
                                     "requestCount": selected_request_count,
                                 })
@@ -1140,25 +1439,42 @@ def run_responsive_image_preview_smoke() -> int:
     if not checked_pictures:
         failures.append("Packaged preview did not exercise any responsive picture")
 
-    if failures:
+    report = build_responsive_image_evidence_report(
+        route_picture_counts=picture_counts_by_route,
+        checked_picture_count=checked_pictures,
+        selected_resource_evidence=selected_resource_evidence,
+        browser_version=browser_version,
+        failures=failures,
+    )
+    try:
+        destination = write_responsive_image_evidence_report(report_path, report)
+        print(f"Packaged responsive-image evidence report written locally: {destination}")
+    except Exception as error:
+        write_failure = (
+            "Could not write packaged responsive-image evidence report: "
+            + type(error).__name__ + ": " + sanitize_diagnostic_text(error)
+        )
+        failures.append(write_failure)
+        report["automatedResult"] = "FAIL"
+        report["automatedFailures"] = list(dict.fromkeys(report["automatedFailures"] + [write_failure]))
+
+    failures[:] = list(report["automatedFailures"])
+    if report["automatedResult"] != "PASS":
         print(f"FAIL: packaged responsive-image browser smoke found {len(failures)} issue(s)")
         for failure in failures:
             print(f" - {failure}")
         return 1
 
-    average_selected_bytes = (
-        round(sum(item["encodedBodyBytes"] for item in selected_resource_evidence) / len(selected_resource_evidence))
-        if selected_resource_evidence else 0
-    )
-
+    summary = report["summary"]
     viewport_widths = ", ".join(str(width) for width, _height in RESPONSIVE_AUDIT_VIEWPORTS)
     print(
         "PASS: packaged responsive-image browser smoke checked "
         f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
         f"at {viewport_widths}px and DPR 1x/2x; maximum selected/required pixel ratio "
-        f"{max_selected_to_required_ratio:.2f}x; {len(selected_resource_evidence)} selected-resource observations, "
-        f"average encoded body {average_selected_bytes} bytes. Chromium selected declared WebP candidates, "
-        "retained JPEG fallbacks, matched hero responsive preloads, and issued no duplicate WebP requests."
+        f"{summary['maximumSelectedToRequiredPixelRatio']:.2f}x; "
+        f"{len(selected_resource_evidence)} selected-resource observations, "
+        f"average encoded body {summary['averageEncodedBodyBytes']} bytes. "
+        "The complete per-picture laboratory evidence is retained in the JSON artifact."
     )
     return 0
 
@@ -3924,15 +4240,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Run focused Chromium checks against a generated local preview package.",
     )
+    parser.add_argument(
+        "--responsive-image-evidence",
+        help="Write the per-picture packaged Chromium evidence JSON outside the checkout.",
+    )
     args = parser.parse_args(argv)
     local_screenshots_raw = os.environ.get("BROWSER_SMOKE_SCREENSHOTS_DIR")
     local_report_raw = os.environ.get("BROWSER_SMOKE_REPORT_PATH")
     journal_screenshots_raw = os.environ.get("BROWSER_SMOKE_JOURNAL_EVIDENCE_DIR")
     if args.responsive_image_preview:
-        if (args.base_url or args.operator or args.report or args.screenshots_dir
+        if (not args.responsive_image_evidence or args.base_url or args.operator or args.report or args.screenshots_dir
                 or local_screenshots_raw or local_report_raw or journal_screenshots_raw):
-            parser.error("Preview-image mode cannot be combined with staging or screenshot evidence options")
-        return run_responsive_image_preview_smoke()
+            parser.error("Preview-image mode requires --responsive-image-evidence and cannot be combined with staging or screenshot evidence options")
+        return run_responsive_image_preview_smoke(args.responsive_image_evidence)
+    if args.responsive_image_evidence:
+        parser.error("--responsive-image-evidence requires --responsive-image-preview")
     if bool(local_screenshots_raw) != bool(local_report_raw):
         parser.error("BROWSER_SMOKE_SCREENSHOTS_DIR and BROWSER_SMOKE_REPORT_PATH must be set together")
     staging_mode = bool(args.base_url)
