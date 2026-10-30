@@ -133,7 +133,7 @@ assert.match(siteRuntime, /function initArrivalSectionNavigation\(\)/,
   'Directions section navigation must progressively enhance its active section state');
 assert.match(siteRuntime, /setAttribute\('aria-current', 'location'\)/,
   'the active Directions section link must expose aria-current=location');
-assert.match(siteRuntime, /function revealCurrentLink\(link\)/,
+assert.match(siteRuntime, /const revealCurrentLink = link =>/,
   'the active mobile section link must be revealed when it moves outside the horizontal rail');
 assert.match(siteRuntime, /sectionNav\.scrollTo\(\{ left: nextLeft, behavior: reduceMotion \? 'auto' : 'smooth' \}\)/,
   'section-link auto-reveal must respect reduced-motion preferences');
