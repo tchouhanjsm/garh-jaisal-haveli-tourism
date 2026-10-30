@@ -190,14 +190,21 @@ def validate_responsive_markup(
                 metadata = candidate_by_path.get(relative)
                 if metadata is None:
                     fail(f"{page.name}: srcset references an unverified WebP candidate: {relative}")
+                candidate_bytes = metadata.get("bytes")
+                if (
+                    isinstance(candidate_bytes, bool)
+                    or not isinstance(candidate_bytes, int)
+                    or candidate_bytes < 1
+                ):
+                    fail(f"{page.name}: responsive candidate has an invalid declared byte count: {relative}")
                 max_bytes = metadata.get("maxBytes")
                 if max_bytes is not None:
                     if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
                         fail(f"{page.name}: responsive candidate has an invalid byte budget: {relative}")
-                    if metadata.get("bytes", max_bytes + 1) > max_bytes:
+                    if candidate_bytes > max_bytes:
                         fail(
                             f"{page.name}: responsive candidate exceeds its {max_bytes}-byte budget: "
-                            f"{relative} ({metadata.get('bytes')} bytes)."
+                            f"{relative} ({candidate_bytes} bytes)."
                         )
                     quality = metadata.get("quality")
                     attempts = metadata.get("qualityAttempts")
@@ -255,6 +262,17 @@ def validate_responsive_markup(
                 absolute = output / relative
                 if absolute.is_symlink() or not absolute.is_file() or not is_within(absolute.resolve(), output):
                     fail(f"{page.name}: srcset candidate is missing or unsafe: {relative}")
+                actual_bytes = absolute.stat().st_size
+                if actual_bytes != candidate_bytes:
+                    fail(
+                        f"{page.name}: responsive candidate byte metadata does not match the actual file: "
+                        f"{relative} (declared {candidate_bytes}, actual {actual_bytes})."
+                    )
+                if max_bytes is not None and actual_bytes > max_bytes:
+                    fail(
+                        f"{page.name}: responsive candidate exceeds its {max_bytes}-byte budget: "
+                        f"{relative} ({actual_bytes} bytes)."
+                    )
                 expected_height = max(1, round(natural_height * declared_width / natural_width))
                 if int(metadata["height"]) != expected_height:
                     fail(f"{page.name}: responsive candidate aspect ratio does not match source: {relative}")
