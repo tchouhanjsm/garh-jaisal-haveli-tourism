@@ -288,6 +288,17 @@ def valid_performance_evidence() -> list[dict]:
 
 performance_evidence = valid_performance_evidence()
 assert len(performance_evidence) == len(browser_smoke.PAGES) * len(browser_smoke.VIEWPORTS)
+delivery_evidence_contract = {
+    "measurementClass": "packaged-chromium-laboratory-diagnostic",
+    "fieldDataAvailable": False,
+    "candidateBytesAreTransferMeasurements": False,
+    "candidateSavingsVersusJpegFallbackInferred": False,
+}
+assert delivery_evidence_contract["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
+assert delivery_evidence_contract["fieldDataAvailable"] is False
+assert delivery_evidence_contract["candidateBytesAreTransferMeasurements"] is False
+assert delivery_evidence_contract["candidateSavingsVersusJpegFallbackInferred"] is False
+
 
 incomplete_report = browser_smoke.build_report(
     "staging-read-only",
