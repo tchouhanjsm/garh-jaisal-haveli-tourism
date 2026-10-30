@@ -293,6 +293,14 @@ A milestone does not count as complete because code was pushed.
 6. **Visual grade:** scorecard updated from rendered evidence; aim ≥90/100 with no critical accessibility/conversion defects.
 7. **Release boundary:** PR open/merged status, exact head SHA and CI recorded; no deploy/merge claim without evidence.
 
+## M14 — responsive-image delivery evidence
+
+- Keep M11–M13 intact: source-backed WebP art direction, responsive candidates and the byte-budget quality ladder remain unchanged.
+- The guarded package records exact candidate sizes separately from browser resource measurements.
+- Packaged Chromium records selected WebP candidate, route, viewport, DPR, HTTP status, encoded body bytes, transfer bytes and request count across the existing six-width / DPR 1x–2x matrix.
+- Do not infer percentage savings versus JPEG fallbacks from candidate metadata; browser transfer observations remain local laboratory diagnostics.
+- Exact-head CI and reviewed package evidence remain required. No deployment, canonical/indexing activation or public release is implied.
+
 ## 6. Immediate next execution batch
 
 **M3 — local Journal preview QA — now has browser interaction coverage and four dedicated screenshot captures in CI. Next: M1 — screenshot-driven premium design-system refinement.** Use the uploaded archive/article evidence at 390 and 1280px to review title hierarchy, text measure, card rhythm, filter/focus states, TOC readability, image framing and source/related-link behavior. Keep text-only editorial card art until real article-specific media has passed subject, rights, crop and owner review.
