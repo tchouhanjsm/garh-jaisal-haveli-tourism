@@ -2656,7 +2656,10 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         "safe source-link attributes",
         "related draft navigation without route change",
         "hero-caption and caption-review readiness",
-        "archive/article overflow at six viewport widths",
+        "read-only candidate media evidence workbench",
+        "source manifest and role filters",
+        "candidate image decode and responsive overflow",
+        "archive/article/media-workbench overflow at six viewport widths",
     ]
 
     def check_no_horizontal_overflow(view: str, width: int) -> None:
@@ -2710,6 +2713,69 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(page.locator("a[href*='/blogs/'], a[href^='../blogs/']").count() == 0,
           "Journal preview: draft cards must not link to unpublished article URLs")
     page.locator(".journal-masthead__image img").evaluate("(img) => img.decode().catch(() => null)")
+
+    media_cards = page.locator("[data-media-card]")
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-media-card]').length === 5", timeout=7000)
+    except Exception as error:
+        check(False, f"Journal media workbench: five unique candidate paths should render ({error})")
+        return
+    check(media_cards.count() == 5, "Journal media workbench: candidate paths must be deduplicated to five cards")
+    check(page.locator("[data-media-placement]").count() == 13,
+          "Journal media workbench: all 13 article/role placements must remain visible in evidence details")
+    check(page.locator('[data-media-card][data-media-source="matched"]').count() == 2,
+          "Journal media workbench: only two exact source/target blob matches should be identified")
+    check(page.locator('[data-media-card][data-media-rights="unverified"]').count() == 5,
+          "Journal media workbench: source mapping must not imply usage rights approval")
+    check(page.locator('[data-media-card][data-media-review="unreviewed"]').count() == 5,
+          "Journal media workbench: all candidate assets must remain unreviewed")
+    check(page.locator("[data-media-approve]").count() == 0,
+          "Journal media workbench: no media approval action may be exposed")
+    check("13 candidate placements" in page.locator("[data-media-summary]").inner_text().lower(),
+          "Journal media workbench: summary must distinguish placements from unique asset paths")
+    decoded_candidates = page.locator("[data-media-card] img").evaluate_all(
+        "images => Promise.all(images.map(img => { img.loading = 'eager'; return img.decode().then(() => img.naturalWidth > 0).catch(() => false); }))"
+    )
+    check(len(decoded_candidates) == 5 and all(decoded_candidates),
+          f"Journal media workbench: all five local candidate images must decode ({decoded_candidates})")
+
+    media_workbench_widths: list[int] = []
+    for width, height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
+        page.set_viewport_size({"width":width,"height":height})
+        check_no_horizontal_overflow("media workbench", width)
+        media_workbench_widths.append(width)
+        if width == 390:
+            capture("journal-media-workbench-390px.png","media workbench",width,height)
+        elif width == 1280:
+            capture("journal-media-workbench-1280px.png","media workbench",width,height)
+
+    media_role = page.locator("[data-media-role-filter]")
+    media_source = page.locator("[data-media-source-filter]")
+    media_search = page.locator("[data-media-search]")
+    media_clear = page.locator("[data-media-clear]")
+    media_role.select_option("hero")
+    check(page.locator("[data-media-card]:visible").count() == 4,
+          "Journal media workbench: hero filter must show four unique candidate paths")
+    media_role.select_option("socialPreview")
+    check(page.locator("[data-media-card]:visible").count() == 3,
+          "Journal media workbench: social-preview filter must show three unique candidate paths")
+    media_role.select_option("all")
+    media_source.select_option("matched")
+    check(page.locator("[data-media-card]:visible").count() == 2,
+          "Journal media workbench: exact source-manifest filter must show two blob-matched assets")
+    media_source.select_option("unmatched")
+    check(page.locator("[data-media-card]:visible").count() == 3,
+          "Journal media workbench: unmatched source-manifest filter must show three unverified mappings")
+    media_source.select_option("all")
+    media_search.fill("Jain Temples")
+    check(page.locator("[data-media-card]:visible").count() == 1,
+          "Journal media workbench: search must find candidate uses by article title")
+    media_search.fill("zz-no-media-match-20261030")
+    check(page.locator("[data-media-empty]").is_visible(),
+          "Journal media workbench: no-match search must show an empty state")
+    media_clear.click()
+    check(page.locator("[data-media-card]:visible").count() == 5,
+          "Journal media workbench: clear must restore all candidate assets")
 
     for width, height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
         page.set_viewport_size({"width":width,"height":height})
@@ -2805,19 +2871,20 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
           "Journal preview: interactions must remain on the local preview route")
 
     evidence={
-        "schemaVersion":1,"scope":"local-only-editorial-preview","route":"preview/journal.html",
+        "schemaVersion":2,"scope":"local-only-editorial-preview","route":"preview/journal.html",
         "indexability":"noindex,nofollow","articleRecordsLoaded":page.locator("[data-journal-card]").count(),
         "publicArticleRoutesGenerated":0,"publicSitemapChanged":False,"canonicalHostApproved":False,
-        "archiveViewportWidthsCssPixels":archive_widths,"articleViewportWidthsCssPixels":article_widths,
+        "archiveViewportWidthsCssPixels":archive_widths,"articleViewportWidthsCssPixels":article_widths,"mediaWorkbenchViewportWidthsCssPixels":media_workbench_widths,
         "checksPerformed":interactions,"screenshots":screenshots,
-        "complete":len(screenshots)==4 and archive_widths==[320,360,390,768,1280,1440]
-            and article_widths==[320,360,390,768,1280,1440],
+        "complete":len(screenshots)==6 and archive_widths==[320,360,390,768,1280,1440]
+            and article_widths==[320,360,390,768,1280,1440]
+            and media_workbench_widths==[320,360,390,768,1280,1440],
     }
     try:
         destination=evidence_dir/"journal-preview-evidence.json"
         destination.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
         check(evidence["complete"],
-              "Journal preview: four screenshots and both complete responsive-width matrices must be recorded")
+              "Journal preview: six screenshots and all three complete responsive-width matrices must be recorded")
         print(f"Journal preview visual evidence captured locally: {destination}")
     except Exception as error:
         check(False,f"Journal preview: could not write evidence report ({type(error).__name__}: {error})")
