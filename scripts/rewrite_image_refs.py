@@ -37,7 +37,7 @@ SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
     "tchouhanjsm/garh-jaisal-website/main/img/"
 )
-RESPONSIVE_WIDTHS = (480, 768, 1200, 1600)
+RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
 
@@ -359,6 +359,11 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         return "(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"
     if "story-image" in ancestors:
         return "(max-width: 760px) calc(100vw - 36px), min(600px, 43vw)"
+    if "experience-detail-media" in ancestors:
+        return (
+            "(max-width: 900px) min(620px, calc(100vw - 76px)), "
+            "min(460px, 36vw)"
+        )
     if "arrival-visual__media" in ancestors:
         return (
             "(max-width: 760px) min(380px, calc(100vw - 36px)), "

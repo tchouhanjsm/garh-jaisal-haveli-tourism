@@ -746,6 +746,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "rooms/rising-sun.jpg",
                 "tent.jpg",
                 "dining/rooftop-candlelit-table.jpg",
+                "legacy/camel-sunset.jpg",
             )
             for name in source_names:
                 create_jpeg(root, name, (1200, 800))
@@ -772,6 +773,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<div class="story-grid"><figure class="story-image">'
                 '<img src="assets/images/dining/rooftop-candlelit-table.jpg" alt="Dining">'
                 '</figure></div></section></div>'
+                '<section class="experience-detail-section experience-detail-section--visual">'
+                '<figure class="experience-detail-media"><img src="assets/images/legacy/camel-sunset.jpg" '
+                'alt="Camel caravan"></figure></section>'
             )
             result = rewrite_html_text(html, "responsive", root=root)
 
@@ -789,11 +793,17 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '(max-width: 760px) calc(100vw - 36px), '
                 'calc((min(100vw, 1304px) - 88px) / 2)'
             )
+            detail_sizes = (
+                '(max-width: 900px) min(620px, calc(100vw - 76px)), '
+                'min(460px, 36vw)'
+            )
             self.assertIn('sizes="100vw"', result)
             self.assertIn(f'sizes="{experience_sizes}"', result)
             self.assertIn(f'imagesizes="{experience_sizes}"', result)
             self.assertIn(f'sizes="{room_sizes}"', result)
             self.assertIn(f'sizes="{gallery_sizes}"', result)
+            self.assertIn(f'sizes="{detail_sizes}"', result)
+            self.assertIn('assets/images/responsive/legacy/camel-sunset-320.webp 320w', result)
             self.assertIn(
                 'sizes="(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"',
                 result,
