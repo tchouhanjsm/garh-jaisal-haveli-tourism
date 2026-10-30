@@ -812,6 +812,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             for name in IMAGE_NAMES:
                 size = (1200, 800) if Path(name).name in {"rest3.jpg", "courtyard.jpg"} else (900, 600)
                 create_jpeg(root, name, size)
+            create_webp(root, "rooms/sweet-purple.webp", (900, 600))
             home = root / "index.html"
             rooms = root / "rooms.html"
             home.write_text(
