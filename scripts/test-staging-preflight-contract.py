@@ -416,6 +416,51 @@ if PACKAGE_SPEC is None or PACKAGE_SPEC.loader is None:
     raise RuntimeError("Could not load the staging preview packager")
 staging_packager = importlib.util.module_from_spec(PACKAGE_SPEC)
 PACKAGE_SPEC.loader.exec_module(staging_packager)
+
+# The package source inventory must be derived from every responsive JPEG
+# fallback actually emitted by the rewrite step, not a second hard-coded list.
+with tempfile.TemporaryDirectory(prefix="garh-responsive-source-inventory-") as temporary_directory:
+    responsive_root = Path(temporary_directory)
+    responsive_page = responsive_root / "experience-details.html"
+    responsive_page.write_text(
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/experiences/open-air-sleeping-setup-320.webp 320w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/experiences/open-air-sleeping-setup.jpeg"></picture>'
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/experiences/half-day-jaisalmer-tour-320.webp 320w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/experiences/half-day-jaisalmer-tour.jpg"></picture>'
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/experiences/open-air-sleeping-setup-480.webp 480w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/experiences/open-air-sleeping-setup.jpeg"></picture>',
+        encoding="utf-8",
+    )
+    allowed_sources = (
+        "experiences/open-air-sleeping-setup.jpeg",
+        "experiences/half-day-jaisalmer-tour.jpg",
+    )
+    assert staging_packager.collect_responsive_fallback_sources(
+        responsive_root, allowed_sources
+    ) == allowed_sources
+
+    responsive_page.write_text(
+        '<picture><source data-responsive-image="true" type="image/webp" '
+        'srcset="assets/images/responsive/unreviewed/unknown-320.webp 320w">'
+        '<img data-responsive-image-fallback="true" '
+        'src="assets/images/unreviewed/unknown.jpg"></picture>',
+        encoding="utf-8",
+    )
+    try:
+        staging_packager.collect_responsive_fallback_sources(
+            responsive_root, allowed_sources
+        )
+    except RuntimeError as error:
+        assert "outside the approved image-source allowlist" in str(error)
+    else:
+        raise AssertionError("Responsive package must reject fallback sources outside the allowlist")
+
 assert "img" not in staging_packager.RUNTIME_DIRECTORIES
 selected_runtime_paths = {
     path.relative_to(ROOT).as_posix() for path in staging_packager.checked_paths()
