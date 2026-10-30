@@ -247,6 +247,48 @@ bad_recovery_links["viewportChecks"][2]["recoveryLinks"] = []
 assert not browser_smoke.unknown_route_evidence_is_complete(bad_recovery_links)
 assert browser_smoke.unknown_route_evidence_is_complete(valid_unknown_route_evidence())
 
+def valid_performance_evidence() -> list[dict]:
+    records = []
+    for width, height in browser_smoke.VIEWPORTS:
+        for page_name in browser_smoke.PAGES:
+            records.append({
+                "route": page_name,
+                "viewportWidthCssPixels": width,
+                "viewportHeightCssPixels": height,
+                "observerSupport": {"lcp": True, "layoutShift": True, "longTask": False},
+                "navigation": {
+                    "responseStartMs": 12.0,
+                    "domContentLoadedMs": 28.0,
+                    "loadEventEndMs": 42.0,
+                    "documentEncodedBodyBytes": 2048,
+                    "documentTransferBytesObserved": 2300,
+                },
+                "largestContentfulPaint": {
+                    "valueMs": 180.0,
+                    "size": 1200,
+                    "element": {"tagName": "IMG", "id": "hero-image", "className": "hero__image"},
+                    "urlPath": "/assets/images/hero.webp",
+                },
+                "cumulativeLayoutShift": 0.0,
+                "layoutShiftEntries": 0,
+                "longTasks": {"count": 0, "totalDurationMs": 0.0},
+                "sameOriginResources": {
+                    "count": 12,
+                    "encodedBodyBytes": 40960,
+                    "transferBytesObserved": 32768,
+                    "images": {"count": 4, "encodedBodyBytes": 24576},
+                    "stylesheets": {"count": 2, "encodedBodyBytes": 8192},
+                    "scripts": {"count": 2, "encodedBodyBytes": 4096},
+                    "fonts": {"count": 1, "encodedBodyBytes": 2048},
+                    "other": {"count": 3, "encodedBodyBytes": 2048},
+                },
+            })
+    return records
+
+
+performance_evidence = valid_performance_evidence()
+assert len(performance_evidence) == len(browser_smoke.PAGES) * len(browser_smoke.VIEWPORTS)
+
 incomplete_report = browser_smoke.build_report(
     "staging-read-only",
     valid,
@@ -254,14 +296,15 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 5
+assert incomplete_report["schemaVersion"] == 6
 assert incomplete_report["automatedResult"] == "FAIL"
-assert incomplete_report["automatedFailureCount"] == 5
+assert incomplete_report["automatedFailureCount"] == 6
 assert incomplete_report["evidenceCoverage"] == {
     "pageNavigationComplete": False,
     "pageHttp200Complete": False,
     "responsiveViewportsComplete": False,
     "unknownRouteRecoveryComplete": False,
+    "routePerformanceBaselineComplete": False,
     "complete": False,
 }
 assert incomplete_report["unknownRouteEvidence"]["complete"] is False
@@ -288,6 +331,7 @@ report = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=complete_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert report["automatedResult"] == "PASS"
 assert report["automatedFailureCount"] == 0
@@ -296,9 +340,17 @@ assert report["evidenceCoverage"] == {
     "pageHttp200Complete": True,
     "responsiveViewportsComplete": True,
     "unknownRouteRecoveryComplete": True,
+    "routePerformanceBaselineComplete": True,
     "complete": True,
 }
 assert report["unknownRouteEvidence"]["complete"] is True
+assert report["performanceBaseline"]["complete"] is True
+assert report["performanceBaseline"]["expectedSampleCount"] == 24
+assert report["performanceBaseline"]["capturedSampleCount"] == 24
+assert report["performanceBaseline"]["fieldDataAvailable"] is False
+assert report["performanceBaseline"]["thresholdsEnforced"] is False
+assert report["performanceBaseline"]["dataClass"] == "laboratory-diagnostic-not-field-core-web-vitals"
+assert len(report["performanceBaseline"]["samples"]) == 24
 assert report["visualEvidence"]["complete"] is True
 assert report["visualEvidence"]["required"] is True
 assert report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
@@ -324,10 +376,28 @@ partial_report = browser_smoke.build_report(
     list(browser_smoke.PAGES[:-1]),
     list(browser_smoke.PAGES[:-1]),
     [360, 768],
+    performance_evidence=performance_evidence,
 )
 assert partial_report["automatedResult"] == "FAIL"
 assert partial_report["evidenceCoverage"]["complete"] is False
 assert partial_report["automatedFailureCount"] == 5
+
+missing_performance_evidence = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence[:-1],
+)
+assert missing_performance_evidence["automatedResult"] == "FAIL"
+assert missing_performance_evidence["automatedFailureCount"] == 1
+assert missing_performance_evidence["performanceBaseline"]["complete"] is False
+assert missing_performance_evidence["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+assert missing_performance_evidence["evidenceCoverage"]["complete"] is False
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
@@ -338,6 +408,7 @@ missing_visual_evidence = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=[],
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert missing_visual_evidence["automatedResult"] == "FAIL"
 assert missing_visual_evidence["visualEvidence"]["required"] is True
@@ -357,6 +428,7 @@ invalid_visual_evidence = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=malformed_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert invalid_visual_evidence["automatedResult"] == "FAIL"
 assert invalid_visual_evidence["automatedFailureCount"] == 1
@@ -387,6 +459,7 @@ blocked_report = browser_smoke.build_report(
     *complete_evidence, blocked_navigation_attempts=blocked_navigation,
     screenshot_evidence=complete_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [
     "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
@@ -399,6 +472,7 @@ failed_report = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=complete_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert failed_report["automatedResult"] == "FAIL"
 assert failed_report["automatedFailureCount"] == 1
