@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 
 from rewrite_image_refs import (
     FULL_SIZE_WEBP_MAX_BYTES,
+    HERO_DELIVERY_VARIANTS,
     IMAGE_NAMES,
     RESPONSIVE_SOURCE_OVERRIDES,
     RESPONSIVE_VARIANT_MAX_BYTES,
@@ -64,6 +65,65 @@ def create_webp(
     draw.rectangle((size[0] // 4, size[1] // 4, size[0] * 3 // 4, size[1] * 3 // 4), fill=(180, 130, 75))
     image.save(target, format="WEBP", quality=90, method=6)
     return target
+
+
+def create_webp_from_jpeg(
+    root: Path,
+    source_filename: str,
+    output_filename: str,
+    quality: int = 90,
+) -> Path:
+    """Create a source-backed WebP fixture from the exact JPEG fallback pixels."""
+    source = root / "assets" / "images" / source_filename
+    target = root / "assets" / "images" / output_filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with Image.open(source) as image:
+        image.save(target, format="WEBP", quality=quality, method=6)
+    return target
+
+
+def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
+    """Build the byte/dimension/quality evidence shape consumed by the package validator."""
+    variants = {item["path"]: item for item in entry["variants"]}
+    hero = entry.get("heroDeliveryVariant")
+    paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+    if hero:
+        paths.append(hero["path"])
+    records = []
+    for relative in paths:
+        target = root / relative
+        with Image.open(target) as decoded:
+            decoded.load()
+            record = {
+                "path": relative,
+                "bytes": target.stat().st_size,
+                "sha256": "0" * 64,
+                "width": decoded.width,
+                "height": decoded.height,
+            }
+        metadata = variants.get(relative)
+        if metadata is None and hero and relative == hero["path"]:
+            metadata = hero
+        if metadata and metadata.get("maxBytes") is not None:
+            record.update({
+                "quality": metadata["quality"],
+                "qualityAttempts": metadata["qualityAttempts"],
+                "maxBytes": metadata["maxBytes"],
+            })
+        if hero and relative == hero["path"]:
+            record.update({
+                "psnrDb": hero["psnrDb"],
+                "minPsnrDb": hero["minPsnrDb"],
+                "minimumSavingsPercent": hero["minimumSavingsPercent"],
+            })
+        if relative == entry["fullSizePath"] and entry.get("fullSizeMaxBytes") is not None:
+            record.update({
+                "quality": entry["fullSizeQuality"],
+                "qualityAttempts": entry["fullSizeQualityAttempts"],
+                "maxBytes": entry["fullSizeMaxBytes"],
+            })
+        records.append(record)
+    return records
 
 
 class RewriteImageReferencesTests(unittest.TestCase):
@@ -433,11 +493,14 @@ class RewriteImageReferencesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fallback = create_jpeg(root, "rooms/haveli-interior.jpg", (1600, 1066))
-            source_webp = create_webp(root, "rooms/haveli-sitting-room.webp", (1600, 1066))
+            source_webp = create_webp_from_jpeg(
+                root, "rooms/haveli-interior.jpg", "rooms/haveli-sitting-room.webp"
+            )
             original_webp = source_webp.read_bytes()
 
             generated = generate_responsive_variants(root, ("rooms/haveli-interior.jpg",))
             entry = generated["rooms/haveli-interior.jpg"]
+            hero = entry["heroDeliveryVariant"]
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(entry["sourceFormat"], "WEBP")
             self.assertEqual(entry["sourcePath"], "assets/images/rooms/haveli-sitting-room.webp")
@@ -445,6 +508,17 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(entry["fullSizeSavingsBytes"], 0)
             self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
             self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
+            self.assertEqual(hero["path"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["path"])
+            self.assertEqual((hero["width"], hero["height"]), (1600, 1066))
+            self.assertLessEqual(hero["bytes"], 240_000)
+            self.assertGreaterEqual(hero["psnrDb"], 35.0)
+            self.assertGreaterEqual(hero["savedPercent"], 10.0)
+            self.assertEqual([item["width"] for item in entry["variants"]], [320, 480, 768, 800, 1200, 1280])
+            for width, budget in ((800, 95_000), (1200, 180_000), (1280, 190_000)):
+                relative = f"assets/images/responsive/rooms/haveli-interior-{width}.webp"
+                candidate = next(item for item in entry["variants"] if item["width"] == width)
+                self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES[relative], budget)
+                self.assertLessEqual(candidate["bytes"], budget)
 
             html = (
                 '<link rel="preload" as="image" href="assets/images/rooms/haveli-interior.jpg" '
@@ -459,40 +533,27 @@ class RewriteImageReferencesTests(unittest.TestCase):
             rewritten = rewrite_html_text(html, "responsive", root=root)
             self.assertEqual(rewritten.count("<source"), 1)
             self.assertIn('data-responsive-image="true"', rewritten)
-            self.assertIn(
-                "assets/images/responsive/rooms/haveli-interior-320.webp 320w",
-                rewritten,
-            )
-            self.assertIn(
-                "assets/images/rooms/haveli-sitting-room.webp 1600w",
-                rewritten,
-            )
+            self.assertIn("assets/images/responsive/rooms/haveli-interior-800.webp 800w", rewritten)
+            self.assertIn("assets/images/responsive/rooms/haveli-interior-1280.webp 1280w", rewritten)
+            self.assertIn(f'{hero["path"]} 1600w', rewritten)
+            self.assertNotIn("assets/images/rooms/haveli-sitting-room.webp 1600w", rewritten)
             self.assertIn('sizes="100vw"', rewritten)
             self.assertIn('src="assets/images/rooms/haveli-interior.jpg"', rewritten)
             self.assertIn('data-responsive-image-fallback="true"', rewritten)
             self.assertIn('href="assets/images/rooms/haveli-sitting-room.webp"', rewritten)
-            self.assertIn(
-                'imagesrcset="assets/images/responsive/rooms/haveli-interior-320.webp 320w',
-                rewritten,
-            )
             self.assertIn('imagesizes="100vw"', rewritten)
-            self.assertIn('type="image/webp"', rewritten)
+
+            nonhero = rewrite_html_text(
+                '<img src="assets/images/rooms/haveli-interior.jpg" alt="Room detail" loading="lazy">',
+                "responsive",
+                root=root,
+            )
+            self.assertIn("assets/images/rooms/haveli-sitting-room.webp 1600w", nonhero)
+            self.assertNotIn(hero["path"], nonhero)
 
             page = root / "rooms.html"
             page.write_text(rewritten, encoding="utf-8")
-            candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
-            generated_files = []
-            for relative in candidate_paths:
-                target = root / relative
-                with Image.open(target) as decoded:
-                    decoded.load()
-                    generated_files.append({
-                        "path": relative,
-                        "bytes": target.stat().st_size,
-                        "sha256": "0" * 64,
-                        "width": decoded.width,
-                        "height": decoded.height,
-                    })
+            generated_files = generated_candidate_records(root, entry)
             source_record = [{
                 "sourceJpeg": "assets/images/rooms/haveli-interior.jpg",
                 "sourceFormat": "WEBP",
@@ -500,14 +561,25 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
+                "heroDeliveryWebp": hero["path"],
             }]
             report = _PACKAGE_PREVIEW.validate_responsive_markup(
-                root, generated_files, source_record, RESPONSIVE_WIDTHS
+                root, generated_files, source_record, RESPONSIVE_WIDTHS,
+                RESPONSIVE_WIDTH_OVERRIDES,
             )
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["responsivePictureCount"], 1)
-            self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
+            self.assertEqual(report["validatedSrcsetCandidateCount"], len(entry["variants"]) + 1)
             self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
+            hero_record = next(item for item in generated_files if item["path"] == hero["path"])
+            original_psnr = hero_record["psnrDb"]
+            hero_record["psnrDb"] = 34.0
+            with self.assertRaisesRegex(RuntimeError, "PSNR/quality evidence"):
+                _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root, generated_files, source_record, RESPONSIVE_WIDTHS,
+                    RESPONSIVE_WIDTH_OVERRIDES,
+                )
+            hero_record["psnrDb"] = original_psnr
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
@@ -516,7 +588,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             root = Path(directory)
             filename = "gallery/hotel/fort-from-roof.jpg"
             fallback = create_jpeg(root, filename, (2000, 1333))
-            source_webp = create_webp(root, "gallery/hotel/fort-from-roof.webp", (2000, 1333))
+            source_webp = create_webp_from_jpeg(
+                root, filename, "gallery/hotel/fort-from-roof.webp"
+            )
             original_webp = source_webp.read_bytes()
 
             self.assertIn(filename, IMAGE_NAMES)
@@ -526,25 +600,27 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             generated = generate_responsive_variants(root, (filename,))
             entry = generated[filename]
+            hero = entry["heroDeliveryVariant"]
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(entry["sourceFormat"], "WEBP")
-            self.assertEqual(
-                entry["sourcePath"],
-                "assets/images/gallery/hotel/fort-from-roof.webp",
-            )
-            self.assertEqual(
-                entry["fullSizePath"],
-                "assets/images/gallery/hotel/fort-from-roof.webp",
-            )
+            self.assertEqual(entry["sourcePath"], "assets/images/gallery/hotel/fort-from-roof.webp")
+            self.assertEqual(entry["fullSizePath"], "assets/images/gallery/hotel/fort-from-roof.webp")
             self.assertEqual(entry["fullSizeSavingsBytes"], 0)
             self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
             self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
+            self.assertEqual(hero["path"], HERO_DELIVERY_VARIANTS[filename]["path"])
+            self.assertEqual((hero["width"], hero["height"]), (2000, 1333))
+            self.assertLessEqual(hero["bytes"], 260_000)
+            self.assertGreaterEqual(hero["psnrDb"], 35.0)
+            self.assertGreaterEqual(hero["savedPercent"], 10.0)
 
             expected_budgets = (
                 (320, 20_000),
                 (480, 35_000),
                 (768, 80_000),
+                (800, 80_000),
                 (1200, 170_000),
+                (1280, 180_000),
                 (1600, 250_000),
             )
             for width, budget in expected_budgets:
@@ -569,52 +645,18 @@ class RewriteImageReferencesTests(unittest.TestCase):
             rewritten = rewrite_html_text(html, "responsive", root=root)
             self.assertEqual(rewritten.count("<source"), 1)
             self.assertIn('data-responsive-image="true"', rewritten)
-            self.assertIn(
-                "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp 320w",
-                rewritten,
-            )
-            self.assertIn(
-                "assets/images/gallery/hotel/fort-from-roof.webp 2000w",
-                rewritten,
-            )
-            self.assertIn(
-                'src="assets/images/gallery/hotel/fort-from-roof.jpg"',
-                rewritten,
-            )
-            self.assertIn(
-                'href="assets/images/gallery/hotel/fort-from-roof.webp"',
-                rewritten,
-            )
-            self.assertIn(
-                'imagesrcset="assets/images/responsive/gallery/hotel/fort-from-roof-320.webp 320w',
-                rewritten,
-            )
+            self.assertIn("assets/images/responsive/gallery/hotel/fort-from-roof-800.webp 800w", rewritten)
+            self.assertIn("assets/images/responsive/gallery/hotel/fort-from-roof-1280.webp 1280w", rewritten)
+            self.assertIn(f'{hero["path"]} 2000w', rewritten)
+            self.assertNotIn("assets/images/gallery/hotel/fort-from-roof.webp 2000w", rewritten)
+            self.assertIn('src="assets/images/gallery/hotel/fort-from-roof.jpg"', rewritten)
+            self.assertIn('href="assets/images/gallery/hotel/fort-from-roof.webp"', rewritten)
             self.assertIn('imagesizes="100vw"', rewritten)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
             page = root / "about.html"
             page.write_text(rewritten, encoding="utf-8")
-            candidate_paths = [
-                entry["fullSizePath"],
-                *(item["path"] for item in entry["variants"]),
-            ]
-            variant_by_path = {item["path"]: item for item in entry["variants"]}
-            generated_files = []
-            for relative in candidate_paths:
-                target = root / relative
-                with Image.open(target) as decoded:
-                    decoded.load()
-                    variant = variant_by_path.get(relative, {})
-                    generated_files.append({
-                        "path": relative,
-                        "bytes": target.stat().st_size,
-                        "sha256": "0" * 64,
-                        "width": decoded.width,
-                        "height": decoded.height,
-                        "maxBytes": variant.get("maxBytes"),
-                        "quality": variant.get("quality"),
-                        "qualityAttempts": variant.get("qualityAttempts", []),
-                    })
+            generated_files = generated_candidate_records(root, entry)
             source_record = [{
                 "sourceJpeg": "assets/images/gallery/hotel/fort-from-roof.jpg",
                 "sourceFormat": "WEBP",
@@ -622,13 +664,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
+                "heroDeliveryWebp": hero["path"],
             }]
             report = _PACKAGE_PREVIEW.validate_responsive_markup(
-                root, generated_files, source_record, RESPONSIVE_WIDTHS
+                root, generated_files, source_record, RESPONSIVE_WIDTHS,
+                RESPONSIVE_WIDTH_OVERRIDES,
             )
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["responsivePictureCount"], 1)
-            self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
+            self.assertEqual(report["validatedSrcsetCandidateCount"], len(entry["variants"]) + 1)
             self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
             self.assertEqual(source_webp.read_bytes(), original_webp)
 

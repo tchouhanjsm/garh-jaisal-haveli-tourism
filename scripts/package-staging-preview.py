@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import importlib.util
 import json
 import os
@@ -16,6 +17,8 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
+
+from PIL import ImageChops, ImageOps, ImageStat
 
 ROOT = Path(__file__).resolve().parents[1]
 # The legacy `img/` tree is retained in Git as a source/asset archive, not
@@ -96,6 +99,19 @@ class ResponsivePictureParser(HTMLParser):
             raise ValueError("responsive picture element was not closed")
 
 
+
+def _psnr_db(reference_path: Path, candidate_path: Path) -> float:
+    """Recompute RGB PSNR from the packaged JPEG fallback to a same-dimension WebP."""
+    with Image.open(reference_path) as reference_opened, Image.open(candidate_path) as candidate_opened:
+        reference = ImageOps.exif_transpose(reference_opened).convert("RGB")
+        candidate = ImageOps.exif_transpose(candidate_opened).convert("RGB")
+        if reference.size != candidate.size:
+            fail(f"Hero delivery PSNR dimensions differ: {reference.size} vs {candidate.size}")
+        rms = ImageStat.Stat(ImageChops.difference(reference, candidate)).rms
+        mse = sum(channel * channel for channel in rms) / len(rms)
+    return float("inf") if mse == 0 else 20 * math.log10(255 / math.sqrt(mse))
+
+
 def validate_responsive_markup(
     output: Path,
     generated_files: list[dict],
@@ -153,12 +169,33 @@ def validate_responsive_markup(
                     f"{page.name}: responsive picture has an unapproved or mismatched JPEG "
                     f"fallback: {fallback_path or '[missing src]'}."
                 )
+            classes = fallback.get("class", "").split()
+            is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
+            hero_delivery_path = source_record.get("heroDeliveryWebp") or ""
+            if hero_delivery_path:
+                hero_relative = PurePosixPath(hero_delivery_path)
+                if (
+                    hero_relative.is_absolute()
+                    or hero_relative.as_posix() != hero_delivery_path
+                    or any(part in {"", ".", ".."} for part in hero_relative.parts)
+                    or not hero_delivery_path.startswith("assets/images/responsive/")
+                ):
+                    fail(f"{page.name}: hero delivery candidate path is unsafe: {hero_delivery_path}")
             if source_record.get("sourceFormat") == "WEBP" and (
                 source_record.get("sourceWebp") != source_record.get("fullSizeWebp")
             ):
-                fail(f"{page.name}: source-backed WebP art direction must remain the full-size candidate.")
+                fail(f"{page.name}: the original source-backed WebP must remain preserved as the full-size asset.")
             natural_width = int(source_record["naturalWidth"])
             natural_height = int(source_record["naturalHeight"])
+            if hero_delivery_path:
+                source_relative = PurePosixPath(fallback_path).relative_to(PurePosixPath("assets/images"))
+                expected_hero_path = (
+                    PurePosixPath("assets/images/responsive")
+                    / source_relative.parent
+                    / f"{source_relative.stem}-{natural_width}.webp"
+                ).as_posix()
+                if hero_delivery_path != expected_hero_path:
+                    fail(f"{page.name}: hero delivery path does not match its source identity and natural width.")
             if (
                 fallback.get("width") != str(natural_width)
                 or fallback.get("height") != str(natural_height)
@@ -166,8 +203,6 @@ def validate_responsive_markup(
                 fail(f"{page.name}: JPEG fallback dimensions do not match decoded source dimensions.")
             if fallback.get("decoding", "").lower() != "async":
                 fail(f"{page.name}: responsive JPEG fallback must use decoding=async.")
-            classes = fallback.get("class", "").split()
-            is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
             expected_loading = "eager" if is_hero else "lazy"
             if fallback.get("loading", "").lower() != expected_loading:
                 fail(f"{page.name}: responsive image loading policy does not match its hero/supporting role.")
@@ -249,7 +284,11 @@ def validate_responsive_markup(
                         f"decoded asset width {metadata['width']}px for {relative}."
                     )
                 if declared_width == natural_width:
-                    expected_relative = source_record["fullSizeWebp"]
+                    expected_relative = (
+                        hero_delivery_path
+                        if is_hero and hero_delivery_path
+                        else source_record["fullSizeWebp"]
+                    )
                 else:
                     source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
                         PurePosixPath("assets/images")
@@ -275,6 +314,36 @@ def validate_responsive_markup(
                         f"{page.name}: responsive candidate exceeds its {max_bytes}-byte budget: "
                         f"{relative} ({actual_bytes} bytes)."
                     )
+                if relative == hero_delivery_path:
+                    if not is_hero or source_record.get("sourceFormat") != "WEBP":
+                        fail(f"{page.name}: optimized same-dimension delivery is permitted only for a source-backed hero.")
+                    measured_psnr = _psnr_db(output / fallback_path, absolute)
+                    declared_psnr = metadata.get("psnrDb")
+                    minimum_psnr = metadata.get("minPsnrDb")
+                    minimum_savings = metadata.get("minimumSavingsPercent")
+                    if (
+                        isinstance(declared_psnr, bool)
+                        or not isinstance(declared_psnr, (int, float))
+                        or isinstance(minimum_psnr, bool)
+                        or not isinstance(minimum_psnr, (int, float))
+                        or isinstance(minimum_savings, bool)
+                        or not isinstance(minimum_savings, (int, float))
+                        or minimum_psnr < 35.0
+                        or minimum_savings < 10.0
+                        or measured_psnr < minimum_psnr
+                        or abs(measured_psnr - declared_psnr) > 0.05
+                    ):
+                        fail(f"{page.name}: hero delivery candidate fails its recomputed PSNR/quality evidence: {relative}")
+                    source_webp_path = source_record.get("sourceWebp", "")
+                    source_webp = output / source_webp_path
+                    if not source_webp_path or source_webp.is_symlink() or not source_webp.is_file():
+                        fail(f"{page.name}: original source-backed WebP is missing for hero savings validation.")
+                    source_webp_bytes = source_webp.stat().st_size
+                    if source_webp_bytes < 1:
+                        fail(f"{page.name}: original source-backed WebP is empty for hero savings validation.")
+                    saved_percent = (source_webp_bytes - actual_bytes) / source_webp_bytes * 100
+                    if saved_percent + 0.01 < minimum_savings:
+                        fail(f"{page.name}: hero delivery candidate does not meet its minimum source-WebP savings: {relative}")
                 expected_height = max(1, round(natural_height * declared_width / natural_width))
                 if int(metadata["height"]) != expected_height:
                     fail(f"{page.name}: responsive candidate aspect ratio does not match source: {relative}")
@@ -302,7 +371,12 @@ def validate_responsive_markup(
                 for width in expected_widths
                 if width < natural_width
             ]
-            expected_candidates.append((source_record["fullSizeWebp"], natural_width))
+            expected_candidates.append((
+                hero_delivery_path
+                if is_hero and hero_delivery_path
+                else source_record["fullSizeWebp"],
+                natural_width,
+            ))
             if candidates != expected_candidates:
                 fail(
                     f"{page.name}: srcset candidates must include the verified responsive widths "
@@ -1482,6 +1556,11 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         for source_record in generated_variants.values()
         for variant in source_record["variants"]
     }
+    hero_delivery_metadata_by_path = {
+        source_record["heroDeliveryVariant"]["path"]: source_record["heroDeliveryVariant"]
+        for source_record in generated_variants.values()
+        if source_record.get("heroDeliveryVariant")
+    }
     full_size_metadata_by_path = {
         source_record["fullSizePath"]: source_record
         for source_record in generated_variants.values()
@@ -1543,6 +1622,10 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             "fullSizeQuality": generated_variants[filename].get("fullSizeQuality"),
             "fullSizeQualityAttempts": generated_variants[filename].get("fullSizeQualityAttempts", []),
             "fullSizeMaxBytes": generated_variants[filename].get("fullSizeMaxBytes"),
+            "heroDeliveryWebp": (
+                generated_variants[filename]["heroDeliveryVariant"]["path"]
+                if generated_variants[filename].get("heroDeliveryVariant") else ""
+            ),
         })
         candidates = [full_size]
         responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
@@ -1578,6 +1661,16 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                     "quality": full_size_metadata["fullSizeQuality"],
                     "qualityAttempts": full_size_metadata["fullSizeQualityAttempts"],
                     "maxBytes": full_size_metadata["fullSizeMaxBytes"],
+                })
+            hero_delivery_metadata = hero_delivery_metadata_by_path.get(candidate_path)
+            if hero_delivery_metadata is not None:
+                candidate_record.update({
+                    "quality": hero_delivery_metadata["quality"],
+                    "qualityAttempts": hero_delivery_metadata["qualityAttempts"],
+                    "maxBytes": hero_delivery_metadata["maxBytes"],
+                    "psnrDb": hero_delivery_metadata["psnrDb"],
+                    "minPsnrDb": hero_delivery_metadata["minPsnrDb"],
+                    "minimumSavingsPercent": hero_delivery_metadata["minimumSavingsPercent"],
                 })
             generated_files.append(candidate_record)
             if candidate.resolve() != source_asset.resolve():

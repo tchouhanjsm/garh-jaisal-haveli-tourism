@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps, ImageStat
 
 # Explicitly allow only source photos confirmed in current runtime routes.
 # Art-directed pictures are included only with a source-backed WebP override below.
@@ -57,8 +58,10 @@ RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 # at high DPR. Add a 1280px bridge only for the three measured Gallery assets.
 RESPONSIVE_WIDTH_OVERRIDES = {
     "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "gallery/hotel/fort-from-roof.jpg": (320, 480, 768, 800, 1200, 1280, 1600),
     "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
     "legacy/fort-temple-spires.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "rooms/haveli-interior.jpg": (320, 480, 768, 800, 1200, 1280),
 }
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
@@ -74,7 +77,10 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/courtyard-1200.webp": 250_000,
     "assets/images/responsive/courtyard-1600.webp": 250_000,
     "assets/images/responsive/courtyard-1280.webp": 145_000,
-    "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
+    "assets/images/responsive/rooms/haveli-interior-800.webp": 95_000,
+    "assets/images/responsive/rooms/haveli-interior-1200.webp": 180_000,
+    "assets/images/responsive/rooms/haveli-interior-1280.webp": 190_000,
+    "assets/images/responsive/rooms/haveli-interior-1600.webp": 240_000,
     "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
     "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
     "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
@@ -87,8 +93,11 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-800.webp": 80_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp": 170_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-1280.webp": 180_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp": 250_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-2000.webp": 260_000,
 }
 # JPEG-derived WebPs with explicit ceilings may be regenerated in the isolated package;
 # original JPEG fallbacks remain unchanged.
@@ -100,6 +109,23 @@ FULL_SIZE_WEBP_MAX_BYTES = {
 }
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
+
+# These same-dimension derivatives are generated from verified JPEG fallbacks.
+# Original source-backed WebPs remain untouched and continue serving non-hero references.
+HERO_DELIVERY_VARIANTS = {
+    "gallery/hotel/fort-from-roof.jpg": {
+        "path": "assets/images/responsive/gallery/hotel/fort-from-roof-2000.webp",
+        "quality": 84,
+        "minPsnrDb": 35.0,
+        "minimumSavingsPercent": 10.0,
+    },
+    "rooms/haveli-interior.jpg": {
+        "path": "assets/images/responsive/rooms/haveli-interior-1600.webp",
+        "quality": 84,
+        "minPsnrDb": 35.0,
+        "minimumSavingsPercent": 10.0,
+    },
+}
 
 
 def _resolve_site_root(root: Path) -> Path:
@@ -243,6 +269,16 @@ def _save_webp(
         f"Responsive WebP cannot meet the {max_bytes}-byte budget at or above "
         f"quality {BUDGET_QUALITY_FLOOR}: {target} ({attempt_summary})"
     )
+
+def _psnr_db(reference: Image.Image, candidate: Image.Image) -> float:
+    """Measure RGB PSNR between same-dimension source and encoded candidate images."""
+    left = reference.convert("RGB")
+    right = candidate.convert("RGB")
+    if left.size != right.size:
+        raise ValueError(f"PSNR dimensions differ: {left.size} vs {right.size}")
+    rms = ImageStat.Stat(ImageChops.difference(left, right)).rms
+    mse = sum(channel * channel for channel in rms) / len(rms)
+    return float("inf") if mse == 0 else 20 * math.log10(255 / math.sqrt(mse))
 
 
 def _validate_source_image_header(image: Image.Image, filename: str) -> None:
@@ -403,6 +439,76 @@ def generate_responsive_variants(
                         "maxBytes": max_bytes,
                     }
                 )
+
+            hero_delivery_variant = None
+            hero_config = HERO_DELIVERY_VARIANTS.get(filename)
+            if hero_config:
+                hero_relative = PurePosixPath(hero_config["path"])
+                expected_parent = PurePosixPath("assets/images/responsive") / relative.parent
+                if (
+                    hero_relative.is_absolute()
+                    or hero_relative.as_posix() != hero_config["path"]
+                    or any(part in {"", ".", ".."} for part in hero_relative.parts)
+                    or hero_relative.parent != expected_parent
+                    or hero_relative.name != f"{relative.stem}-{width}.webp"
+                ):
+                    raise ValueError(f"Unsafe or mismatched hero delivery path: {hero_config['path']}")
+                hero_target = root / Path(*hero_relative.parts)
+                hero_max_bytes = RESPONSIVE_VARIANT_MAX_BYTES.get(hero_config["path"])
+                if hero_max_bytes is None:
+                    raise ValueError(f"Hero delivery candidate has no byte budget: {hero_config['path']}")
+                with Image.open(fallback) as fallback_opened:
+                    _validate_source_image_header(fallback_opened, filename)
+                    fallback_opened.load()
+                    hero_icc_profile = fallback_opened.info.get("icc_profile")
+                    hero_image = ImageOps.exif_transpose(fallback_opened)
+                    if hero_image.size != (width, height):
+                        raise ValueError(f"Hero JPEG fallback dimensions differ from source-backed WebP: {filename}")
+                    if hero_image.mode not in ("RGB", "RGBA"):
+                        hero_image = hero_image.convert("RGBA" if "A" in hero_image.getbands() else "RGB")
+                    hero_encoding = _save_webp(
+                        hero_image,
+                        hero_target,
+                        hero_icc_profile,
+                        quality=hero_config["quality"],
+                        max_bytes=hero_max_bytes,
+                    )
+                    with Image.open(hero_target) as hero_candidate:
+                        hero_candidate.load()
+                        if hero_candidate.format != "WEBP" or hero_candidate.size != (width, height):
+                            raise RuntimeError(f"Hero delivery WebP verification mismatch: {hero_target}")
+                        measured_psnr = _psnr_db(hero_image, hero_candidate)
+                minimum_psnr = float(hero_config["minPsnrDb"])
+                if measured_psnr < minimum_psnr:
+                    raise RuntimeError(
+                        f"Hero delivery candidate fails the {minimum_psnr:.2f} dB PSNR floor: "
+                        f"{hero_config['path']} ({measured_psnr:.3f} dB)"
+                    )
+                source_webp_bytes = full_size.stat().st_size
+                saved_percent = (
+                    (source_webp_bytes - hero_target.stat().st_size) / source_webp_bytes * 100
+                    if source_webp_bytes else 0.0
+                )
+                minimum_savings = float(hero_config["minimumSavingsPercent"])
+                if saved_percent < minimum_savings:
+                    raise RuntimeError(
+                        f"Hero delivery candidate saves less than {minimum_savings:.1f}% "
+                        f"against its preserved source WebP: {hero_config['path']}"
+                    )
+                hero_delivery_variant = {
+                    "width": width,
+                    "height": height,
+                    "path": hero_config["path"],
+                    "bytes": hero_target.stat().st_size,
+                    "quality": hero_encoding["quality"],
+                    "qualityAttempts": hero_encoding["qualityAttempts"],
+                    "maxBytes": hero_max_bytes,
+                    "psnrDb": round(measured_psnr, 3),
+                    "minPsnrDb": minimum_psnr,
+                    "minimumSavingsPercent": minimum_savings,
+                    "savedPercent": round(saved_percent, 3),
+                }
+
             source_format = "WEBP" if source_filename != filename else "JPEG"
             output[filename] = {
                 "width": width,
@@ -420,6 +526,7 @@ def generate_responsive_variants(
                 "fullSizeQuality": full_size_encoding["quality"] if full_size_encoding else None,
                 "fullSizeQualityAttempts": full_size_encoding["qualityAttempts"] if full_size_encoding else [],
                 "fullSizeMaxBytes": full_size_encoding["maxBytes"] if full_size_encoding else None,
+                "heroDeliveryVariant": hero_delivery_variant,
                 "variants": generated,
             }
     return output
@@ -585,7 +692,8 @@ def _rewrite_existing_picture_sources(text: str, root: Path) -> str:
         source_tag = source_match.group(0)
         updated = set_attribute(source_tag, "data-responsive-image", "true")
         updated = set_attribute(updated, "type", "image/webp")
-        updated = set_attribute(updated, "srcset", _srcset(root, fallback_name))
+        hero = _is_hero_image(image_tag, _ancestor_classes_before(text, image_offset))
+        updated = set_attribute(updated, "srcset", _srcset(root, fallback_name, hero=hero))
         updated = set_attribute(updated, "sizes", sizes)
         return picture[:source_match.start()] + updated + picture[source_match.end():]
 
@@ -608,18 +716,29 @@ def _natural_dimensions(root: Path, filename: str) -> tuple[int, int]:
     return width, height
 
 
-def _srcset(root: Path, filename: str) -> str:
-    """Build a verified width-descriptor srcset for a path-aware image identity."""
+def _is_hero_image(tag: str, ancestor_classes: set[str] | None = None) -> bool:
+    """Identify the first-view image contract from markup and its verified layout ancestors."""
+    classes = set((get_attribute(tag, "class") or "").split())
+    ancestors = ancestor_classes or set()
+    return (
+        "hero__image" in classes
+        or (get_attribute(tag, "fetchpriority") or "").lower() == "high"
+        or bool(ancestors & {"page-hero", "page-hero__picture"})
+    )
+
+
+def _srcset(root: Path, filename: str, *, hero: bool = False) -> str:
+    """Build a verified width-descriptor srcset, using a quality-gated hero derivative when applicable."""
     root = _resolve_site_root(root)
     source_filename = _responsive_source_filename(filename)
     source = _image_source_file(root, source_filename)
     if source.is_symlink() or not source.is_file():
-        raise FileNotFoundError(f"Missing safe source image: {source}")
+        raise FileNotFoundError(f"Missing safe responsive image source: {source}")
     with Image.open(source) as image:
         _validate_source_image_header(image, source_filename)
         image.load()
         oriented = ImageOps.exif_transpose(image)
-        natural_width = oriented.width
+        natural_width, natural_height = oriented.size
     relative = _validated_image_relative_path(filename)
     responsive_parent = _safe_directory(
         root, Path("assets/images/responsive") / relative.parent
@@ -634,9 +753,19 @@ def _srcset(root: Path, filename: str) -> str:
     full_size = root / _full_size_webp_url(filename)
     if full_size.is_symlink() or not full_size.is_file():
         raise FileNotFoundError(f"Missing full-size WebP source: {full_size}")
-    paths.append(f"{_full_size_webp_url(filename)} {natural_width}w")
+    hero_config = HERO_DELIVERY_VARIANTS.get(filename) if hero else None
+    if hero_config:
+        hero_candidate = root / Path(*PurePosixPath(hero_config["path"]).parts)
+        if hero_candidate.is_symlink() or not hero_candidate.is_file():
+            raise FileNotFoundError(f"Missing quality-gated hero delivery candidate: {hero_candidate}")
+        with Image.open(hero_candidate) as decoded:
+            decoded.load()
+            if decoded.format != "WEBP" or decoded.size != (natural_width, natural_height):
+                raise ValueError(f"Hero delivery candidate dimensions do not match source: {hero_candidate}")
+        paths.append(f"{hero_config['path']} {natural_width}w")
+    else:
+        paths.append(f"{_full_size_webp_url(filename)} {natural_width}w")
     return ", ".join(paths)
-
 
 def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> str:
     """Rewrite known references to JPG, WebP, or responsive WebP with a JPEG fallback."""
@@ -690,11 +819,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             return tag
         fallback = _source_url(image_name)
         natural_width, natural_height = _natural_dimensions(root, image_name)
-        classes = (get_attribute(tag, "class") or "").split()
-        is_hero = (
-            "hero__image" in classes
-            or (get_attribute(tag, "fetchpriority") or "").lower() == "high"
-        )
+        is_hero = _is_hero_image(tag, _ancestor_classes_before(text, match.start()))
         tag = set_attribute(tag, "src", fallback)
         # Reserve intrinsic space from decoded bytes to reduce layout shift.
         tag = set_attribute(tag, "width", str(natural_width))
@@ -717,7 +842,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             )
             if has_mapped_source:
                 return set_attribute(tag, "data-responsive-image-fallback", "true")
-        srcset = _srcset(root, image_name)
+        srcset = _srcset(root, image_name, hero=is_hero)
         ancestor_classes = _ancestor_classes_before(text, match.start())
         sizes = _responsive_sizes(tag, ancestor_classes)
         source = (
@@ -755,17 +880,26 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             ),
             None,
         )
+        matching_image = matching_image_match.group(0) if matching_image_match else ""
         sizes = (
             _responsive_sizes(
-                matching_image_match.group(0),
+                matching_image,
                 _ancestor_classes_before(text, matching_image_match.start()),
             )
             if matching_image_match
             else "100vw"
         )
+        is_hero = (
+            _is_hero_image(
+                matching_image,
+                _ancestor_classes_before(text, matching_image_match.start()),
+            )
+            if matching_image_match
+            else (get_attribute(tag, "fetchpriority") or "").lower() == "high"
+        )
         return set_attribute(
             set_attribute(
-                set_attribute(tag, "imagesrcset", _srcset(root, image_name)),
+                set_attribute(tag, "imagesrcset", _srcset(root, image_name, hero=is_hero)),
                 "imagesizes",
                 sizes,
             ),
