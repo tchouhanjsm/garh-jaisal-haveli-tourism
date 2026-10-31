@@ -931,6 +931,12 @@ experience_details_fixture_first_view = next(
 )
 assert experience_details_fixture_first_view["deferredTemplateCount"] == 7
 assert experience_details_fixture_first_view["deferredActivatedCount"] == 0
+experiences_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "experiences.html"
+)
+assert experiences_fixture_first_view["deferredTemplateCount"] == 6
+assert experiences_fixture_first_view["deferredActivatedCount"] == 0
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1
@@ -1098,6 +1104,30 @@ invalid_experience_details_report = browser_smoke.build_responsive_image_evidenc
 assert invalid_experience_details_report["automatedResult"] == "FAIL"
 assert invalid_experience_details_report["pageResourceEvidence"]["complete"] is False
 assert any("deferred image counts do not match the route contract" in failure for failure in invalid_experience_details_report["automatedFailures"])
+
+invalid_experiences_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_experiences_index = next(
+    index for index, item in enumerate(invalid_experiences_deferred_counts)
+    if item["route"] == "experiences.html"
+)
+invalid_experiences_deferred_counts[invalid_experiences_index] = dict(
+    invalid_experiences_deferred_counts[invalid_experiences_index]
+)
+invalid_experiences_deferred_counts[invalid_experiences_index]["firstView"] = dict(
+    invalid_experiences_deferred_counts[invalid_experiences_index]["firstView"]
+)
+invalid_experiences_deferred_counts[invalid_experiences_index]["firstView"]["deferredTemplateCount"] = 5
+invalid_experiences_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_experiences_deferred_counts,
+)
+assert invalid_experiences_report["automatedResult"] == "FAIL"
+assert invalid_experiences_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_experiences_report["automatedFailures"])
 
 invalid_priority_first_view = [dict(item) for item in fixture_page_resource_evidence]
 invalid_priority_first_view[0] = dict(invalid_priority_first_view[0])

@@ -181,6 +181,8 @@ for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) 
 }
 
 const homeHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const experiencesHtml = fs.readFileSync(path.join(ROOT, 'experiences.html'), 'utf8');
+const experienceCarouselJs = fs.readFileSync(path.join(ROOT, 'assets/experience-carousel.js'), 'utf8');
 const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
 const experienceDetailsHtml = fs.readFileSync(path.join(ROOT, 'experience-details.html'), 'utf8');
 const experienceDetailsCss = fs.readFileSync(path.join(ROOT, 'assets/css/experience-details.css'), 'utf8');
@@ -211,6 +213,24 @@ assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g
   'gallery.html: every deferred Gallery card must retain an inert responsive-image template');
 assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'gallery.html: every deferred Gallery card must retain a no-JavaScript image fallback');
+assert.equal((experiencesHtml.match(/<figure class="experience-carousel__slide"[^>]*aria-label="Photo 1 of 2"[^>]*data-deferred-media>/g) || []).length, 6,
+  'experiences.html: all six lead carousel slides must defer their supporting image payloads');
+assert.equal((experiencesHtml.match(/<template data-deferred-picture-template>/g) || []).length, 6,
+  'experiences.html: each deferred lead slide must retain an inert responsive-image template');
+assert.equal((experiencesHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 6,
+  'experiences.html: each deferred lead slide must retain a no-JavaScript image fallback');
+const experiencesHero = experiencesHtml.match(/<section class="page-hero[^"]*experience-discovery-hero"[\\s\\S]*?<\\/section>/)?.[0] || '';
+assert.ok(experiencesHero, 'experiences.html: the first-view hero section must remain present');
+assert.doesNotMatch(experiencesHero, /data-deferred-media/,
+  'experiences.html: the first-view hero must never be deferred');
+assert.match(experiencesHero, /fetchpriority="high"[^>]*loading="eager"/,
+  'experiences.html: the first-view hero must remain eager and high priority');
+assert.match(experienceCarouselJs, /function getSlideImage\\(slide\\)/,
+  'experience carousels must resolve the lead image from its active node or inert template');
+assert.match(experienceCarouselJs, /template\\.content\\.querySelector\\('img'\\)/,
+  'experience carousel validation must read the image inside the deferred template');
+assert.match(experienceCarouselJs, /const image = getSlideImage\\(slide\\)/,
+  'experience carousel source uniqueness must use the deferred-aware image resolver');
 assert.equal((roomsHtml.match(/<div class="room-card__image" data-deferred-media>/g) || []).length, 7,
   'rooms.html: all seven named-room cards must defer their supporting image payloads');
 assert.equal((roomsHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,

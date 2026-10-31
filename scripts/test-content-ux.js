@@ -497,7 +497,8 @@ for (const rule of PAGE_RULES) {
         fail('experiences.html: missing confirmation prompts for ' + option.title);
       }
       const hasCarousel = /data-experience-carousel/.test(card);
-      const carouselImages = [...card.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
+      const carouselMarkup = card.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+      const carouselImages = [...carouselMarkup.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
       if (!hasCarousel
           || (card.match(/data-carousel-slide/g) || []).length !== 2
           || !/data-carousel-previous/.test(card)
@@ -524,7 +525,8 @@ for (const rule of PAGE_RULES) {
       }
     }
     const openSkyCard = cards.find((candidate) => candidate[1] === 'open-sky')?.[0] || '';
-    const openSkySlides = [...openSkyCard.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
+    const openSkyMarkup = openSkyCard.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+    const openSkySlides = [...openSkyMarkup.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
     const expectedOpenSkySlides = [
       'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg',
       'assets/images/experiences/sleep-under-stars-shelter.jpeg',

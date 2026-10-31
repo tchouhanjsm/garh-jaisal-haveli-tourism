@@ -36,6 +36,7 @@ EXPECTED_DEFERRED_MEDIA_COUNTS = {
     "index.html": 5,
     "rooms.html": 7,
     "gallery.html": 7,
+    "experiences.html": 6,
     "experience-details.html": 7,
 }
 VIEWPORTS = [
@@ -3137,7 +3138,7 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            for fallback_route, expected_fallback_count in (("index.html", 5), ("rooms.html", 7), ("gallery.html", 7), ("experience-details.html", 7)):
+            for fallback_route, expected_fallback_count in (("index.html", 5), ("rooms.html", 7), ("gallery.html", 7), ("experiences.html", 6), ("experience-details.html", 7)):
                 fallback_media_page = fallback_context.new_page()
                 fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
                 fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")
@@ -5367,6 +5368,38 @@ def check_carousels(page, base_url: str, browser,
             continue
         slides = card.locator("[data-carousel-slide]")
         check(slides.count() == 2, f"{label}: expected two distinct slides")
+        first_slide = slides.nth(0)
+        first_slide_handle = first_slide.element_handle()
+        try:
+            first_slide.scroll_into_view_if_needed(timeout=3000)
+            if first_slide_handle is None:
+                raise RuntimeError("first carousel slide is missing")
+            page.wait_for_function(
+                """element => element && (
+                  element.getAttribute("data-deferred-media-activated") === "true"
+                  || element.getAttribute("data-deferred-media-failed") === "true"
+                )""",
+                arg=first_slide_handle,
+                timeout=5000,
+            )
+            check(
+                first_slide_handle.get_attribute("data-deferred-media-activated") == "true",
+                f"{label}: first carousel image must activate when its slide enters the viewport",
+            )
+            first_image = first_slide.locator("img")
+            first_image.wait_for(state="attached", timeout=3000)
+            first_details = first_image.evaluate(
+                """async img => {
+                  try { await img.decode(); } catch (_) {}
+                  return {width: img.naturalWidth, height: img.naturalHeight, alt: img.getAttribute('alt')};
+                }"""
+            )
+            check(first_details["width"] > 0 and first_details["height"] > 0,
+                  f"{label}: first deferred image must decode in the browser")
+            check(bool(first_details["alt"] and first_details["alt"].strip()),
+                  f"{label}: first deferred image must retain descriptive alt text")
+        except Exception as error:
+            check(False, f"{label}: first deferred slide failed activation/decode: {error}")
         status = card.locator("[data-carousel-status]")
         previous = card.locator("[data-carousel-previous]")
         next_button = card.locator("[data-carousel-next]")
