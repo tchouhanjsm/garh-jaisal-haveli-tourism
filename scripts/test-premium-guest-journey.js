@@ -188,6 +188,18 @@ assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade
   'gallery.html: hero preload must retain the original source-backed WebP');
 assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
   'gallery.html: generated preload candidates must not reference files before the staging pipeline creates them');
+assert.equal((galleryHeroHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 7,
+  'gallery.html: all seven supporting Gallery cards must defer their image payload');
+assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
+  'gallery.html: every deferred Gallery card must retain an inert responsive-image template');
+assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
+  'gallery.html: every deferred Gallery card must retain a no-JavaScript image fallback');
+assert.match(siteJs, /function initDeferredGalleryMedia\(/,
+  'shared runtime must initialize deferred Gallery media');
+assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
+  'deferred Gallery media must activate only within the bounded near-viewport margin');
+assert.match(siteJs, /data-deferred-media-activated/,
+  'deferred Gallery activation must expose a verifiable runtime state');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');

@@ -263,8 +263,14 @@ for (const rule of PAGE_RULES) {
       continue;
     }
     if (!alt || /^(image|photo|picture|img)\s*\d*$/i.test(alt)) fail(`${rule.file}: missing or generic alt text for ${src}`);
-    if (seenImages.has(src)) fail(`${rule.file}: repeated image source on the same page: ${src}`);
-    seenImages.add(src);
+    const imagePrefix = html.slice(0, match.index);
+    const noScriptStart = imagePrefix.lastIndexOf('<noscript');
+    const noScriptEnd = imagePrefix.lastIndexOf('</noscript>');
+    const isNoScriptFallback = noScriptStart > noScriptEnd;
+    if (!isNoScriptFallback) {
+      if (seenImages.has(src)) fail(`${rule.file}: repeated image source on the same page: ${src}`);
+      seenImages.add(src);
+    }
     if (!attr.width || !attr.height || Number(attr.width) <= 0 || Number(attr.height) <= 0) {
       fail(`${rule.file}: image needs explicit positive width and height: ${src}`);
     }

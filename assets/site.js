@@ -38,6 +38,38 @@
   window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
   focusArrivalPlannerFromFragment();
 
+  // Gallery supporting photos stay inert until they approach the reading viewport.
+  // The source markup retains a <noscript> fallback; unsupported observers activate all images.
+  function initDeferredGalleryMedia() {
+    const targets = Array.from(document.querySelectorAll('[data-deferred-media]'));
+    if (!targets.length) return;
+    const activate = target => {
+      const template = target.querySelector('template[data-deferred-picture-template]');
+      if (!template || !template.content) {
+        target.removeAttribute('data-deferred-media');
+        target.setAttribute('data-deferred-media-failed', 'true');
+        return false;
+      }
+      target.appendChild(template.content.cloneNode(true));
+      template.remove();
+      const fallback = target.querySelector('noscript[data-deferred-picture-fallback]');
+      if (fallback) fallback.remove();
+      target.removeAttribute('data-deferred-media');
+      target.setAttribute('data-deferred-media-activated', 'true');
+      return true;
+    };
+    if (typeof IntersectionObserver !== 'function') { targets.forEach(activate); return; }
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        observer.unobserve(entry.target);
+        activate(entry.target);
+      });
+    }, { rootMargin: '256px 0px', threshold: 0 });
+    targets.forEach(target => observer.observe(target));
+  }
+  initDeferredGalleryMedia();
+
   // Keep the Directions section rail oriented to the heading nearest its reading line.
   // Native fragment links remain usable when this enhancement is unavailable.
   function initArrivalSectionNavigation() {

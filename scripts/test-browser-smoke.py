@@ -1235,6 +1235,8 @@ def build_responsive_image_evidence_report(
         normalized_first_view: dict = {
             "capturePhase": "invalid",
             "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+            "deferredTemplateCount": 0,
+            "deferredActivatedCount": 0,
             "resourceCount": 0,
             "imageCount": 0,
             "visibleImageCount": 0,
@@ -1251,6 +1253,8 @@ def build_responsive_image_evidence_report(
             "resources": [],
             "images": [],
         }
+        deferred_template_count = 0
+        deferred_activated_count = 0
         if (
             not isinstance(first_view, dict)
             or first_view.get("capturePhase") != "after-load-before-test-only-image-activation"
@@ -1260,6 +1264,19 @@ def build_responsive_image_evidence_report(
                 f"{route} at {viewport_width}px @{dpr}x: first-view snapshot is missing or was captured after test-only activation"
             )
         else:
+            deferred_template_count = first_view.get("deferredTemplateCount")
+            deferred_activated_count = first_view.get("deferredActivatedCount")
+            expected_deferred_total = 7 if route == "gallery.html" else 0
+            valid_deferred_counts = all(
+                isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                for value in (deferred_template_count, deferred_activated_count)
+            )
+            if not valid_deferred_counts or deferred_template_count + deferred_activated_count != expected_deferred_total:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x: deferred image counts do not match the route contract"
+                )
+                deferred_template_count = 0
+                deferred_activated_count = 0
             first_view_resources, first_view_totals, _first_view_path_counts = normalize_resource_entries(
                 first_view.get("resources"), route, viewport_width, dpr, "first-view"
             )
@@ -1357,6 +1374,8 @@ def build_responsive_image_evidence_report(
             normalized_first_view = {
                 "capturePhase": "after-load-before-test-only-image-activation",
                 "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+                "deferredTemplateCount": deferred_template_count,
+                "deferredActivatedCount": deferred_activated_count,
                 **expected_first_view_counts,
                 "encodedBodyBytes": sum(resource["encodedBodyBytes"] for resource in first_view_resources),
                 "transferBytes": sum(resource["transferBytes"] for resource in first_view_resources),
@@ -1467,7 +1486,7 @@ def build_responsive_image_evidence_report(
     commit_sha = os.environ.get("GITHUB_SHA", "")
     workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
     report = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
         "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
@@ -1486,6 +1505,8 @@ def build_responsive_image_evidence_report(
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
+                "Gallery supporting cards remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
+                "Deferred-template and pre-capture activation counts reconcile to the seven Gallery supporting cards.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
@@ -1540,8 +1561,8 @@ def build_responsive_image_evidence_report(
 
 def validate_responsive_image_evidence_report(report: dict) -> None:
     """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
-    if not isinstance(report, dict) or report.get("schemaVersion") != 3:
-        raise ValueError("Responsive-image browser evidence must use schema version 2")
+    if not isinstance(report, dict) or report.get("schemaVersion") != 4:
+        raise ValueError("Responsive-image browser evidence must use schema version 4")
     if (
         report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
         or report.get("fieldDataAvailable") is not False
@@ -1986,6 +2007,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                       return {
                                         capturePhase: 'after-load-before-test-only-image-activation',
                                         viewportHeightCssPixels: window.innerHeight,
+                                        deferredTemplateCount: document.querySelectorAll('template[data-deferred-picture-template]').length,
+                                        deferredActivatedCount: document.querySelectorAll('[data-deferred-media-activated="true"]').length,
                                         resourceCount: resources.length,
                                         encodedBodyBytes: resources.reduce((total, item) => total + item.encodedBodyBytes, 0),
                                         transferBytes: resources.reduce((total, item) => total + item.transferBytes, 0),
@@ -2008,6 +2031,40 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     f"could not capture natural first-view resources before audit activation: "
                                     f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
                                 )
+
+                            deferred_targets = page.locator("[data-deferred-media]")
+                            while deferred_targets.count():
+                                target = deferred_targets.first
+                                deferred_label = f"{page_name} deferred Gallery image"
+                                try:
+                                    target.scroll_into_view_if_needed(timeout=5000)
+                                    image = target.locator("img").first
+                                    image.wait_for(state="attached", timeout=5000)
+                                    decoded = image.evaluate(
+                                        """async img => {
+                                          try { await img.decode(); } catch (_) {}
+                                          return img.naturalWidth > 0 && img.naturalHeight > 0
+                                            && Boolean((img.getAttribute("alt") || "").trim());
+                                        }"""
+                                    )
+                                    check_preview(decoded, f"{deferred_label}: image must activate, decode and retain descriptive alt text")
+                                except Exception as error:
+                                    failures.append(
+                                        f"{deferred_label}: bounded observer activation failed: "
+                                        f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                    )
+                                    break
+                            expected_deferred_activated = 7 if page_name == "gallery.html" else 0
+                            actual_deferred_activated = page.locator('[data-deferred-media-activated="true"]').count()
+                            check_preview(
+                                actual_deferred_activated == expected_deferred_activated,
+                                f"{page_name}: expected {expected_deferred_activated} deferred media activations, observed {actual_deferred_activated}",
+                            )
+                            check_preview(
+                                page.locator("[data-deferred-media]").count() == 0,
+                                f"{page_name}: no deferred media placeholder may remain after full-page audit activation",
+                            )
+                            page.evaluate("window.scrollTo(0, 0)")
 
                             pictures = page.locator(
                                 'picture:has(source[data-responsive-image="true"])'
@@ -3046,6 +3103,23 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
+            fallback_gallery = fallback_context.new_page()
+            fallback_gallery.goto(base_url + "gallery.html", wait_until="domcontentloaded", timeout=15000)
+            fallback_images = fallback_gallery.locator(".gallery-card__media img")
+            check(fallback_images.count() == 7,
+                  "Gallery no-JavaScript fallback must expose all seven supporting photographs")
+            for image_index in range(fallback_images.count()):
+                image = fallback_images.nth(image_index)
+                image.scroll_into_view_if_needed(timeout=5000)
+                decoded = image.evaluate(
+                    """async img => {
+                      try { await img.decode(); } catch (_) {}
+                      return img.naturalWidth > 0 && img.naturalHeight > 0
+                        && Boolean((img.getAttribute("alt") || "").trim());
+                    }"""
+                )
+                check(decoded,
+                      "Gallery no-JavaScript fallback image " + str(image_index + 1) + " must decode and retain descriptive alt text")
         finally:
             fallback_context.close()
 
