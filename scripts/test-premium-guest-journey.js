@@ -23,6 +23,7 @@ const css = fs.readFileSync(cssPath, 'utf8');
 const siteCssPath = path.join(ROOT, 'assets/site.css');
 const siteCss = fs.readFileSync(siteCssPath, 'utf8');
 const siteJs = fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8');
+const roomCompareJs = fs.readFileSync(path.join(ROOT, 'assets/room-compare.js'), 'utf8');
 const stayPlannerJs = fs.readFileSync(path.join(ROOT, 'assets/stay-planner.js'), 'utf8');
 const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets/css/stay-planner.css'), 'utf8');
 
@@ -214,6 +215,12 @@ assert.equal((roomsHtml.match(/<template data-deferred-picture-template>/g) || [
   'rooms.html: every deferred room card must retain an inert responsive-image template');
 assert.equal((roomsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'rooms.html: every deferred room card must retain a no-JavaScript image fallback');
+
+assert.ok(roomCompareJs.includes('function getRoomCardImage(card)')
+  && roomCompareJs.includes("template.content.querySelector('img')"),
+  'room comparison must resolve photographs from active DOM or inert deferred templates');
+assert.equal((roomCompareJs.match(/const image = getRoomCardImage\\(card\\);/g) || []).length, 2,
+  'room comparison validation and comparison records must share the deferred-aware image resolver');
 assert.match(siteJs, /function initDeferredSupportingMedia\(/,
   'shared runtime must initialize deferred supporting media');
 assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
