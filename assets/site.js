@@ -754,10 +754,15 @@
 
   function updateDirectEnquiryDock() {
     if (!directEnquiryDock) return;
+    const mobilePrimaryActionVisible = Boolean(
+      mobileBookingBar && typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 760px)').matches
+    );
     const shouldShow = !directEnquiryDismissed
       && directEnquirySurfaceTrackingReady
       && window.scrollY > 360
       && visibleDirectEnquirySurfaces.size === 0
+      && !mobilePrimaryActionVisible
       && !document.body.classList.contains('menu-open');
     directEnquiryDock.hidden = !shouldShow;
   }
@@ -789,6 +794,8 @@
       }
     }
   }
+
+  window.addEventListener('resize', updateDirectEnquiryDock, { passive: true });
 
   let knownMobileBookingBarHeight = 0;
 

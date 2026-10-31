@@ -347,3 +347,33 @@ The M0 screenshot artifact exists, but final human visual scoring and owner-appr
 - Legacy owner facts and blockers: `garh-jaisal-website/docs/OWNER-FACTS.md`
 - Tourism target arrival contracts: `scripts/test-arrival-wayfinding.js`, `scripts/test-arrival-planning-enquiry.js`
 - Tourism target editorial schema/renderer/contracts: `content/paths.json`, `content/schemas/blog.schema.json`, `scripts/build-content-pages.js`, `scripts/test-editorial-content-cluster.js`, `scripts/test-editorial-readiness.js`, `scripts/test-editorial-media-readiness.js`
+
+
+## M17 — premium brand chrome and first-view action hierarchy
+
+Refine masthead wordmark/monogram scale, active-navigation contrast, typography and saffron action styling while retaining the owner-authorized AsiaTech booking destination. Rooms, Experiences, Dining, About and Gallery gain one route-specific first-view action; Home, Experience Details and Directions retain their existing primary actions.
+
+## M18 — editorial image and section composition
+
+Reduce repetitive boxed-card emphasis using larger photographic surfaces, open fact rails, consistent image proportions and restrained elevation. Rebalance the homepage four-fact proof strip. Preserve source-backed images, alt text, content caveats and responsive image budgets.
+
+## M19 — responsive conversion and visual regression gate
+
+Suppress the floating enquiry dock whenever the persistent mobile booking bar is active, including after viewport resize. Extend Chromium's six-width/eight-route matrix with a unique H1, one prominent hero action, masthead clearance, in-viewport CTA geometry and decoded cover-fit image checks. Keep full-page screenshots and performance evidence. This does not replace visual review or owner-approved staging UAT. No public indexing or deployment is authorized.
+
+
+
+## M20 — tablet masthead and navigation breakpoint
+
+The 768px visual review exposed a 34px horizontal overflow in the desktop masthead. The navigation now changes to the same accessible hamburger pattern from 761–820px rather than compressing or clipping the primary links. The 820px boundary is covered by Chromium: toggle visible, navigation collapsed by default, explicit open, and Escape-to-close. Horizontal overflow remains a hard failure.
+
+
+## M21 — tablet planner composition and overflow repair
+
+The 768px Chromium capture exposed a 34px overflow in the homepage introduction: the three-column grid let the property photograph's intrinsic minimum widen the third track beyond the content rail. The tablet correction spans the folio across row one and assigns copy/photo to two shrink-safe `minmax(0, …)` tracks. Independently, the full-width planning band explicitly resets the old booking-panel form grid and adopts a 2×2 decision layout from 761–900px. The existing six-width Chromium overflow assertion remains the hard acceptance gate.
+
+## M22 — measurable heritage palette contrast
+
+Add executable WCAG AA contrast sentinels for primary saffron/white actions, deep brass/limestone text, muted/limestone copy, peacock/ivory focus, inverse fort-green text and antique brass on the dark editorial band. The checker documents that these are representative pairs; rendered colour combinations and screenshots still require review.
+
+**Next milestone (M23):** validate screenshot and layout quality at all six responsive widths for all eight routes, inspect the captured 320/360/390/768/1280/1440 composition, and calibrate hero text/photo crops, primary-action prominence, section rhythm, mobile fixed-action clearance and tablet navigation. Do not accept the design on CSS-only checks or a single desktop view.
