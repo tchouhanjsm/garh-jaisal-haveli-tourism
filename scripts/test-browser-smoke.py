@@ -1266,7 +1266,7 @@ def build_responsive_image_evidence_report(
         else:
             deferred_template_count = first_view.get("deferredTemplateCount")
             deferred_activated_count = first_view.get("deferredActivatedCount")
-            expected_deferred_total = 7 if route == "gallery.html" else 0
+            expected_deferred_total = 5 if route == "index.html" else 7 if route == "gallery.html" else 0
             valid_deferred_counts = all(
                 isinstance(value, int) and not isinstance(value, bool) and value >= 0
                 for value in (deferred_template_count, deferred_activated_count)
@@ -1505,8 +1505,8 @@ def build_responsive_image_evidence_report(
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
-                "Gallery supporting cards remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
-                "Deferred-template and pre-capture activation counts reconcile to the seven Gallery supporting cards.",
+                "Homepage and Gallery supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
+                "Deferred-template and pre-capture activation counts reconcile to five homepage and seven Gallery supporting images.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
@@ -2038,14 +2038,14 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 "[data-deferred-media-failed='true']"
                             )
                             deferred_target_handles = deferred_targets.element_handles()
-                            expected_deferred_targets = 7 if page_name == "gallery.html" else 0
+                            expected_deferred_targets = 5 if page_name == "index.html" else 7 if page_name == "gallery.html" else 0
                             check_preview(
                                 len(deferred_target_handles) == expected_deferred_targets,
                                 f"{page_name}: expected {expected_deferred_targets} deferred media targets, "
                                 f"observed {len(deferred_target_handles)}",
                             )
                             for deferred_index, target_handle in enumerate(deferred_target_handles, start=1):
-                                deferred_label = f"{page_name} deferred Gallery image {deferred_index}"
+                                deferred_label = f"{page_name} deferred supporting image {deferred_index}"
                                 try:
                                     page.evaluate(
                                         "(element) => element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})",
@@ -2082,7 +2082,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
                                     )
                                     break
-                            expected_deferred_activated = 7 if page_name == "gallery.html" else 0
+                            expected_deferred_activated = 5 if page_name == "index.html" else 7 if page_name == "gallery.html" else 0
                             actual_deferred_activated = page.locator('[data-deferred-media-activated="true"]').count()
                             check_preview(
                                 actual_deferred_activated == expected_deferred_activated,
@@ -3131,48 +3131,50 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            fallback_gallery = fallback_context.new_page()
-            fallback_gallery.goto(base_url + "gallery.html", wait_until="domcontentloaded", timeout=15000)
-            fallback_nodes = fallback_gallery.locator("noscript[data-deferred-picture-fallback]")
-            check(fallback_nodes.count() == 7,
-                  "Gallery no-JavaScript markup must retain all seven supporting-photo fallbacks")
-            for image_index in range(fallback_nodes.count()):
-                fallback = fallback_nodes.nth(image_index)
-                fallback_result = fallback.evaluate(
-                    """async node => {
-                      // Depending on the browser's scripting flag, noscript children may be
-                      // exposed as parsed nodes or retained as raw markup text. Validate the
-                      // same fallback payload in either representation without enabling the
-                      // page's application scripts.
-                      const raw = (node.textContent || '').trim() || node.innerHTML;
-                      const parsed = new DOMParser().parseFromString(raw, 'text/html');
-                      const source = parsed.querySelector('img');
-                      if (!source) return { decoded: false, reason: 'missing image markup' };
-                      const src = (source.getAttribute('src') || '').trim();
-                      const alt = (source.getAttribute('alt') || '').trim();
-                      const width = Number(source.getAttribute('width'));
-                      const height = Number(source.getAttribute('height'));
-                      if (!src || !alt || !Number.isInteger(width) || width <= 0
-                          || !Number.isInteger(height) || height <= 0) {
-                        return { decoded: false, reason: 'incomplete image alternative' };
-                      }
-                      const probe = new Image();
-                      probe.src = new URL(src, document.baseURI).href;
-                      try { await probe.decode(); } catch (_) {}
-                      return {
-                        decoded: probe.naturalWidth > 0 && probe.naturalHeight > 0,
-                        alt,
-                        width,
-                        height,
-                        sourceWidth: probe.naturalWidth,
-                        sourceHeight: probe.naturalHeight
-                      };
-                    }"""
+            for fallback_route, expected_fallback_count in (("index.html", 5), ("gallery.html", 7)):
+                fallback_media_page = fallback_context.new_page()
+                fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
+                fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")
+                check(
+                    fallback_nodes.count() == expected_fallback_count,
+                    fallback_route + ": no-JavaScript markup must retain all "
+                    + str(expected_fallback_count) + " supporting-image fallbacks",
                 )
-                check(fallback_result.get("decoded") is True,
-                      "Gallery no-JavaScript fallback image " + str(image_index + 1)
-                      + " must contain a valid descriptive image and decodable local source"
-                      + (": " + str(fallback_result.get("reason")) if fallback_result.get("reason") else ""))
+                for image_index in range(fallback_nodes.count()):
+                    fallback = fallback_nodes.nth(image_index)
+                    fallback_result = fallback.evaluate(
+                        """async node => {
+                          const raw = (node.textContent || '').trim() || node.innerHTML;
+                          const parsed = new DOMParser().parseFromString(raw, 'text/html');
+                          const source = parsed.querySelector('img');
+                          if (!source) return { decoded: false, reason: 'missing image markup' };
+                          const src = (source.getAttribute('src') || '').trim();
+                          const alt = (source.getAttribute('alt') || '').trim();
+                          const width = Number(source.getAttribute('width'));
+                          const height = Number(source.getAttribute('height'));
+                          if (!src || !alt || !Number.isInteger(width) || width <= 0
+                              || !Number.isInteger(height) || height <= 0) {
+                            return { decoded: false, reason: 'incomplete image alternative' };
+                          }
+                          const probe = new Image();
+                          probe.src = new URL(src, document.baseURI).href;
+                          try { await probe.decode(); } catch (_) {}
+                          return {
+                            decoded: probe.naturalWidth > 0 && probe.naturalHeight > 0,
+                            alt,
+                            width,
+                            height,
+                            sourceWidth: probe.naturalWidth,
+                            sourceHeight: probe.naturalHeight
+                          };
+                        }"""
+                    )
+                    check(
+                        fallback_result.get("decoded") is True,
+                        fallback_route + " no-JavaScript fallback image " + str(image_index + 1)
+                        + " must contain a valid descriptive image and decodable local source"
+                        + (": " + str(fallback_result.get("reason")) if fallback_result.get("reason") else ""),
+                    )
         finally:
             fallback_context.close()
 

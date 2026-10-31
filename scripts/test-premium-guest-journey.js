@@ -179,6 +179,7 @@ for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) 
     route + ': hero image must be preloaded');
 }
 
+const homeHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
 assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture">'),
   'gallery.html: the source-backed hero must use the shared page-hero picture wrapper');
@@ -188,26 +189,39 @@ assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade
   'gallery.html: hero preload must retain the original source-backed WebP');
 assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
   'gallery.html: generated preload candidates must not reference files before the staging pipeline creates them');
+assert.equal((homeHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 5,
+  'index.html: all five supporting home-page images must defer their image payload');
+assert.equal((homeHtml.match(/<template data-deferred-picture-template>/g) || []).length, 5,
+  'index.html: every deferred home-page image must retain an inert responsive-image template');
+assert.equal((homeHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 5,
+  'index.html: every deferred home-page image must retain a no-JavaScript fallback');
+const homeHeroSection = homeHtml.match(/<section class="hero"[\s\S]*?<\/section>/)?.[0] || '';
+assert.ok(homeHeroSection, 'index.html: the primary hero section must remain present');
+assert.doesNotMatch(homeHeroSection, /data-deferred-media/,
+  'index.html: the primary hero must not be placed inside deferred supporting media');
+assert.match(homeHeroSection, /<img class="hero__image"[^>]*fetchpriority="high"[^>]*loading="eager"/,
+  'index.html: the primary hero must remain eager and high priority');
+
 assert.equal((galleryHeroHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 7,
   'gallery.html: all seven supporting Gallery cards must defer their image payload');
 assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
   'gallery.html: every deferred Gallery card must retain an inert responsive-image template');
 assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'gallery.html: every deferred Gallery card must retain a no-JavaScript image fallback');
-assert.match(siteJs, /function initDeferredGalleryMedia\(/,
-  'shared runtime must initialize deferred Gallery media');
+assert.match(siteJs, /function initDeferredSupportingMedia\(/,
+  'shared runtime must initialize deferred supporting media');
 assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
-  'deferred Gallery media must activate only within the bounded near-viewport margin');
+  'deferred supporting media must activate only within the bounded near-viewport margin');
 assert.match(siteJs, /data-deferred-media-activated/,
-  'deferred Gallery activation must expose a verifiable runtime state');
+  'deferred supporting-media activation must expose a verifiable runtime state');
 assert.match(siteJs, /function scheduleFallbackScan\(/,
-  'deferred Gallery activation must retain a bounded scroll/resize recovery scan');
+  'deferred supporting-media activation must retain a bounded scroll/resize recovery scan');
 assert.match(siteJs, /getBoundingClientRect\(\)/,
-  'deferred Gallery recovery scan must measure real media-container geometry');
+  'deferred supporting-media recovery scan must measure real media-container geometry');
 assert.match(siteJs, /addEventListener\('scroll', scheduleFallbackScan/,
-  'deferred Gallery recovery scan must respond to visitor scrolling');
+  'deferred supporting-media recovery scan must respond to visitor scrolling');
 assert.match(siteJs, /addEventListener\('resize', scheduleFallbackScan/,
-  'deferred Gallery recovery scan must respond to viewport changes');
+  'deferred supporting-media recovery scan must respond to viewport changes');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');

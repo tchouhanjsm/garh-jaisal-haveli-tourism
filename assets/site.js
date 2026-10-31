@@ -38,10 +38,10 @@
   window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
   focusArrivalPlannerFromFragment();
 
-  // Gallery supporting photos stay inert until they approach the reading viewport.
+  // Homepage and Gallery supporting photos stay inert until they approach the reading viewport.
   // IntersectionObserver is primary; a bounded scroll/resize scan covers missed observer deliveries.
   // The source markup retains a <noscript> fallback; unsupported observers activate all images.
-  function initDeferredGalleryMedia() {
+  function initDeferredSupportingMedia() {
     const targets = Array.from(document.querySelectorAll('[data-deferred-media]'));
     if (!targets.length) return;
 
@@ -124,7 +124,7 @@
     window.addEventListener('resize', scheduleFallbackScan, { passive: true });
     scheduleFallbackScan();
   }
-  initDeferredGalleryMedia();
+  initDeferredSupportingMedia();
 
   // Keep the Directions section rail oriented to the heading nearest its reading line.
   // Native fragment links remain usable when this enhancement is unavailable.
