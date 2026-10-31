@@ -4176,26 +4176,72 @@ def check_experience_detail_visual_refinement(page, base_url: str) -> None:
             if section.count() != 1:
                 continue
             figure = section.locator("figure.experience-detail-media")
-            image = figure.locator("img")
-            check(figure.count() == 1 and image.count() == 1,
-                  f"{section_id}: exactly one source-matched photo reference must render")
-            if image.count() != 1:
+            frame = figure.locator(".experience-detail-media__frame[data-deferred-media]")
+            template = frame.locator("template[data-deferred-picture-template]")
+            check(figure.count() == 1 and frame.count() == 1 and template.count() == 1,
+                  f"{section_id}: exactly one deferred source-matched photo template must exist")
+            if template.count() != 1:
                 continue
-            check(image.get_attribute("src") == expected_src,
-                  f"{section_id}: image must use its reviewed local subject reference")
-            check(image.get_attribute("alt") == expected_alt,
-                  f"{section_id}: image must retain its descriptive, subject-accurate alt text")
-            check(image.get_attribute("loading") == "lazy" and image.get_attribute("decoding") == "async",
+
+            template_image = template.evaluate("""node => {
+              const image = node.content && node.content.querySelector('img');
+              return image ? {
+                src: image.getAttribute('src'),
+                alt: image.getAttribute('alt'),
+                loading: image.getAttribute('loading'),
+                decoding: image.getAttribute('decoding')
+              } : null;
+            }""")
+            check(template_image is not None,
+                  f"{section_id}: deferred photo template must contain one image payload")
+            if not template_image:
+                continue
+            check(template_image["src"] == expected_src,
+                  f"{section_id}: deferred image must use its reviewed local subject reference")
+            check(template_image["alt"] == expected_alt,
+                  f"{section_id}: deferred image must retain its descriptive, subject-accurate alt text")
+            check(template_image["loading"] == "lazy" and template_image["decoding"] == "async",
                   f"{section_id}: supporting image must lazy-load and decode asynchronously")
-            image.scroll_into_view_if_needed()
+            check(frame.locator(":scope > img").count() == 0,
+                  f"{section_id}: supporting image must remain inert before its activation boundary")
+
+            frame.scroll_into_view_if_needed()
+            frame_selector = f"#{section_id} .experience-detail-media__frame"
             try:
                 page.wait_for_function(
-                    "(selector) => { const image = document.querySelector(selector); return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0); }",
-                    arg=f"#{section_id} figure img",
+                    """selector => {
+                      const frame = document.querySelector(selector);
+                      return Boolean(frame && (
+                        frame.getAttribute('data-deferred-media-activated') === 'true'
+                        || frame.getAttribute('data-deferred-media-failed') === 'true'
+                      ));
+                    }""",
+                    arg=frame_selector,
                     timeout=8000,
                 )
             except Exception as error:
-                check(False, f"{section_id}: image did not decode at {width}px ({type(error).__name__})")
+                check(False, f"{section_id}: deferred activation did not settle at {width}px ({type(error).__name__})")
+                continue
+
+            check(frame.get_attribute("data-deferred-media-activated") == "true",
+                  f"{section_id}: deferred image must activate after entering the viewport")
+            image = frame.locator(":scope > img")
+            check(image.count() == 1,
+                  f"{section_id}: exactly one activated source-matched photo must render")
+            if image.count() != 1:
+                continue
+            check(image.get_attribute("src") == expected_src,
+                  f"{section_id}: activated image must retain its reviewed local subject reference")
+            check(image.get_attribute("alt") == expected_alt,
+                  f"{section_id}: activated image must retain its descriptive, subject-accurate alt text")
+            try:
+                page.wait_for_function(
+                    "(selector) => { const image = document.querySelector(selector); return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0); }",
+                    arg=frame_selector + " > img",
+                    timeout=8000,
+                )
+            except Exception as error:
+                check(False, f"{section_id}: activated image did not decode at {width}px ({type(error).__name__})")
                 continue
 
             layout = page.evaluate("""({id, side, width}) => {
