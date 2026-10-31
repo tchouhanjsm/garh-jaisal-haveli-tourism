@@ -200,6 +200,14 @@ assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
   'deferred Gallery media must activate only within the bounded near-viewport margin');
 assert.match(siteJs, /data-deferred-media-activated/,
   'deferred Gallery activation must expose a verifiable runtime state');
+assert.match(siteJs, /function scheduleFallbackScan\(/,
+  'deferred Gallery activation must retain a bounded scroll/resize recovery scan');
+assert.match(siteJs, /getBoundingClientRect\(\)/,
+  'deferred Gallery recovery scan must measure real media-container geometry');
+assert.match(siteJs, /addEventListener\('scroll', scheduleFallbackScan/,
+  'deferred Gallery recovery scan must respond to visitor scrolling');
+assert.match(siteJs, /addEventListener\('resize', scheduleFallbackScan/,
+  'deferred Gallery recovery scan must respond to viewport changes');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
