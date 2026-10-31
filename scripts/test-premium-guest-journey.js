@@ -224,13 +224,17 @@ assert.equal((experienceDetailsHtml.match(/<template data-deferred-picture-templ
   'experience-details.html: every deferred itinerary photo must retain an inert responsive-image template');
 assert.equal((experienceDetailsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'experience-details.html: every deferred itinerary photo must retain a no-JavaScript image fallback');
-const experienceDetailsHero = experienceDetailsHtml.match(/<section class="page-hero[^"]*experience-detail-hero"[\\s\\S]*?<\\/section>/)?.[0] || '';
+const experienceDetailsHeroStart = experienceDetailsHtml.indexOf('<section class="page-hero page-hero--photo page-hero--experience-details experience-detail-hero"');
+const experienceDetailsHeroEnd = experienceDetailsHtml.indexOf('</section>', experienceDetailsHeroStart);
+const experienceDetailsHero = experienceDetailsHeroStart >= 0 && experienceDetailsHeroEnd >= 0
+  ? experienceDetailsHtml.slice(experienceDetailsHeroStart, experienceDetailsHeroEnd + '</section>'.length)
+  : '';
 assert.ok(experienceDetailsHero, 'experience-details.html: the first-view hero section must remain present');
 assert.doesNotMatch(experienceDetailsHero, /data-deferred-media/,
   'experience-details.html: the first-view hero must never be deferred');
 assert.match(experienceDetailsHero, /fetchpriority="high"[^>]*loading="eager"/,
   'experience-details.html: the first-view hero must remain eager and high priority');
-assert.match(experienceDetailsCss, /experience-detail-media__frame[\\s\\S]*?aspect-ratio:\\s*3\\s*\\/\\s*2/,
+assert.match(experienceDetailsCss, /\.experience-detail-media__frame\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*2/,
   'experience-details.css: deferred photo frames must reserve the existing wide-media geometry');
 assert.ok(roomCompareJs.includes('function getRoomCardImage(card)')
   && roomCompareJs.includes("template.content.querySelector('img')"),

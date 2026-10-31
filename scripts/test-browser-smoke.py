@@ -1512,7 +1512,7 @@ def build_responsive_image_evidence_report(
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
                 "Homepage, Rooms, Gallery and Experience Details supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
-                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms and seven Gallery supporting images.",
+                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms, seven Gallery and seven Experience Details supporting images.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
