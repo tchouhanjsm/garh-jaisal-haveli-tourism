@@ -23,6 +23,7 @@ const css = fs.readFileSync(cssPath, 'utf8');
 const siteCssPath = path.join(ROOT, 'assets/site.css');
 const siteCss = fs.readFileSync(siteCssPath, 'utf8');
 const siteJs = fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8');
+const roomCompareJs = fs.readFileSync(path.join(ROOT, 'assets/room-compare.js'), 'utf8');
 const stayPlannerJs = fs.readFileSync(path.join(ROOT, 'assets/stay-planner.js'), 'utf8');
 const stayPlannerCss = fs.readFileSync(path.join(ROOT, 'assets/css/stay-planner.css'), 'utf8');
 
@@ -179,7 +180,12 @@ for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) 
     route + ': hero image must be preloaded');
 }
 
+const homeHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const experiencesHtml = fs.readFileSync(path.join(ROOT, 'experiences.html'), 'utf8');
+const experienceCarouselJs = fs.readFileSync(path.join(ROOT, 'assets/experience-carousel.js'), 'utf8');
 const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
+const experienceDetailsHtml = fs.readFileSync(path.join(ROOT, 'experience-details.html'), 'utf8');
+const experienceDetailsCss = fs.readFileSync(path.join(ROOT, 'assets/css/experience-details.css'), 'utf8');
 assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture">'),
   'gallery.html: the source-backed hero must use the shared page-hero picture wrapper');
 assert.ok(galleryHeroHtml.includes('<source type="image/webp" srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'),
@@ -188,6 +194,91 @@ assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade
   'gallery.html: hero preload must retain the original source-backed WebP');
 assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
   'gallery.html: generated preload candidates must not reference files before the staging pipeline creates them');
+assert.equal((homeHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 5,
+  'index.html: all five supporting home-page images must defer their image payload');
+assert.equal((homeHtml.match(/<template data-deferred-picture-template>/g) || []).length, 5,
+  'index.html: every deferred home-page image must retain an inert responsive-image template');
+assert.equal((homeHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 5,
+  'index.html: every deferred home-page image must retain a no-JavaScript fallback');
+const homeHeroSection = homeHtml.match(/<section class="hero"[\s\S]*?<\/section>/)?.[0] || '';
+assert.ok(homeHeroSection, 'index.html: the primary hero section must remain present');
+assert.doesNotMatch(homeHeroSection, /data-deferred-media/,
+  'index.html: the primary hero must not be placed inside deferred supporting media');
+assert.match(homeHeroSection, /<img class="hero__image"[^>]*fetchpriority="high"[^>]*loading="eager"/,
+  'index.html: the primary hero must remain eager and high priority');
+
+assert.equal((galleryHeroHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 7,
+  'gallery.html: all seven supporting Gallery cards must defer their image payload');
+assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
+  'gallery.html: every deferred Gallery card must retain an inert responsive-image template');
+assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
+  'gallery.html: every deferred Gallery card must retain a no-JavaScript image fallback');
+assert.equal((experiencesHtml.match(/<figure class="experience-carousel__slide"[^>]*aria-label="Photo 1 of 2"[^>]*data-deferred-media>/g) || []).length, 6,
+  'experiences.html: all six lead carousel slides must defer their supporting image payloads');
+assert.equal((experiencesHtml.match(/<template data-deferred-picture-template>/g) || []).length, 6,
+  'experiences.html: each deferred lead slide must retain an inert responsive-image template');
+assert.equal((experiencesHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 6,
+  'experiences.html: each deferred lead slide must retain a no-JavaScript image fallback');
+const experiencesHeroStart = experiencesHtml.indexOf('<section class="page-hero page-hero--photo page-hero--experiences experience-discovery-hero">');
+const experiencesHeroEnd = experiencesHtml.indexOf('</section>', experiencesHeroStart);
+const experiencesHero = experiencesHeroStart >= 0 && experiencesHeroEnd >= 0
+  ? experiencesHtml.slice(experiencesHeroStart, experiencesHeroEnd + '</section>'.length)
+  : '';
+assert.ok(experiencesHero, 'experiences.html: the first-view hero section must remain present');
+assert.doesNotMatch(experiencesHero, /data-deferred-media/,
+  'experiences.html: the first-view hero must never be deferred');
+assert.match(experiencesHero, /fetchpriority="high"[^>]*loading="eager"/,
+  'experiences.html: the first-view hero must remain eager and high priority');
+assert.ok(experienceCarouselJs.includes('function getSlideImage(slide)'),
+  'experience carousels must resolve the lead image from its active node or inert template');
+assert.ok(experienceCarouselJs.includes("template && template.content ? template.content.querySelector('img') : null;"),
+  'experience carousel validation must read the image inside the deferred template');
+assert.ok(experienceCarouselJs.includes('const image = getSlideImage(slide);'),
+  'experience carousel source uniqueness must use the deferred-aware image resolver');
+assert.equal((roomsHtml.match(/<div class="room-card__image" data-deferred-media>/g) || []).length, 7,
+  'rooms.html: all seven named-room cards must defer their supporting image payloads');
+assert.equal((roomsHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
+  'rooms.html: every deferred room card must retain an inert responsive-image template');
+assert.equal((roomsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
+  'rooms.html: every deferred room card must retain a no-JavaScript image fallback');
+
+assert.equal((experienceDetailsHtml.match(/<div class="experience-detail-media__frame" data-deferred-media>/g) || []).length, 7,
+  'experience-details.html: all seven itinerary photo frames must defer their supporting image payloads');
+assert.equal((experienceDetailsHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
+  'experience-details.html: every deferred itinerary photo must retain an inert responsive-image template');
+assert.equal((experienceDetailsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
+  'experience-details.html: every deferred itinerary photo must retain a no-JavaScript image fallback');
+const experienceDetailsHeroStart = experienceDetailsHtml.indexOf('<section class="page-hero page-hero--photo page-hero--experience-details experience-detail-hero"');
+const experienceDetailsHeroEnd = experienceDetailsHtml.indexOf('</section>', experienceDetailsHeroStart);
+const experienceDetailsHero = experienceDetailsHeroStart >= 0 && experienceDetailsHeroEnd >= 0
+  ? experienceDetailsHtml.slice(experienceDetailsHeroStart, experienceDetailsHeroEnd + '</section>'.length)
+  : '';
+assert.ok(experienceDetailsHero, 'experience-details.html: the first-view hero section must remain present');
+assert.doesNotMatch(experienceDetailsHero, /data-deferred-media/,
+  'experience-details.html: the first-view hero must never be deferred');
+assert.match(experienceDetailsHero, /fetchpriority="high"[^>]*loading="eager"/,
+  'experience-details.html: the first-view hero must remain eager and high priority');
+assert.match(experienceDetailsCss, /\.experience-detail-media__frame\s*\{[^}]*aspect-ratio:\s*3\s*\/\s*2/,
+  'experience-details.css: deferred photo frames must reserve the existing wide-media geometry');
+assert.ok(roomCompareJs.includes('function getRoomCardImage(card)')
+  && roomCompareJs.includes("template.content.querySelector('img')"),
+  'room comparison must resolve photographs from active DOM or inert deferred templates');
+assert.equal(roomCompareJs.split('const image = getRoomCardImage(card);').length - 1, 2,
+  'room comparison validation and comparison records must share the deferred-aware image resolver');
+assert.match(siteJs, /function initDeferredSupportingMedia\(/,
+  'shared runtime must initialize deferred supporting media');
+assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
+  'deferred supporting media must activate only within the bounded near-viewport margin');
+assert.match(siteJs, /data-deferred-media-activated/,
+  'deferred supporting-media activation must expose a verifiable runtime state');
+assert.match(siteJs, /function scheduleFallbackScan\(/,
+  'deferred supporting-media activation must retain a bounded scroll/resize recovery scan');
+assert.match(siteJs, /getBoundingClientRect\(\)/,
+  'deferred supporting-media recovery scan must measure real media-container geometry');
+assert.match(siteJs, /addEventListener\('scroll', scheduleFallbackScan/,
+  'deferred supporting-media recovery scan must respond to visitor scrolling');
+assert.match(siteJs, /addEventListener\('resize', scheduleFallbackScan/,
+  'deferred supporting-media recovery scan must respond to viewport changes');
 
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');

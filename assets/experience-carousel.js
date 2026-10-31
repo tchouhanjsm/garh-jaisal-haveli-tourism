@@ -13,8 +13,15 @@
     // Keep the authored first photo visible if markup is incomplete or JavaScript cannot enhance it.
     if (slides.length < 2 || !controls || !previous || !next || !status) return;
 
+    function getSlideImage(slide) {
+      const renderedImage = slide.querySelector('img');
+      if (renderedImage) return renderedImage;
+      const template = slide.querySelector('template[data-deferred-picture-template]');
+      return template && template.content ? template.content.querySelector('img') : null;
+    }
+
     const sources = slides.map((slide) => {
-      const image = slide.querySelector('img');
+      const image = getSlideImage(slide);
       return image ? (image.getAttribute('src') || '').trim() : '';
     });
     if (sources.some((src) => !src) || new Set(sources).size !== sources.length) return;

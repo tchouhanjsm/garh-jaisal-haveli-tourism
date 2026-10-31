@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps, ImageStat
 
 # Explicitly allow only source photos confirmed in current runtime routes.
 # Art-directed pictures are included only with a source-backed WebP override below.
@@ -57,8 +59,10 @@ RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 # at high DPR. Add a 1280px bridge only for the three measured Gallery assets.
 RESPONSIVE_WIDTH_OVERRIDES = {
     "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "gallery/hotel/fort-from-roof.jpg": (320, 480, 768, 800, 1200, 1280, 1600),
     "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
     "legacy/fort-temple-spires.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "rooms/haveli-interior.jpg": (320, 480, 768, 800, 1200, 1280),
 }
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
@@ -74,7 +78,10 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/courtyard-1200.webp": 250_000,
     "assets/images/responsive/courtyard-1600.webp": 250_000,
     "assets/images/responsive/courtyard-1280.webp": 145_000,
-    "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
+    "assets/images/responsive/rooms/haveli-interior-800.webp": 95_000,
+    "assets/images/responsive/rooms/haveli-interior-1200.webp": 180_000,
+    "assets/images/responsive/rooms/haveli-interior-1280.webp": 190_000,
+    "assets/images/responsive/rooms/haveli-interior-1600.webp": 240_000,
     "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
     "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
     "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
@@ -87,8 +94,11 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-800.webp": 80_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp": 170_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-1280.webp": 180_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp": 250_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-2000.webp": 260_000,
 }
 # JPEG-derived WebPs with explicit ceilings may be regenerated in the isolated package;
 # original JPEG fallbacks remain unchanged.
@@ -100,6 +110,35 @@ FULL_SIZE_WEBP_MAX_BYTES = {
 }
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
+
+# These same-dimension derivatives are generated from verified JPEG fallbacks.
+# Original source-backed WebPs remain untouched and continue serving non-hero references.
+HERO_DELIVERY_VARIANTS = {
+    "gallery/hotel/fort-from-roof.jpg": {
+        "quality": 84,
+        "minPsnrDb": 35.0,
+        "minimumSavingsPercent": 10.0,
+        "maxBytesByWidth": {2000: 260_000},
+    },
+    "rooms/haveli-interior.jpg": {
+        "quality": 84,
+        "minPsnrDb": 35.0,
+        "minimumSavingsPercent": 10.0,
+        "maxBytesByWidth": {1600: 240_000},
+    },
+}
+
+
+AVIF_HERO_DELIVERY_VARIANTS = {
+    "courtyard.jpg": {
+        "quality": 54,
+        "sourceGitBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295",
+        "minPsnrDb": 35.0,
+        "minimumSavingsPercent": 10.0,
+        "media": "(min-width: 1160px) and (min-resolution: 1.5dppx)",
+        "webpPreloadMedia": "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)",
+    },
+}
 
 
 def _resolve_site_root(root: Path) -> Path:
@@ -243,6 +282,16 @@ def _save_webp(
         f"Responsive WebP cannot meet the {max_bytes}-byte budget at or above "
         f"quality {BUDGET_QUALITY_FLOOR}: {target} ({attempt_summary})"
     )
+
+def _psnr_db(reference: Image.Image, candidate: Image.Image) -> float:
+    """Measure RGB PSNR between same-dimension source and encoded candidate images."""
+    left = reference.convert("RGB")
+    right = candidate.convert("RGB")
+    if left.size != right.size:
+        raise ValueError(f"PSNR dimensions differ: {left.size} vs {right.size}")
+    rms = ImageStat.Stat(ImageChops.difference(left, right)).rms
+    mse = sum(channel * channel for channel in rms) / len(rms)
+    return float("inf") if mse == 0 else 20 * math.log10(255 / math.sqrt(mse))
 
 
 def _validate_source_image_header(image: Image.Image, filename: str) -> None:
@@ -403,6 +452,141 @@ def generate_responsive_variants(
                         "maxBytes": max_bytes,
                     }
                 )
+
+            hero_delivery_variant = None
+            hero_config = HERO_DELIVERY_VARIANTS.get(filename)
+            if hero_config:
+                hero_relative = PurePosixPath(_hero_delivery_relative_path(filename, width))
+                if hero_relative.is_absolute() or any(part in {"", ".", ".."} for part in hero_relative.parts):
+                    raise ValueError(f"Unsafe hero delivery path for {filename}: {hero_relative}")
+                hero_target = root / Path(*hero_relative.parts)
+                hero_max_bytes = hero_config["maxBytesByWidth"].get(width)
+                if hero_max_bytes is None:
+                    hero_max_bytes = max(
+                        1,
+                        int(full_size.stat().st_size * (1 - float(hero_config["minimumSavingsPercent"]) / 100)),
+                    )
+                with Image.open(fallback) as fallback_opened:
+                    _validate_source_image_header(fallback_opened, filename)
+                    fallback_opened.load()
+                    hero_icc_profile = fallback_opened.info.get("icc_profile")
+                    hero_image = ImageOps.exif_transpose(fallback_opened)
+                    if hero_image.size != (width, height):
+                        raise ValueError(f"Hero JPEG fallback dimensions differ from source-backed WebP: {filename}")
+                    if hero_image.mode not in ("RGB", "RGBA"):
+                        hero_image = hero_image.convert("RGBA" if "A" in hero_image.getbands() else "RGB")
+                    hero_encoding = _save_webp(
+                        hero_image,
+                        hero_target,
+                        hero_icc_profile,
+                        quality=hero_config["quality"],
+                        max_bytes=hero_max_bytes,
+                    )
+                    with Image.open(hero_target) as hero_candidate:
+                        hero_candidate.load()
+                        if hero_candidate.format != "WEBP" or hero_candidate.size != (width, height):
+                            raise RuntimeError(f"Hero delivery WebP verification mismatch: {hero_target}")
+                        measured_psnr = _psnr_db(hero_image, hero_candidate)
+                minimum_psnr = float(hero_config["minPsnrDb"])
+                if measured_psnr < minimum_psnr:
+                    raise RuntimeError(
+                        f"Hero delivery candidate fails the {minimum_psnr:.2f} dB PSNR floor: "
+                        f"{hero_config['path']} ({measured_psnr:.3f} dB)"
+                    )
+                source_webp_bytes = full_size.stat().st_size
+                saved_percent = (
+                    (source_webp_bytes - hero_target.stat().st_size) / source_webp_bytes * 100
+                    if source_webp_bytes else 0.0
+                )
+                minimum_savings = float(hero_config["minimumSavingsPercent"])
+                if saved_percent < minimum_savings:
+                    raise RuntimeError(
+                        f"Hero delivery candidate saves less than {minimum_savings:.1f}% "
+                        f"against its preserved source WebP: {hero_config['path']}"
+                    )
+                hero_delivery_variant = {
+                    "width": width,
+                    "height": height,
+                    "path": hero_relative.as_posix(),
+                    "bytes": hero_target.stat().st_size,
+                    "quality": hero_encoding["quality"],
+                    "qualityAttempts": hero_encoding["qualityAttempts"],
+                    "maxBytes": hero_max_bytes,
+                    "psnrDb": round(measured_psnr, 3),
+                    "minPsnrDb": minimum_psnr,
+                    "minimumSavingsPercent": minimum_savings,
+                    "savedPercent": round(saved_percent, 3),
+                }
+
+            hero_delivery_avif = None
+            hero_delivery_avif_skipped_reason = None
+            avif_config = AVIF_HERO_DELIVERY_VARIANTS.get(filename)
+            actual_source_git_blob_sha = _git_blob_sha1(fallback) if avif_config else None
+            if avif_config and actual_source_git_blob_sha != avif_config["sourceGitBlobSha"]:
+                hero_delivery_avif_skipped_reason = "source-provenance-mismatch"
+                avif_config = None
+            if avif_config:
+                if source_filename != filename:
+                    raise RuntimeError(f"AVIF hero delivery requires the exact approved JPEG source: {filename}")
+                avif_relative = PurePosixPath(_hero_avif_delivery_relative_path(filename, width))
+                if avif_relative.is_absolute() or any(part in {"", ".", ".."} for part in avif_relative.parts):
+                    raise ValueError(f"Unsafe AVIF hero delivery path for {filename}: {avif_relative}")
+                avif_target = root / Path(*avif_relative.parts)
+                with Image.open(fallback) as fallback_opened:
+                    _validate_source_image_header(fallback_opened, filename)
+                    fallback_opened.load()
+                    avif_icc_profile = fallback_opened.info.get("icc_profile")
+                    avif_image = ImageOps.exif_transpose(fallback_opened)
+                    if avif_image.size != (width, height):
+                        raise ValueError(f"AVIF hero fallback dimensions differ from source: {filename}")
+                    if avif_image.mode not in ("RGB", "RGBA"):
+                        avif_image = avif_image.convert("RGBA" if "A" in avif_image.getbands() else "RGB")
+                    avif_encoding = _save_avif(
+                        avif_image,
+                        avif_target,
+                        avif_icc_profile,
+                        quality=int(avif_config["quality"]),
+                    )
+                    with Image.open(avif_target) as avif_candidate:
+                        avif_candidate.load()
+                        if avif_candidate.format != "AVIF" or avif_candidate.size != (width, height):
+                            raise RuntimeError(f"AVIF hero delivery verification mismatch: {avif_target}")
+                        measured_avif_psnr = _psnr_db(avif_image, avif_candidate)
+                minimum_avif_psnr = float(avif_config["minPsnrDb"])
+                if measured_avif_psnr < minimum_avif_psnr:
+                    raise RuntimeError(
+                        f"AVIF hero candidate fails the {minimum_avif_psnr:.2f} dB PSNR floor: "
+                        f"{avif_relative.as_posix()} ({measured_avif_psnr:.3f} dB)"
+                    )
+                source_webp_bytes = full_size.stat().st_size
+                saved_avif_percent = (
+                    (source_webp_bytes - avif_target.stat().st_size) / source_webp_bytes * 100
+                    if source_webp_bytes else 0.0
+                )
+                minimum_avif_savings = float(avif_config["minimumSavingsPercent"])
+                if saved_avif_percent < minimum_avif_savings:
+                    raise RuntimeError(
+                        f"AVIF hero candidate saves less than {minimum_avif_savings:.1f}% "
+                        f"against its preserved source WebP: {avif_relative.as_posix()}"
+                    )
+                avif_max_bytes = int(source_webp_bytes * (1 - minimum_avif_savings / 100))
+                hero_delivery_avif = {
+                    "width": width,
+                    "height": height,
+                    "path": avif_relative.as_posix(),
+                    "sourceGitBlobSha": actual_source_git_blob_sha,
+                    "bytes": avif_target.stat().st_size,
+                    "quality": avif_encoding["quality"],
+                    "qualityAttempts": [{"quality": avif_encoding["quality"], "bytes": avif_encoding["bytes"]}],
+                    "maxBytes": avif_max_bytes,
+                    "psnrDb": round(measured_avif_psnr, 3),
+                    "minPsnrDb": minimum_avif_psnr,
+                    "minimumSavingsPercent": minimum_avif_savings,
+                    "savedPercent": round(saved_avif_percent, 3),
+                    "media": avif_config["media"],
+                    "webpPreloadMedia": avif_config["webpPreloadMedia"],
+                }
+
             source_format = "WEBP" if source_filename != filename else "JPEG"
             output[filename] = {
                 "width": width,
@@ -420,6 +604,9 @@ def generate_responsive_variants(
                 "fullSizeQuality": full_size_encoding["quality"] if full_size_encoding else None,
                 "fullSizeQualityAttempts": full_size_encoding["qualityAttempts"] if full_size_encoding else [],
                 "fullSizeMaxBytes": full_size_encoding["maxBytes"] if full_size_encoding else None,
+                "heroDeliveryVariant": hero_delivery_variant,
+                "heroDeliveryAvif": hero_delivery_avif,
+                "heroDeliveryAvifSkippedReason": hero_delivery_avif_skipped_reason,
                 "variants": generated,
             }
     return output
@@ -520,6 +707,11 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         return "(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"
     if "story-image" in ancestors:
         return "(max-width: 760px) calc(100vw - 36px), min(600px, 43vw)"
+    if "experience-detail-media--portrait" in ancestors:
+        # The portrait frame is capped by its CSS aspect-ratio/max-height pair:
+        # 5:4 at <=900px (375px wide at the 300px height cap), then 4:5
+        # above 900px (336px wide at the 420px height cap).
+        return "(max-width: 900px) min(375px, calc(100vw - 76px)), 336px"
     if "experience-detail-media" in ancestors:
         return (
             "(max-width: 900px) min(620px, calc(100vw - 76px)), "
@@ -585,7 +777,8 @@ def _rewrite_existing_picture_sources(text: str, root: Path) -> str:
         source_tag = source_match.group(0)
         updated = set_attribute(source_tag, "data-responsive-image", "true")
         updated = set_attribute(updated, "type", "image/webp")
-        updated = set_attribute(updated, "srcset", _srcset(root, fallback_name))
+        hero = _is_hero_image(image_tag, _ancestor_classes_before(text, image_offset))
+        updated = set_attribute(updated, "srcset", _srcset(root, fallback_name, hero=hero))
         updated = set_attribute(updated, "sizes", sizes)
         return picture[:source_match.start()] + updated + picture[source_match.end():]
 
@@ -608,18 +801,115 @@ def _natural_dimensions(root: Path, filename: str) -> tuple[int, int]:
     return width, height
 
 
-def _srcset(root: Path, filename: str) -> str:
-    """Build a verified width-descriptor srcset for a path-aware image identity."""
+def _is_hero_image(tag: str, ancestor_classes: set[str] | None = None) -> bool:
+    """Identify the first-view image contract from markup and its verified layout ancestors."""
+    classes = set((get_attribute(tag, "class") or "").split())
+    ancestors = ancestor_classes or set()
+    return (
+        "hero__image" in classes
+        or (get_attribute(tag, "fetchpriority") or "").lower() == "high"
+        or bool(ancestors & {"page-hero", "page-hero__picture"})
+    )
+
+
+def _hero_delivery_relative_path(filename: str, natural_width: int) -> str:
+    relative = _validated_image_relative_path(filename)
+    return (
+        PurePosixPath("assets/images/responsive")
+        / relative.parent
+        / f"{relative.stem}-{natural_width}.webp"
+    ).as_posix()
+
+
+def _git_blob_sha1(path: Path) -> str:
+    payload = path.read_bytes()
+    header = f"blob {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload).hexdigest()
+
+
+def _hero_avif_delivery_relative_path(filename: str, natural_width: int) -> str:
+    relative = _validated_image_relative_path(filename)
+    return (
+        PurePosixPath("assets/images/responsive")
+        / relative.parent
+        / f"{relative.stem}-{natural_width}.avif"
+    ).as_posix()
+
+
+def _save_avif(
+    image: Image.Image,
+    target: Path,
+    icc_profile: bytes | None,
+    *,
+    quality: int = 50,
+) -> dict:
+    """Write a verified AVIF derivative without replacing an existing source asset."""
+    if target.parent.is_symlink():
+        raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
+    if isinstance(quality, bool) or not isinstance(quality, int) or not 1 <= quality <= 100:
+        raise ValueError(f"Invalid AVIF quality: {quality!r}")
+    temporary = target.with_name(target.name + ".tmp")
+    for candidate in (target, temporary):
+        if candidate.is_symlink():
+            raise ValueError(f"Refusing to replace a symlinked AVIF output: {candidate}")
+        if candidate.exists() and not candidate.is_file():
+            raise ValueError(f"AVIF output is not a regular file: {candidate}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        kwargs = {"quality": quality, "speed": 6}
+        if icc_profile:
+            kwargs["icc_profile"] = icc_profile
+        image.save(temporary, format="AVIF", **kwargs)
+        with Image.open(temporary) as check:
+            check.load()
+            if check.format != "AVIF" or check.size != image.size:
+                raise RuntimeError(f"AVIF verification mismatch: {target}")
+        if target.is_file():
+            if target.read_bytes() == temporary.read_bytes():
+                temporary.unlink()
+            else:
+                raise FileExistsError(f"Refusing to overwrite an existing AVIF source: {target}")
+        else:
+            temporary.replace(target)
+        return {"quality": quality, "bytes": target.stat().st_size}
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _avif_srcset(root: Path, filename: str) -> str:
+    """Return the verified full-resolution AVIF candidate for an approved hero."""
+    if filename not in AVIF_HERO_DELIVERY_VARIANTS:
+        return ""
+    relative_source = _validated_image_relative_path(filename)
+    source_path = root / Path("assets/images") / Path(*relative_source.parts)
+    expected_source_sha = AVIF_HERO_DELIVERY_VARIANTS[filename]["sourceGitBlobSha"]
+    if _git_blob_sha1(source_path) != expected_source_sha:
+        return ""
+    width, height = _natural_dimensions(root, filename)
+    relative = _hero_avif_delivery_relative_path(filename, width)
+    target = root / relative
+    if target.is_symlink() or not target.is_file() or target.stat().st_size <= 0:
+        raise FileNotFoundError(f"Missing quality-gated AVIF hero candidate: {target}")
+    with Image.open(target) as decoded:
+        decoded.load()
+        if decoded.format != "AVIF" or decoded.size != (width, height):
+            raise ValueError(f"AVIF hero candidate dimensions do not match source: {target}")
+    return f"{relative} {width}w"
+
+
+def _srcset(root: Path, filename: str, *, hero: bool = False) -> str:
+    """Build a verified width-descriptor srcset, using a quality-gated hero derivative when applicable."""
     root = _resolve_site_root(root)
     source_filename = _responsive_source_filename(filename)
     source = _image_source_file(root, source_filename)
     if source.is_symlink() or not source.is_file():
-        raise FileNotFoundError(f"Missing safe source image: {source}")
+        raise FileNotFoundError(f"Missing safe responsive image source: {source}")
     with Image.open(source) as image:
         _validate_source_image_header(image, source_filename)
         image.load()
         oriented = ImageOps.exif_transpose(image)
-        natural_width = oriented.width
+        natural_width, natural_height = oriented.size
     relative = _validated_image_relative_path(filename)
     responsive_parent = _safe_directory(
         root, Path("assets/images/responsive") / relative.parent
@@ -634,9 +924,20 @@ def _srcset(root: Path, filename: str) -> str:
     full_size = root / _full_size_webp_url(filename)
     if full_size.is_symlink() or not full_size.is_file():
         raise FileNotFoundError(f"Missing full-size WebP source: {full_size}")
-    paths.append(f"{_full_size_webp_url(filename)} {natural_width}w")
+    hero_config = HERO_DELIVERY_VARIANTS.get(filename) if hero else None
+    if hero_config:
+        hero_relative = PurePosixPath(_hero_delivery_relative_path(filename, natural_width))
+        hero_candidate = root / Path(*hero_relative.parts)
+        if hero_candidate.is_symlink() or not hero_candidate.is_file():
+            raise FileNotFoundError(f"Missing quality-gated hero delivery candidate: {hero_candidate}")
+        with Image.open(hero_candidate) as decoded:
+            decoded.load()
+            if decoded.format != "WEBP" or decoded.size != (natural_width, natural_height):
+                raise ValueError(f"Hero delivery candidate dimensions do not match source: {hero_candidate}")
+        paths.append(f"{hero_relative.as_posix()} {natural_width}w")
+    else:
+        paths.append(f"{_full_size_webp_url(filename)} {natural_width}w")
     return ", ".join(paths)
-
 
 def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> str:
     """Rewrite known references to JPG, WebP, or responsive WebP with a JPEG fallback."""
@@ -690,11 +991,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             return tag
         fallback = _source_url(image_name)
         natural_width, natural_height = _natural_dimensions(root, image_name)
-        classes = (get_attribute(tag, "class") or "").split()
-        is_hero = (
-            "hero__image" in classes
-            or (get_attribute(tag, "fetchpriority") or "").lower() == "high"
-        )
+        is_hero = _is_hero_image(tag, _ancestor_classes_before(text, match.start()))
         tag = set_attribute(tag, "src", fallback)
         # Reserve intrinsic space from decoded bytes to reduce layout shift.
         tag = set_attribute(tag, "width", str(natural_width))
@@ -708,16 +1005,23 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         picture_end = prefix.lower().rfind("</picture")
         if picture_start > picture_end:
             picture_prefix = prefix[picture_start:]
+            expected_source_urls = {_full_size_webp_url(image_name)}
+            hero_config = HERO_DELIVERY_VARIANTS.get(image_name) if is_hero else None
+            if hero_config:
+                hero_width, _ = _natural_dimensions(root, image_name)
+                expected_source_urls.add(_hero_delivery_relative_path(image_name, hero_width))
             has_mapped_source = any(
                 (get_attribute(source_match.group(0), "data-responsive-image") or "").lower() == "true"
-                and _full_size_webp_url(image_name) in _srcset_urls(
-                    get_attribute(source_match.group(0), "srcset") or ""
+                and bool(
+                    expected_source_urls.intersection(
+                        _srcset_urls(get_attribute(source_match.group(0), "srcset") or "")
+                    )
                 )
                 for source_match in SOURCE_TAG_PATTERN.finditer(picture_prefix)
             )
             if has_mapped_source:
                 return set_attribute(tag, "data-responsive-image-fallback", "true")
-        srcset = _srcset(root, image_name)
+        srcset = _srcset(root, image_name, hero=is_hero)
         ancestor_classes = _ancestor_classes_before(text, match.start())
         sizes = _responsive_sizes(tag, ancestor_classes)
         source = (
@@ -727,6 +1031,17 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             + sizes
             + '">'
         )
+        if is_hero and image_name in AVIF_HERO_DELIVERY_VARIANTS:
+            avif_srcset = _avif_srcset(root, image_name)
+            if avif_srcset:
+                avif_source = (
+                    '<source data-responsive-image="true" type="image/avif" media="'
+                    + AVIF_HERO_DELIVERY_VARIANTS[image_name]["media"]
+                    + '" srcset="'
+                    + avif_srcset
+                    + '" sizes="100vw">'
+                )
+                source = avif_source + source
         tag = set_attribute(tag, "data-responsive-image-fallback", "true")
         if picture_start > picture_end:
             return source + tag
@@ -744,7 +1059,6 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         image_name = _image_name_for_reference(href)
         if image_name is None:
             return tag
-        tag = set_attribute(tag, "href", _full_size_webp_url(image_name))
         matching_image_match = next(
             (
                 image_match
@@ -755,23 +1069,56 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             ),
             None,
         )
+        matching_image = matching_image_match.group(0) if matching_image_match else ""
         sizes = (
             _responsive_sizes(
-                matching_image_match.group(0),
+                matching_image,
                 _ancestor_classes_before(text, matching_image_match.start()),
             )
             if matching_image_match
             else "100vw"
         )
-        return set_attribute(
+        is_hero = (
+            _is_hero_image(
+                matching_image,
+                _ancestor_classes_before(text, matching_image_match.start()),
+            )
+            if matching_image_match
+            else (get_attribute(tag, "fetchpriority") or "").lower() == "high"
+        )
+        preload_href = _full_size_webp_url(image_name)
+        if is_hero and HERO_DELIVERY_VARIANTS.get(image_name):
+            natural_width, _ = _natural_dimensions(root, image_name)
+            preload_href = _hero_delivery_relative_path(image_name, natural_width)
+        webp_tag = set_attribute(tag, "href", preload_href)
+        webp_tag = set_attribute(
             set_attribute(
-                set_attribute(tag, "imagesrcset", _srcset(root, image_name)),
+                set_attribute(webp_tag, "imagesrcset", _srcset(root, image_name, hero=is_hero)),
                 "imagesizes",
                 sizes,
             ),
             "type",
             "image/webp",
         )
+        avif_config = AVIF_HERO_DELIVERY_VARIANTS.get(image_name) if is_hero else None
+        if avif_config:
+            avif_srcset = _avif_srcset(root, image_name)
+            if avif_srcset:
+                webp_tag = set_attribute(webp_tag, "media", avif_config["webpPreloadMedia"])
+                avif_href = avif_srcset.rsplit(None, 1)[0]
+                avif_tag = set_attribute(tag, "href", avif_href)
+                avif_tag = set_attribute(
+                    set_attribute(
+                        set_attribute(avif_tag, "imagesrcset", avif_srcset),
+                        "imagesizes",
+                        "100vw",
+                    ),
+                    "type",
+                    "image/avif",
+                )
+                avif_tag = set_attribute(avif_tag, "media", avif_config["media"])
+                return avif_tag + webp_tag
+        return webp_tag
 
     text = LINK_PATTERN.sub(rewrite_preload, text)
     for token, source in protected_sources:
