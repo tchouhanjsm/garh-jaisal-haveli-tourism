@@ -39,34 +39,90 @@
   focusArrivalPlannerFromFragment();
 
   // Gallery supporting photos stay inert until they approach the reading viewport.
+  // IntersectionObserver is primary; a bounded scroll/resize scan covers missed observer deliveries.
   // The source markup retains a <noscript> fallback; unsupported observers activate all images.
   function initDeferredGalleryMedia() {
     const targets = Array.from(document.querySelectorAll('[data-deferred-media]'));
     if (!targets.length) return;
+
+    const pendingTargets = new Set(targets);
+    let observer = null;
+    let scanFrame = 0;
+
+    const cleanup = () => {
+      if (pendingTargets.size) return;
+      if (observer) observer.disconnect();
+      window.removeEventListener('scroll', scheduleFallbackScan);
+      window.removeEventListener('resize', scheduleFallbackScan);
+      if (scanFrame) {
+        window.cancelAnimationFrame(scanFrame);
+        scanFrame = 0;
+      }
+    };
+
     const activate = target => {
+      if (!pendingTargets.has(target)) return false;
       const template = target.querySelector('template[data-deferred-picture-template]');
-      if (!template || !template.content) {
+      if (!template || !template.content || !template.content.childNodes.length) {
         target.removeAttribute('data-deferred-media');
         target.setAttribute('data-deferred-media-failed', 'true');
+        pendingTargets.delete(target);
+        cleanup();
         return false;
       }
+
       target.appendChild(template.content.cloneNode(true));
       template.remove();
       const fallback = target.querySelector('noscript[data-deferred-picture-fallback]');
       if (fallback) fallback.remove();
       target.removeAttribute('data-deferred-media');
       target.setAttribute('data-deferred-media-activated', 'true');
+      pendingTargets.delete(target);
+      cleanup();
       return true;
     };
-    if (typeof IntersectionObserver !== 'function') { targets.forEach(activate); return; }
-    const observer = new IntersectionObserver(entries => {
+
+    const isWithinActivationMargin = target => {
+      const rect = target.getBoundingClientRect();
+      const margin = 256;
+      return rect.width > 0
+        && rect.height > 0
+        && rect.bottom >= -margin
+        && rect.top <= window.innerHeight + margin
+        && rect.right >= 0
+        && rect.left <= window.innerWidth;
+    };
+
+    function runFallbackScan() {
+      scanFrame = 0;
+      Array.from(pendingTargets).forEach(target => {
+        if (isWithinActivationMargin(target)) activate(target);
+      });
+      cleanup();
+    }
+
+    function scheduleFallbackScan() {
+      if (scanFrame || !pendingTargets.size) return;
+      scanFrame = window.requestAnimationFrame(runFallbackScan);
+    }
+
+    if (typeof IntersectionObserver !== 'function') {
+      targets.forEach(activate);
+      return;
+    }
+
+    observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;
         observer.unobserve(entry.target);
         activate(entry.target);
       });
     }, { rootMargin: '256px 0px', threshold: 0 });
+
     targets.forEach(target => observer.observe(target));
+    window.addEventListener('scroll', scheduleFallbackScan, { passive: true });
+    window.addEventListener('resize', scheduleFallbackScan, { passive: true });
+    scheduleFallbackScan();
   }
   initDeferredGalleryMedia();
 
