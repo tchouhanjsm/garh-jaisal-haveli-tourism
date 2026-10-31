@@ -410,6 +410,127 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
+    def test_rooftop_panorama_source_backed_webp_is_responsive_and_preloaded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            filename = "gallery/hotel/fort-from-roof.jpg"
+            fallback = create_jpeg(root, filename, (2000, 1333))
+            source_webp = create_webp(root, "gallery/hotel/fort-from-roof.webp", (2000, 1333))
+            original_webp = source_webp.read_bytes()
+
+            self.assertIn(filename, IMAGE_NAMES)
+            self.assertEqual(
+                RESPONSIVE_SOURCE_OVERRIDES[filename],
+                "gallery/hotel/fort-from-roof.webp",
+            )
+            generated = generate_responsive_variants(root, (filename,))
+            entry = generated[filename]
+            self.assertEqual(source_webp.read_bytes(), original_webp)
+            self.assertEqual(entry["sourceFormat"], "WEBP")
+            self.assertEqual(
+                entry["sourcePath"],
+                "assets/images/gallery/hotel/fort-from-roof.webp",
+            )
+            self.assertEqual(
+                entry["fullSizePath"],
+                "assets/images/gallery/hotel/fort-from-roof.webp",
+            )
+            self.assertEqual(entry["fullSizeSavingsBytes"], 0)
+            self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
+            self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
+
+            expected_budgets = (
+                (320, 20_000),
+                (480, 35_000),
+                (768, 80_000),
+                (1200, 170_000),
+                (1600, 250_000),
+            )
+            for width, budget in expected_budgets:
+                relative = f"assets/images/responsive/gallery/hotel/fort-from-roof-{width}.webp"
+                self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES[relative], budget)
+                candidate = next(item for item in entry["variants"] if item["width"] == width)
+                self.assertEqual(candidate["maxBytes"], budget)
+                self.assertLessEqual(candidate["bytes"], budget)
+                self.assertEqual(candidate["quality"], 82)
+                self.assertEqual(candidate["qualityAttempts"][-1]["quality"], 82)
+                self.assertEqual(candidate["qualityAttempts"][-1]["bytes"], candidate["bytes"])
+
+            html = (
+                '<head><link rel="preload" as="image" '
+                'href="assets/images/gallery/hotel/fort-from-roof.jpg" '
+                'type="image/jpeg" fetchpriority="high"></head>'
+                '<section class="page-hero"><img class="hero__image" '
+                'src="assets/images/gallery/hotel/fort-from-roof.jpg" '
+                'alt="Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk" '
+                'fetchpriority="high" loading="eager" decoding="async"></section>'
+            )
+            rewritten = rewrite_html_text(html, "responsive", root=root)
+            self.assertEqual(rewritten.count("<source"), 1)
+            self.assertIn('data-responsive-image="true"', rewritten)
+            self.assertIn(
+                "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp 320w",
+                rewritten,
+            )
+            self.assertIn(
+                "assets/images/gallery/hotel/fort-from-roof.webp 2000w",
+                rewritten,
+            )
+            self.assertIn(
+                'src="assets/images/gallery/hotel/fort-from-roof.jpg"',
+                rewritten,
+            )
+            self.assertIn(
+                'href="assets/images/gallery/hotel/fort-from-roof.webp"',
+                rewritten,
+            )
+            self.assertIn(
+                'imagesrcset="assets/images/responsive/gallery/hotel/fort-from-roof-320.webp 320w',
+                rewritten,
+            )
+            self.assertIn('imagesizes="100vw"', rewritten)
+            self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
+
+            page = root / "about.html"
+            page.write_text(rewritten, encoding="utf-8")
+            candidate_paths = [
+                entry["fullSizePath"],
+                *(item["path"] for item in entry["variants"]),
+            ]
+            variant_by_path = {item["path"]: item for item in entry["variants"]}
+            generated_files = []
+            for relative in candidate_paths:
+                target = root / relative
+                with Image.open(target) as decoded:
+                    decoded.load()
+                    variant = variant_by_path.get(relative, {})
+                    generated_files.append({
+                        "path": relative,
+                        "bytes": target.stat().st_size,
+                        "sha256": "0" * 64,
+                        "width": decoded.width,
+                        "height": decoded.height,
+                        "maxBytes": variant.get("maxBytes"),
+                        "quality": variant.get("quality"),
+                        "qualityAttempts": variant.get("qualityAttempts", []),
+                    })
+            source_record = [{
+                "sourceJpeg": "assets/images/gallery/hotel/fort-from-roof.jpg",
+                "sourceFormat": "WEBP",
+                "sourceWebp": "assets/images/gallery/hotel/fort-from-roof.webp",
+                "naturalWidth": entry["width"],
+                "naturalHeight": entry["height"],
+                "fullSizeWebp": entry["fullSizePath"],
+            }]
+            report = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root, generated_files, source_record, RESPONSIVE_WIDTHS
+            )
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["responsivePictureCount"], 1)
+            self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
+            self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
+            self.assertEqual(source_webp.read_bytes(), original_webp)
+
     def test_gallery_hero_webp_uses_authoritative_jpeg_quality_override(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1220,6 +1341,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             create_webp(root, "rooms/sweet-purple.webp", (900, 600))
             create_webp(root, "rooms/haveli-sitting-room.webp", (900, 600))
             create_webp(root, "directions/haveli-facade.webp", (900, 600))
+            create_webp(root, "gallery/hotel/fort-from-roof.webp", (900, 600))
             home = root / "index.html"
             rooms = root / "rooms.html"
             home.write_text(

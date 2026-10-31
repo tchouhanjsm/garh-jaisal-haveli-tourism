@@ -37,14 +37,16 @@ IMAGE_NAMES = (
     "experiences/heritage-architecture.jpg",
     "gallery/desert/camp-evening.jpeg",
     "gallery/desert/camp-from-above.jpeg",
+    "gallery/hotel/fort-from-roof.jpg",
     "dining/rooftop-candlelit-table.jpg",
     "directions/haveli-facade.jpg",
 )
-# Sweet Purple and the Rooms hero have independently source-backed WebP assets.
-# Their JPEGs are compatibility fallbacks; never regenerate over the originals.
+# Sweet Purple, the Rooms hero and the rooftop panorama use source-backed WebP assets.
+# Their JPEGs are compatibility fallbacks; never regenerate over the original WebP files.
 RESPONSIVE_SOURCE_OVERRIDES = {
     "rooms/sweet-purple.jpg": "rooms/sweet-purple.webp",
     "rooms/haveli-interior.jpg": "rooms/haveli-sitting-room.webp",
+    "gallery/hotel/fort-from-roof.jpg": "gallery/hotel/fort-from-roof.webp",
 }
 SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
@@ -72,6 +74,11 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/directions/haveli-facade-1200.webp": 250_000,
     "assets/images/responsive/legacy/camel-day-1200.webp": 170_000,
     "assets/images/responsive/legacy/fort-temple-spires-1200.webp": 100_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp": 170_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp": 250_000,
 }
 # JPEG-derived WebPs with explicit ceilings may be regenerated in the isolated package;
 # original JPEG fallbacks remain unchanged.
