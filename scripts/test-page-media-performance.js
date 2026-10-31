@@ -181,6 +181,11 @@ for (const page of PAGES) {
   }
 
   const sourceTags = [...html.matchAll(/<source\b[^>]*>/gi)].map(match => match[0]);
+  const avifSourceIndex = sourceTags.findIndex(tag => (attributes(tag).type || '').toLowerCase() === 'image/avif');
+  const webpSourceIndex = sourceTags.findIndex(tag => (attributes(tag).type || '').toLowerCase() === 'image/webp');
+  if (avifSourceIndex >= 0 && (webpSourceIndex < 0 || avifSourceIndex > webpSourceIndex)) {
+    fail(page + ': AVIF source must precede its WebP fallback in picture source order');
+  }
   for (const tag of sourceTags) {
     const attr = attributes(tag);
     if (!attr.srcset) continue;
@@ -257,8 +262,13 @@ for (const page of PAGES) {
       || (attr.as || '').toLowerCase() !== 'image'
       || !attr.imagesrcset) continue;
     if (!attr.imagesizes) fail(page + ': responsive image preload must declare imagesizes');
-    if ((attr.type || '').toLowerCase() !== 'image/webp') {
-      fail(page + ': responsive image preload must declare type="image/webp"');
+    const responsivePreloadType = (attr.type || '').toLowerCase();
+    if (!['image/webp', 'image/avif'].includes(responsivePreloadType)) {
+      fail(page + ': responsive image preload must declare image/webp or image/avif');
+    }
+    if (responsivePreloadType === 'image/avif'
+      && (page !== 'directions.html' || attr.media !== '(min-width: 1160px)')) {
+      fail(page + ': AVIF preload is restricted to the approved Directions desktop hero media range');
     }
     const candidateSourceTag = sourceTags.find(sourceTag => {
       const source = attributes(sourceTag);

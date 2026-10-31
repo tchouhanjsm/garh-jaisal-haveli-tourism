@@ -163,6 +163,8 @@ def validate_responsive_markup(
                 fail(f"{page.name}: every responsive picture must retain its WebP fallback source.")
             source = sources_by_type["image/webp"]
             avif_source = sources_by_type.get("image/avif")
+            if avif_source is not None and sources[0].get("type", "").lower() != "image/avif":
+                fail(f"{page.name}: AVIF source must precede its WebP fallback in picture source order.")
             fallback = fallbacks[0]
 
             fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]

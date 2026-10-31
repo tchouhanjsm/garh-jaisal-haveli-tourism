@@ -131,7 +131,7 @@ HERO_DELIVERY_VARIANTS = {
 
 AVIF_HERO_DELIVERY_VARIANTS = {
     "courtyard.jpg": {
-        "quality": 50,
+        "quality": 54,
         "sourceGitBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295",
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
