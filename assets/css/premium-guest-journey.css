@@ -1186,3 +1186,24 @@ body {
     font-size: 12px;
   }
 }
+
+
+/* M21 — tablet planner layout: detach the editorial band from legacy form-grid rules. */
+#plan-stay.home-plan-panel {
+  display: block;
+  grid-template-columns: none;
+  gap: 0;
+}
+@media (min-width: 761px) and (max-width: 900px) {
+  #plan-stay .home-plan-paths {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #plan-stay .home-plan-path {
+    min-height: 148px;
+    border-inline-start: 0;
+    border-block-end: 1px solid rgba(234, 220, 197, .2);
+  }
+  #plan-stay .home-plan-path:nth-child(odd) {
+    border-inline-end: 1px solid rgba(234, 220, 197, .2);
+  }
+}

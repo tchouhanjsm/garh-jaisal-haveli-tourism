@@ -110,3 +110,12 @@ Automated checks validate provider-link preservation, first-view primary-action 
 ## M20 — tablet navigation acceptance
 
 At 761–820px, the masthead switches from the desktop link row to the same keyboard-operable menu toggle used on mobile. The collapsed menu opens on explicit activation, exposes the existing route links and external booking action, and closes with Escape. Chromium also asserts no horizontal document overflow at the 768px viewport. The AsiaTech handoff destination and safe external-link attributes remain unchanged.
+
+
+## M21 — tablet editorial planner repair
+
+The homepage full-width planning band explicitly resets the legacy booking-panel grid. At 761–900px, its four guest decisions become a balanced two-by-two layout with independent touch-sized links; narrow mobile already follows the same two-column rhythm. The existing Chromium suite enforces zero horizontal document overflow across the six viewport widths.
+
+## M22 — palette contrast regression
+
+The canonical token suite calculates WCAG relative luminance and contrast for representative primary actions, inverse text, muted copy, deep brass and functional focus pairs. Each text/functional pair is required to meet 4.5:1. Antique brass is also tested against the dark fort-green editorial band. These checks are deliberate representative sentinels, not a substitute for a full rendered-state audit or manual screenshot/accessibility review.

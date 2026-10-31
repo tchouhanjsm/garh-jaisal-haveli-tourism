@@ -328,8 +328,62 @@ assert.match(siteJs, /mobilePrimaryActionVisible/);
 assert.match(siteJs, /!mobilePrimaryActionVisible/);
 assert.match(siteJs, /addEventListener\('resize', updateDirectEnquiryDock/);
 assert.match(css, /\.proof-strip\s*\{[\s\S]*?grid-template-columns:/);
+assert.match(css, /#plan-stay\.home-plan-panel\s*\{[\s\S]*?display:\s*block/,
+  'homepage editorial planner must not inherit the legacy booking form two-column grid');
+assert.match(css, /#plan-stay\.home-plan-panel\s*\{[\s\S]*?grid-template-columns:\s*none/,
+  'homepage planner must explicitly reset the legacy booking-form grid columns');
+assert.match(css, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*900px\)[\s\S]*?#plan-stay\s+\.home-plan-paths\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+  'tablet homepage planner must use a balanced two-by-two decision layout');
 assert.match(css, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*820px\)[\s\S]*?\.menu-toggle\s*\{[\s\S]*?display:\s*flex\s*;?[\s\S]*?\.primary-nav\.is-open\s*\{\s*display:\s*flex\s*;?\s*\}/,
   'tablet navigation must collapse the desktop link row and retain the accessible toggle/open state');
 
+
+
+/* M22 — representative WCAG AA contrast checks for the canonical design tokens.
+   These pairs are regression sentinels, not a scan of every rendered CSS combination. */
+function canonicalTokenColour(name) {
+  const match = siteCss.match(new RegExp('--' + name + ':\\s*(#[0-9a-f]{6})', 'i'));
+  assert.ok(match, 'canonical design token must expose a six-digit hex colour: --' + name);
+  return match ? match[1] : '#000000';
+}
+function channelLuminance(value) {
+  const channel = value / 255;
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+}
+function relativeLuminance(hex) {
+  const value = hex.replace('#', '');
+  const channels = [0, 2, 4].map(offset => Number.parseInt(value.slice(offset, offset + 2), 16));
+  return 0.2126 * channelLuminance(channels[0])
+    + 0.7152 * channelLuminance(channels[1])
+    + 0.0722 * channelLuminance(channels[2]);
+}
+function contrastRatio(foreground, background) {
+  const a = relativeLuminance(foreground);
+  const b = relativeLuminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+const contrastContracts = [
+  ['saffron', 'white', 4.5, 'primary action label on warm ivory'],
+  ['saffron-hover', 'white', 4.5, 'primary action label in hover/focus state'],
+  ['gold-dark', 'paper', 4.5, 'brass-toned text on limestone'],
+  ['muted', 'paper', 4.5, 'secondary body copy on limestone'],
+  ['peacock', 'white', 4.5, 'functional focus colour against warm ivory'],
+  ['ink', 'paper', 4.5, 'primary text on limestone'],
+  ['white', 'ink', 4.5, 'inverse text on fort pine'],
+];
+for (const [foregroundName, backgroundName, minimum, description] of contrastContracts) {
+  const ratio = contrastRatio(
+    canonicalTokenColour(foregroundName),
+    canonicalTokenColour(backgroundName),
+  );
+  assert.ok(ratio >= minimum,
+    description + ' must meet WCAG AA 4.5:1 contrast; found ' + ratio.toFixed(2) + ':1');
+}
+assert.ok(contrastRatio(canonicalTokenColour('gold'), '#17251e') >= 4.5,
+  'antique brass accent on the fort-green editorial band must meet 4.5:1');
+assert.match(css, /\.button--gold\s*\{[\s\S]*?background:\s*var\(--saffron\)/,
+  'the primary hero/button treatment must consume the AA-tested saffron token');
+assert.match(css, /\.mobile-booking-bar>a\s*\{[\s\S]*?background:\s*var\(--saffron\)/,
+  'the persistent mobile booking action must consume the AA-tested saffron token');
 
 console.log('PASS: premium journey, planner handoff and contextual enquiry contracts cover all eight core routes.');

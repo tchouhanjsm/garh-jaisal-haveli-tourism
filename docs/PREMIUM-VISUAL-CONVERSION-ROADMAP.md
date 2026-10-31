@@ -366,3 +366,14 @@ Suppress the floating enquiry dock whenever the persistent mobile booking bar is
 ## M20 — tablet masthead and navigation breakpoint
 
 The 768px visual review exposed a 34px horizontal overflow in the desktop masthead. The navigation now changes to the same accessible hamburger pattern from 761–820px rather than compressing or clipping the primary links. The 820px boundary is covered by Chromium: toggle visible, navigation collapsed by default, explicit open, and Escape-to-close. Horizontal overflow remains a hard failure.
+
+
+## M21 — tablet planner composition and overflow repair
+
+The 768px Chromium capture exposed that the full-width homepage planner retained the old booking-panel CSS grid. The inherited two-column form geometry compressed its four decisions and overflowed the viewport. The planner now resets that legacy grid at all widths and switches to a deliberate 2×2 path layout from 761–900px. Existing six-width Chromium checks remain the hard acceptance gate.
+
+## M22 — measurable heritage palette contrast
+
+Add executable WCAG AA contrast sentinels for primary saffron/white actions, deep brass/limestone text, muted/limestone copy, peacock/ivory focus, inverse fort-green text and antique brass on the dark editorial band. The checker documents that these are representative pairs; rendered colour combinations and screenshots still require review.
+
+**Next milestone (M23):** validate screenshot and layout quality at all six responsive widths for all eight routes, inspect the captured 320/360/390/768/1280/1440 composition, and calibrate hero text/photo crops, primary-action prominence, section rhythm, mobile fixed-action clearance and tablet navigation. Do not accept the design on CSS-only checks or a single desktop view.
