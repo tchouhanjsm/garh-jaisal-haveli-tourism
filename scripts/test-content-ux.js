@@ -564,8 +564,8 @@ for (const rule of PAGE_RULES) {
     }
     if (!html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"')
         || !html.includes('<div class="story-grid">')
-        || !html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"')) {
-      fail('dining.html: editorial page must show distinct local rooftop-table and fort-view photographs');
+        || !html.includes('src="assets/images/gallery/hotel/fort-from-roof.jpg"')) {
+      fail('dining.html: editorial page must show distinct local rooftop-table and fort-view JPEG fallbacks');
     }
     if (!/does not publish dishes or prices as current/i.test(html)) {
       fail('dining.html: the unapproved menu must remain clearly unpublished');
@@ -612,10 +612,12 @@ for (const rule of PAGE_RULES) {
   }
 
   if (rule.file === 'about.html') {
-    if (!html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"')
-        || !html.includes('<meta property="og:image" content="assets/images/gallery/hotel/fort-from-roof.webp">')
+    if (!html.includes('src="assets/images/gallery/hotel/fort-from-roof.jpg"')
+        || !html.includes('<meta property="og:image" content="assets/images/gallery/hotel/fort-from-roof.jpg">')
+        || !html.includes('<meta property="og:image:type" content="image/jpeg">')
+        || !html.includes('<meta name="twitter:image" content="assets/images/gallery/hotel/fort-from-roof.jpg">')
         || !html.includes('<meta property="og:image:alt" content="Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk">')) {
-      fail('about.html: hero and social preview must use the same authentic fort photograph and descriptive alt text');
+      fail('about.html: hero and social preview must use the same source-backed JPEG fallback and descriptive alt text');
     }
     const finalCta = html.match(/<section class="final-cta"[\s\S]*?<\/section>/i);
     if (!finalCta || html.indexOf('aria-labelledby="about-next-title"') > html.indexOf('class="final-cta"')) {

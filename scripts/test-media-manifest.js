@@ -76,6 +76,7 @@ for (const entry of manifest.entries) {
     [/Room hero — optimized sitting-room WebP/i, 320 * 1024],
     [/Room hero — JPEG fallback/i, 550 * 1024],
     [/Dining page — candlelit-table/i, 100 * 1024],
+    [/Gallery: fort\/rooftop orientation — JPEG fallback/i, 750 * 1024],
     [/Gallery: fort\/rooftop orientation/i, 400 * 1024],
   ];
   const matchedBudget = budgetRules.find(([role]) => role.test(entry.intendedRole));

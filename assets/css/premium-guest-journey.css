@@ -910,3 +910,167 @@ body {
   font-size: var(--type-support);
   line-height: 1.65;
 }
+
+
+/* M16 — Art-directed heritage presentation: brass as accent, saffron for action. */
+.nav-book { background:var(--ink); color:var(--white); border:1px solid rgba(201,164,106,.44); }
+.nav-book:hover,.nav-book:focus-visible { background:var(--saffron); border-color:var(--saffron); color:#fff; }
+.button--gold { background:var(--saffron); border-color:var(--saffron); color:#fff; box-shadow:0 8px 24px rgba(91,37,11,.22); }
+.button--gold:hover,.button--gold:focus-visible { background:var(--saffron-hover); border-color:var(--saffron-hover); color:#fff; box-shadow:0 12px 30px rgba(91,37,11,.28); transform:translateY(-1px); }
+.button--outline { border-color:rgba(26,40,33,.58); }
+.button--light { border-color:rgba(255,253,248,.76); color:#fffdf8; }
+.button--light:hover,.button--light:focus-visible { background:rgba(255,253,248,.14); border-color:#fffdf8; color:#fffdf8; }
+
+/* One continuous editorial panel replaces the white outlined planner cards. */
+#plan-stay.home-plan-panel {
+  width:100%; max-width:none; margin:0;
+  padding:clamp(48px,6vw,78px) max(20px,calc((100vw - var(--container))/2));
+  border:0; border-block:1px solid rgba(201,164,106,.3); border-radius:0;
+  background:radial-gradient(ellipse at 88% 0%,rgba(201,164,106,.12),transparent 34rem),linear-gradient(125deg,#17251e 0%,#1a2821 58%,#26382e 100%);
+  box-shadow:none; color:var(--white);
+}
+#plan-stay .booking-panel__intro { max-width:760px; }
+#plan-stay .booking-panel__intro .kicker { color:#e5c99b; }
+#plan-stay .booking-panel__intro h2 { max-width:18ch; color:var(--white); font-size:clamp(2rem,3.5vw,3.25rem); line-height:1.04; letter-spacing:-.045em; }
+#plan-stay .booking-panel__intro>p { max-width:54ch; color:rgba(255,253,248,.76); font-size:1rem; }
+#plan-stay .home-plan-paths { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; margin-block-start:clamp(28px,4vw,48px); border-block:1px solid rgba(234,220,197,.24); }
+#plan-stay .home-plan-path {
+  display:flex; min-width:0; min-height:176px; flex-direction:column; gap:11px;
+  padding:24px clamp(14px,2vw,26px); border:0; border-inline-start:1px solid rgba(234,220,197,.22);
+  border-radius:0; background:transparent; box-shadow:none; color:var(--white);
+  transition:background .25s var(--premium-ease),border-color .25s var(--premium-ease);
+}
+#plan-stay .home-plan-path:first-child { border-inline-start:0; }
+#plan-stay .home-plan-path:hover,#plan-stay .home-plan-path:focus-visible { border-color:rgba(201,164,106,.72); background:rgba(255,253,248,.065); box-shadow:none; transform:none; }
+#plan-stay .home-plan-path__number { color:#e5c99b; font-size:.7rem; font-weight:700; letter-spacing:.17em; }
+#plan-stay .home-plan-path>strong { color:var(--white); font-family:var(--serif); font-size:clamp(1.2rem,1.6vw,1.55rem); font-weight:400; line-height:1.16; text-wrap:balance; }
+#plan-stay .home-plan-path>span:last-child { color:rgba(255,253,248,.74); font-size:.875rem; line-height:1.55; }
+#plan-stay .home-plan-path>span:last-child span { color:#e5c99b; }
+#plan-stay .home-plan-note { display:grid; grid-template-columns:1fr 1fr; gap:clamp(20px,4vw,56px); margin-block-start:26px; padding-block-start:20px; border-block-start:1px solid rgba(234,220,197,.2); }
+#plan-stay .home-plan-note p { margin:0; color:rgba(255,253,248,.73); font-size:.8125rem; line-height:1.75; }
+#plan-stay .home-plan-note strong { display:block; margin-block-end:5px; color:#e5c99b; font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; }
+
+/* Shared full-bleed planning band rather than a floating bordered component. */
+.guest-journey {
+  width:100%; margin:0; padding:24px max(20px,calc((100vw - var(--container))/2));
+  border:0; border-block:1px solid rgba(201,164,106,.3); border-radius:0;
+  background:radial-gradient(ellipse at 82% 0%,rgba(201,164,106,.1),transparent 30rem),#1a2821;
+  box-shadow:none; color:var(--white);
+}
+.guest-journey__intro .eyebrow { color:#e5c99b; }
+.guest-journey__intro h2 { color:var(--white); }
+.guest-journey__intro>p:last-child { color:rgba(255,253,248,.68); font-size:var(--type-support); }
+.guest-journey__step { border-inline-start:1px solid rgba(234,220,197,.22); border-block:1px solid transparent; color:var(--white); }
+.guest-journey__step:hover,.guest-journey__step:focus-visible { border-inline-start-color:#e5c99b; background:rgba(255,253,248,.07); color:#fff; }
+.guest-journey__step[aria-current="page"] { border-inline-start:2px solid var(--saffron); background:rgba(255,253,248,.085); }
+.guest-journey__number,.guest-journey__arrow { color:#e5c99b; }
+.guest-journey__copy strong { color:var(--white); font-size:1.125rem; }
+.guest-journey__copy small { color:rgba(255,253,248,.68); font-size:var(--type-label); line-height:1.45; }
+
+/* Cinematic first-view route heroes use approved photography, not a blank gradient. */
+.page-hero--photo { position:relative; overflow:clip; isolation:isolate; }
+.page-hero--photo>img,.page-hero--photo .page-hero__picture,.page-hero--photo .page-hero__picture img {
+  position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:cover;
+}
+.page-hero--photo .page-hero__picture { z-index:0; }
+.page-hero--photo .page-hero__picture img { filter:saturate(.92) contrast(1.04); }
+.page-hero--photo .page-hero__overlay {
+  position:absolute; z-index:1; inset:0;
+  background:linear-gradient(90deg,rgba(13,23,18,.82) 0%,rgba(13,23,18,.54) 43%,rgba(13,23,18,.08) 100%),linear-gradient(0deg,rgba(13,23,18,.36),transparent 65%);
+}
+.page-hero--photo .page-hero__content { position:relative; z-index:2; }
+.page-hero--photo.page-hero--experiences { min-height:clamp(480px,58vw,680px); }
+.page-hero--photo.page-hero--experience-details { min-height:clamp(500px,60vw,700px); }
+.page-hero--photo.page-hero--gallery { min-height:clamp(470px,56vw,650px); }
+.page-hero--photo.page-hero--dining { min-height:clamp(480px,56vw,650px); }
+.page-hero--experiences>img,.page-hero--experiences .page-hero__picture img { object-position:center 52%; }
+.page-hero--experience-details .page-hero__picture img { object-position:center 55%; }
+.page-hero--gallery>img,.page-hero--gallery .page-hero__picture img { object-position:center 56%; }
+.page-hero--dining>img,.page-hero--dining .page-hero__picture img { object-position:center 68%; }
+.hero__image { object-position:center 72%; }
+@media(max-width:760px) {
+  .hero { min-height:clamp(535px,84svh,660px); align-items:center; }
+  .hero__image { transform:scale(1.2); transform-origin:50% 68%; }
+  .hero__content { padding-block:24px 38px; }
+  .hero__signature { margin-top:20px; }
+  .hero h1 { max-width:13ch; font-size:clamp(48px,12.4vw,64px); line-height:.98; }
+  .guest-journey { padding:18px 20px 20px; }
+  #plan-stay.home-plan-panel { padding:40px 20px; }
+  #plan-stay .home-plan-paths { grid-template-columns:repeat(2,minmax(0,1fr)); border-block-end:0; }
+  #plan-stay .home-plan-path { min-height:150px; padding:18px 12px; border-inline-start:0; border-block-end:1px solid rgba(234,220,197,.2); }
+  #plan-stay .home-plan-path:nth-child(odd) { border-inline-end:1px solid rgba(234,220,197,.2); }
+  #plan-stay .home-plan-note { grid-template-columns:1fr; gap:14px; }
+  .page-hero--photo { min-height:clamp(460px,74svh,600px); }
+  .page-hero--photo .page-hero__content { padding-block:78px 48px; }
+}
+@media(max-width:420px) {
+  .hero__image { transform:scale(1.24); transform-origin:50% 68%; }
+  #plan-stay.home-plan-panel { padding-inline:16px; }
+  #plan-stay .home-plan-path { min-height:164px; padding-inline:9px; }
+  #plan-stay .home-plan-path>strong { font-size:1.12rem; }
+  #plan-stay .home-plan-path>span:last-child { font-size:.8125rem; }
+  .guest-journey { padding-inline:16px; }
+}
+@media(prefers-reduced-motion:reduce) { #plan-stay .home-plan-path,.guest-journey__step { transition:none; } }
+
+
+/* M16 finishing detail: controls share the canonical radius and warm surface. */
+.field input,
+.field select,
+.booking-form input,
+.booking-form select,
+.guest-enquiry-form input,
+.guest-enquiry-form select,
+.guest-enquiry-form textarea,
+.dining-restaurant input,
+.dining-restaurant select,
+.dining-restaurant textarea,
+.guest-enquiry-recovery textarea {
+  border-radius: var(--control-radius);
+}
+
+
+/* M22 — Reserve responsive hero line boxes before remote font settlement. */
+.page-hero--rooms h1 {
+  min-block-size: 2.1em;
+}
+
+.page-hero--rooms .page-hero__content > p:not(.eyebrow) {
+  min-block-size: 4.6em;
+}
+
+.page-hero--experiences .page-hero__content > p:not(.eyebrow) {
+  min-block-size: 4em;
+}
+
+@media (max-width: 1000px) {
+  .page-hero--experiences .page-hero__content > p:not(.eyebrow) {
+    min-block-size: 6em;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-hero--rooms h1 {
+    min-block-size: 4.2em;
+  }
+
+  .page-hero--rooms .page-hero__content > p:not(.eyebrow) {
+    min-block-size: 5.5em;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-hero--rooms h1 {
+    min-block-size: 4.2em;
+  }
+}
+
+@media (max-width: 360px) {
+  .page-hero--rooms h1 {
+    min-block-size: 5.2em;
+  }
+
+  .page-hero--rooms .page-hero__content > p:not(.eyebrow) {
+    min-block-size: 7.2em;
+  }
+}

@@ -1,6 +1,7 @@
 /* Editorial discovery layer shared by the Experiences and itinerary-detail pages. */
 .experience-discovery-hero .page-hero__content { max-width: 1120px; }
-.experience-discovery-hero h1 { max-width: 1080px; margin: 0; font-size: clamp(56px, 8.5vw, 108px); line-height: .99; letter-spacing: -.055em; font-weight: 400; text-wrap: balance; }
+/* Reserve the final two-line headline footprint before web fonts finish loading. */
+.experience-discovery-hero h1 { max-width: 1080px; min-block-size: 2.1em; margin: 0; font-size: clamp(56px, 8.5vw, 108px); line-height: .99; letter-spacing: -.055em; font-weight: 400; text-wrap: balance; }
 .experience-discovery-hero h1 em, .experience-detail-hero h1 em { color: var(--gold); font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -.065em; }
 .experience-discovery-hero .page-hero__content > p:not(.eyebrow) { max-width: 730px; font-size: 14px; line-height: 1.9; }
 .experience-detail-hero .page-hero__content h1 { max-width: 1000px; font-size: clamp(44px, 6.5vw, 82px); line-height: 1.04; letter-spacing: -.045em; text-wrap: balance; }

@@ -11,8 +11,8 @@ import tempfile
 
 from PIL import Image, ImageOps
 
-# Explicitly allow only source photos confirmed in current runtime routes. Existing
-# picture elements with a separate WebP art direction remain intentionally excluded.
+# Explicitly allow only source photos confirmed in current runtime routes.
+# Art-directed pictures are included only with a source-backed WebP override below.
 IMAGE_NAMES = (
     "rest3.jpg",
     "courtyard.jpg",
@@ -23,6 +23,8 @@ IMAGE_NAMES = (
     "legacy/fort-temple-spires.jpg",
     "rooms/rising-sun.jpg",
     "rooms/opium.jpg",
+    "rooms/haveli-interior.jpg",
+    "rooms/sweet-purple.jpg",
     "rooms/red-maharani.jpg",
     "rooms/green.jpg",
     "rooms/bluesky.jpg",
@@ -35,15 +37,69 @@ IMAGE_NAMES = (
     "experiences/heritage-architecture.jpg",
     "gallery/desert/camp-evening.jpeg",
     "gallery/desert/camp-from-above.jpeg",
+    "gallery/hotel/fort-from-roof.jpg",
     "dining/rooftop-candlelit-table.jpg",
+    "directions/haveli-facade.jpg",
 )
+# Sweet Purple, the Rooms hero and the rooftop panorama use source-backed WebP assets.
+# Their JPEGs are compatibility fallbacks; never regenerate over the original WebP files.
+RESPONSIVE_SOURCE_OVERRIDES = {
+    "rooms/sweet-purple.jpg": "rooms/sweet-purple.webp",
+    "rooms/haveli-interior.jpg": "rooms/haveli-sitting-room.webp",
+    "gallery/hotel/fort-from-roof.jpg": "gallery/hotel/fort-from-roof.webp",
+}
 SOURCE_PREFIX = (
     "https://raw.githubusercontent.com/"
     "tchouhanjsm/garh-jaisal-website/main/img/"
 )
 RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
+# M27 first-view evidence showed 1200px-to-1600px jumps for two-column cards
+# at high DPR. Add a 1280px bridge only for the three measured Gallery assets.
+RESPONSIVE_WIDTH_OVERRIDES = {
+    "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "legacy/fort-temple-spires.jpg": (320, 480, 768, 1200, 1280, 1600),
+}
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
+# Mirrors quality_overrides in the authoritative source repository's
+# responsive-image-assets-manifest.json for these JPEG-derived images.
+SOURCE_QUALITY_OVERRIDES = {
+    "courtyard.jpg": 70,
+    "directions/haveli-facade.jpg": 70,
+}
+# Byte ceilings protect high-value responsive candidates without changing
+# JPEG fallbacks or independently source-backed WebP originals.
+RESPONSIVE_VARIANT_MAX_BYTES = {
+    "assets/images/responsive/courtyard-1200.webp": 250_000,
+    "assets/images/responsive/courtyard-1600.webp": 250_000,
+    "assets/images/responsive/courtyard-1280.webp": 145_000,
+    "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
+    "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
+    "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
+    "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
+    "assets/images/responsive/directions/haveli-facade-768.webp": 200_000,
+    "assets/images/responsive/directions/haveli-facade-1200.webp": 250_000,
+    "assets/images/responsive/legacy/camel-day-1200.webp": 170_000,
+    "assets/images/responsive/legacy/camel-day-1280.webp": 185_000,
+    "assets/images/responsive/legacy/fort-temple-spires-1200.webp": 100_000,
+    "assets/images/responsive/legacy/fort-temple-spires-1280.webp": 105_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp": 170_000,
+    "assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp": 250_000,
+}
+# JPEG-derived WebPs with explicit ceilings may be regenerated in the isolated package;
+# original JPEG fallbacks remain unchanged.
+FULL_SIZE_WEBP_MAX_BYTES = {
+    "assets/images/courtyard.webp": 450_000,
+    "assets/images/directions/haveli-facade.webp": 400_000,
+    "assets/images/legacy/camel-day.webp": 210_000,
+    "assets/images/legacy/fort-temple-spires.webp": 120_000,
+}
+BUDGET_QUALITY_FLOOR = 58
+BUDGET_QUALITY_STEP = 2
 
 
 def _resolve_site_root(root: Path) -> Path:
@@ -81,6 +137,8 @@ def _safe_directory(root: Path, relative: Path, *, create: bool = False) -> Path
             raise ValueError(f"Image directory escapes site root: {current}")
     return current
 IMG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+SOURCE_TAG_PATTERN = re.compile(r"<source\b[^>]*>", re.IGNORECASE)
+PICTURE_PATTERN = re.compile(r"<picture\b[^>]*>[\s\S]*?</picture\s*>", re.IGNORECASE)
 LINK_PATTERN = re.compile(r"<link\b[^>]*>", re.IGNORECASE)
 
 
@@ -108,41 +166,90 @@ def set_attribute(tag: str, name: str, value: str) -> str:
     return tag[:-1].rstrip() + " " + replacement + ">"
 
 
-def _save_webp(image: Image.Image, target: Path, icc_profile: bytes | None) -> None:
-    """Write and decode-check a WebP output before replacing an existing file."""
+def _save_webp(
+    image: Image.Image,
+    target: Path,
+    icc_profile: bytes | None,
+    *,
+    preserve_different_existing: bool = False,
+    quality: int = WEBP_QUALITY,
+    max_bytes: int | None = None,
+) -> dict:
+    """Write a verified WebP; budgeted variants keep the highest quality that fits."""
     if target.parent.is_symlink():
         raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
+    if isinstance(quality, bool) or not isinstance(quality, int) or not 1 <= quality <= 100:
+        raise ValueError(f"Invalid WebP quality: {quality!r}")
+    if max_bytes is not None and (
+        isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1
+    ):
+        raise ValueError(f"Invalid responsive image byte budget: {max_bytes!r}")
+    if max_bytes is not None and quality < BUDGET_QUALITY_FLOOR:
+        raise ValueError("Budget quality floor exceeds the starting WebP quality")
+
+    qualities = (
+        [quality]
+        if max_bytes is None
+        else list(range(quality, BUDGET_QUALITY_FLOOR - 1, -BUDGET_QUALITY_STEP))
+    )
+    attempts: list[dict] = []
     temporary = target.with_name(target.name + ".tmp")
-    for candidate in (target, temporary):
-        if candidate.is_symlink():
-            raise ValueError(f"Refusing to replace a symlinked image output: {candidate}")
-        if candidate.exists() and not candidate.is_file():
-            raise ValueError(f"Image output is not a regular file: {candidate}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        kwargs = {"quality": WEBP_QUALITY, "method": 6}
-        if icc_profile:
-            kwargs["icc_profile"] = icc_profile
-        image.save(temporary, format="WEBP", **kwargs)
-        with Image.open(temporary) as check:
-            check.load()
-            if check.format != "WEBP" or check.size != image.size:
-                raise RuntimeError(f"WebP verification mismatch: {target}")
-        if target.is_file() and target.read_bytes() == temporary.read_bytes():
-            temporary.unlink()
-        else:
-            temporary.replace(target)
-    except Exception:
-        temporary.unlink(missing_ok=True)
-        raise
+    for candidate_quality in qualities:
+        for candidate in (target, temporary):
+            if candidate.is_symlink():
+                raise ValueError(f"Refusing to replace a symlinked image output: {candidate}")
+            if candidate.exists() and not candidate.is_file():
+                raise ValueError(f"Image output is not a regular file: {candidate}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            kwargs = {"quality": candidate_quality, "method": 6}
+            if icc_profile:
+                kwargs["icc_profile"] = icc_profile
+            image.save(temporary, format="WEBP", **kwargs)
+            with Image.open(temporary) as check:
+                check.load()
+                if check.format != "WEBP" or check.size != image.size:
+                    raise RuntimeError(f"WebP verification mismatch: {target}")
+            candidate_bytes = temporary.stat().st_size
+            attempts.append({"quality": candidate_quality, "bytes": candidate_bytes})
+            if max_bytes is not None and candidate_bytes > max_bytes:
+                temporary.unlink(missing_ok=True)
+                continue
 
+            if target.is_file():
+                if target.read_bytes() == temporary.read_bytes():
+                    temporary.unlink()
+                elif preserve_different_existing:
+                    raise FileExistsError(
+                        f"Refusing to overwrite an existing WebP source with a generated derivative: {target}"
+                    )
+                else:
+                    temporary.replace(target)
+            else:
+                temporary.replace(target)
+            return {
+                "quality": candidate_quality,
+                "qualityAttempts": attempts,
+                "maxBytes": max_bytes,
+            }
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
 
+    attempt_summary = ", ".join(
+        f"q{item['quality']}={item['bytes']}B" for item in attempts
+    )
+    raise RuntimeError(
+        f"Responsive WebP cannot meet the {max_bytes}-byte budget at or above "
+        f"quality {BUDGET_QUALITY_FLOOR}: {target} ({attempt_summary})"
+    )
 
 
 def _validate_source_image_header(image: Image.Image, filename: str) -> None:
     """Reject unexpected formats and excessive pixel counts before decoding bytes."""
-    if image.format != "JPEG":
-        raise ValueError(f"Responsive image source is not a JPEG: {filename}")
+    expected_format = "WEBP" if PurePosixPath(filename).suffix.lower() == ".webp" else "JPEG"
+    if image.format != expected_format:
+        raise ValueError(f"Responsive image source format must be {expected_format}: {filename}")
     if image.width < 1 or image.height < 1 or image.width * image.height > MAX_PIXELS:
         raise ValueError(f"Source image dimensions exceed safe bounds: {filename}")
 
@@ -155,7 +262,7 @@ def _validated_image_relative_path(filename: str) -> Path:
         or relative.is_absolute()
         or relative.as_posix() != filename
         or any(part in {"", ".", ".."} for part in relative.parts)
-        or relative.suffix.lower() not in {".jpg", ".jpeg"}
+        or relative.suffix.lower() not in {".jpg", ".jpeg", ".webp"}
     ):
         raise ValueError(f"Unsafe responsive image source path: {filename}")
     return Path(*relative.parts)
@@ -168,13 +275,21 @@ def _source_url(filename: str) -> str:
 
 
 def _full_size_webp_url(filename: str) -> str:
-    """Keep each full-size derivative beside its source without flattening directories."""
+    """Return the full-size candidate without replacing an independently sourced WebP."""
+    override = RESPONSIVE_SOURCE_OVERRIDES.get(filename)
+    if override:
+        return (PurePosixPath("assets/images") / PurePosixPath(override)).as_posix()
     relative = PurePosixPath(filename)
     return (
         PurePosixPath("assets/images")
         / relative.parent
         / f"{relative.stem}.webp"
     ).as_posix()
+
+
+def _responsive_source_filename(filename: str) -> str:
+    """Return the actual image used to build candidates; overrides are explicit and source-backed."""
+    return RESPONSIVE_SOURCE_OVERRIDES.get(filename, filename)
 
 
 def _responsive_webp_url(filename: str, width: int) -> str:
@@ -218,28 +333,48 @@ def generate_responsive_variants(
         if filename in seen_paths:
             raise ValueError(f"Duplicate responsive image source: {filename}")
         seen_paths.add(filename)
-        source = _image_source_file(root, filename)
+        source_filename = _responsive_source_filename(filename)
+        source = _image_source_file(root, source_filename)
+        fallback = _image_source_file(root, filename)
         if source.is_symlink() or not source.is_file() or source.stat().st_size <= 0:
             raise FileNotFoundError(f"Missing safe source image: {source}")
+        if fallback.is_symlink() or not fallback.is_file() or fallback.stat().st_size <= 0:
+            raise FileNotFoundError(f"Missing safe JPEG fallback: {fallback}")
         with Image.open(source) as opened:
-            _validate_source_image_header(opened, filename)
+            _validate_source_image_header(opened, source_filename)
             opened.load()
             icc_profile = opened.info.get("icc_profile")
             image = ImageOps.exif_transpose(opened)
             if image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
             width, height = image.size
-            full_size = source.with_suffix(".webp")
-            _save_webp(image, full_size, icc_profile)
-            if full_size.stat().st_size >= source.stat().st_size:
-                raise RuntimeError(f"WebP derivative is not smaller than its JPEG source: {filename}")
+            full_size = root / _full_size_webp_url(filename)
+            full_size_relative = full_size.relative_to(root).as_posix()
+            full_size_max_bytes = None
+            full_size_encoding = None
+            if source_filename == filename:
+                full_size_max_bytes = FULL_SIZE_WEBP_MAX_BYTES.get(full_size_relative)
+                full_size_encoding = _save_webp(
+                    image,
+                    full_size,
+                    icc_profile,
+                    quality=SOURCE_QUALITY_OVERRIDES.get(filename, WEBP_QUALITY),
+                    # Only an explicitly budgeted JPEG-derived output may be replaced.
+                    preserve_different_existing=full_size_max_bytes is None,
+                    max_bytes=full_size_max_bytes,
+                )
+                if full_size.stat().st_size >= source.stat().st_size:
+                    raise RuntimeError(f"WebP derivative is not smaller than its JPEG source: {filename}")
+            elif full_size != source:
+                raise RuntimeError(f"Source-backed WebP override is invalid: {source_filename}")
             generated: list[dict] = []
             responsive_parent = _safe_directory(
                 root,
                 Path("assets/images/responsive") / relative.parent,
                 create=True,
             )
-            for target_width in RESPONSIVE_WIDTHS:
+            target_widths = RESPONSIVE_WIDTH_OVERRIDES.get(filename, RESPONSIVE_WIDTHS)
+            for target_width in target_widths:
                 if target_width >= width:
                     continue
                 target_height = max(1, round(height * target_width / width))
@@ -248,21 +383,43 @@ def generate_responsive_variants(
                     Image.Resampling.LANCZOS,
                 )
                 target = responsive_parent / f"{relative.stem}-{target_width}.webp"
-                _save_webp(resized, target, icc_profile)
+                target_relative = target.relative_to(root).as_posix()
+                max_bytes = RESPONSIVE_VARIANT_MAX_BYTES.get(target_relative)
+                encoding = _save_webp(
+                    resized,
+                    target,
+                    icc_profile,
+                    quality=SOURCE_QUALITY_OVERRIDES.get(filename, WEBP_QUALITY),
+                    max_bytes=max_bytes,
+                )
                 generated.append(
                     {
                         "width": target_width,
                         "height": target_height,
-                        "path": target.relative_to(root).as_posix(),
+                        "path": target_relative,
                         "bytes": target.stat().st_size,
+                        "quality": encoding["quality"],
+                        "qualityAttempts": encoding["qualityAttempts"],
+                        "maxBytes": max_bytes,
                     }
                 )
+            source_format = "WEBP" if source_filename != filename else "JPEG"
             output[filename] = {
                 "width": width,
                 "height": height,
+                "sourcePath": (PurePosixPath("assets/images") / PurePosixPath(source_filename)).as_posix(),
+                "sourceFormat": source_format,
                 "sourceBytes": source.stat().st_size,
+                "fallbackBytes": fallback.stat().st_size,
                 "fullSizePath": full_size.relative_to(root).as_posix(),
                 "fullSizeBytes": full_size.stat().st_size,
+                "fullSizeSavingsBytes": (
+                    source.stat().st_size - full_size.stat().st_size
+                    if source_format == "JPEG" else 0
+                ),
+                "fullSizeQuality": full_size_encoding["quality"] if full_size_encoding else None,
+                "fullSizeQualityAttempts": full_size_encoding["qualityAttempts"] if full_size_encoding else [],
+                "fullSizeMaxBytes": full_size_encoding["maxBytes"] if full_size_encoding else None,
                 "variants": generated,
             }
     return output
@@ -389,13 +546,60 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
     return "(max-width: 760px) 100vw, (max-width: 1200px) 50vw, 50vw"
 
 
+def _srcset_urls(value: str) -> list[str]:
+    """Return URL tokens from a srcset without interpreting their descriptors."""
+    urls: list[str] = []
+    for candidate in value.split(","):
+        pieces = candidate.strip().rsplit(None, 1)
+        if pieces and pieces[0]:
+            urls.append(pieces[0])
+    return urls
+
+
+def _rewrite_existing_picture_sources(text: str, root: Path) -> str:
+    """Upgrade existing full-size WebP picture sources to verified responsive candidates."""
+    def rewrite_picture(match: re.Match[str]) -> str:
+        picture = match.group(0)
+        image_match = IMG_PATTERN.search(picture)
+        if image_match is None:
+            return picture
+        image_tag = image_match.group(0)
+        fallback_name = _image_name_for_reference(get_attribute(image_tag, "src") or "")
+        if fallback_name is None:
+            return picture
+        full_size_url = _full_size_webp_url(fallback_name)
+        source_match = next(
+            (
+                item for item in SOURCE_TAG_PATTERN.finditer(picture)
+                if full_size_url in _srcset_urls(get_attribute(item.group(0), "srcset") or "")
+            ),
+            None,
+        )
+        if source_match is None:
+            return picture
+        image_offset = match.start() + image_match.start()
+        sizes = _responsive_sizes(
+            image_tag,
+            _ancestor_classes_before(text, image_offset),
+        )
+        source_tag = source_match.group(0)
+        updated = set_attribute(source_tag, "data-responsive-image", "true")
+        updated = set_attribute(updated, "type", "image/webp")
+        updated = set_attribute(updated, "srcset", _srcset(root, fallback_name))
+        updated = set_attribute(updated, "sizes", sizes)
+        return picture[:source_match.start()] + updated + picture[source_match.end():]
+
+    return PICTURE_PATTERN.sub(rewrite_picture, text)
+
+
 def _natural_dimensions(root: Path, filename: str) -> tuple[int, int]:
-    """Read EXIF-corrected intrinsic dimensions from an allowlisted JPEG path."""
-    source = _image_source_file(root, filename)
+    """Read EXIF-corrected dimensions from the JPEG fallback's approved source image."""
+    source_filename = _responsive_source_filename(filename)
+    source = _image_source_file(root, source_filename)
     if source.is_symlink() or not source.is_file() or source.stat().st_size <= 0:
         raise FileNotFoundError(f"Missing safe source image: {source}")
     with Image.open(source) as opened:
-        _validate_source_image_header(opened, filename)
+        _validate_source_image_header(opened, source_filename)
         opened.load()
         image = ImageOps.exif_transpose(opened)
         width, height = image.size
@@ -407,11 +611,12 @@ def _natural_dimensions(root: Path, filename: str) -> tuple[int, int]:
 def _srcset(root: Path, filename: str) -> str:
     """Build a verified width-descriptor srcset for a path-aware image identity."""
     root = _resolve_site_root(root)
-    source = _image_source_file(root, filename)
+    source_filename = _responsive_source_filename(filename)
+    source = _image_source_file(root, source_filename)
     if source.is_symlink() or not source.is_file():
         raise FileNotFoundError(f"Missing safe source image: {source}")
     with Image.open(source) as image:
-        _validate_source_image_header(image, filename)
+        _validate_source_image_header(image, source_filename)
         image.load()
         oriented = ImageOps.exif_transpose(image)
         natural_width = oriented.width
@@ -421,12 +626,12 @@ def _srcset(root: Path, filename: str) -> str:
     )
     paths = [
         f"{_responsive_webp_url(filename, width)} {width}w"
-        for width in RESPONSIVE_WIDTHS
+        for width in RESPONSIVE_WIDTH_OVERRIDES.get(filename, RESPONSIVE_WIDTHS)
         if width < natural_width
         and (responsive_parent / f"{relative.stem}-{width}.webp").is_file()
         and not (responsive_parent / f"{relative.stem}-{width}.webp").is_symlink()
     ]
-    full_size = source.with_suffix(".webp")
+    full_size = root / _full_size_webp_url(filename)
     if full_size.is_symlink() or not full_size.is_file():
         raise FileNotFoundError(f"Missing full-size WebP source: {full_size}")
     paths.append(f"{_full_size_webp_url(filename)} {natural_width}w")
@@ -463,14 +668,19 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if "/" not in name:
             remote_pattern = re.escape(SOURCE_PREFIX + name) + r"""(?:\?[^"'\s>]*)?"""
             text = re.sub(remote_pattern, destination, text)
-        local_pattern = (
-            rf"(?<![\w:/])(?:{re.escape(source_url)}|{re.escape(full_size_url)})"
-            rf"(?![\w.-])"
-        )
+        references = [source_url]
+        # In responsive mode, keep existing full-size WebP references intact until
+        # their containing picture can be upgraded to the generated responsive srcset.
+        if extension != "responsive":
+            references.append(full_size_url)
+        reference_pattern = "(?:" + "|".join(re.escape(item) for item in references) + ")"
+        local_pattern = rf"(?<![\w:/]){reference_pattern}(?![\w.-])"
         text = re.sub(local_pattern, destination, text)
 
     if extension != "responsive":
         return text
+
+    text = _rewrite_existing_picture_sources(text, root)
 
     def rewrite_image(match: re.Match[str]) -> str:
         tag = match.group(0)
@@ -493,6 +703,20 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         tag = set_attribute(tag, "loading", "eager" if is_hero else "lazy")
         if get_attribute(tag, "data-responsive-image-fallback") == "true":
             return tag
+        prefix = text[: match.start()]
+        picture_start = prefix.lower().rfind("<picture")
+        picture_end = prefix.lower().rfind("</picture")
+        if picture_start > picture_end:
+            picture_prefix = prefix[picture_start:]
+            has_mapped_source = any(
+                (get_attribute(source_match.group(0), "data-responsive-image") or "").lower() == "true"
+                and _full_size_webp_url(image_name) in _srcset_urls(
+                    get_attribute(source_match.group(0), "srcset") or ""
+                )
+                for source_match in SOURCE_TAG_PATTERN.finditer(picture_prefix)
+            )
+            if has_mapped_source:
+                return set_attribute(tag, "data-responsive-image-fallback", "true")
         srcset = _srcset(root, image_name)
         ancestor_classes = _ancestor_classes_before(text, match.start())
         sizes = _responsive_sizes(tag, ancestor_classes)
@@ -504,8 +728,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             + '">'
         )
         tag = set_attribute(tag, "data-responsive-image-fallback", "true")
-        prefix = text[: match.start()]
-        if prefix.lower().rfind("<picture") > prefix.lower().rfind("</picture"):
+        if picture_start > picture_end:
             return source + tag
         return '<picture class="responsive-image">' + source + tag + "</picture>"
 
@@ -556,16 +779,23 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
     return text
 
 
-def rewrite_site(root: Path, extension: str) -> list[Path]:
-    """Rewrite regular root-level HTML pages only after every transformation succeeds."""
+def rewrite_site(
+    root: Path,
+    extension: str,
+    *,
+    return_report: bool = False,
+    image_names: tuple[str, ...] = IMAGE_NAMES,
+) -> list[Path] | tuple[list[Path], dict[str, dict]]:
+    """Rewrite regular root-level HTML pages; optionally return responsive generation evidence."""
     root = _resolve_site_root(root)
+    generation_report: dict[str, dict] = {}
     pages = sorted(root.glob("*.html"))
     for page in pages:
         if page.is_symlink() or not page.is_file():
             raise ValueError(f"Refusing symlinked or non-regular HTML page: {page.name}")
 
     if extension == "responsive":
-        generate_responsive_variants(root)
+        generation_report = generate_responsive_variants(root, image_names)
 
     # Render every page before writing any of them. A bad later page must not leave a
     # partially rewritten site, and a symlinked route must never redirect writes outside root.
@@ -579,7 +809,7 @@ def rewrite_site(root: Path, extension: str) -> list[Path]:
             pending.append((page, original, updated, page.stat().st_mode & 0o777))
 
     if not pending:
-        return []
+        return ([], generation_report) if return_report else []
 
     staged: list[tuple[Path, Path, str, int]] = []
     replaced: list[tuple[Path, str, int]] = []
@@ -629,7 +859,8 @@ def rewrite_site(root: Path, extension: str) -> list[Path]:
                 ) from error
             raise
 
-        return [page for page, _, _, _ in pending]
+        rewritten_pages = [page for page, _, _, _ in pending]
+        return (rewritten_pages, generation_report) if return_report else rewritten_pages
     finally:
         for temporary, _, _, _ in staged:
             temporary.unlink(missing_ok=True)

@@ -70,3 +70,27 @@ The shared type-role tokens are owned by `assets/site.css` and consumed by the f
 | Lede | 17px | Introductory editorial emphasis |
 
 Decorative folios, eyebrow labels, step numbers and image indexes remain deliberately smaller; they are not reading copy. The quality suite checks computed font sizes on rendered core routes at the responsive audit widths, rather than relying only on CSS source assertions.
+
+
+## M16 — premium art direction and first-view system
+
+The canonical heritage palette remains fort pine, olive, limestone, warm ivory and sandstone. Brass is reserved for architectural details, fine rules, folios and quiet highlights. High-intent actions use the saffron/copper brand colour, not brass-on-ivory; peacock is reserved for functional focus/selected states.
+
+| Role | Token | Value |
+|---|---|---|
+| Fort pine | `--ink` | `#1a2821` |
+| Deep olive | `--ink-soft` | `#354239` |
+| Limestone | `--paper` | `#f7f3ea` |
+| Warm ivory | `--white` | `#fffdf8` |
+| Sandstone | `--sand` | `#eadcc5` |
+| Antique brass | `--gold` | `#c9a46a` |
+| Deep brass text | `--gold-dark` | `#765735` |
+| Primary CTA | `--saffron` | `#b94a0e` |
+| CTA hover | `--saffron-hover` | `#913b0b` |
+| Functional focus | `--peacock` | `#1d7472` |
+
+The shared homepage planning panel and inner-route guest-journey rail are full-bleed fort-green editorial transitions. Individual route actions remain visible without enclosing every choice in another white card. The mobile homepage hero crops toward the rooftop foreground and moves the headline/primary action higher in the first view.
+
+Experiences, Experience Details, Gallery and Dining use owner-controlled, manifest-backed first-view photographs. The static HTML keeps source JPEG/WebP paths; the existing staging image pipeline derives responsive WebP sources in the isolated package. The original image subjects, availability caveats, booking/enquiry handoff and photo rights are unchanged.
+
+Automated regression checks cover the palette/action roles, full-bleed decision bands, photo-led hero subject/alt text, hero priority/preload and page-specific image byte budgets. Screenshot review and owner-approved staging UAT remain separate manual acceptance gates; no visual score or release approval is inferred from a passing build.

@@ -247,6 +247,124 @@ bad_recovery_links["viewportChecks"][2]["recoveryLinks"] = []
 assert not browser_smoke.unknown_route_evidence_is_complete(bad_recovery_links)
 assert browser_smoke.unknown_route_evidence_is_complete(valid_unknown_route_evidence())
 
+def valid_performance_evidence() -> list[dict]:
+    records = []
+    for width, height in browser_smoke.VIEWPORTS:
+        for page_name in browser_smoke.PAGES:
+            records.append({
+                "route": page_name,
+                "viewportWidthCssPixels": width,
+                "viewportHeightCssPixels": height,
+                "observerSupport": {"lcp": True, "layoutShift": True, "longTask": False},
+                "navigation": {
+                    "responseStartMs": 12.0,
+                    "domContentLoadedMs": 28.0,
+                    "loadEventEndMs": 42.0,
+                    "documentEncodedBodyBytes": 2048,
+                    "documentTransferBytesObserved": 2300,
+                },
+                "largestContentfulPaint": {
+                    "valueMs": 180.0,
+                    "size": 1200,
+                    "element": {"tagName": "IMG", "id": "hero-image", "className": "hero__image"},
+                    "urlPath": "/assets/images/hero.webp",
+                },
+                "cumulativeLayoutShift": 0.2 if page_name == "experiences.html" and width == 1280 else (0.1 if page_name == "experiences.html" and width == 768 else 0.0),
+                "layoutShiftEntries": 2 if page_name == "experiences.html" and width == 1280 else (1 if page_name == "experiences.html" and width == 768 else 0),
+                "layoutShiftSources": [
+                    {
+                        "value": 0.1,
+                        "hadRecentInput": False,
+                        "context": {
+                            "scrollY": 0.0,
+                            "header": {
+                                "className": "site-header is-scrolled",
+                                "rect": {"x": 0.0, "y": 34.0, "width": width, "height": 84.0},
+                            },
+                            "announcement": {"x": 0.0, "y": 0.0, "width": width, "height": 34.0},
+                            "hero": {"x": 0.0, "y": 118.0, "width": width, "height": 680.0},
+                            "viewport": {"width": width, "height": height},
+                        },
+                        "sources": [{
+                            "element": {"tagName": "H1", "id": None, "className": "experience-discovery-hero"},
+                            "previousRect": {"x": 0.0, "y": 0.0, "width": 640.0, "height": 100.0},
+                            "currentRect": {"x": 0.0, "y": 12.0, "width": 640.0, "height": 112.0},
+                        }],
+                    }
+                    for _ in range(2 if page_name == "experiences.html" and width == 1280 else (1 if page_name == "experiences.html" and width == 768 else 0))
+                ],
+                "fontReadiness": {
+                    "status": "loaded",
+                    "readyWithinCaptureWindow": True,
+                    "families": {"playfairDisplay": True, "dmSans": True},
+                    "layoutSnapshots": [
+                        {
+                            "phase": "sample-before-font-wait",
+                            "atMs": 12.0,
+                            "fontStatus": "loading",
+                            "families": {"playfairDisplay": False, "dmSans": False},
+                            "elements": {
+                                "content": {"x": 0.0, "y": 100.0, "width": 640.0, "height": 360.0},
+                                "heading": {"x": 0.0, "y": 180.0, "width": 640.0, "height": 112.0},
+                                "supportingCopy": {"x": 0.0, "y": 310.0, "width": 640.0, "height": 50.0},
+                            },
+                            "textRanges": {
+                                "heading": {"x": 0.0, "y": 182.0, "width": 620.0, "height": 110.0},
+                                "supportingCopy": {"x": 0.0, "y": 312.0, "width": 610.0, "height": 48.0},
+                            },
+                        },
+                        {
+                            "phase": "sample-after-font-wait",
+                            "atMs": 28.0,
+                            "fontStatus": "loaded",
+                            "families": {"playfairDisplay": True, "dmSans": True},
+                            "elements": {
+                                "content": {"x": 0.0, "y": 88.0, "width": 640.0, "height": 372.0},
+                                "heading": {"x": 0.0, "y": 168.0, "width": 640.0, "height": 124.0},
+                                "supportingCopy": {"x": 0.0, "y": 310.0, "width": 640.0, "height": 62.0},
+                            },
+                            "textRanges": {
+                                "heading": {"x": 0.0, "y": 170.0, "width": 632.0, "height": 122.0},
+                                "supportingCopy": {"x": 0.0, "y": 312.0, "width": 626.0, "height": 60.0},
+                            },
+                        },
+                    ],
+                },
+                "longTasks": {"count": 0, "totalDurationMs": 0.0},
+                "sameOriginResources": {
+                    "count": 12,
+                    "encodedBodyBytes": 40960,
+                    "transferBytesObserved": 32768,
+                    "images": {"count": 4, "encodedBodyBytes": 24576},
+                    "stylesheets": {"count": 2, "encodedBodyBytes": 8192},
+                    "scripts": {"count": 2, "encodedBodyBytes": 4096},
+                    "fonts": {"count": 1, "encodedBodyBytes": 2048},
+                    "other": {"count": 3, "encodedBodyBytes": 2048},
+                },
+            })
+    return records
+
+
+performance_evidence = valid_performance_evidence()
+assert len(performance_evidence) == len(browser_smoke.PAGES) * len(browser_smoke.VIEWPORTS)
+delivery_evidence_contract = {
+    "measurementClass": "packaged-chromium-laboratory-diagnostic",
+    "fieldDataAvailable": False,
+    "candidateBytesAreTransferMeasurements": False,
+    "candidateSavingsVersusJpegFallbackInferred": False,
+}
+assert delivery_evidence_contract["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
+assert delivery_evidence_contract["fieldDataAvailable"] is False
+assert delivery_evidence_contract["candidateBytesAreTransferMeasurements"] is False
+assert delivery_evidence_contract["candidateSavingsVersusJpegFallbackInferred"] is False
+assert set(delivery_evidence_contract) == {
+    "measurementClass",
+    "fieldDataAvailable",
+    "candidateBytesAreTransferMeasurements",
+    "candidateSavingsVersusJpegFallbackInferred",
+}
+
+
 incomplete_report = browser_smoke.build_report(
     "staging-read-only",
     valid,
@@ -254,14 +372,15 @@ incomplete_report = browser_smoke.build_report(
     "Chromium test version",
     [],
 )
-assert incomplete_report["schemaVersion"] == 5
+assert incomplete_report["schemaVersion"] == 10
 assert incomplete_report["automatedResult"] == "FAIL"
-assert incomplete_report["automatedFailureCount"] == 5
+assert incomplete_report["automatedFailureCount"] == 6
 assert incomplete_report["evidenceCoverage"] == {
     "pageNavigationComplete": False,
     "pageHttp200Complete": False,
     "responsiveViewportsComplete": False,
     "unknownRouteRecoveryComplete": False,
+    "routePerformanceBaselineComplete": False,
     "complete": False,
 }
 assert incomplete_report["unknownRouteEvidence"]["complete"] is False
@@ -288,6 +407,7 @@ report = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=complete_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert report["automatedResult"] == "PASS"
 assert report["automatedFailureCount"] == 0
@@ -296,9 +416,17 @@ assert report["evidenceCoverage"] == {
     "pageHttp200Complete": True,
     "responsiveViewportsComplete": True,
     "unknownRouteRecoveryComplete": True,
+    "routePerformanceBaselineComplete": True,
     "complete": True,
 }
 assert report["unknownRouteEvidence"]["complete"] is True
+assert report["performanceBaseline"]["complete"] is True
+assert report["performanceBaseline"]["expectedSampleCount"] == 24
+assert report["performanceBaseline"]["capturedSampleCount"] == 24
+assert report["performanceBaseline"]["fieldDataAvailable"] is False
+assert report["performanceBaseline"]["thresholdsEnforced"] is False
+assert report["performanceBaseline"]["dataClass"] == "laboratory-diagnostic-not-field-core-web-vitals"
+assert len(report["performanceBaseline"]["samples"]) == 24
 assert report["visualEvidence"]["complete"] is True
 assert report["visualEvidence"]["required"] is True
 assert report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
@@ -324,10 +452,106 @@ partial_report = browser_smoke.build_report(
     list(browser_smoke.PAGES[:-1]),
     list(browser_smoke.PAGES[:-1]),
     [360, 768],
+    performance_evidence=performance_evidence,
 )
 assert partial_report["automatedResult"] == "FAIL"
 assert partial_report["evidenceCoverage"]["complete"] is False
 assert partial_report["automatedFailureCount"] == 5
+
+missing_performance_evidence = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence[:-1],
+)
+assert missing_performance_evidence["automatedResult"] == "FAIL"
+assert missing_performance_evidence["automatedFailureCount"] == 1
+assert missing_performance_evidence["performanceBaseline"]["complete"] is False
+assert missing_performance_evidence["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+assert missing_performance_evidence["evidenceCoverage"]["complete"] is False
+
+missing_layout_diagnostics = [dict(record) for record in performance_evidence]
+missing_layout_diagnostics[0].pop("layoutShiftSources")
+invalid_layout_diagnostics = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_layout_diagnostics,
+)
+assert invalid_layout_diagnostics["automatedResult"] == "FAIL"
+assert invalid_layout_diagnostics["performanceBaseline"]["complete"] is False
+assert invalid_layout_diagnostics["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+
+missing_font_layout_snapshots = [dict(record) for record in performance_evidence]
+missing_font_layout_snapshots[0]["fontReadiness"] = dict(missing_font_layout_snapshots[0]["fontReadiness"])
+missing_font_layout_snapshots[0]["fontReadiness"].pop("layoutSnapshots")
+invalid_font_layout_snapshots = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_font_layout_snapshots,
+)
+assert invalid_font_layout_snapshots["automatedResult"] == "FAIL"
+assert invalid_font_layout_snapshots["performanceBaseline"]["complete"] is False
+assert invalid_font_layout_snapshots["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+
+missing_layout_context = [dict(record) for record in performance_evidence]
+shift_record_index = next(index for index, record in enumerate(missing_layout_context) if record["layoutShiftEntries"] > 0)
+missing_layout_context[shift_record_index] = dict(missing_layout_context[shift_record_index])
+missing_layout_context[shift_record_index]["layoutShiftSources"] = [
+    dict(shift) for shift in missing_layout_context[shift_record_index]["layoutShiftSources"]
+]
+missing_layout_context[shift_record_index]["layoutShiftSources"][0].pop("context")
+invalid_layout_context = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_layout_context,
+)
+assert invalid_layout_context["automatedResult"] == "FAIL"
+assert invalid_layout_context["performanceBaseline"]["complete"] is False
+assert invalid_layout_context["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
+
+missing_font_text_ranges = [dict(record) for record in performance_evidence]
+missing_font_text_ranges[0]["fontReadiness"] = dict(missing_font_text_ranges[0]["fontReadiness"])
+missing_font_text_ranges[0]["fontReadiness"]["layoutSnapshots"] = [
+    dict(snapshot) for snapshot in missing_font_text_ranges[0]["fontReadiness"]["layoutSnapshots"]
+]
+missing_font_text_ranges[0]["fontReadiness"]["layoutSnapshots"][0].pop("textRanges")
+invalid_font_text_ranges = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=complete_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=missing_font_text_ranges,
+)
+assert invalid_font_text_ranges["automatedResult"] == "FAIL"
+assert invalid_font_text_ranges["performanceBaseline"]["complete"] is False
+assert invalid_font_text_ranges["evidenceCoverage"]["routePerformanceBaselineComplete"] is False
 
 missing_visual_evidence = browser_smoke.build_report(
     "staging-read-only",
@@ -338,6 +562,7 @@ missing_visual_evidence = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=[],
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert missing_visual_evidence["automatedResult"] == "FAIL"
 assert missing_visual_evidence["visualEvidence"]["required"] is True
@@ -357,6 +582,7 @@ invalid_visual_evidence = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=malformed_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert invalid_visual_evidence["automatedResult"] == "FAIL"
 assert invalid_visual_evidence["automatedFailureCount"] == 1
@@ -387,6 +613,7 @@ blocked_report = browser_smoke.build_report(
     *complete_evidence, blocked_navigation_attempts=blocked_navigation,
     screenshot_evidence=complete_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert blocked_report["crossOriginNavigationAttemptsBlocked"] == [
     "Blocked cross-origin navigation request: https://hotelgarhjaisal.com/"
@@ -399,6 +626,7 @@ failed_report = browser_smoke.build_report(
     *complete_evidence,
     screenshot_evidence=complete_screenshots,
     unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
 )
 assert failed_report["automatedResult"] == "FAIL"
 assert failed_report["automatedFailureCount"] == 1
@@ -539,6 +767,266 @@ except RuntimeError as error:
     assert "exceeds" in str(error) and "budget" in str(error)
 else:
     raise AssertionError("Package-size regression must fail when the payload crosses its budget")
+
+
+# M15: the packaged Chromium report is a complete, durable laboratory record,
+# not field data or an inferred saving against the JPEG fallback.
+fixture_picture_counts = {route: 1 for route in browser_smoke.PAGES}
+fixture_observations = []
+for route in browser_smoke.PAGES:
+    for viewport_width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS:
+        for dpr in (1, 2):
+            fixture_observations.append({
+                "route": route,
+                "pictureIndex": 0,
+                "viewportWidthCssPixels": viewport_width,
+                "deviceScaleFactor": dpr,
+                "selectedWebpPath": "assets/images/responsive/rooms/fixture-640.webp",
+                "selectedWidth": 640,
+                "requiredPixelWidth": 600.0,
+                "selectionPixelRatio": round(640 / 600, 3),
+                "encodedBodyBytes": 24576,
+                "transferBytes": 24880,
+                "decodedBodyBytes": 92160,
+                "httpStatus": 200,
+                "requestCount": 1,
+            })
+
+fixture_page_resource_evidence = []
+for route in browser_smoke.PAGES:
+    for viewport_width, viewport_height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS:
+        for dpr in (1, 2):
+            hero_resource = {
+                "path": "/assets/images/responsive/rooms/fixture-640.webp",
+                "initiatorType": "img",
+                "encodedBodyBytes": 24576,
+                "transferBytes": 24880,
+                "decodedBodyBytes": 92160,
+                "durationMs": 18.2,
+            }
+            supporting_resource = {
+                "path": "/assets/images/responsive/rooms/fixture-support-640.webp",
+                "initiatorType": "img",
+                "encodedBodyBytes": 8192,
+                "transferBytes": 8496,
+                "decodedBodyBytes": 32768,
+                "durationMs": 10.4,
+            }
+            stylesheet_resource = {
+                "path": "/assets/site.css",
+                "initiatorType": "link",
+                "encodedBodyBytes": 1024,
+                "transferBytes": 1324,
+                "decodedBodyBytes": 4096,
+                "durationMs": 12.5,
+            }
+            fixture_page_resource_evidence.append({
+                "route": route,
+                "viewportWidthCssPixels": viewport_width,
+                "deviceScaleFactor": dpr,
+                "resources": [stylesheet_resource, hero_resource, supporting_resource],
+                "firstView": {
+                    "capturePhase": "after-load-before-test-only-image-activation",
+                    "viewportHeightCssPixels": viewport_height,
+                    "resourceCount": 2,
+                    "encodedBodyBytes": 1024 + 24576,
+                    "transferBytes": 1324 + 24880,
+                    "decodedBodyBytes": 4096 + 92160,
+                    "resources": [stylesheet_resource, hero_resource],
+                    "imageCount": 2,
+                    "visibleImageCount": 2,
+                    "inViewportImageCount": 1,
+                    "requestedImageCount": 1,
+                    "requestedOutsideViewportCount": 0,
+                    "images": [
+                        {
+                            "index": 0,
+                            "srcPath": "/assets/images/responsive/rooms/fixture-640.webp",
+                            "currentSrcPath": "/assets/images/responsive/rooms/fixture-640.webp",
+                            "loading": "eager",
+                            "fetchpriority": "high",
+                            "visible": True,
+                            "intersectsViewport": True,
+                            "requestedBeforeAuditActivation": True,
+                            "complete": True,
+                            "naturalWidth": 640,
+                            "naturalHeight": 480,
+                            "hasAlt": True,
+                        },
+                        {
+                            "index": 1,
+                            "srcPath": "/assets/images/responsive/rooms/fixture-support-640.webp",
+                            "currentSrcPath": "/assets/images/responsive/rooms/fixture-support-640.webp",
+                            "loading": "lazy",
+                            "fetchpriority": "low",
+                            "visible": True,
+                            "intersectsViewport": False,
+                            "requestedBeforeAuditActivation": False,
+                            "complete": False,
+                            "naturalWidth": 0,
+                            "naturalHeight": 0,
+                            "hasAlt": True,
+                        },
+                    ],
+                },
+            })
+
+responsive_evidence = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=fixture_page_resource_evidence,
+)
+assert responsive_evidence["automatedResult"] == "PASS"
+assert responsive_evidence["coverage"] == {
+    "expectedObservationCount": 96,
+    "capturedObservationCount": 96,
+    "decodedPictureCount": 96,
+    "uniqueObservationCount": 96,
+    "complete": True,
+}
+assert responsive_evidence["summary"]["encodedBodyBytesObserved"] == 96 * 24576
+assert responsive_evidence["summary"]["transferBytesObserved"] == 96 * 24880
+assert responsive_evidence["summary"]["decodedBodyBytesObserved"] == 96 * 92160
+assert responsive_evidence["summary"]["maximumSelectedToRequiredPixelRatio"] == 1.067
+assert responsive_evidence["pageResourceEvidence"]["expectedContextCount"] == 96
+assert responsive_evidence["pageResourceEvidence"]["capturedContextCount"] == 96
+assert responsive_evidence["pageResourceEvidence"]["uniqueContextCount"] == 96
+assert responsive_evidence["pageResourceEvidence"]["complete"] is True
+assert responsive_evidence["pageResourceEvidence"]["allResponsivePicturesActivatedForAudit"] is True
+assert responsive_evidence["pageResourceEvidence"]["initialNavigationPayloadClaimed"] is False
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["resourceCount"] == 3
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["images"]["encodedBodyBytes"] == 24576 + 8192
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["stylesheets"]["encodedBodyBytes"] == 1024
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["resourceCount"] == 2
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["imageCount"] == 2
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["inViewportImageCount"] == 1
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["requestedImageCount"] == 1
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
+assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
+assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1
+assert responsive_evidence["pageResourceEvidence"]["measurementClass"] == "packaged-route-resource-timing-first-view-and-after-image-activation"
+assert responsive_evidence["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
+assert responsive_evidence["fieldDataAvailable"] is False
+assert responsive_evidence["candidateBytesAreTransferMeasurements"] is False
+assert responsive_evidence["candidateSavingsVersusJpegFallbackInferred"] is False
+browser_smoke.validate_responsive_image_evidence_report(responsive_evidence)
+
+with tempfile.TemporaryDirectory(prefix="garh-responsive-evidence-") as temporary_directory:
+    evidence_path = Path(temporary_directory) / "responsive-image-evidence.json"
+    written_evidence = browser_smoke.write_responsive_image_evidence_report(
+        str(evidence_path), responsive_evidence
+    )
+    round_trip_evidence = json.loads(written_evidence.read_text(encoding="utf-8"))
+    assert round_trip_evidence["coverage"]["complete"] is True
+    assert len(round_trip_evidence["observations"]) == 96
+    assert len(round_trip_evidence["pageResourceEvidence"]["observations"]) == 96
+    assert round_trip_evidence["browser"]["name"] == "Chromium"
+
+mislabelled_evidence = dict(responsive_evidence)
+mislabelled_evidence["fieldDataAvailable"] = True
+try:
+    browser_smoke.validate_responsive_image_evidence_report(mislabelled_evidence)
+except ValueError as error:
+    assert "distinguish laboratory observations" in str(error)
+else:
+    raise AssertionError("Responsive-image evidence must reject false field-data claims")
+
+incomplete_page_resources = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=fixture_page_resource_evidence[:-1],
+)
+assert incomplete_page_resources["automatedResult"] == "FAIL"
+assert incomplete_page_resources["pageResourceEvidence"]["complete"] is False
+assert incomplete_page_resources["pageResourceEvidence"]["capturedContextCount"] == 95
+
+unsafe_page_resources = [dict(item) for item in fixture_page_resource_evidence]
+unsafe_page_resources[0] = dict(unsafe_page_resources[0])
+unsafe_page_resources[0]["resources"] = [dict(item) for item in unsafe_page_resources[0]["resources"]]
+unsafe_page_resources[0]["resources"][0]["path"] = "/assets/site.css?private=must-not-be-retained"
+unsafe_resource_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=unsafe_page_resources,
+)
+assert unsafe_resource_report["automatedResult"] == "FAIL"
+assert unsafe_resource_report["pageResourceEvidence"]["complete"] is False
+assert any("unsafe same-origin resource evidence" in failure for failure in unsafe_resource_report["automatedFailures"])
+
+missing_first_view = [dict(item) for item in fixture_page_resource_evidence]
+missing_first_view[0] = dict(missing_first_view[0])
+missing_first_view[0].pop("firstView")
+missing_first_view_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=missing_first_view,
+)
+assert missing_first_view_report["automatedResult"] == "FAIL"
+assert missing_first_view_report["pageResourceEvidence"]["complete"] is False
+assert any("first-view snapshot is missing" in failure for failure in missing_first_view_report["automatedFailures"])
+
+unsafe_first_view = [dict(item) for item in fixture_page_resource_evidence]
+unsafe_first_view[0] = dict(unsafe_first_view[0])
+unsafe_first_view[0]["firstView"] = dict(unsafe_first_view[0]["firstView"])
+unsafe_first_view[0]["firstView"]["resources"] = [
+    dict(resource) for resource in unsafe_first_view[0]["firstView"]["resources"]
+]
+unsafe_first_view[0]["firstView"]["resources"][0]["path"] = "/assets/site.css?private=must-not-be-retained"
+unsafe_first_view_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=unsafe_first_view,
+)
+assert unsafe_first_view_report["automatedResult"] == "FAIL"
+assert unsafe_first_view_report["pageResourceEvidence"]["complete"] is False
+assert any("unsafe same-origin resource evidence" in failure for failure in unsafe_first_view_report["automatedFailures"])
+
+invalid_priority_first_view = [dict(item) for item in fixture_page_resource_evidence]
+invalid_priority_first_view[0] = dict(invalid_priority_first_view[0])
+invalid_priority_first_view[0]["firstView"] = dict(invalid_priority_first_view[0]["firstView"])
+invalid_priority_first_view[0]["firstView"]["images"] = [
+    dict(image) for image in invalid_priority_first_view[0]["firstView"]["images"]
+]
+invalid_priority_first_view[0]["firstView"]["images"][1]["fetchpriority"] = "urgent"
+invalid_priority_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_priority_first_view,
+)
+assert invalid_priority_report["automatedResult"] == "FAIL"
+assert invalid_priority_report["pageResourceEvidence"]["complete"] is False
+assert any("loading-priority/visibility" in failure for failure in invalid_priority_report["automatedFailures"])
+
+incomplete_evidence = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations[:-1],
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=fixture_page_resource_evidence,
+)
+assert incomplete_evidence["automatedResult"] == "FAIL"
+assert incomplete_evidence["coverage"]["complete"] is False
+assert incomplete_evidence["coverage"]["capturedObservationCount"] == 95
+
 
 print(
     "PASS: staging preflight refuses HTTP, credentials, path/query/fragment, local/IP and configured "

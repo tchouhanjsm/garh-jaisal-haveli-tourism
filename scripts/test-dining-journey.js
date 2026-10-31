@@ -89,7 +89,7 @@ assert.match(html, /Nothing is stored on this website/i, 'No backend persistence
 assert.ok(html.includes('href="https://maps.app.goo.gl/28gGJ6tX8xoanQ9D8"'), 'Restaurant map destination is retained');
 assert.ok(html.includes('https://www.instagram.com/garhjaisal/'), 'Owner-provided restaurant Instagram link is retained');
 assert.ok(html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"'), 'The rooftop table image remains locally hosted');
-assert.ok(html.includes('src="assets/images/gallery/hotel/fort-from-roof.webp"'), 'The separate fort view remains locally hosted');
+assert.ok(html.includes('src="assets/images/gallery/hotel/fort-from-roof.jpg"'), 'The separate fort view retains its source-backed JPEG fallback');
 assert.ok(html.includes('href="directions.html"'), 'The main Directions journey remains linked');
 assert.ok(html.includes('assets/css/dining-tabs.css') && html.includes('assets/dining-tabs.js'),
   'Dining loads the tab/form assets');

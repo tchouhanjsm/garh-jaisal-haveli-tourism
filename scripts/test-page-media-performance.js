@@ -13,8 +13,11 @@ const PAGES = routeContract.routes.map(route => route.file);
 const HERO_BUDGETS = new Map([
   ['index.html', 150 * KIB],
   ['rooms.html', 550 * KIB],
-  ['dining.html', 150 * KIB],
-  ['about.html', 450 * KIB],
+  ['dining.html', 100 * KIB],
+  ['about.html', 750 * KIB],
+  ['experiences.html', 200 * KIB],
+  ['experience-details.html', 100 * KIB],
+  ['gallery.html', 900 * KIB],
   ['directions.html', 650 * KIB],
 ]);
 const PATH_BUDGETS = new Map([
@@ -30,12 +33,25 @@ const PATH_BUDGETS = new Map([
   ['assets/images/rooms/green.jpg', 150 * KIB],
   ['assets/images/rooms/bluesky.jpg', 150 * KIB],
   ['assets/images/dining/rooftop-candlelit-table.jpg', 100 * KIB],
-  ['assets/images/directions/haveli-facade.webp', 600 * KIB],
+  ['assets/images/directions/haveli-facade.jpg', 900 * KIB],
+  ['assets/images/directions/haveli-facade.webp', 400_000],
+  ['assets/images/responsive/directions/haveli-facade-320.webp', 50 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-480.webp', 90 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-768.webp', 200 * KIB],
+  ['assets/images/responsive/directions/haveli-facade-1200.webp', 250_000],
+  ['assets/images/gallery/hotel/fort-from-roof.jpg', 750 * KIB],
   ['assets/images/gallery/hotel/fort-from-roof.webp', 400 * KIB],
+  ['assets/images/responsive/gallery/hotel/fort-from-roof-320.webp', 20_000],
+  ['assets/images/responsive/gallery/hotel/fort-from-roof-480.webp', 35_000],
+  ['assets/images/responsive/gallery/hotel/fort-from-roof-768.webp', 80_000],
+  ['assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp', 170_000],
+  ['assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp', 250_000],
   ['assets/images/gallery/desert/camp-evening.jpeg', 150 * KIB],
   ['assets/images/gallery/desert/camp-from-above.jpeg', 100 * KIB],
   ['assets/images/legacy/camel-sunset.jpg', 400 * KIB],
   ['assets/images/legacy/camel-day.jpg', 350 * KIB],
+  ['assets/images/legacy/camel-day.webp', 210_000],
+  ['assets/images/responsive/legacy/camel-day-1200.webp', 170_000],
   ['assets/images/experiences/cultural-programme.jpg', 300 * KIB],
   ['assets/images/experiences/open-air-sleeping-setup.jpeg', 150 * KIB],
   ['assets/images/experiences/sleep-under-stars-dusk-camp.jpeg', 150 * KIB],
@@ -45,10 +61,27 @@ const PATH_BUDGETS = new Map([
   ['assets/images/experiences/swiss-tent-exterior.webp', 200 * KIB],
   ['assets/images/experiences/swiss-tent-detail.jpeg', 250 * KIB],
   ['assets/images/legacy/fort-temple-spires.jpg', 500 * KIB],
+  ['assets/images/legacy/fort-temple-spires.webp', 120_000],
+  ['assets/images/responsive/legacy/fort-temple-spires-1200.webp', 100_000],
   ['assets/images/experiences/heritage-architecture.jpg', 300 * KIB],
   ['assets/images/legacy/rooftop-candlelight.webp', 100 * KIB],
   ['assets/images/courtyard.jpg', 650 * KIB],
+  ['assets/images/courtyard.webp', 450_000],
+  ['assets/images/responsive/courtyard-1200.webp', 250_000],
+  ['assets/images/responsive/courtyard-1600.webp', 250_000],
 ]);
+// The source-tree gate runs before the isolated staging package is generated. Its
+// committed WebP files may therefore be pre-optimization inputs. Keep a general
+// source-file ceiling here; the package pass (ROOT !== CONTRACT_ROOT) enforces
+// the strict derivative budgets against the newly generated, packaged bytes.
+const IS_PACKAGED_OUTPUT = ROOT !== CONTRACT_ROOT;
+const PACKAGE_GENERATED_DERIVATIVE_PATHS = new Set(
+  [...PATH_BUDGETS.keys()].filter(assetPath => assetPath.includes('/responsive/')
+    || assetPath === 'assets/images/courtyard.webp'
+    || assetPath === 'assets/images/directions/haveli-facade.webp'
+    || assetPath === 'assets/images/legacy/camel-day.webp'
+    || assetPath === 'assets/images/legacy/fort-temple-spires.webp')
+);
 const errors = [];
 const referencedAssets = new Set();
 let imageCount = 0;
@@ -81,7 +114,11 @@ function inspectAsset(reference, page, role, heroBudget = null) {
     return;
   }
   const bytes = fs.statSync(absolute).size;
-  const roleBudget = PATH_BUDGETS.get(relative) || DEFAULT_MAX_BYTES;
+  const configuredBudget = PATH_BUDGETS.get(relative) || DEFAULT_MAX_BYTES;
+  const sourceTreeBudget = PACKAGE_GENERATED_DERIVATIVE_PATHS.has(relative)
+    ? DEFAULT_MAX_BYTES
+    : configuredBudget;
+  const roleBudget = IS_PACKAGED_OUTPUT ? configuredBudget : sourceTreeBudget;
   const budget = heroBudget === null ? roleBudget : Math.min(roleBudget, heroBudget);
   if (bytes <= 0 || bytes > budget) fail(page + ': ' + role + ' is ' + bytes + ' bytes; budget is ' + budget + ': ' + relative);
   referencedAssets.add(relative);

@@ -31,18 +31,26 @@ assert.equal((siteCss.match(/:root\s*\{/g) || []).length, 1,
 assert.doesNotMatch(css, /:root\s*\{/,
   'the premium layer must consume canonical design tokens, not redefine the palette');
 assert.match(siteCss, /--ink:\s*#1a2821/i, 'the canonical ink token must match the approved premium palette');
-assert.match(siteCss, /--paper:\s*#faf8f3/i, 'the canonical paper token must match the approved premium palette');
-assert.match(siteCss, /--gold-dark:\s*#8c673a/i, 'the canonical accessible gold-ink token must be explicit');
+assert.match(siteCss, /--paper:\s*#f7f3ea/i, 'the canonical paper token must match the approved premium palette');
+assert.match(siteCss, /--gold-dark:\s*#765735/i, 'the canonical accessible gold-ink token must be explicit');
+assert.match(siteCss, /--saffron:\s*#b94a0e/i, 'primary actions must use the high-contrast saffron token');
+assert.match(siteCss, /--peacock:\s*#1d7472/i, 'functional focus states must use the peacock token');
+assert.match(css, /\.button--gold\s*\{[\s\S]*?background:\s*var\(--saffron\)/,
+  'primary booking and enquiry actions must use the saffron action colour');
+assert.match(css, /#plan-stay\.home-plan-panel\s*\{[\s\S]*?background:[\s\S]*?#17251e/i,
+  'homepage planning must be a continuous dark editorial panel, not a white bordered card');
+assert.match(css, /\.guest-journey\s*\{[\s\S]*?width:\s*100%[\s\S]*?border:\s*0[\s\S]*?background:/,
+  'inner-route decision journey must be a full-bleed band, not a floating bordered card');
 assert.match(siteCss, /--container:\s*1280px/i, 'the canonical content rail must be 1280px');
 assert.match(siteCss, /--premium-ease:\s*cubic-bezier\(/, 'shared motion easing must be centralized');
 assert.match(siteCss, /--premium-shadow:\s*0 18px 52px/, 'shared premium shadow must be centralized');
 assert.match(siteCss, /--button-height:\s*52px/, 'primary control height must use a shared token');
-assert.match(siteCss, /--control-radius:\s*2px/, 'control geometry must use a shared radius token');
+assert.match(siteCss, /--control-radius:\s*6px/, 'control geometry must use a shared radius token');
 assert.match(siteCss, /--focus-ring:\s*3px solid/, 'keyboard focus ring must be centralized');
 assert.ok(siteCss.includes('--type-meta: 11px'), 'canonical CSS must own a compact metadata role');
 assert.ok(siteCss.includes('--type-label: 12px'), 'canonical CSS must own an interactive label role');
-assert.ok(siteCss.includes('--type-support: 13px'), 'canonical CSS must own a readable support-copy role');
-assert.ok(siteCss.includes('--type-body: 15px'), 'canonical CSS must retain a 15px body baseline');
+assert.ok(siteCss.includes('--type-support: 14px'), 'canonical CSS must own a readable support-copy role');
+assert.ok(siteCss.includes('--type-body: 16px'), 'canonical CSS must retain a 16px body baseline');
 assert.ok(css.includes('.guest-journey__copy small') && css.includes('font-size: var(--type-label)'),
   'guest-journey descriptions must use the shared readable label role');
 assert.ok(css.includes('.experience-card p') && css.includes('font-size: var(--type-support)'),
@@ -61,8 +69,8 @@ assert.ok(css.includes('.experience-detail-actions .text-link') && css.includes(
 
 assert.match(css, /\.wrap\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
   'premium content wrapper must consume the shared canonical container width');
-assert.match(css, /\.guest-journey\s*\{[\s\S]*?width:\s*min\(var\(--container\)/,
-  'guest-journey rail must align to the same canonical container width');
+assert.match(css, /\.guest-journey\s*\{[\s\S]*?width:\s*100%/,
+  'guest-journey rail must be a full-bleed editorial band rather than a floating card');
 assert.match(css, /\.button\s*\{[\s\S]*?min-height:\s*var\(--button-height\)[\s\S]*?border-radius:\s*var\(--control-radius\)/,
   'shared buttons must consume the canonical interaction geometry tokens');
 assert.match(css, /\.guest-journey__steps\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
@@ -109,8 +117,89 @@ assert.match(stayPlannerJs, /whatsappButton\.addEventListener\('click'/,
 assert.match(stayPlannerCss, /\.stay-planner__quick-links a:focus-visible/,
   'quick decision links must have a visible keyboard focus state');
 
+function tokenHex(name) {
+  const tokenLine = siteCss.split(/\r?\n/).find(line => line.trim().startsWith('--' + name + ':'));
+  const match = tokenLine && tokenLine.match(/#[0-9a-f]{6}/i);
+  assert.ok(match, 'expected canonical colour token --' + name);
+  return match[0];
+}
+function relativeLuminance(hex) {
+  const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+function contrastRatio(foreground, background) {
+  const first = relativeLuminance(foreground);
+  const second = relativeLuminance(background);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+for (const [label, foreground, background] of [
+  ['primary saffron action', tokenHex('saffron'), tokenHex('white')],
+  ['deep brass text', tokenHex('gold-dark'), tokenHex('paper')],
+  ['fort-green body contrast', tokenHex('ink'), tokenHex('paper')],
+  ['peacock focus state', tokenHex('peacock'), tokenHex('white')],
+]) {
+  const ratio = contrastRatio(foreground, background);
+  assert.ok(ratio >= 4.5, label + ' must meet WCAG AA normal-text contrast; observed ' + ratio.toFixed(2));
+}
+
+const roomsHtml = fs.readFileSync(path.join(ROOT, 'rooms.html'), 'utf8');
+assert.match(roomsHtml, /class="page-hero page-hero--rooms"/,
+  'Rooms hero must expose a route-specific class for responsive line-box reservation');
+assert.match(roomsHtml, /<link rel="preconnect" href="https:\/\/fonts\.googleapis\.com">/,
+  'Rooms must warm the Google Fonts stylesheet connection before the font CSS is discovered');
+assert.match(roomsHtml, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
+  'Rooms must warm the cross-origin font-file connection');
+assert.match(roomsHtml, /fonts\.googleapis\.com\/css2\?[^"]*display=optional/,
+  'Rooms must avoid a late font swap that moves hero text after first paint');
+assert.match(css, /\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*2\.1em/s,
+  'Rooms desktop hero must reserve its two-line headline footprint');
+assert.match(css, /@media \(max-width: 760px\)\s*\{[\s\S]*?\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*4\.2em/s,
+  'Rooms phone hero must reserve four headline lines before font settlement');
+assert.match(css, /@media \(max-width: 360px\)\s*\{[\s\S]*?\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*5\.2em/s,
+  'Very narrow Rooms layouts must reserve the fifth headline line');
+
+const photoHeroContracts = {
+  'experiences.html': ['assets/images/experiences/half-day-jaisalmer-tour.jpg', 'Ornately carved sandstone havelis overlooking the historic lanes of Jaisalmer'],
+  'experience-details.html': ['assets/images/gallery/desert/camp-from-above.jpeg', 'Desert camp viewed from above at night, with illuminated tent clusters and the central camp area'],
+  'gallery.html': ['assets/images/directions/haveli-facade.jpg', 'Carved sandstone facade of Hotel Garh Jaisal, with the hotel name visible beside the entrance'],
+  'dining.html': ['assets/images/dining/rooftop-candlelit-table.jpg', 'Candlelit rooftop table with patterned cushions and the illuminated Jaisalmer skyline beyond'],
+};
+for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) {
+  const html = fs.readFileSync(path.join(ROOT, route), 'utf8');
+  assert.match(html, /page-hero[^"]*page-hero--photo/,
+    route + ': the first-view hero must be photographic rather than a gradient placeholder');
+  assert.doesNotMatch(html, /page-hero--plain/,
+    route + ': do not regress to the plain gradient hero');
+  assert.ok(html.includes('src="' + imagePath + '"'), route + ': hero must use the reviewed source-backed image');
+  assert.ok(html.includes('alt="' + altText + '"'), route + ': hero alt text must describe the reviewed image');
+  assert.match(html, /fetchpriority="high"/, route + ': hero image must be high priority');
+  assert.match(html, /loading="eager"/, route + ': hero image must be eager');
+  assert.match(html, /rel="preload" as="image"[^>]*fetchpriority="high"/,
+    route + ': hero image must be preloaded');
+}
+
+const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
+assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture">'),
+  'gallery.html: the source-backed hero must use the shared page-hero picture wrapper');
+assert.ok(galleryHeroHtml.includes('<source type="image/webp" srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'),
+  'gallery.html: source HTML must retain only the verified full-size WebP; packaging generates the responsive candidates');
+assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade.webp"'),
+  'gallery.html: hero preload must retain the original source-backed WebP');
+assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
+  'gallery.html: generated preload candidates must not reference files before the staging pipeline creates them');
+
 for (const route of ROUTES) {
   const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
+  const pageImages = [...html.matchAll(/<img\b[^>]*>/g)].map(match => match[0]);
+  assert.ok(pageImages.length > 0, route.file + ': each core route must expose its hero image');
+  assert.match(pageImages[0], /\bloading="eager"/, route.file + ': the first-view hero must load eagerly');
+  assert.match(pageImages[0], /\bfetchpriority="high"/, route.file + ': the first-view hero must retain high fetch priority');
+  for (const [imageIndex, image] of pageImages.entries()) {
+    if (imageIndex === 0) continue;
+    assert.match(image, /\bloading="lazy"/, route.file + ': non-hero images must remain lazy');
+    assert.match(image, /\bfetchpriority="low"/, route.file + ': non-hero images must not compete with the first-view hero');
+  }
   const dockMatches = [...html.matchAll(/<aside class="direct-enquiry-dock" data-direct-enquiry-dock[\s\S]*?<\/aside>/g)];
   assert.equal(dockMatches.length, 1, route.file + ': each core route must expose exactly one contextual enquiry dock');
   const dock = dockMatches[0] ? dockMatches[0][0] : '';

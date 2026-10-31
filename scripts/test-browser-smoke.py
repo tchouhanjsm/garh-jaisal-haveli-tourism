@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse, urlsplit
 from zoneinfo import ZoneInfo
 
@@ -43,6 +43,7 @@ RESPONSIVE_AUDIT_VIEWPORTS = [
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
 NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
+ROUTE_PERFORMANCE_EVIDENCE: list[dict] = []
 FAILURES: list[str] = []
 RUNTIME_ERRORS: list[str] = []
 HTTP_ERRORS: list[str] = []
@@ -270,7 +271,8 @@ def build_report(mode: str, base_url: str, operator: str | None,
                  completed_viewports: list[int] | None = None,
                  blocked_navigation_attempts: list[str] | None = None,
                  screenshot_evidence: list[dict] | None = None,
-                 unknown_route_evidence: dict | None = None) -> dict:
+                 unknown_route_evidence: dict | None = None,
+                 performance_evidence: list[dict] | None = None) -> dict:
     manual_checks = [
         ("STG-01", "Human desktop guest journey: Home, Rooms, Experiences, Dining and Directions"),
         ("STG-02", "Human mobile guest journey and tap-target review"),
@@ -350,6 +352,104 @@ def build_report(mode: str, base_url: str, operator: str | None,
             f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
         )
 
+    performance_records = list(performance_evidence or [])
+    expected_performance_samples = len(PAGES) * len(VIEWPORTS)
+    performance_keys = [
+        (record.get("route"), record.get("viewportWidthCssPixels"))
+        for record in performance_records
+    ]
+    expected_performance_keys = {
+        (page_name, width)
+        for page_name in PAGES
+        for width, _height in VIEWPORTS
+    }
+    performance_complete = (
+        len(performance_records) == expected_performance_samples
+        and len(set(performance_keys)) == expected_performance_samples
+        and set(performance_keys) == expected_performance_keys
+        and all(
+            isinstance(record.get("navigation"), dict)
+            and all(
+                isinstance(record["navigation"].get(key), (int, float))
+                and record["navigation"][key] >= 0
+                for key in ("responseStartMs", "domContentLoadedMs", "loadEventEndMs")
+            )
+            and record.get("observerSupport", {}).get("lcp") is True
+            and record.get("observerSupport", {}).get("layoutShift") is True
+            and isinstance(record.get("largestContentfulPaint"), dict)
+            and isinstance(record["largestContentfulPaint"].get("valueMs"), (int, float))
+            and record["largestContentfulPaint"]["valueMs"] > 0
+            and isinstance(record.get("cumulativeLayoutShift"), (int, float))
+            and record["cumulativeLayoutShift"] >= 0
+            and isinstance(record.get("layoutShiftSources"), list)
+            and len(record["layoutShiftSources"]) == record.get("layoutShiftEntries")
+            and all(
+                isinstance(shift, dict)
+                and isinstance(shift.get("value"), (int, float))
+                and shift["value"] >= 0
+                and isinstance(shift.get("hadRecentInput"), bool)
+                and shift["hadRecentInput"] is False
+                and isinstance(shift.get("context"), dict)
+                and isinstance(shift["context"].get("scrollY"), (int, float))
+                and isinstance(shift["context"].get("header"), dict)
+                and isinstance(shift["context"]["header"].get("rect"), dict)
+                and all(isinstance(shift["context"]["header"]["rect"].get(axis), (int, float))
+                        for axis in ("x", "y", "width", "height"))
+                and isinstance(shift["context"].get("hero"), dict)
+                and all(isinstance(shift["context"]["hero"].get(axis), (int, float))
+                        for axis in ("x", "y", "width", "height"))
+                and isinstance(shift["context"].get("viewport"), dict)
+                and all(isinstance(shift["context"]["viewport"].get(axis), (int, float))
+                        for axis in ("width", "height"))
+                and isinstance(shift.get("sources"), list)
+                and len(shift["sources"]) <= 4
+                and all(
+                    isinstance(source, dict)
+                    and (source.get("element") is None or isinstance(source.get("element"), dict))
+                    and isinstance(source.get("previousRect"), dict)
+                    and isinstance(source.get("currentRect"), dict)
+                    for source in shift["sources"]
+                )
+                for shift in record["layoutShiftSources"]
+            )
+            and isinstance(record.get("fontReadiness"), dict)
+            and record["fontReadiness"].get("status") in ("loaded", "loading")
+            and isinstance(record["fontReadiness"].get("readyWithinCaptureWindow"), bool)
+            and isinstance(record["fontReadiness"].get("families"), dict)
+            and isinstance(record["fontReadiness"]["families"].get("playfairDisplay"), bool)
+            and isinstance(record["fontReadiness"]["families"].get("dmSans"), bool)
+            and isinstance(record["fontReadiness"].get("layoutSnapshots"), list)
+            and len(record["fontReadiness"]["layoutSnapshots"]) >= 2
+            and all(
+                isinstance(snapshot, dict)
+                and isinstance(snapshot.get("phase"), str)
+                and snapshot.get("fontStatus") in ("loaded", "loading")
+                and isinstance(snapshot.get("elements"), dict)
+                and all(
+                    isinstance(snapshot["elements"].get(element_name), dict)
+                    and all(isinstance(snapshot["elements"][element_name].get(axis), (int, float))
+                            for axis in ("x", "y", "width", "height"))
+                    for element_name in ("content", "heading")
+                )
+                and isinstance(snapshot.get("textRanges"), dict)
+                and isinstance(snapshot["textRanges"].get("heading"), dict)
+                and all(isinstance(snapshot["textRanges"]["heading"].get(axis), (int, float))
+                        for axis in ("x", "y", "width", "height"))
+                for snapshot in record["fontReadiness"]["layoutSnapshots"]
+            )
+            and isinstance(record.get("sameOriginResources"), dict)
+            and isinstance(record["sameOriginResources"].get("encodedBodyBytes"), int)
+            and record["sameOriginResources"]["encodedBodyBytes"] >= 0
+            for record in performance_records
+        )
+    )
+    if not performance_complete:
+        evidence_failures.append(
+            "Incomplete route performance baseline: expected one valid navigation/LCP/CLS/resource sample "
+            f"for each of {len(PAGES)} routes at {len(VIEWPORTS)} representative widths "
+            f"({len(performance_records)}/{expected_performance_samples} valid samples captured)."
+        )
+
     unknown_route_complete = unknown_route_evidence_is_complete(unknown_route_evidence)
     if not unknown_route_complete:
         evidence_failures.append(
@@ -365,10 +465,10 @@ def build_report(mode: str, base_url: str, operator: str | None,
     page_http_complete = http_ok_pages == planned_pages
     viewport_complete = completed_viewport_list == planned_viewports
     evidence_complete = (page_attempts_complete and page_http_complete and viewport_complete
-                         and screenshot_complete and unknown_route_complete)
+                         and screenshot_complete and unknown_route_complete and performance_complete)
 
     return {
-        "schemaVersion": 5,
+        "schemaVersion": 10,
         "mode": mode,
         "targetUrl": base_url,
         "recordedAtAsiaKolkata": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
@@ -384,6 +484,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "pageHttp200Complete": page_http_complete,
             "responsiveViewportsComplete": viewport_complete,
             "unknownRouteRecoveryComplete": unknown_route_complete,
+            "routePerformanceBaselineComplete": performance_complete,
             "complete": evidence_complete,
         },
         "automatedResult": "PASS" if not reported_failures else "FAIL",
@@ -395,6 +496,28 @@ def build_report(mode: str, base_url: str, operator: str | None,
             "recoveryLinks": [],
             "viewportChecks": [],
             "complete": False,
+        },
+        "performanceBaseline": {
+            "environment": "local-static-http-chromium" if mode == "local-browser-smoke" else "approved-staging-origin-read-only",
+            "dataClass": "laboratory-diagnostic-not-field-core-web-vitals",
+            "fieldDataAvailable": False,
+            "thresholdsEnforced": False,
+            "expectedSampleCount": expected_performance_samples,
+            "capturedSampleCount": len(performance_records),
+            "complete": performance_complete,
+            "metrics": [
+                "largestContentfulPaint",
+                "cumulativeLayoutShift",
+                "layoutShiftSourceAttribution",
+                "layoutShiftContext",
+                "fontReadinessDiagnostics",
+                "fontSettlementGeometry",
+                "fontTextGeometry",
+                "navigationTiming",
+                "sameOriginEncodedResourceBytes",
+                "longTasks"
+            ],
+            "samples": performance_records,
         },
         "visualEvidence": {
             "required": True,
@@ -434,6 +557,311 @@ def write_report(report_path: str, report: dict) -> Path:
 def check(condition: bool, message: str) -> None:
     if not condition:
         FAILURES.append(message)
+
+
+def install_performance_observers(context) -> None:
+    """Collect buffered LCP, CLS and long-task entries without changing page behavior."""
+    context.add_init_script(
+        """(() => {
+          const state = {
+            lcp: null,
+            cls: 0,
+            layoutShiftEntries: 0,
+            layoutShiftSources: [],
+            fontLayoutSnapshots: [],
+            longTaskCount: 0,
+            longTaskDurationMs: 0,
+            observerSupport: {lcp: false, layoutShift: false, longTask: false}
+          };
+          try {
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                const element = entry.element;
+                let urlPath = null;
+                if (entry.url) {
+                  try {
+                    const url = new URL(entry.url, location.href);
+                    urlPath = url.origin === location.origin ? url.pathname : "cross-origin-resource";
+                  } catch (_) {}
+                }
+                if (!state.lcp || entry.startTime >= state.lcp.valueMs) {
+                  state.lcp = {
+                    valueMs: Math.round(entry.startTime * 10) / 10,
+                    size: Number(entry.size) || 0,
+                    element: element ? {
+                      tagName: element.tagName || null,
+                      id: element.id || null,
+                      className: typeof element.className === "string"
+                        ? element.className
+                        : (element.className && element.className.baseVal) || null
+                    } : null,
+                    urlPath
+                  };
+                }
+              }
+            }).observe({type: "largest-contentful-paint", buffered: true});
+            state.observerSupport.lcp = true;
+          } catch (_) {}
+          try {
+            const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+            const describeNode = node => {
+              if (!node) return null;
+              const element = node.nodeType === 1 ? node : (node.parentElement || node.parentNode);
+              if (!element) return {tagName: null, id: null, className: null, sourceNodeType: node.nodeType || null};
+              const className = typeof element.className === "string"
+                ? element.className
+                : (element.className && element.className.baseVal) || "";
+              return {
+                tagName: element.tagName || null,
+                id: element.id ? String(element.id).slice(0, 120) : null,
+                className: className ? String(className).slice(0, 160) : null,
+                sourceNodeType: node.nodeType || null
+              };
+            };
+            const describeRect = rect => rect ? {
+              x: round(rect.x),
+              y: round(rect.y),
+              width: round(rect.width),
+              height: round(rect.height)
+            } : null;
+            const describeTextRange = element => {
+              if (!element) return null;
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              return describeRect(range.getBoundingClientRect());
+            };
+            const describeLayoutContext = () => {
+              const header = document.querySelector(".site-header");
+              const announcement = document.querySelector(".announcement");
+              const hero = document.querySelector(".page-hero, .hero");
+              return {
+                scrollY: round(window.scrollY),
+                header: {
+                  className: header ? String(header.className).slice(0, 120) : null,
+                  rect: describeRect(header && header.getBoundingClientRect())
+                },
+                announcement: describeRect(announcement && announcement.getBoundingClientRect()),
+                hero: describeRect(hero && hero.getBoundingClientRect()),
+                viewport: {width: round(window.innerWidth), height: round(window.innerHeight)}
+              };
+            };
+            const captureFontLayoutSnapshot = phase => {
+              if (state.fontLayoutSnapshots.length >= 4) return;
+              const hero = document.querySelector(".page-hero__content, .hero__content");
+              if (!hero) return;
+              const supportingCopy = Array.from(hero.children).find(node =>
+                node.tagName === "P" && !node.classList.contains("eyebrow")
+              );
+              state.fontLayoutSnapshots.push({
+                phase,
+                atMs: round(performance.now()),
+                fontStatus: document.fonts.status,
+                families: {
+                  playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
+                  dmSans: document.fonts.check('400 16px "DM Sans"')
+                },
+                scrollY: round(window.scrollY),
+                header: describeLayoutContext().header,
+                elements: {
+                  content: describeRect(hero.getBoundingClientRect()),
+                  heading: describeRect(hero.querySelector("h1")?.getBoundingClientRect()),
+                  supportingCopy: describeRect(supportingCopy?.getBoundingClientRect())
+                },
+                textRanges: {
+                  heading: describeTextRange(hero.querySelector("h1")),
+                  supportingCopy: describeTextRange(supportingCopy)
+                }
+              });
+            };
+            document.addEventListener("DOMContentLoaded", () => captureFontLayoutSnapshot("dom-content-loaded"), {once: true});
+            try {
+              document.fonts.addEventListener("loading", () => captureFontLayoutSnapshot("font-loading"));
+              document.fonts.addEventListener("loadingdone", () => captureFontLayoutSnapshot("font-loading-done"));
+              document.fonts.addEventListener("loadingerror", () => captureFontLayoutSnapshot("font-loading-error"));
+              document.fonts.ready.then(() => captureFontLayoutSnapshot("fonts-ready"));
+            } catch (_) {}
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                if (!entry.hadRecentInput) {
+                  state.cls += entry.value;
+                  state.layoutShiftEntries += 1;
+                  state.layoutShiftSources.push({
+                    value: round(entry.value),
+                    hadRecentInput: Boolean(entry.hadRecentInput),
+                    context: describeLayoutContext(),
+                    sources: Array.from(entry.sources || []).slice(0, 4).map(source => ({
+                      element: describeNode(source.node),
+                      previousRect: describeRect(source.previousRect),
+                      currentRect: describeRect(source.currentRect)
+                    }))
+                  });
+                }
+              }
+            }).observe({type: "layout-shift", buffered: true});
+            state.observerSupport.layoutShift = true;
+          } catch (_) {}
+          try {
+            new PerformanceObserver(list => {
+              for (const entry of list.getEntries()) {
+                state.longTaskCount += 1;
+                state.longTaskDurationMs += entry.duration;
+              }
+            }).observe({type: "longtask", buffered: true});
+            state.observerSupport.longTask = true;
+          } catch (_) {}
+          Object.defineProperty(window, "__gjhPerformance", {
+            configurable: false,
+            enumerable: false,
+            value: state
+          });
+        })();"""
+    )
+
+
+def capture_route_performance(page, page_name: str, width: int, height: int) -> None:
+    """Record a repeatable local-browser performance sample; this is not field CWV data."""
+    try:
+        page.wait_for_load_state("load", timeout=10000)
+        sample = page.evaluate(
+            r"""async () => {
+              const round = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+              const snapshotHeroLayout = phase => {
+                const hero = document.querySelector(".page-hero__content, .hero__content");
+                if (!hero) return null;
+                const rect = node => {
+                  if (!node) return null;
+                  const box = node.getBoundingClientRect();
+                  return {x: round(box.x), y: round(box.y), width: round(box.width), height: round(box.height)};
+                };
+                const supportingCopy = Array.from(hero.children).find(node =>
+                  node.tagName === "P" && !node.classList.contains("eyebrow")
+                );
+                const textRange = element => {
+                  if (!element) return null;
+                  const range = document.createRange();
+                  range.selectNodeContents(element);
+                  return rect(range);
+                };
+                return {
+                  phase,
+                  atMs: round(performance.now()),
+                  fontStatus: document.fonts.status,
+                  families: {
+                    playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
+                    dmSans: document.fonts.check('400 16px "DM Sans"')
+                  },
+                  scrollY: round(window.scrollY),
+                  header: {
+                    className: (document.querySelector(".site-header") || {}).className || null,
+                    rect: rect(document.querySelector(".site-header"))
+                  },
+                  announcement: rect(document.querySelector(".announcement")),
+                  heroSection: rect(document.querySelector(".page-hero, .hero")),
+                  elements: {
+                    content: rect(hero),
+                    heading: rect(hero.querySelector("h1")),
+                    supportingCopy: rect(supportingCopy)
+                  },
+                  textRanges: {
+                    heading: textRange(hero.querySelector("h1")),
+                    supportingCopy: textRange(supportingCopy)
+                  }
+                };
+              };
+              const sampleBeforeFontWait = snapshotHeroLayout("sample-before-font-wait");
+              let fontsReadyWithinCaptureWindow = false;
+              await Promise.race([
+                document.fonts.ready.then(() => { fontsReadyWithinCaptureWindow = true; }),
+                new Promise(resolve => setTimeout(resolve, 1500))
+              ]);
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const sampleAfterFontWait = snapshotHeroLayout("sample-after-font-wait");
+              const navigation = performance.getEntriesByType("navigation")[0];
+              const state = window.__gjhPerformance || {};
+              const resources = performance.getEntriesByType("resource").filter(entry => {
+                try { return new URL(entry.name).origin === location.origin; }
+                catch (_) { return false; }
+              });
+              const summary = {
+                count: resources.length,
+                encodedBodyBytes: 0,
+                transferBytesObserved: 0,
+                images: {count: 0, encodedBodyBytes: 0},
+                stylesheets: {count: 0, encodedBodyBytes: 0},
+                scripts: {count: 0, encodedBodyBytes: 0},
+                fonts: {count: 0, encodedBodyBytes: 0},
+                other: {count: 0, encodedBodyBytes: 0}
+              };
+              for (const entry of resources) {
+                const bytes = Math.max(0, Number(entry.encodedBodySize) || 0);
+                const transfer = Math.max(0, Number(entry.transferSize) || 0);
+                summary.encodedBodyBytes += bytes;
+                summary.transferBytesObserved += transfer;
+                const pathname = new URL(entry.name).pathname.toLowerCase();
+                let bucket = "other";
+                if (/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(pathname) || entry.initiatorType === "img") {
+                  bucket = "images";
+                } else if (/\.(?:woff2?|ttf|otf)$/i.test(pathname)) {
+                  bucket = "fonts";
+                } else if (/\.css$/i.test(pathname) || entry.initiatorType === "css") {
+                  bucket = "stylesheets";
+                } else if (/\.m?js$/i.test(pathname) || entry.initiatorType === "script") {
+                  bucket = "scripts";
+                }
+                summary[bucket].count += 1;
+                summary[bucket].encodedBodyBytes += bytes;
+              }
+              const lcp = state.lcp && Number.isFinite(state.lcp.valueMs) ? state.lcp : null;
+              return {
+                observerSupport: state.observerSupport || {lcp: false, layoutShift: false, longTask: false},
+                navigation: navigation ? {
+                  responseStartMs: round(navigation.responseStart),
+                  domContentLoadedMs: round(navigation.domContentLoadedEventEnd),
+                  loadEventEndMs: round(navigation.loadEventEnd),
+                  documentEncodedBodyBytes: Math.max(0, Number(navigation.encodedBodySize) || 0),
+                  documentTransferBytesObserved: Math.max(0, Number(navigation.transferSize) || 0)
+                } : null,
+                largestContentfulPaint: lcp,
+                cumulativeLayoutShift: round(Number(state.cls) || 0),
+                layoutShiftEntries: Number(state.layoutShiftEntries) || 0,
+                layoutShiftSources: Array.isArray(state.layoutShiftSources) ? state.layoutShiftSources : [],
+                fontReadiness: {
+                  status: document.fonts.status,
+                  readyWithinCaptureWindow: fontsReadyWithinCaptureWindow,
+                  families: {
+                    playfairDisplay: document.fonts.check('400 16px "Playfair Display"'),
+                    dmSans: document.fonts.check('400 16px "DM Sans"')
+                  },
+                  layoutSnapshots: [
+                    ...(Array.isArray(state.fontLayoutSnapshots) ? state.fontLayoutSnapshots.slice(0, 4) : []),
+                    sampleBeforeFontWait,
+                    sampleAfterFontWait
+                  ].filter(Boolean)
+                },
+                longTasks: {
+                  count: Number(state.longTaskCount) || 0,
+                  totalDurationMs: round(Number(state.longTaskDurationMs) || 0)
+                },
+                sameOriginResources: summary
+              };
+            }"""
+        )
+        if not isinstance(sample, dict) or not isinstance(sample.get("navigation"), dict):
+            raise ValueError("navigation timing entry was unavailable")
+        if sample.get("cumulativeLayoutShift") is None:
+            raise ValueError("layout-shift measurement was unavailable")
+        ROUTE_PERFORMANCE_EVIDENCE.append({
+            "route": page_name,
+            "viewportWidthCssPixels": width,
+            "viewportHeightCssPixels": height,
+            **sample,
+        })
+    except Exception as error:
+        check(
+            False,
+            f"{page_name} at {width}px: route performance sample could not be captured: "
+            f"{type(error).__name__}: {sanitize_diagnostic_text(error)}",
+        )
 
 
 def capture_visual_evidence(page, page_name: str, width: int, height: int,
@@ -514,12 +942,911 @@ def start_server() -> tuple[subprocess.Popen[bytes], str]:
     raise RuntimeError("Temporary static HTTP server did not become ready within 10 seconds")
 
 
-def run_responsive_image_preview_smoke() -> int:
+
+
+def build_responsive_image_evidence_report(
+    *,
+    route_picture_counts: dict[str, int],
+    checked_picture_count: int,
+    selected_resource_evidence: list[dict],
+    browser_version: str | None,
+    failures: list[str],
+    page_resource_evidence: list[dict],
+) -> dict:
+    """Build durable per-picture and page-resource evidence for the generated package only."""
+    expected_routes = set(PAGES)
+    observed_routes = set(route_picture_counts)
+    report_failures = [sanitize_diagnostic_text(item) for item in failures]
+    validation_failures: list[str] = []
+
+    normalized_picture_counts: dict[str, int] = {}
+    for route in PAGES:
+        count = route_picture_counts.get(route)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+            validation_failures.append(
+                f"{route}: expected a positive responsive-picture count for the packaged evidence matrix"
+            )
+            normalized_picture_counts[route] = 0
+        else:
+            normalized_picture_counts[route] = count
+    unexpected_routes = sorted(observed_routes - expected_routes)
+    if unexpected_routes:
+        validation_failures.append(
+            "Responsive-image evidence contains unexpected routes: " + ", ".join(unexpected_routes)
+        )
+    if observed_routes != expected_routes:
+        validation_failures.append("Responsive-image evidence must cover every core route exactly once in its route inventory")
+
+    expected_samples = (
+        sum(normalized_picture_counts.values())
+        * len(RESPONSIVE_AUDIT_VIEWPORTS)
+        * 2
+    )
+    normalized_observations: list[dict] = []
+    unique_keys: set[tuple] = set()
+    responsive_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
+
+    for index, item in enumerate(selected_resource_evidence):
+        if not isinstance(item, dict):
+            validation_failures.append(f"Observation {index + 1}: expected a JSON object")
+            continue
+
+        route = item.get("route")
+        viewport_width = item.get("viewportWidthCssPixels")
+        dpr = item.get("deviceScaleFactor")
+        picture_index = item.get("pictureIndex")
+        selected_path = item.get("selectedWebpPath")
+        selected_width = item.get("selectedWidth")
+        required_width = item.get("requiredPixelWidth")
+        ratio = item.get("selectionPixelRatio")
+        encoded_bytes = item.get("encodedBodyBytes")
+        transfer_bytes = item.get("transferBytes")
+        decoded_bytes = item.get("decodedBodyBytes")
+        http_status = item.get("httpStatus")
+        request_count = item.get("requestCount")
+
+        valid = True
+        if route not in expected_routes:
+            valid = False
+        if isinstance(viewport_width, bool) or viewport_width not in responsive_widths:
+            valid = False
+        if isinstance(dpr, bool) or dpr not in (1, 2):
+            valid = False
+        if (
+            isinstance(picture_index, bool)
+            or not isinstance(picture_index, int)
+            or picture_index < 0
+            or (route in normalized_picture_counts and picture_index >= normalized_picture_counts[route])
+        ):
+            valid = False
+        if (
+            not isinstance(selected_path, str)
+            or not selected_path.startswith("assets/images/")
+            or not selected_path.endswith(".webp")
+            or "\\" in selected_path
+            or ".." in selected_path.split("/")
+            or "?" in selected_path
+            or "#" in selected_path
+        ):
+            valid = False
+        if isinstance(selected_width, bool) or not isinstance(selected_width, int) or selected_width < 1:
+            valid = False
+        if (
+            isinstance(required_width, bool)
+            or not isinstance(required_width, (int, float))
+            or required_width <= 0
+        ):
+            valid = False
+        if (
+            isinstance(ratio, bool)
+            or not isinstance(ratio, (int, float))
+            or ratio <= 0
+        ):
+            valid = False
+        for byte_value in (encoded_bytes, transfer_bytes, decoded_bytes, request_count):
+            if isinstance(byte_value, bool) or not isinstance(byte_value, int) or byte_value < 0:
+                valid = False
+        if isinstance(http_status, bool) or not isinstance(http_status, int):
+            valid = False
+
+        if not valid:
+            validation_failures.append(f"Observation {index + 1}: malformed route, candidate, pixel-demand or resource evidence")
+            continue
+
+        calculated_ratio = selected_width / float(required_width)
+        if abs(calculated_ratio - float(ratio)) > 0.02:
+            validation_failures.append(f"Observation {index + 1}: selected/required pixel ratio does not match its widths")
+        if http_status != 200:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate did not return HTTP 200")
+        if encoded_bytes < 1:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate has no encoded body bytes")
+        if request_count != 1:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate was not requested exactly once")
+        if calculated_ratio > 1.9:
+            validation_failures.append(f"Observation {index + 1}: selected WebP candidate exceeds the 1.9x pixel-demand guard")
+
+        unique_key = (route, viewport_width, dpr, picture_index)
+        unique_keys.add(unique_key)
+        normalized_observations.append({
+            "route": route,
+            "pictureIndex": picture_index,
+            "viewportWidthCssPixels": viewport_width,
+            "deviceScaleFactor": dpr,
+            "selectedWebpPath": selected_path,
+            "selectedWidth": selected_width,
+            "requiredPixelWidth": round(float(required_width), 1),
+            "selectionPixelRatio": round(calculated_ratio, 3),
+            "httpStatus": http_status,
+            "encodedBodyBytes": encoded_bytes,
+            "transferBytes": transfer_bytes,
+            "decodedBodyBytes": decoded_bytes,
+            "requestCount": request_count,
+        })
+
+    if len(unique_keys) != len(normalized_observations):
+        validation_failures.append("Responsive-image evidence contains duplicate route/viewport/DPR/picture observations")
+    if isinstance(checked_picture_count, bool) or not isinstance(checked_picture_count, int) or checked_picture_count < 0:
+        validation_failures.append("Responsive-image evidence contains an invalid decoded picture count")
+        checked_picture_count = 0
+    if len(normalized_observations) != expected_samples:
+        validation_failures.append(
+            f"Responsive-image evidence is incomplete: expected {expected_samples} observations, "
+            f"captured {len(normalized_observations)}"
+        )
+    if checked_picture_count != expected_samples:
+        validation_failures.append(
+            f"Responsive-image browser coverage is incomplete: expected {expected_samples} decoded pictures, "
+            f"checked {checked_picture_count}"
+        )
+
+    expected_page_contexts = len(PAGES) * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2
+    normalized_page_resources: list[dict] = []
+    page_resource_keys: set[tuple] = set()
+    page_resource_validation_failures: list[str] = []
+    expected_viewport_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
+    resource_buckets = ("images", "stylesheets", "scripts", "fonts", "other")
+
+    def safe_same_origin_path(value: object, *, allow_empty: bool = False) -> bool:
+        if not isinstance(value, str):
+            return False
+        if allow_empty and value == "":
+            return True
+        return (
+            value.startswith("/")
+            and not value.startswith("//")
+            and "?" not in value
+            and "#" not in value
+            and "://" not in value
+            and "\\" not in value
+            and all(part not in {".", ".."} for part in PurePosixPath(value).parts)
+        )
+
+    def normalize_resource_entries(
+        raw_resources: object, route: str, viewport_width: int, dpr: int, phase: str
+    ) -> tuple[list[dict], dict, dict[str, int]]:
+        normalized: list[dict] = []
+        path_counts: dict[str, int] = {}
+        totals = {
+            bucket: {"count": 0, "encodedBodyBytes": 0, "transferBytes": 0, "decodedBodyBytes": 0}
+            for bucket in resource_buckets
+        }
+        if not isinstance(raw_resources, list) or not raw_resources:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: {phase} resource inventory is missing or empty"
+            )
+            return normalized, totals, path_counts
+        for resource_index, resource in enumerate(raw_resources):
+            if not isinstance(resource, dict):
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x {phase} resource {resource_index + 1}: expected a JSON object"
+                )
+                continue
+            resource_path = resource.get("path")
+            initiator_type = resource.get("initiatorType")
+            encoded_bytes = resource.get("encodedBodyBytes")
+            transfer_bytes = resource.get("transferBytes")
+            decoded_bytes = resource.get("decodedBodyBytes")
+            duration_ms = resource.get("durationMs")
+            valid_resource = (
+                safe_same_origin_path(resource_path)
+                and isinstance(initiator_type, str)
+                and 0 < len(initiator_type) <= 64
+                and all(
+                    not isinstance(value, bool) and isinstance(value, int) and value >= 0
+                    for value in (encoded_bytes, transfer_bytes, decoded_bytes)
+                )
+                and not isinstance(duration_ms, bool)
+                and isinstance(duration_ms, (int, float))
+                and 0 <= duration_ms <= 600000
+            )
+            if not valid_resource:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x {phase} resource {resource_index + 1}: malformed or unsafe same-origin resource evidence"
+                )
+                continue
+            suffix = PurePosixPath(resource_path.lower()).suffix
+            if suffix in {".avif", ".gif", ".jpe", ".jpeg", ".jpg", ".png", ".svg", ".webp"} or initiator_type == "img":
+                bucket = "images"
+            elif suffix == ".css" or initiator_type == "css":
+                bucket = "stylesheets"
+            elif suffix in {".js", ".mjs"} or initiator_type == "script":
+                bucket = "scripts"
+            elif suffix in {".woff", ".woff2", ".ttf", ".otf"}:
+                bucket = "fonts"
+            else:
+                bucket = "other"
+            normalized.append({
+                "path": resource_path,
+                "initiatorType": initiator_type,
+                "resourceType": bucket,
+                "encodedBodyBytes": encoded_bytes,
+                "transferBytes": transfer_bytes,
+                "decodedBodyBytes": decoded_bytes,
+                "durationMs": round(float(duration_ms), 1),
+            })
+            path_counts[resource_path] = path_counts.get(resource_path, 0) + 1
+            totals[bucket]["count"] += 1
+            totals[bucket]["encodedBodyBytes"] += encoded_bytes
+            totals[bucket]["transferBytes"] += transfer_bytes
+            totals[bucket]["decodedBodyBytes"] += decoded_bytes
+        if len(normalized) != len(raw_resources):
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: one or more {phase} resource entries were rejected"
+            )
+        if not normalized:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: no same-origin {phase} resources were captured"
+            )
+        normalized.sort(key=lambda resource: (-resource["encodedBodyBytes"], resource["path"]))
+        return normalized, totals, path_counts
+
+    expected_viewport_heights = dict(RESPONSIVE_AUDIT_VIEWPORTS)
+    for context_index, item in enumerate(page_resource_evidence):
+        if not isinstance(item, dict):
+            page_resource_validation_failures.append(
+                f"Page-resource context {context_index + 1}: expected a JSON object"
+            )
+            continue
+        route = item.get("route")
+        viewport_width = item.get("viewportWidthCssPixels")
+        dpr = item.get("deviceScaleFactor")
+        resources = item.get("resources")
+        if (
+            route not in expected_routes
+            or isinstance(viewport_width, bool)
+            or viewport_width not in expected_viewport_widths
+            or isinstance(dpr, bool)
+            or dpr not in (1, 2)
+            or not isinstance(resources, list)
+            or not resources
+        ):
+            page_resource_validation_failures.append(
+                f"Page-resource context {context_index + 1}: malformed route, viewport, DPR or resource inventory"
+            )
+            continue
+        context_key = (route, viewport_width, dpr)
+        if context_key in page_resource_keys:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: duplicate page-resource context"
+            )
+        page_resource_keys.add(context_key)
+
+        first_view = item.get("firstView")
+        normalized_first_view: dict = {
+            "capturePhase": "invalid",
+            "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+            "resourceCount": 0,
+            "imageCount": 0,
+            "visibleImageCount": 0,
+            "inViewportImageCount": 0,
+            "requestedImageCount": 0,
+            "requestedOutsideViewportCount": 0,
+            "encodedBodyBytes": 0,
+            "transferBytes": 0,
+            "decodedBodyBytes": 0,
+            "byType": {
+                bucket: {"count": 0, "encodedBodyBytes": 0, "transferBytes": 0, "decodedBodyBytes": 0}
+                for bucket in resource_buckets
+            },
+            "resources": [],
+            "images": [],
+        }
+        if (
+            not isinstance(first_view, dict)
+            or first_view.get("capturePhase") != "after-load-before-test-only-image-activation"
+            or first_view.get("viewportHeightCssPixels") != expected_viewport_heights[viewport_width]
+        ):
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: first-view snapshot is missing or was captured after test-only activation"
+            )
+        else:
+            first_view_resources, first_view_totals, _first_view_path_counts = normalize_resource_entries(
+                first_view.get("resources"), route, viewport_width, dpr, "first-view"
+            )
+            first_view_images = first_view.get("images")
+            normalized_first_view_images: list[dict] = []
+            image_indexes: set[int] = set()
+            if not isinstance(first_view_images, list) or not first_view_images:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x: first-view image-state inventory is missing"
+                )
+                first_view_images = []
+            first_view_paths = {resource["path"] for resource in first_view_resources}
+            for image_index, image in enumerate(first_view_images):
+                if not isinstance(image, dict):
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x first-view image {image_index + 1}: expected a JSON object"
+                    )
+                    continue
+                index = image.get("index")
+                src_path = image.get("srcPath")
+                current_src_path = image.get("currentSrcPath")
+                loading = image.get("loading")
+                fetchpriority = image.get("fetchpriority")
+                visible = image.get("visible")
+                intersects_viewport = image.get("intersectsViewport")
+                requested = image.get("requestedBeforeAuditActivation")
+                complete = image.get("complete")
+                natural_width = image.get("naturalWidth")
+                natural_height = image.get("naturalHeight")
+                has_alt = image.get("hasAlt")
+                valid_image = (
+                    isinstance(index, int) and not isinstance(index, bool) and index >= 0 and index not in image_indexes
+                    and safe_same_origin_path(src_path)
+                    and safe_same_origin_path(current_src_path, allow_empty=True)
+                    and loading in {"", "eager", "lazy"}
+                    and fetchpriority in {"", "auto", "high", "low"}
+                    and all(isinstance(value, bool) for value in (
+                        visible, intersects_viewport, requested, complete, has_alt
+                    ))
+                    and all(
+                        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                        for value in (natural_width, natural_height)
+                    )
+                    and (not intersects_viewport or visible)
+                    and requested == bool(current_src_path and current_src_path in first_view_paths)
+                )
+                if not valid_image:
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x first-view image {image_index + 1}: malformed path, loading-priority/visibility, geometry or request-state evidence"
+                    )
+                    continue
+                image_indexes.add(index)
+                normalized_first_view_images.append({
+                    "index": index,
+                    "srcPath": src_path,
+                    "currentSrcPath": current_src_path,
+                    "loading": loading,
+                    "fetchpriority": fetchpriority,
+                    "visible": visible,
+                    "intersectsViewport": intersects_viewport,
+                    "requestedBeforeAuditActivation": requested,
+                    "complete": complete,
+                    "naturalWidth": natural_width,
+                    "naturalHeight": natural_height,
+                    "hasAlt": has_alt,
+                })
+            visible_count = sum(1 for image in normalized_first_view_images if image["visible"])
+            in_viewport_count = sum(1 for image in normalized_first_view_images if image["intersectsViewport"])
+            requested_count = sum(1 for image in normalized_first_view_images if image["requestedBeforeAuditActivation"])
+            requested_outside_viewport_count = sum(
+                1 for image in normalized_first_view_images
+                if image["requestedBeforeAuditActivation"] and not image["intersectsViewport"]
+            )
+            expected_first_view_counts = {
+                "resourceCount": len(first_view_resources),
+                "imageCount": len(normalized_first_view_images),
+                "visibleImageCount": visible_count,
+                "inViewportImageCount": in_viewport_count,
+                "requestedImageCount": requested_count,
+                "requestedOutsideViewportCount": requested_outside_viewport_count,
+            }
+            for field, expected_value in expected_first_view_counts.items():
+                declared_value = first_view.get(field)
+                if isinstance(declared_value, bool) or not isinstance(declared_value, int) or declared_value != expected_value:
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x: first-view {field} does not match its entries"
+                    )
+            for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                declared_value = first_view.get(field)
+                expected_value = sum(resource[field] for resource in first_view_resources)
+                if isinstance(declared_value, bool) or not isinstance(declared_value, int) or declared_value != expected_value:
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x: first-view {field} does not reconcile with its resource entries"
+                    )
+            normalized_first_view = {
+                "capturePhase": "after-load-before-test-only-image-activation",
+                "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+                **expected_first_view_counts,
+                "encodedBodyBytes": sum(resource["encodedBodyBytes"] for resource in first_view_resources),
+                "transferBytes": sum(resource["transferBytes"] for resource in first_view_resources),
+                "decodedBodyBytes": sum(resource["decodedBodyBytes"] for resource in first_view_resources),
+                "byType": first_view_totals,
+                "resources": first_view_resources,
+                "images": normalized_first_view_images,
+            }
+
+        normalized_resources, bucket_totals, path_counts = normalize_resource_entries(
+            resources, route, viewport_width, dpr, "after-activation"
+        )
+        normalized_page_resources.append({
+            "route": route,
+            "viewportWidthCssPixels": viewport_width,
+            "deviceScaleFactor": dpr,
+            "resourceCount": len(normalized_resources),
+            "encodedBodyBytes": sum(resource["encodedBodyBytes"] for resource in normalized_resources),
+            "transferBytes": sum(resource["transferBytes"] for resource in normalized_resources),
+            "decodedBodyBytes": sum(resource["decodedBodyBytes"] for resource in normalized_resources),
+            "byType": bucket_totals,
+            "duplicatePaths": [
+                {"path": path, "requestCount": count}
+                for path, count in sorted(path_counts.items()) if count > 1
+            ],
+            "resources": normalized_resources,
+            "firstView": normalized_first_view,
+            "afterActivationCapturePhase": "after-all-responsive-pictures-activated",
+        })
+
+    if len(normalized_page_resources) != expected_page_contexts:
+        page_resource_validation_failures.append(
+            f"Page-resource coverage is incomplete: expected {expected_page_contexts} contexts, "
+            f"captured {len(normalized_page_resources)}"
+        )
+    if len(page_resource_keys) != expected_page_contexts:
+        page_resource_validation_failures.append(
+            f"Page-resource contexts are not unique and complete: expected {expected_page_contexts}, "
+            f"observed {len(page_resource_keys)}"
+        )
+    validation_failures.extend(page_resource_validation_failures)
+    page_resources_complete = (
+        len(normalized_page_resources) == expected_page_contexts
+        and len(page_resource_keys) == expected_page_contexts
+        and not page_resource_validation_failures
+    )
+    normalized_page_resources.sort(
+        key=lambda item: (PAGES.index(item["route"]), item["viewportWidthCssPixels"], item["deviceScaleFactor"])
+    )
+
+    first_view_summary_by_route: dict[str, dict] = {}
+    for route in PAGES:
+        route_contexts = [item for item in normalized_page_resources if item["route"] == route]
+        first_views = [item["firstView"] for item in route_contexts]
+        first_encoded = sum(item["encodedBodyBytes"] for item in first_views)
+        first_transfer = sum(item["transferBytes"] for item in first_views)
+        requested_images = sum(item["requestedImageCount"] for item in first_views)
+        in_viewport_images = sum(item["inViewportImageCount"] for item in first_views)
+        outside_viewport_requests = sum(item["requestedOutsideViewportCount"] for item in first_views)
+        context_count = len(first_views)
+        first_view_summary_by_route[route] = {
+            "contextCount": context_count,
+            "averageEncodedBodyBytes": round(first_encoded / context_count) if context_count else 0,
+            "maximumEncodedBodyBytes": max((item["encodedBodyBytes"] for item in first_views), default=0),
+            "averageTransferBytes": round(first_transfer / context_count) if context_count else 0,
+            "averageRequestedImageCount": round(requested_images / context_count, 2) if context_count else 0,
+            "averageInViewportImageCount": round(in_viewport_images / context_count, 2) if context_count else 0,
+            "averageRequestedOutsideViewportCount": round(outside_viewport_requests / context_count, 2) if context_count else 0,
+        }
+
+    route_summaries: dict[str, dict] = {}
+    for route in PAGES:
+        route_observations = [item for item in normalized_observations if item["route"] == route]
+        route_encoded = sum(item["encodedBodyBytes"] for item in route_observations)
+        route_summaries[route] = {
+            "responsivePictureCount": normalized_picture_counts[route],
+            "expectedObservationCount": normalized_picture_counts[route] * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2,
+            "capturedObservationCount": len(route_observations),
+            "encodedBodyBytesObserved": route_encoded,
+            "transferBytesObserved": sum(item["transferBytes"] for item in route_observations),
+            "averageEncodedBodyBytes": round(route_encoded / len(route_observations)) if route_observations else 0,
+            "maximumEncodedBodyBytes": max((item["encodedBodyBytes"] for item in route_observations), default=0),
+        }
+
+    encoded_values = [item["encodedBodyBytes"] for item in normalized_observations]
+    total_encoded = sum(encoded_values)
+    total_observations = len(normalized_observations)
+    coverage_complete = (
+        observed_routes == expected_routes
+        and expected_samples > 0
+        and checked_picture_count == expected_samples
+        and total_observations == expected_samples
+        and len(unique_keys) == total_observations
+        and page_resources_complete
+        and not validation_failures
+    )
+    report_failures.extend(validation_failures)
+    report_failures = list(dict.fromkeys(report_failures))
+    sorted_observations = sorted(
+        normalized_observations,
+        key=lambda item: (
+            PAGES.index(item["route"]),
+            item["viewportWidthCssPixels"],
+            item["deviceScaleFactor"],
+            item["pictureIndex"],
+        ),
+    )
+    commit_sha = os.environ.get("GITHUB_SHA", "")
+    workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
+    report = {
+        "schemaVersion": 3,
+        "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
+        "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
+        "measurementClass": "packaged-chromium-laboratory-diagnostic",
+        "fieldDataAvailable": False,
+        "candidateBytesAreTransferMeasurements": False,
+        "candidateSavingsVersusJpegFallbackInferred": False,
+        "scope": {
+            "target": "generated-staging-preview-package",
+            "origin": "temporary-loopback-http",
+            "dataClass": "laboratory-diagnostic-not-field-core-web-vitals",
+            "notes": [
+                "Observations are from isolated Chromium contexts loading the generated package on loopback.",
+                "Encoded, transfer and decoded byte counts are distinct Resource Timing fields.",
+                "Transfer size can include headers and may be zero when the browser does not expose a transfer for a resource.",
+                "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
+                "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
+                "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
+                "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
+                "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
+                "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
+                "No field Core Web Vitals or savings versus the JPEG fallback are inferred."
+            ],
+        },
+        "browser": {"name": "Chromium", "version": browser_version or "unavailable"},
+        "routes": route_summaries,
+        "pageResourceEvidence": {
+            "measurementClass": "packaged-route-resource-timing-first-view-and-after-image-activation",
+            "sameOriginOnly": True,
+            "firstViewCapturePhase": "after-load-before-test-only-image-activation",
+            "afterActivationCapturePhase": "after-all-responsive-pictures-activated",
+            "firstViewImageStatesCaptured": True,
+            "allResponsivePicturesActivatedForAudit": True,
+            "initialNavigationPayloadClaimed": False,
+            "expectedContextCount": expected_page_contexts,
+            "capturedContextCount": len(normalized_page_resources),
+            "uniqueContextCount": len(page_resource_keys),
+            "firstViewSummaryByRoute": first_view_summary_by_route,
+            "complete": page_resources_complete,
+            "observations": normalized_page_resources,
+        },
+        "pictureInstancesPerRoute": normalized_picture_counts,
+        "viewportWidthsCssPixels": [width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS],
+        "deviceScaleFactors": [1, 2],
+        "coverage": {
+            "expectedObservationCount": expected_samples,
+            "capturedObservationCount": total_observations,
+            "decodedPictureCount": checked_picture_count,
+            "uniqueObservationCount": len(unique_keys),
+            "complete": coverage_complete,
+        },
+        "summary": {
+            "encodedBodyBytesObserved": total_encoded,
+            "transferBytesObserved": sum(item["transferBytes"] for item in normalized_observations),
+            "decodedBodyBytesObserved": sum(item["decodedBodyBytes"] for item in normalized_observations),
+            "averageEncodedBodyBytes": round(total_encoded / total_observations) if total_observations else 0,
+            "maximumEncodedBodyBytes": max(encoded_values, default=0),
+            "maximumSelectedToRequiredPixelRatio": round(
+                max((item["selectionPixelRatio"] for item in normalized_observations), default=0),
+                3,
+            ),
+        },
+        "automatedResult": "PASS" if coverage_complete and not report_failures else "FAIL",
+        "automatedFailures": report_failures,
+        "observations": sorted_observations,
+    }
+    validate_responsive_image_evidence_report(report)
+    return report
+
+
+def validate_responsive_image_evidence_report(report: dict) -> None:
+    """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
+    if not isinstance(report, dict) or report.get("schemaVersion") != 3:
+        raise ValueError("Responsive-image browser evidence must use schema version 2")
+    if (
+        report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
+        or report.get("fieldDataAvailable") is not False
+        or report.get("candidateBytesAreTransferMeasurements") is not False
+        or report.get("candidateSavingsVersusJpegFallbackInferred") is not False
+    ):
+        raise ValueError("Responsive-image evidence must distinguish laboratory observations from field and candidate-size claims")
+    coverage = report.get("coverage")
+    observations = report.get("observations")
+    if (
+        not isinstance(coverage, dict)
+        or not isinstance(observations, list)
+        or coverage.get("capturedObservationCount") != len(observations)
+        or not isinstance(coverage.get("uniqueObservationCount"), int)
+        or coverage["uniqueObservationCount"] < 0
+        or coverage["uniqueObservationCount"] > len(observations)
+        or not isinstance(coverage.get("complete"), bool)
+    ):
+        raise ValueError("Responsive-image browser evidence has an invalid coverage or observation inventory")
+    page_resource_evidence = report.get("pageResourceEvidence")
+    if not isinstance(page_resource_evidence, dict):
+        raise ValueError("Packaged route-resource evidence is required")
+    if (
+        page_resource_evidence.get("measurementClass") != "packaged-route-resource-timing-first-view-and-after-image-activation"
+        or page_resource_evidence.get("sameOriginOnly") is not True
+        or page_resource_evidence.get("firstViewCapturePhase") != "after-load-before-test-only-image-activation"
+        or page_resource_evidence.get("afterActivationCapturePhase") != "after-all-responsive-pictures-activated"
+        or page_resource_evidence.get("firstViewImageStatesCaptured") is not True
+        or page_resource_evidence.get("allResponsivePicturesActivatedForAudit") is not True
+        or page_resource_evidence.get("initialNavigationPayloadClaimed") is not False
+    ):
+        raise ValueError("Packaged route-resource evidence must distinguish natural first-view loading from post-activation laboratory data")
+
+    expected_contexts = len(PAGES) * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2
+    page_observations = page_resource_evidence.get("observations")
+    if (
+        not isinstance(page_observations, list)
+        or page_resource_evidence.get("expectedContextCount") != expected_contexts
+        or page_resource_evidence.get("capturedContextCount") != len(page_observations)
+        or not isinstance(page_resource_evidence.get("uniqueContextCount"), int)
+        or page_resource_evidence["uniqueContextCount"] < 0
+        or page_resource_evidence["uniqueContextCount"] > len(page_observations)
+        or not isinstance(page_resource_evidence.get("complete"), bool)
+    ):
+        raise ValueError("Packaged route-resource evidence has invalid context coverage")
+
+    page_resource_keys: set[tuple] = set()
+    expected_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
+    for context_index, context in enumerate(page_observations):
+        if not isinstance(context, dict):
+            raise ValueError(f"Packaged route-resource context {context_index + 1} is malformed")
+        route = context.get("route")
+        width = context.get("viewportWidthCssPixels")
+        dpr = context.get("deviceScaleFactor")
+        resources = context.get("resources")
+        if (
+            route not in PAGES
+            or isinstance(width, bool)
+            or width not in expected_widths
+            or isinstance(dpr, bool)
+            or dpr not in (1, 2)
+            or not isinstance(resources, list)
+            or not resources
+            or context.get("resourceCount") != len(resources)
+        ):
+            raise ValueError(f"Packaged route-resource context {context_index + 1} has invalid route or resource inventory")
+        key = (route, width, dpr)
+        if key in page_resource_keys:
+            raise ValueError("Packaged route-resource evidence contains duplicate route/viewport/DPR contexts")
+        page_resource_keys.add(key)
+
+        for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+            value = context.get(field)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"Packaged route-resource context {context_index + 1} has invalid {field}")
+        for resource in resources:
+            if not isinstance(resource, dict):
+                raise ValueError("Packaged route-resource inventory contains a malformed resource")
+            resource_path = resource.get("path")
+            initiator_type = resource.get("initiatorType")
+            if (
+                not isinstance(resource_path, str)
+                or not resource_path.startswith("/")
+                or resource_path.startswith("//")
+                or "?" in resource_path
+                or "#" in resource_path
+                or "://" in resource_path
+                or "\\" in resource_path
+                or any(part in {".", ".."} for part in PurePosixPath(resource_path).parts)
+                or not isinstance(initiator_type, str)
+                or not initiator_type
+            ):
+                raise ValueError("Packaged route-resource evidence must contain sanitized same-origin paths only")
+            for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                value = resource.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                    raise ValueError(f"Packaged route-resource entry has invalid {field}")
+            duration = resource.get("durationMs")
+            if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not 0 <= duration <= 600000:
+                raise ValueError("Packaged route-resource entry has invalid duration")
+        if (
+            context["encodedBodyBytes"] != sum(item["encodedBodyBytes"] for item in resources)
+            or context["transferBytes"] != sum(item["transferBytes"] for item in resources)
+            or context["decodedBodyBytes"] != sum(item["decodedBodyBytes"] for item in resources)
+        ):
+            raise ValueError("Packaged route-resource context totals do not match its resource entries")
+
+        if page_resource_evidence.get("complete") is True:
+            first_view = context.get("firstView")
+            expected_height = dict(RESPONSIVE_AUDIT_VIEWPORTS).get(width)
+            if (
+                not isinstance(first_view, dict)
+                or first_view.get("capturePhase") != "after-load-before-test-only-image-activation"
+                or first_view.get("viewportHeightCssPixels") != expected_height
+                or context.get("afterActivationCapturePhase") != "after-all-responsive-pictures-activated"
+            ):
+                raise ValueError("Packaged route-resource context is missing a correctly timed first-view snapshot")
+            first_view_resources = first_view.get("resources")
+            first_view_images = first_view.get("images")
+            if (
+                not isinstance(first_view_resources, list)
+                or not first_view_resources
+                or not isinstance(first_view_images, list)
+                or not first_view_images
+                or first_view.get("resourceCount") != len(first_view_resources)
+                or first_view.get("imageCount") != len(first_view_images)
+            ):
+                raise ValueError("Packaged first-view resource or image-state inventory is incomplete")
+
+            first_view_paths: set[str] = set()
+            first_view_path_counts: dict[str, int] = {}
+            for resource in first_view_resources:
+                if not isinstance(resource, dict):
+                    raise ValueError("Packaged first-view resource inventory contains a malformed resource")
+                resource_path = resource.get("path")
+                initiator_type = resource.get("initiatorType")
+                if (
+                    not isinstance(resource_path, str)
+                    or not resource_path.startswith("/")
+                    or resource_path.startswith("//")
+                    or "?" in resource_path
+                    or "#" in resource_path
+                    or "://" in resource_path
+                    or "\\" in resource_path
+                    or any(part in {".", ".."} for part in PurePosixPath(resource_path).parts)
+                    or not isinstance(initiator_type, str)
+                    or not initiator_type
+                ):
+                    raise ValueError("Packaged first-view resource evidence must contain sanitized same-origin paths only")
+                for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                    value = resource.get(field)
+                    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                        raise ValueError(f"Packaged first-view resource has invalid {field}")
+                duration = resource.get("durationMs")
+                if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not 0 <= duration <= 600000:
+                    raise ValueError("Packaged first-view resource has invalid duration")
+                first_view_paths.add(resource_path)
+                first_view_path_counts[resource_path] = first_view_path_counts.get(resource_path, 0) + 1
+
+            full_path_counts: dict[str, int] = {}
+            for resource in resources:
+                full_path_counts[resource["path"]] = full_path_counts.get(resource["path"], 0) + 1
+            if any(full_path_counts.get(path, 0) < count for path, count in first_view_path_counts.items()):
+                raise ValueError("Post-activation resource inventory must retain the first-view resource entries")
+
+            for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                value = first_view.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value != sum(
+                    item[field] for item in first_view_resources
+                ):
+                    raise ValueError(f"Packaged first-view {field} does not reconcile with its resource entries")
+
+            image_indexes: set[int] = set()
+            visible_count = 0
+            in_viewport_count = 0
+            requested_count = 0
+            requested_outside_viewport_count = 0
+            for image in first_view_images:
+                if not isinstance(image, dict):
+                    raise ValueError("Packaged first-view image-state inventory contains a malformed image")
+                index = image.get("index")
+                src_path = image.get("srcPath")
+                current_src_path = image.get("currentSrcPath")
+                loading = image.get("loading")
+                fetchpriority = image.get("fetchpriority")
+                visible = image.get("visible")
+                intersects_viewport = image.get("intersectsViewport")
+                requested = image.get("requestedBeforeAuditActivation")
+                complete = image.get("complete")
+                has_alt = image.get("hasAlt")
+                natural_width = image.get("naturalWidth")
+                natural_height = image.get("naturalHeight")
+                if (
+                    isinstance(index, bool)
+                    or not isinstance(index, int)
+                    or index < 0
+                    or index in image_indexes
+                    or not isinstance(src_path, str)
+                    or not src_path.startswith("/")
+                    or src_path.startswith("//")
+                    or "?" in src_path
+                    or "#" in src_path
+                    or "://" in src_path
+                    or "\\" in src_path
+                    or any(part in {".", ".."} for part in PurePosixPath(src_path).parts)
+                    or not isinstance(current_src_path, str)
+                    or (current_src_path and (
+                        not current_src_path.startswith("/")
+                        or current_src_path.startswith("//")
+                        or "?" in current_src_path
+                        or "#" in current_src_path
+                        or "://" in current_src_path
+                        or "\\" in current_src_path
+                        or any(part in {".", ".."} for part in PurePosixPath(current_src_path).parts)
+                    ))
+                    or loading not in {"", "eager", "lazy"}
+                    or fetchpriority not in {"", "auto", "high", "low"}
+                    or not all(isinstance(value, bool) for value in (
+                        visible, intersects_viewport, requested, complete, has_alt
+                    ))
+                    or not isinstance(natural_width, int)
+                    or isinstance(natural_width, bool)
+                    or natural_width < 0
+                    or not isinstance(natural_height, int)
+                    or isinstance(natural_height, bool)
+                    or natural_height < 0
+                    or (intersects_viewport and not visible)
+                    or requested != bool(current_src_path and current_src_path in first_view_paths)
+                ):
+                    raise ValueError("Packaged first-view image state contains an unsafe path or invalid loading-priority/visibility contract")
+                image_indexes.add(index)
+                visible_count += int(visible)
+                in_viewport_count += int(intersects_viewport)
+                requested_count += int(requested)
+                requested_outside_viewport_count += int(requested and not intersects_viewport)
+
+            expected_image_counts = {
+                "visibleImageCount": visible_count,
+                "inViewportImageCount": in_viewport_count,
+                "requestedImageCount": requested_count,
+                "requestedOutsideViewportCount": requested_outside_viewport_count,
+            }
+            for field, expected_value in expected_image_counts.items():
+                value = first_view.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value != expected_value:
+                    raise ValueError(f"Packaged first-view {field} does not match its image states")
+
+    first_view_summary = page_resource_evidence.get("firstViewSummaryByRoute")
+    if not isinstance(first_view_summary, dict) or set(first_view_summary) != set(PAGES):
+        raise ValueError("Packaged first-view summary must cover every core route")
+    route_context_counts = {
+        route: sum(1 for item in page_observations if isinstance(item, dict) and item.get("route") == route)
+        for route in PAGES
+    }
+    for route in PAGES:
+        summary = first_view_summary[route]
+        if (
+            not isinstance(summary, dict)
+            or summary.get("contextCount") != route_context_counts[route]
+            or any(
+                isinstance(summary.get(field), bool)
+                or not isinstance(summary.get(field), (int, float))
+                or summary[field] < 0
+                for field in (
+                    "averageEncodedBodyBytes",
+                    "maximumEncodedBodyBytes",
+                    "averageTransferBytes",
+                    "averageRequestedImageCount",
+                    "averageInViewportImageCount",
+                    "averageRequestedOutsideViewportCount",
+                )
+            )
+        ):
+            raise ValueError(f"Packaged first-view route summary is incomplete or invalid for {route}")
+
+    inventory_complete = len(page_observations) == expected_contexts and len(page_resource_keys) == expected_contexts
+    if page_resource_evidence.get("complete") is True and not inventory_complete:
+        raise ValueError("Packaged route-resource evidence cannot claim complete coverage with missing contexts")
+
+    if report.get("automatedResult") not in {"PASS", "FAIL"} or not isinstance(report.get("automatedFailures"), list):
+        raise ValueError("Responsive-image browser evidence must record its automated result and failures")
+    if report["automatedResult"] == "PASS" and (
+        coverage.get("complete") is not True or report["automatedFailures"]
+    ):
+        raise ValueError("Responsive-image browser evidence cannot pass with incomplete coverage or failures")
+
+
+def write_responsive_image_evidence_report(report_path: str, report: dict) -> Path:
+    """Write the packaged-image evidence outside the source checkout."""
+    validate_responsive_image_evidence_report(report)
+    destination = validate_local_report_path(report_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    return write_report(str(destination), report)
+
+
+def run_responsive_image_preview_smoke(report_path: str) -> int:
     """Audit packaged responsive image selection at six breakpoints and DPR 1/2."""
     failures: list[str] = []
     checked_pictures = 0
     routes_with_responsive_images: set[str] = set()
     max_selected_to_required_ratio = 0.0
+    selected_resource_evidence: list[dict] = []
+    page_resource_evidence: list[dict] = []
+    picture_counts_by_route: dict[str, int] = {}
+    browser_version = None
     server = None
     browser = None
 
@@ -531,6 +1858,7 @@ def run_responsive_image_preview_smoke() -> int:
         server, base_url = start_server()
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
+            browser_version = browser.version
             for width, height in RESPONSIVE_AUDIT_VIEWPORTS:
                 for device_scale_factor in (1, 2):
                     for page_name in PAGES:
@@ -541,17 +1869,26 @@ def run_responsive_image_preview_smoke() -> int:
                         install_navigation_guard(context, base_url)
                         page = context.new_page()
                         request_counts: dict[str, int] = {}
-                        image_responses: dict[str, int] = {}
+                        image_responses: dict[str, dict] = {}
                         image_request_failures: dict[str, str] = {}
 
                         def record_request(request) -> None:
                             if same_origin(request.url, base_url):
                                 request_counts[request.url] = request_counts.get(request.url, 0) + 1
 
+
                         def record_image_response(response) -> None:
                             image_path = urlsplit(response.url).path.lower()
                             if same_origin(response.url, base_url) and Path(image_path).suffix in {".jpg", ".jpeg", ".png", ".webp", ".avif"}:
-                                image_responses[response.url] = response.status
+                                headers = response.headers
+                                try:
+                                    length = int(headers.get("content-length", "0"))
+                                except (TypeError, ValueError):
+                                    length = 0
+                                image_responses[response.url] = {
+                                    "status": response.status,
+                                    "contentLengthBytes": max(0, length),
+                                }
 
                         def record_image_request_failed(request) -> None:
                             image_path = urlsplit(request.url).path.lower()
@@ -588,16 +1925,140 @@ def run_responsive_image_preview_smoke() -> int:
                                 }
                             """)
 
+                            # Capture browser-native loading after load, before any audit scrolling,
+                            # hidden-panel activation or forced eager loading.
+                            first_view_snapshot = None
+                            try:
+                                page.wait_for_load_state("load", timeout=10000)
+                                page.wait_for_timeout(50)
+                                first_view_snapshot = page.evaluate(
+                                    """() => {
+                                      const pathFor = value => {
+                                        if (!value) return '';
+                                        try {
+                                          const url = new URL(value, location.href);
+                                          return url.origin === location.origin ? url.pathname : '';
+                                        } catch (_) {
+                                          return '';
+                                        }
+                                      };
+                                      const entries = performance.getEntriesByType('resource').filter(entry => {
+                                        try { return new URL(entry.name).origin === location.origin; }
+                                        catch (_) { return false; }
+                                      });
+                                      const resources = entries.map(entry => {
+                                        const url = new URL(entry.name);
+                                        return {
+                                          path: url.pathname,
+                                          initiatorType: String(entry.initiatorType || 'other'),
+                                          encodedBodyBytes: Math.max(0, Math.round(Number(entry.encodedBodySize) || 0)),
+                                          transferBytes: Math.max(0, Math.round(Number(entry.transferSize) || 0)),
+                                          decodedBodyBytes: Math.max(0, Math.round(Number(entry.decodedBodySize) || 0)),
+                                          durationMs: Math.max(0, Math.round((Number(entry.duration) || 0) * 10) / 10)
+                                        };
+                                      });
+                                      const resourcePaths = new Set(resources.map(entry => entry.path));
+                                      const images = Array.from(document.images).map((img, index) => {
+                                        const rect = img.getBoundingClientRect();
+                                        const style = getComputedStyle(img);
+                                        const visible = img.getClientRects().length > 0
+                                          && rect.width > 0 && rect.height > 0
+                                          && style.display !== 'none' && style.visibility !== 'hidden';
+                                        const intersectsViewport = visible
+                                          && rect.bottom > 0 && rect.right > 0
+                                          && rect.top < window.innerHeight && rect.left < window.innerWidth;
+                                        const currentSrcPath = pathFor(img.currentSrc);
+                                        return {
+                                          index,
+                                          srcPath: pathFor(img.getAttribute('src') || img.src),
+                                          currentSrcPath,
+                                          loading: (img.getAttribute('loading') || '').toLowerCase(),
+                                          fetchpriority: (img.getAttribute('fetchpriority') || '').toLowerCase(),
+                                          visible,
+                                          intersectsViewport,
+                                          requestedBeforeAuditActivation: Boolean(currentSrcPath && resourcePaths.has(currentSrcPath)),
+                                          complete: Boolean(img.complete),
+                                          naturalWidth: Math.max(0, Number(img.naturalWidth) || 0),
+                                          naturalHeight: Math.max(0, Number(img.naturalHeight) || 0),
+                                          hasAlt: img.hasAttribute('alt')
+                                        };
+                                      });
+                                      return {
+                                        capturePhase: 'after-load-before-test-only-image-activation',
+                                        viewportHeightCssPixels: window.innerHeight,
+                                        resourceCount: resources.length,
+                                        encodedBodyBytes: resources.reduce((total, item) => total + item.encodedBodyBytes, 0),
+                                        transferBytes: resources.reduce((total, item) => total + item.transferBytes, 0),
+                                        decodedBodyBytes: resources.reduce((total, item) => total + item.decodedBodyBytes, 0),
+                                        resources,
+                                        imageCount: images.length,
+                                        visibleImageCount: images.filter(item => item.visible).length,
+                                        inViewportImageCount: images.filter(item => item.intersectsViewport).length,
+                                        requestedImageCount: images.filter(item => item.requestedBeforeAuditActivation).length,
+                                        requestedOutsideViewportCount: images.filter(item =>
+                                          item.requestedBeforeAuditActivation && !item.intersectsViewport
+                                        ).length,
+                                        images
+                                      };
+                                    }"""
+                                )
+                            except Exception as error:
+                                failures.append(
+                                    f"{page_name} at {width}px @{device_scale_factor}x: "
+                                    f"could not capture natural first-view resources before audit activation: "
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                )
+
                             pictures = page.locator(
                                 'picture:has(source[data-responsive-image="true"])'
                             )
                             picture_count = pictures.count()
+                            previous_picture_count = picture_counts_by_route.setdefault(page_name, picture_count)
+                            check_preview(
+                                previous_picture_count == picture_count,
+                                f"{page_name}: responsive picture inventory changed across viewport/DPR contexts",
+                            )
 
                             for index in range(picture_count):
                                 picture = pictures.nth(index)
                                 source = picture.locator('source[data-responsive-image="true"]').first
                                 image = picture.locator("img").first
                                 label = f"{page_name} at {width}px @{device_scale_factor}x picture {index + 1}"
+                                # Activate an associated tab panel before measuring its images.
+                                # scrollIntoView cannot expose content inside a hidden tab panel;
+                                # use the real tab control so its accessibility state and layout
+                                # are exercised exactly as a guest would activate them.
+                                panel_id = image.evaluate(
+                                    """(img) => img.closest('[role="tabpanel"]')?.id || ''"""
+                                )
+                                if panel_id:
+                                    panel = page.locator(f'[role="tabpanel"]#{panel_id}')
+                                    tab = page.locator(f'[role="tab"][aria-controls="{panel_id}"]')
+                                    if panel.count() != 1:
+                                        failures.append(
+                                            f"{label}: responsive image tab panel {panel_id} is missing or ambiguous"
+                                        )
+                                        continue
+                                    if not panel.is_visible():
+                                        if tab.count() != 1:
+                                            failures.append(
+                                                f"{label}: tab control for hidden panel {panel_id} is missing or ambiguous"
+                                            )
+                                            continue
+                                        try:
+                                            tab.click(timeout=5000)
+                                            panel.wait_for(state="visible", timeout=5000)
+                                        except Exception as error:
+                                            failures.append(
+                                                f"{label}: could not activate tab panel {panel_id}: "
+                                                f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                            )
+                                            continue
+                                    if tab.count() == 1 and tab.get_attribute("aria-selected") != "true":
+                                        failures.append(
+                                            f"{label}: tab panel {panel_id} became visible without selecting its tab"
+                                        )
+                                        continue
                                 # Exercise every responsive picture in the real package, including
                                 # offscreen and inactive carousel/gallery slides. Force eager loading
                                 # only in this isolated test context; production loading policy is
@@ -682,6 +2143,13 @@ def run_responsive_image_preview_smoke() -> int:
                                             }
                                           }
                                           const box = img.getBoundingClientRect();
+                                          const pictureElement = img.closest('picture');
+                                          const featurePhoto = img.closest('.feature-photo');
+                                          const pictureBox = pictureElement ? pictureElement.getBoundingClientRect() : null;
+                                          const featurePhotoBox = featurePhoto ? featurePhoto.getBoundingClientRect() : null;
+                                          const imageStyle = getComputedStyle(img);
+                                          const pictureStyle = pictureElement ? getComputedStyle(pictureElement) : null;
+                                          const featurePhotoStyle = featurePhoto ? getComputedStyle(featurePhoto) : null;
                                           const carouselViewport = img.closest('.experience-carousel__viewport');
                                           const renderedWidth = box.width || (carouselViewport
                                             ? carouselViewport.getBoundingClientRect().width : 0);
@@ -692,6 +2160,13 @@ def run_responsive_image_preview_smoke() -> int:
                                             width: img.naturalWidth,
                                             height: img.naturalHeight,
                                             renderedWidth,
+                                            pictureWidth: pictureBox ? pictureBox.width : 0,
+                                            pictureDisplay: pictureStyle ? pictureStyle.display : '<missing>',
+                                            featurePhotoWidth: featurePhotoBox ? featurePhotoBox.width : 0,
+                                            featurePhotoDisplay: featurePhotoStyle ? featurePhotoStyle.display : '<missing>',
+                                            imageDisplay: imageStyle.display,
+                                            imageComputedWidth: imageStyle.width,
+                                            imageVisibility: imageStyle.visibility,
                                             devicePixelRatio: window.devicePixelRatio,
                                             declaredWidth: img.getAttribute('width') || '',
                                             declaredHeight: img.getAttribute('height') || '',
@@ -772,8 +2247,18 @@ def run_responsive_image_preview_smoke() -> int:
                                 )
                                 check_preview(
                                     details["renderedWidth"] > 0,
-                                    f"{label}: responsive image slot must have a measurable rendered width",
+                                    (
+                                        f"{label}: responsive image slot must have a measurable rendered width "
+                                        f"(img={details['renderedWidth']:.1f}px; "
+                                        f"picture={details['pictureWidth']:.1f}px/{details['pictureDisplay']}; "
+                                        f"feature-photo={details['featurePhotoWidth']:.1f}px/{details['featurePhotoDisplay']}; "
+                                        f"img-display={details['imageDisplay']}; "
+                                        f"img-computed-width={details['imageComputedWidth']}; "
+                                        f"visibility={details['imageVisibility']})"
+                                    ),
                                 )
+                                required_pixels = 0.0
+                                ratio = None
                                 if selected_width is not None and details["renderedWidth"] > 0:
                                     required_pixels = float(details["renderedWidth"]) * device_scale_factor
                                     ratio = selected_width / required_pixels
@@ -836,6 +2321,43 @@ def run_responsive_image_preview_smoke() -> int:
                                     )
 
                                 selected_request_count = request_counts.get(details["currentSrc"], 0)
+                                selected_response = image_responses.get(details["currentSrc"], {})
+                                selected_transfer = page.evaluate(
+                                    """(url) => {
+                                      const entries = performance.getEntriesByName(url, "resource");
+                                      const entry = entries.length ? entries[entries.length - 1] : null;
+                                      return entry ? {
+                                        encodedBodyBytes: Number(entry.encodedBodySize) || 0,
+                                        transferBytes: Number(entry.transferSize) || 0,
+                                        decodedBodyBytes: Number(entry.decodedBodySize) || 0
+                                      } : null;
+                                    }""",
+                                    details["currentSrc"],
+                                )
+                                check_preview(
+                                    selected_response.get("status") == 200,
+                                    f"{label}: selected WebP candidate must return HTTP 200; observed {selected_response.get('status')!r}",
+                                )
+                                check_preview(
+                                    isinstance(selected_transfer, dict)
+                                    and selected_transfer.get("encodedBodyBytes", 0) > 0,
+                                    f"{label}: selected WebP candidate must expose non-zero encoded body bytes",
+                                )
+                                selected_resource_evidence.append({
+                                    "route": page_name,
+                                    "viewportWidthCssPixels": width,
+                                    "deviceScaleFactor": device_scale_factor,
+                                    "selectedWebpPath": selected_path,
+                                    "pictureIndex": index,
+                                    "selectedWidth": selected_width if selected_width is not None else 0,
+                                    "requiredPixelWidth": round(required_pixels, 1),
+                                    "selectionPixelRatio": round(ratio, 3) if ratio is not None else 0,
+                                    "encodedBodyBytes": selected_transfer.get("encodedBodyBytes", 0) if isinstance(selected_transfer, dict) else 0,
+                                    "transferBytes": selected_transfer.get("transferBytes", 0) if isinstance(selected_transfer, dict) else 0,
+                                    "decodedBodyBytes": selected_transfer.get("decodedBodyBytes", 0) if isinstance(selected_transfer, dict) else 0,
+                                    "httpStatus": selected_response.get("status"),
+                                    "requestCount": selected_request_count,
+                                })
                                 check_preview(
                                     selected_request_count == 1,
                                     f"{label}: selected WebP candidate should be requested once, "
@@ -843,6 +2365,42 @@ def run_responsive_image_preview_smoke() -> int:
                                 )
 
                             page.wait_for_timeout(50)
+                            try:
+                                page_resources = page.evaluate(
+                                    """() => {
+                                      const origin = location.origin;
+                                      return performance.getEntriesByType("resource")
+                                        .filter(entry => {
+                                          try { return new URL(entry.name).origin === origin; }
+                                          catch (_) { return false; }
+                                        })
+                                        .map(entry => {
+                                          const url = new URL(entry.name);
+                                          return {
+                                            path: url.pathname,
+                                            initiatorType: String(entry.initiatorType || "other"),
+                                            encodedBodyBytes: Math.max(0, Math.round(Number(entry.encodedBodySize) || 0)),
+                                            transferBytes: Math.max(0, Math.round(Number(entry.transferSize) || 0)),
+                                            decodedBodyBytes: Math.max(0, Math.round(Number(entry.decodedBodySize) || 0)),
+                                            durationMs: Math.max(0, Math.round((Number(entry.duration) || 0) * 10) / 10)
+                                          };
+                                        });
+                                    }"""
+                                )
+                            except Exception as error:
+                                page_resources = []
+                                failures.append(
+                                    f"{page_name} at {width}px @{device_scale_factor}x: "
+                                    f"could not capture packaged same-origin resource timing: "
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                )
+                            page_resource_evidence.append({
+                                "route": page_name,
+                                "viewportWidthCssPixels": width,
+                                "deviceScaleFactor": device_scale_factor,
+                                "resources": page_resources,
+                                "firstView": first_view_snapshot,
+                            })
                             for request_url, request_count in request_counts.items():
                                 request_path = urlsplit(request_url).path.lower()
                                 if request_path.endswith(".webp") and request_count > 1:
@@ -879,19 +2437,45 @@ def run_responsive_image_preview_smoke() -> int:
     if not checked_pictures:
         failures.append("Packaged preview did not exercise any responsive picture")
 
-    if failures:
+    report = build_responsive_image_evidence_report(
+        route_picture_counts=picture_counts_by_route,
+        checked_picture_count=checked_pictures,
+        selected_resource_evidence=selected_resource_evidence,
+        browser_version=browser_version,
+        failures=failures,
+        page_resource_evidence=page_resource_evidence,
+    )
+    try:
+        destination = write_responsive_image_evidence_report(report_path, report)
+        print(f"Packaged responsive-image evidence report written locally: {destination}")
+    except Exception as error:
+        write_failure = (
+            "Could not write packaged responsive-image evidence report: "
+            + type(error).__name__ + ": " + sanitize_diagnostic_text(error)
+        )
+        failures.append(write_failure)
+        report["automatedResult"] = "FAIL"
+        report["automatedFailures"] = list(dict.fromkeys(report["automatedFailures"] + [write_failure]))
+
+    failures[:] = list(report["automatedFailures"])
+    if report["automatedResult"] != "PASS":
         print(f"FAIL: packaged responsive-image browser smoke found {len(failures)} issue(s)")
         for failure in failures:
             print(f" - {failure}")
         return 1
 
+    summary = report["summary"]
     viewport_widths = ", ".join(str(width) for width, _height in RESPONSIVE_AUDIT_VIEWPORTS)
     print(
         "PASS: packaged responsive-image browser smoke checked "
         f"{checked_pictures} picture instances across {len(routes_with_responsive_images)} routes "
         f"at {viewport_widths}px and DPR 1x/2x; maximum selected/required pixel ratio "
-        f"{max_selected_to_required_ratio:.2f}x. Chromium selected declared WebP candidates, "
-        "retained JPEG fallbacks, matched hero responsive preloads, and issued no duplicate WebP requests."
+        f"{summary['maximumSelectedToRequiredPixelRatio']:.2f}x; "
+        f"{len(selected_resource_evidence)} selected-resource observations and "
+        f"{len(page_resource_evidence)} packaged route-resource contexts. "
+        f"Average selected-image body {summary['averageEncodedBodyBytes']} bytes. "
+        "The artifact records full-page packaged resources after test-only image activation; "
+        "these are not initial-navigation or field measurements."
     )
     return 0
 
@@ -1250,6 +2834,17 @@ def check_404_recovery(page, base_url: str) -> dict:
     return evidence
 
 
+def activate_disclosure_summary(page, disclosure, description: str) -> None:
+    """Open a native disclosure with keyboard input under the reduced-motion preference."""
+    summary = disclosure.locator("summary")
+    page.emulate_media(reduced_motion="reduce")
+    try:
+        summary.press("Enter", timeout=5000)
+        check(disclosure.get_attribute("open") is not None, description)
+    finally:
+        page.emulate_media(reduced_motion="no-preference")
+
+
 def check_stay_planner(page, base_url: str) -> None:
     """Exercise the shared enquiry planner, editable draft, and deliberate WhatsApp handoff."""
 
@@ -1264,13 +2859,12 @@ def check_stay_planner(page, base_url: str) -> None:
     check(page.locator('script[src="assets/stay-planner.js"]').count() == 0,
           "Home: do not load the generic planner runtime when its component is absent")
     page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
-    page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
     planner = page.locator("[data-stay-planner]")
     check(planner.count() == 1, "Stay planner should appear once on the Rooms route")
     if planner.count() != 1:
         return
     details = planner.locator("[data-stay-planner-disclosure]")
-    details.locator("summary").click()
+    activate_disclosure_summary(page, details, "Stay planner disclosure should open from its visible summary")
     form = planner.locator("[data-stay-planner-form]")
     arrival = form.locator("#stay-plan-arrival")
     departure = form.locator("#stay-plan-departure")
@@ -1382,7 +2976,11 @@ def check_stay_planner(page, base_url: str) -> None:
             rollover_page = rollover_context.new_page()
             rollover_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             rollover_planner = rollover_page.locator("[data-stay-planner]")
-            rollover_planner.locator("[data-stay-planner-disclosure] summary").click()
+            activate_disclosure_summary(
+                rollover_page,
+                rollover_planner.locator("[data-stay-planner-disclosure]"),
+                "Stay planner disclosure should open in the local-midnight scenario",
+            )
             rollover_arrival = rollover_planner.locator("#stay-plan-arrival")
             rollover_departure = rollover_planner.locator("#stay-plan-departure")
             rollover_arrival.fill("2099-01-10")
@@ -1408,7 +3006,11 @@ def check_stay_planner(page, base_url: str) -> None:
             fallback_page = fallback_context.new_page()
             fallback_page.goto(base_url + "rooms.html", wait_until="domcontentloaded", timeout=15000)
             fallback_planner = fallback_page.locator("[data-stay-planner]")
-            fallback_planner.locator("[data-stay-planner-disclosure] summary").click()
+            activate_disclosure_summary(
+                fallback_page,
+                fallback_planner.locator("[data-stay-planner-disclosure]"),
+                "Stay planner disclosure should open without JavaScript",
+            )
             fallback_notice = fallback_planner.locator(".stay-planner__no-script")
             check(
                 fallback_notice.is_visible(),
@@ -2148,6 +3750,8 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                       f"{page_name} at {width}px: navigation redirected away from the requested site origin")
             page.wait_for_selector("main#main", timeout=5000)
             page.wait_for_timeout(80)
+            if width in screenshot_widths:
+                capture_route_performance(page, page_name, width, height)
             check_premium_guest_journey(page, page_name, width)
             type_requirements = {
                 "index.html": [(".experience-card p", 13), (".proof-item span", 11),
@@ -3655,15 +5259,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Run focused Chromium checks against a generated local preview package.",
     )
+    parser.add_argument(
+        "--responsive-image-evidence",
+        help="Write the per-picture packaged Chromium evidence JSON outside the checkout.",
+    )
     args = parser.parse_args(argv)
     local_screenshots_raw = os.environ.get("BROWSER_SMOKE_SCREENSHOTS_DIR")
     local_report_raw = os.environ.get("BROWSER_SMOKE_REPORT_PATH")
     journal_screenshots_raw = os.environ.get("BROWSER_SMOKE_JOURNAL_EVIDENCE_DIR")
     if args.responsive_image_preview:
-        if (args.base_url or args.operator or args.report or args.screenshots_dir
+        if (not args.responsive_image_evidence or args.base_url or args.operator or args.report or args.screenshots_dir
                 or local_screenshots_raw or local_report_raw or journal_screenshots_raw):
-            parser.error("Preview-image mode cannot be combined with staging or screenshot evidence options")
-        return run_responsive_image_preview_smoke()
+            parser.error("Preview-image mode requires --responsive-image-evidence and cannot be combined with staging or screenshot evidence options")
+        return run_responsive_image_preview_smoke(args.responsive_image_evidence)
+    if args.responsive_image_evidence:
+        parser.error("--responsive-image-evidence requires --responsive-image-preview")
     if bool(local_screenshots_raw) != bool(local_report_raw):
         parser.error("BROWSER_SMOKE_SCREENSHOTS_DIR and BROWSER_SMOKE_REPORT_PATH must be set together")
     staging_mode = bool(args.base_url)
@@ -3732,6 +5342,7 @@ def main(argv: list[str] | None = None) -> int:
                 viewport={"width": 1440, "height": 900},
                 http_credentials=http_credentials,
             )
+            install_performance_observers(context)
             install_navigation_guard(context, base_url)
             page = context.new_page()
             page.on("pageerror", lambda error: RUNTIME_ERRORS.append(f"{safe_url_label(page.url)}: {error}"))
@@ -3842,6 +5453,7 @@ def main(argv: list[str] | None = None) -> int:
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
             unknown_route_evidence=unknown_route_evidence,
+            performance_evidence=ROUTE_PERFORMANCE_EVIDENCE,
         )
         if not local_visual_report["visualEvidence"]["complete"]:
             FAILURES.append(
@@ -3855,6 +5467,7 @@ def main(argv: list[str] | None = None) -> int:
                 PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED,
                 screenshot_evidence=SCREENSHOT_EVIDENCE,
                 unknown_route_evidence=unknown_route_evidence,
+                performance_evidence=ROUTE_PERFORMANCE_EVIDENCE,
             )
             try:
                 report_destination = write_report(str(local_report_path), local_visual_report)
@@ -3870,6 +5483,7 @@ def main(argv: list[str] | None = None) -> int:
             PAGES_ATTEMPTED, PAGES_HTTP_OK, VIEWPORTS_COMPLETED, CROSS_ORIGIN_NAVIGATION_ERRORS,
             screenshot_evidence=SCREENSHOT_EVIDENCE,
             unknown_route_evidence=unknown_route_evidence,
+            performance_evidence=ROUTE_PERFORMANCE_EVIDENCE,
         )
         # The console result and JSON report must agree. Missing route/viewport
         # evidence is a failure even when no individual assertion raised.
@@ -3891,6 +5505,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     mode_label = "staging" if staging_mode else "local"
+    print(
+        f"Route performance baseline captured {len(ROUTE_PERFORMANCE_EVIDENCE)}/"
+        f"{len(PAGES) * len(VIEWPORTS)} route/viewport samples. LCP, CLS, navigation timing, "
+        "same-origin encoded resource bytes and long tasks are laboratory diagnostics only; "
+        "no field Core Web Vitals claim or performance threshold is inferred."
+    )
     print(
         f"PASS: Chromium {mode_label} browser smoke suite covered {len(PAGES)} core pages plus the branded HTTP 404 recovery route, metadata ranges and parity, "
         "same-origin assets/publication guards, contact-link hydration, shared enquiry draft generation/date validation/no network submission, room-finder filters/clear/no-JavaScript fallback, three-room side-by-side comparison/limit/removal/filter recovery/no-JavaScript fallback, 320/360/390/768/1280/1440px responsive layout, "
