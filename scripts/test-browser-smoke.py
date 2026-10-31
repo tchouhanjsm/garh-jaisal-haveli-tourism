@@ -2037,7 +2037,26 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 target = deferred_targets.first
                                 deferred_label = f"{page_name} deferred Gallery image"
                                 try:
-                                    target.scroll_into_view_if_needed(timeout=5000)
+                                    target_handle = target.element_handle()
+                                    if target_handle is None:
+                                        raise RuntimeError("deferred media target disappeared before activation")
+                                    target.evaluate(
+                                        "(element) => element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+                                    )
+                                    page.wait_for_function(
+                                        """element => element && (
+                                          element.getAttribute("data-deferred-media-activated") === "true"
+                                          || element.getAttribute("data-deferred-media-failed") === "true"
+                                        )""",
+                                        arg=target_handle,
+                                        timeout=5000,
+                                    )
+                                    activation_state = target.get_attribute("data-deferred-media-activated")
+                                    if activation_state != "true":
+                                        raise RuntimeError(
+                                            "deferred media runtime reported failure: "
+                                            + str(target.get_attribute("data-deferred-media-failed") or "unknown")
+                                        )
                                     image = target.locator("img").first
                                     image.wait_for(state="attached", timeout=5000)
                                     decoded = image.evaluate(
@@ -2050,7 +2069,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     check_preview(decoded, f"{deferred_label}: image must activate, decode and retain descriptive alt text")
                                 except Exception as error:
                                     failures.append(
-                                        f"{deferred_label}: bounded observer activation failed: "
+                                        f"{deferred_label}: bounded deferred activation failed: "
                                         f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
                                     )
                                     break
