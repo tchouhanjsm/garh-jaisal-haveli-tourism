@@ -1106,6 +1106,101 @@ def build_responsive_image_evidence_report(
     expected_viewport_widths = {width for width, _height in RESPONSIVE_AUDIT_VIEWPORTS}
     resource_buckets = ("images", "stylesheets", "scripts", "fonts", "other")
 
+    def safe_same_origin_path(value: object, *, allow_empty: bool = False) -> bool:
+        if not isinstance(value, str):
+            return False
+        if allow_empty and value == "":
+            return True
+        return (
+            value.startswith("/")
+            and not value.startswith("//")
+            and "?" not in value
+            and "#" not in value
+            and "://" not in value
+            and "\\" not in value
+            and all(part not in {".", ".."} for part in PurePosixPath(value).parts)
+        )
+
+    def normalize_resource_entries(
+        raw_resources: object, route: str, viewport_width: int, dpr: int, phase: str
+    ) -> tuple[list[dict], dict, dict[str, int]]:
+        normalized: list[dict] = []
+        path_counts: dict[str, int] = {}
+        totals = {
+            bucket: {"count": 0, "encodedBodyBytes": 0, "transferBytes": 0, "decodedBodyBytes": 0}
+            for bucket in resource_buckets
+        }
+        if not isinstance(raw_resources, list) or not raw_resources:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: {phase} resource inventory is missing or empty"
+            )
+            return normalized, totals, path_counts
+        for resource_index, resource in enumerate(raw_resources):
+            if not isinstance(resource, dict):
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x {phase} resource {resource_index + 1}: expected a JSON object"
+                )
+                continue
+            resource_path = resource.get("path")
+            initiator_type = resource.get("initiatorType")
+            encoded_bytes = resource.get("encodedBodyBytes")
+            transfer_bytes = resource.get("transferBytes")
+            decoded_bytes = resource.get("decodedBodyBytes")
+            duration_ms = resource.get("durationMs")
+            valid_resource = (
+                safe_same_origin_path(resource_path)
+                and isinstance(initiator_type, str)
+                and 0 < len(initiator_type) <= 64
+                and all(
+                    not isinstance(value, bool) and isinstance(value, int) and value >= 0
+                    for value in (encoded_bytes, transfer_bytes, decoded_bytes)
+                )
+                and not isinstance(duration_ms, bool)
+                and isinstance(duration_ms, (int, float))
+                and 0 <= duration_ms <= 600000
+            )
+            if not valid_resource:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x {phase} resource {resource_index + 1}: malformed or unsafe same-origin resource evidence"
+                )
+                continue
+            suffix = PurePosixPath(resource_path.lower()).suffix
+            if suffix in {".avif", ".gif", ".jpe", ".jpeg", ".jpg", ".png", ".svg", ".webp"} or initiator_type == "img":
+                bucket = "images"
+            elif suffix == ".css" or initiator_type == "css":
+                bucket = "stylesheets"
+            elif suffix in {".js", ".mjs"} or initiator_type == "script":
+                bucket = "scripts"
+            elif suffix in {".woff", ".woff2", ".ttf", ".otf"}:
+                bucket = "fonts"
+            else:
+                bucket = "other"
+            normalized.append({
+                "path": resource_path,
+                "initiatorType": initiator_type,
+                "resourceType": bucket,
+                "encodedBodyBytes": encoded_bytes,
+                "transferBytes": transfer_bytes,
+                "decodedBodyBytes": decoded_bytes,
+                "durationMs": round(float(duration_ms), 1),
+            })
+            path_counts[resource_path] = path_counts.get(resource_path, 0) + 1
+            totals[bucket]["count"] += 1
+            totals[bucket]["encodedBodyBytes"] += encoded_bytes
+            totals[bucket]["transferBytes"] += transfer_bytes
+            totals[bucket]["decodedBodyBytes"] += decoded_bytes
+        if len(normalized) != len(raw_resources):
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: one or more {phase} resource entries were rejected"
+            )
+        if not normalized:
+            page_resource_validation_failures.append(
+                f"{route} at {viewport_width}px @{dpr}x: no same-origin {phase} resources were captured"
+            )
+        normalized.sort(key=lambda resource: (-resource["encodedBodyBytes"], resource["path"]))
+        return normalized, totals, path_counts
+
+    expected_viewport_heights = dict(RESPONSIVE_AUDIT_VIEWPORTS)
     for context_index, item in enumerate(page_resource_evidence):
         if not isinstance(item, dict):
             page_resource_validation_failures.append(
@@ -1129,7 +1224,6 @@ def build_responsive_image_evidence_report(
                 f"Page-resource context {context_index + 1}: malformed route, viewport, DPR or resource inventory"
             )
             continue
-
         context_key = (route, viewport_width, dpr)
         if context_key in page_resource_keys:
             page_resource_validation_failures.append(
@@ -1137,86 +1231,144 @@ def build_responsive_image_evidence_report(
             )
         page_resource_keys.add(context_key)
 
-        normalized_resources: list[dict] = []
-        path_counts: dict[str, int] = {}
-        bucket_totals = {
-            bucket: {"count": 0, "encodedBodyBytes": 0, "transferBytes": 0, "decodedBodyBytes": 0}
-            for bucket in resource_buckets
+        first_view = item.get("firstView")
+        normalized_first_view: dict = {
+            "capturePhase": "invalid",
+            "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+            "resourceCount": 0,
+            "imageCount": 0,
+            "visibleImageCount": 0,
+            "inViewportImageCount": 0,
+            "requestedImageCount": 0,
+            "requestedOutsideViewportCount": 0,
+            "encodedBodyBytes": 0,
+            "transferBytes": 0,
+            "decodedBodyBytes": 0,
+            "byType": {
+                bucket: {"count": 0, "encodedBodyBytes": 0, "transferBytes": 0, "decodedBodyBytes": 0}
+                for bucket in resource_buckets
+            },
+            "resources": [],
+            "images": [],
         }
-        for resource_index, resource in enumerate(resources):
-            if not isinstance(resource, dict):
-                page_resource_validation_failures.append(
-                    f"{route} at {viewport_width}px @{dpr}x resource {resource_index + 1}: expected a JSON object"
-                )
-                continue
-            resource_path = resource.get("path")
-            initiator_type = resource.get("initiatorType")
-            encoded_bytes = resource.get("encodedBodyBytes")
-            transfer_bytes = resource.get("transferBytes")
-            decoded_bytes = resource.get("decodedBodyBytes")
-            duration_ms = resource.get("durationMs")
-            valid_resource = (
-                isinstance(resource_path, str)
-                and resource_path.startswith("/")
-                and not resource_path.startswith("//")
-                and "?" not in resource_path
-                and "#" not in resource_path
-                and "://" not in resource_path
-                and "\\" not in resource_path
-                and all(part not in {".", ".."} for part in PurePosixPath(resource_path).parts)
-                and isinstance(initiator_type, str)
-                and 0 < len(initiator_type) <= 64
-                and all(
-                    not isinstance(value, bool) and isinstance(value, int) and value >= 0
-                    for value in (encoded_bytes, transfer_bytes, decoded_bytes)
-                )
-                and not isinstance(duration_ms, bool)
-                and isinstance(duration_ms, (int, float))
-                and 0 <= duration_ms <= 600000
-            )
-            if not valid_resource:
-                page_resource_validation_failures.append(
-                    f"{route} at {viewport_width}px @{dpr}x resource {resource_index + 1}: malformed or unsafe same-origin resource evidence"
-                )
-                continue
-
-            suffix = PurePosixPath(resource_path.lower()).suffix
-            if suffix in {".avif", ".gif", ".jpe", ".jpeg", ".jpg", ".png", ".svg", ".webp"} or initiator_type == "img":
-                bucket = "images"
-            elif suffix == ".css" or initiator_type == "css":
-                bucket = "stylesheets"
-            elif suffix in {".js", ".mjs"} or initiator_type == "script":
-                bucket = "scripts"
-            elif suffix in {".woff", ".woff2", ".ttf", ".otf"}:
-                bucket = "fonts"
-            else:
-                bucket = "other"
-
-            normalized_resources.append({
-                "path": resource_path,
-                "initiatorType": initiator_type,
-                "resourceType": bucket,
-                "encodedBodyBytes": encoded_bytes,
-                "transferBytes": transfer_bytes,
-                "decodedBodyBytes": decoded_bytes,
-                "durationMs": round(float(duration_ms), 1),
-            })
-            path_counts[resource_path] = path_counts.get(resource_path, 0) + 1
-            totals = bucket_totals[bucket]
-            totals["count"] += 1
-            totals["encodedBodyBytes"] += encoded_bytes
-            totals["transferBytes"] += transfer_bytes
-            totals["decodedBodyBytes"] += decoded_bytes
-
-        if len(normalized_resources) != len(resources):
+        if (
+            not isinstance(first_view, dict)
+            or first_view.get("capturePhase") != "after-load-before-test-only-image-activation"
+            or first_view.get("viewportHeightCssPixels") != expected_viewport_heights[viewport_width]
+        ):
             page_resource_validation_failures.append(
-                f"{route} at {viewport_width}px @{dpr}x: one or more resource entries were rejected"
+                f"{route} at {viewport_width}px @{dpr}x: first-view snapshot is missing or was captured after test-only activation"
             )
-        if not normalized_resources:
-            page_resource_validation_failures.append(
-                f"{route} at {viewport_width}px @{dpr}x: no same-origin subresources were captured"
+        else:
+            first_view_resources, first_view_totals, _first_view_path_counts = normalize_resource_entries(
+                first_view.get("resources"), route, viewport_width, dpr, "first-view"
             )
-        normalized_resources.sort(key=lambda resource: (-resource["encodedBodyBytes"], resource["path"]))
+            first_view_images = first_view.get("images")
+            normalized_first_view_images: list[dict] = []
+            image_indexes: set[int] = set()
+            if not isinstance(first_view_images, list) or not first_view_images:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x: first-view image-state inventory is missing"
+                )
+                first_view_images = []
+            first_view_paths = {resource["path"] for resource in first_view_resources}
+            for image_index, image in enumerate(first_view_images):
+                if not isinstance(image, dict):
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x first-view image {image_index + 1}: expected a JSON object"
+                    )
+                    continue
+                index = image.get("index")
+                src_path = image.get("srcPath")
+                current_src_path = image.get("currentSrcPath")
+                loading = image.get("loading")
+                fetchpriority = image.get("fetchpriority")
+                visible = image.get("visible")
+                intersects_viewport = image.get("intersectsViewport")
+                requested = image.get("requestedBeforeAuditActivation")
+                complete = image.get("complete")
+                natural_width = image.get("naturalWidth")
+                natural_height = image.get("naturalHeight")
+                has_alt = image.get("hasAlt")
+                valid_image = (
+                    isinstance(index, int) and not isinstance(index, bool) and index >= 0 and index not in image_indexes
+                    and safe_same_origin_path(src_path)
+                    and safe_same_origin_path(current_src_path, allow_empty=True)
+                    and loading in {"", "eager", "lazy"}
+                    and fetchpriority in {"", "auto", "high", "low"}
+                    and all(isinstance(value, bool) for value in (
+                        visible, intersects_viewport, requested, complete, has_alt
+                    ))
+                    and all(
+                        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                        for value in (natural_width, natural_height)
+                    )
+                    and (not intersects_viewport or visible)
+                    and requested == bool(current_src_path and current_src_path in first_view_paths)
+                )
+                if not valid_image:
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x first-view image {image_index + 1}: malformed path, loading-priority/visibility, geometry or request-state evidence"
+                    )
+                    continue
+                image_indexes.add(index)
+                normalized_first_view_images.append({
+                    "index": index,
+                    "srcPath": src_path,
+                    "currentSrcPath": current_src_path,
+                    "loading": loading,
+                    "fetchpriority": fetchpriority,
+                    "visible": visible,
+                    "intersectsViewport": intersects_viewport,
+                    "requestedBeforeAuditActivation": requested,
+                    "complete": complete,
+                    "naturalWidth": natural_width,
+                    "naturalHeight": natural_height,
+                    "hasAlt": has_alt,
+                })
+            visible_count = sum(1 for image in normalized_first_view_images if image["visible"])
+            in_viewport_count = sum(1 for image in normalized_first_view_images if image["intersectsViewport"])
+            requested_count = sum(1 for image in normalized_first_view_images if image["requestedBeforeAuditActivation"])
+            requested_outside_viewport_count = sum(
+                1 for image in normalized_first_view_images
+                if image["requestedBeforeAuditActivation"] and not image["intersectsViewport"]
+            )
+            expected_first_view_counts = {
+                "resourceCount": len(first_view_resources),
+                "imageCount": len(normalized_first_view_images),
+                "visibleImageCount": visible_count,
+                "inViewportImageCount": in_viewport_count,
+                "requestedImageCount": requested_count,
+                "requestedOutsideViewportCount": requested_outside_viewport_count,
+            }
+            for field, expected_value in expected_first_view_counts.items():
+                declared_value = first_view.get(field)
+                if isinstance(declared_value, bool) or not isinstance(declared_value, int) or declared_value != expected_value:
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x: first-view {field} does not match its entries"
+                    )
+            for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                declared_value = first_view.get(field)
+                expected_value = sum(resource[field] for resource in first_view_resources)
+                if isinstance(declared_value, bool) or not isinstance(declared_value, int) or declared_value != expected_value:
+                    page_resource_validation_failures.append(
+                        f"{route} at {viewport_width}px @{dpr}x: first-view {field} does not reconcile with its resource entries"
+                    )
+            normalized_first_view = {
+                "capturePhase": "after-load-before-test-only-image-activation",
+                "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+                **expected_first_view_counts,
+                "encodedBodyBytes": sum(resource["encodedBodyBytes"] for resource in first_view_resources),
+                "transferBytes": sum(resource["transferBytes"] for resource in first_view_resources),
+                "decodedBodyBytes": sum(resource["decodedBodyBytes"] for resource in first_view_resources),
+                "byType": first_view_totals,
+                "resources": first_view_resources,
+                "images": normalized_first_view_images,
+            }
+
+        normalized_resources, bucket_totals, path_counts = normalize_resource_entries(
+            resources, route, viewport_width, dpr, "after-activation"
+        )
         normalized_page_resources.append({
             "route": route,
             "viewportWidthCssPixels": viewport_width,
@@ -1231,6 +1383,8 @@ def build_responsive_image_evidence_report(
                 for path, count in sorted(path_counts.items()) if count > 1
             ],
             "resources": normalized_resources,
+            "firstView": normalized_first_view,
+            "afterActivationCapturePhase": "after-all-responsive-pictures-activated",
         })
 
     if len(normalized_page_resources) != expected_page_contexts:
@@ -1252,6 +1406,26 @@ def build_responsive_image_evidence_report(
     normalized_page_resources.sort(
         key=lambda item: (PAGES.index(item["route"]), item["viewportWidthCssPixels"], item["deviceScaleFactor"])
     )
+
+    first_view_summary_by_route: dict[str, dict] = {}
+    for route in PAGES:
+        route_contexts = [item for item in normalized_page_resources if item["route"] == route]
+        first_views = [item["firstView"] for item in route_contexts]
+        first_encoded = sum(item["encodedBodyBytes"] for item in first_views)
+        first_transfer = sum(item["transferBytes"] for item in first_views)
+        requested_images = sum(item["requestedImageCount"] for item in first_views)
+        in_viewport_images = sum(item["inViewportImageCount"] for item in first_views)
+        outside_viewport_requests = sum(item["requestedOutsideViewportCount"] for item in first_views)
+        context_count = len(first_views)
+        first_view_summary_by_route[route] = {
+            "contextCount": context_count,
+            "averageEncodedBodyBytes": round(first_encoded / context_count) if context_count else 0,
+            "maximumEncodedBodyBytes": max((item["encodedBodyBytes"] for item in first_views), default=0),
+            "averageTransferBytes": round(first_transfer / context_count) if context_count else 0,
+            "averageRequestedImageCount": round(requested_images / context_count, 2) if context_count else 0,
+            "averageInViewportImageCount": round(in_viewport_images / context_count, 2) if context_count else 0,
+            "averageRequestedOutsideViewportCount": round(outside_viewport_requests / context_count, 2) if context_count else 0,
+        }
 
     route_summaries: dict[str, dict] = {}
     for route in PAGES:
@@ -1293,7 +1467,7 @@ def build_responsive_image_evidence_report(
     commit_sha = os.environ.get("GITHUB_SHA", "")
     workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
     report = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
         "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
@@ -1310,7 +1484,9 @@ def build_responsive_image_evidence_report(
                 "Encoded, transfer and decoded byte counts are distinct Resource Timing fields.",
                 "Transfer size can include headers and may be zero when the browser does not expose a transfer for a resource.",
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
-                "Page-resource inventories are captured after the audit deliberately activates every responsive picture in the isolated test context.",
+                "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
+                "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
+                "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
                 "No field Core Web Vitals or savings versus the JPEG fallback are inferred."
@@ -1319,13 +1495,17 @@ def build_responsive_image_evidence_report(
         "browser": {"name": "Chromium", "version": browser_version or "unavailable"},
         "routes": route_summaries,
         "pageResourceEvidence": {
-            "measurementClass": "packaged-route-resource-timing-after-image-activation",
+            "measurementClass": "packaged-route-resource-timing-first-view-and-after-image-activation",
             "sameOriginOnly": True,
+            "firstViewCapturePhase": "after-load-before-test-only-image-activation",
+            "afterActivationCapturePhase": "after-all-responsive-pictures-activated",
+            "firstViewImageStatesCaptured": True,
             "allResponsivePicturesActivatedForAudit": True,
             "initialNavigationPayloadClaimed": False,
             "expectedContextCount": expected_page_contexts,
             "capturedContextCount": len(normalized_page_resources),
             "uniqueContextCount": len(page_resource_keys),
+            "firstViewSummaryByRoute": first_view_summary_by_route,
             "complete": page_resources_complete,
             "observations": normalized_page_resources,
         },
@@ -1360,7 +1540,7 @@ def build_responsive_image_evidence_report(
 
 def validate_responsive_image_evidence_report(report: dict) -> None:
     """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
-    if not isinstance(report, dict) or report.get("schemaVersion") != 2:
+    if not isinstance(report, dict) or report.get("schemaVersion") != 3:
         raise ValueError("Responsive-image browser evidence must use schema version 2")
     if (
         report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
@@ -1385,12 +1565,15 @@ def validate_responsive_image_evidence_report(report: dict) -> None:
     if not isinstance(page_resource_evidence, dict):
         raise ValueError("Packaged route-resource evidence is required")
     if (
-        page_resource_evidence.get("measurementClass") != "packaged-route-resource-timing-after-image-activation"
+        page_resource_evidence.get("measurementClass") != "packaged-route-resource-timing-first-view-and-after-image-activation"
         or page_resource_evidence.get("sameOriginOnly") is not True
+        or page_resource_evidence.get("firstViewCapturePhase") != "after-load-before-test-only-image-activation"
+        or page_resource_evidence.get("afterActivationCapturePhase") != "after-all-responsive-pictures-activated"
+        or page_resource_evidence.get("firstViewImageStatesCaptured") is not True
         or page_resource_evidence.get("allResponsivePicturesActivatedForAudit") is not True
         or page_resource_evidence.get("initialNavigationPayloadClaimed") is not False
     ):
-        raise ValueError("Packaged route-resource evidence must remain same-origin and explicitly non-initial-navigation laboratory data")
+        raise ValueError("Packaged route-resource evidence must distinguish natural first-view loading from post-activation laboratory data")
 
     expected_contexts = len(PAGES) * len(RESPONSIVE_AUDIT_VIEWPORTS) * 2
     page_observations = page_resource_evidence.get("observations")
@@ -1465,6 +1648,174 @@ def validate_responsive_image_evidence_report(report: dict) -> None:
             or context["decodedBodyBytes"] != sum(item["decodedBodyBytes"] for item in resources)
         ):
             raise ValueError("Packaged route-resource context totals do not match its resource entries")
+
+        if page_resource_evidence.get("complete") is True:
+            first_view = context.get("firstView")
+            expected_height = dict(RESPONSIVE_AUDIT_VIEWPORTS).get(width)
+            if (
+                not isinstance(first_view, dict)
+                or first_view.get("capturePhase") != "after-load-before-test-only-image-activation"
+                or first_view.get("viewportHeightCssPixels") != expected_height
+                or context.get("afterActivationCapturePhase") != "after-all-responsive-pictures-activated"
+            ):
+                raise ValueError("Packaged route-resource context is missing a correctly timed first-view snapshot")
+            first_view_resources = first_view.get("resources")
+            first_view_images = first_view.get("images")
+            if (
+                not isinstance(first_view_resources, list)
+                or not first_view_resources
+                or not isinstance(first_view_images, list)
+                or not first_view_images
+                or first_view.get("resourceCount") != len(first_view_resources)
+                or first_view.get("imageCount") != len(first_view_images)
+            ):
+                raise ValueError("Packaged first-view resource or image-state inventory is incomplete")
+
+            first_view_paths: set[str] = set()
+            first_view_path_counts: dict[str, int] = {}
+            for resource in first_view_resources:
+                if not isinstance(resource, dict):
+                    raise ValueError("Packaged first-view resource inventory contains a malformed resource")
+                resource_path = resource.get("path")
+                initiator_type = resource.get("initiatorType")
+                if (
+                    not isinstance(resource_path, str)
+                    or not resource_path.startswith("/")
+                    or resource_path.startswith("//")
+                    or "?" in resource_path
+                    or "#" in resource_path
+                    or "://" in resource_path
+                    or "\\" in resource_path
+                    or any(part in {".", ".."} for part in PurePosixPath(resource_path).parts)
+                    or not isinstance(initiator_type, str)
+                    or not initiator_type
+                ):
+                    raise ValueError("Packaged first-view resource evidence must contain sanitized same-origin paths only")
+                for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                    value = resource.get(field)
+                    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                        raise ValueError(f"Packaged first-view resource has invalid {field}")
+                duration = resource.get("durationMs")
+                if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not 0 <= duration <= 600000:
+                    raise ValueError("Packaged first-view resource has invalid duration")
+                first_view_paths.add(resource_path)
+                first_view_path_counts[resource_path] = first_view_path_counts.get(resource_path, 0) + 1
+
+            full_path_counts: dict[str, int] = {}
+            for resource in resources:
+                full_path_counts[resource["path"]] = full_path_counts.get(resource["path"], 0) + 1
+            if any(full_path_counts.get(path, 0) < count for path, count in first_view_path_counts.items()):
+                raise ValueError("Post-activation resource inventory must retain the first-view resource entries")
+
+            for field in ("encodedBodyBytes", "transferBytes", "decodedBodyBytes"):
+                value = first_view.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value != sum(
+                    item[field] for item in first_view_resources
+                ):
+                    raise ValueError(f"Packaged first-view {field} does not reconcile with its resource entries")
+
+            image_indexes: set[int] = set()
+            visible_count = 0
+            in_viewport_count = 0
+            requested_count = 0
+            requested_outside_viewport_count = 0
+            for image in first_view_images:
+                if not isinstance(image, dict):
+                    raise ValueError("Packaged first-view image-state inventory contains a malformed image")
+                index = image.get("index")
+                src_path = image.get("srcPath")
+                current_src_path = image.get("currentSrcPath")
+                loading = image.get("loading")
+                fetchpriority = image.get("fetchpriority")
+                visible = image.get("visible")
+                intersects_viewport = image.get("intersectsViewport")
+                requested = image.get("requestedBeforeAuditActivation")
+                complete = image.get("complete")
+                has_alt = image.get("hasAlt")
+                natural_width = image.get("naturalWidth")
+                natural_height = image.get("naturalHeight")
+                if (
+                    isinstance(index, bool)
+                    or not isinstance(index, int)
+                    or index < 0
+                    or index in image_indexes
+                    or not isinstance(src_path, str)
+                    or not src_path.startswith("/")
+                    or src_path.startswith("//")
+                    or "?" in src_path
+                    or "#" in src_path
+                    or "://" in src_path
+                    or "\\" in src_path
+                    or any(part in {".", ".."} for part in PurePosixPath(src_path).parts)
+                    or not isinstance(current_src_path, str)
+                    or (current_src_path and (
+                        not current_src_path.startswith("/")
+                        or current_src_path.startswith("//")
+                        or "?" in current_src_path
+                        or "#" in current_src_path
+                        or "://" in current_src_path
+                        or "\\" in current_src_path
+                        or any(part in {".", ".."} for part in PurePosixPath(current_src_path).parts)
+                    ))
+                    or loading not in {"", "eager", "lazy"}
+                    or fetchpriority not in {"", "auto", "high", "low"}
+                    or not all(isinstance(value, bool) for value in (
+                        visible, intersects_viewport, requested, complete, has_alt
+                    ))
+                    or not isinstance(natural_width, int)
+                    or isinstance(natural_width, bool)
+                    or natural_width < 0
+                    or not isinstance(natural_height, int)
+                    or isinstance(natural_height, bool)
+                    or natural_height < 0
+                    or (intersects_viewport and not visible)
+                    or requested != bool(current_src_path and current_src_path in first_view_paths)
+                ):
+                    raise ValueError("Packaged first-view image state contains an unsafe path or invalid loading-priority/visibility contract")
+                image_indexes.add(index)
+                visible_count += int(visible)
+                in_viewport_count += int(intersects_viewport)
+                requested_count += int(requested)
+                requested_outside_viewport_count += int(requested and not intersects_viewport)
+
+            expected_image_counts = {
+                "visibleImageCount": visible_count,
+                "inViewportImageCount": in_viewport_count,
+                "requestedImageCount": requested_count,
+                "requestedOutsideViewportCount": requested_outside_viewport_count,
+            }
+            for field, expected_value in expected_image_counts.items():
+                value = first_view.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value != expected_value:
+                    raise ValueError(f"Packaged first-view {field} does not match its image states")
+
+    first_view_summary = page_resource_evidence.get("firstViewSummaryByRoute")
+    if not isinstance(first_view_summary, dict) or set(first_view_summary) != set(PAGES):
+        raise ValueError("Packaged first-view summary must cover every core route")
+    route_context_counts = {
+        route: sum(1 for item in page_observations if isinstance(item, dict) and item.get("route") == route)
+        for route in PAGES
+    }
+    for route in PAGES:
+        summary = first_view_summary[route]
+        if (
+            not isinstance(summary, dict)
+            or summary.get("contextCount") != route_context_counts[route]
+            or any(
+                isinstance(summary.get(field), bool)
+                or not isinstance(summary.get(field), (int, float))
+                or summary[field] < 0
+                for field in (
+                    "averageEncodedBodyBytes",
+                    "maximumEncodedBodyBytes",
+                    "averageTransferBytes",
+                    "averageRequestedImageCount",
+                    "averageInViewportImageCount",
+                    "averageRequestedOutsideViewportCount",
+                )
+            )
+        ):
+            raise ValueError(f"Packaged first-view route summary is incomplete or invalid for {route}")
 
     inventory_complete = len(page_observations) == expected_contexts and len(page_resource_keys) == expected_contexts
     if page_resource_evidence.get("complete") is True and not inventory_complete:
@@ -1573,6 +1924,90 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     transition-duration: 0s !important;
                                 }
                             """)
+
+                            # Capture browser-native loading after load, before any audit scrolling,
+                            # hidden-panel activation or forced eager loading.
+                            first_view_snapshot = None
+                            try:
+                                page.wait_for_load_state("load", timeout=10000)
+                                page.wait_for_timeout(50)
+                                first_view_snapshot = page.evaluate(
+                                    """() => {
+                                      const pathFor = value => {
+                                        if (!value) return '';
+                                        try {
+                                          const url = new URL(value, location.href);
+                                          return url.origin === location.origin ? url.pathname : '';
+                                        } catch (_) {
+                                          return '';
+                                        }
+                                      };
+                                      const entries = performance.getEntriesByType('resource').filter(entry => {
+                                        try { return new URL(entry.name).origin === location.origin; }
+                                        catch (_) { return false; }
+                                      });
+                                      const resources = entries.map(entry => {
+                                        const url = new URL(entry.name);
+                                        return {
+                                          path: url.pathname,
+                                          initiatorType: String(entry.initiatorType || 'other'),
+                                          encodedBodyBytes: Math.max(0, Math.round(Number(entry.encodedBodySize) || 0)),
+                                          transferBytes: Math.max(0, Math.round(Number(entry.transferSize) || 0)),
+                                          decodedBodyBytes: Math.max(0, Math.round(Number(entry.decodedBodySize) || 0)),
+                                          durationMs: Math.max(0, Math.round((Number(entry.duration) || 0) * 10) / 10)
+                                        };
+                                      });
+                                      const resourcePaths = new Set(resources.map(entry => entry.path));
+                                      const images = Array.from(document.images).map((img, index) => {
+                                        const rect = img.getBoundingClientRect();
+                                        const style = getComputedStyle(img);
+                                        const visible = img.getClientRects().length > 0
+                                          && rect.width > 0 && rect.height > 0
+                                          && style.display !== 'none' && style.visibility !== 'hidden';
+                                        const intersectsViewport = visible
+                                          && rect.bottom > 0 && rect.right > 0
+                                          && rect.top < window.innerHeight && rect.left < window.innerWidth;
+                                        const currentSrcPath = pathFor(img.currentSrc);
+                                        return {
+                                          index,
+                                          srcPath: pathFor(img.getAttribute('src') || img.src),
+                                          currentSrcPath,
+                                          loading: (img.getAttribute('loading') || '').toLowerCase(),
+                                          fetchpriority: (img.getAttribute('fetchpriority') || '').toLowerCase(),
+                                          visible,
+                                          intersectsViewport,
+                                          requestedBeforeAuditActivation: Boolean(currentSrcPath && resourcePaths.has(currentSrcPath)),
+                                          complete: Boolean(img.complete),
+                                          naturalWidth: Math.max(0, Number(img.naturalWidth) || 0),
+                                          naturalHeight: Math.max(0, Number(img.naturalHeight) || 0),
+                                          hasAlt: img.hasAttribute('alt')
+                                        };
+                                      });
+                                      return {
+                                        capturePhase: 'after-load-before-test-only-image-activation',
+                                        viewportHeightCssPixels: window.innerHeight,
+                                        resourceCount: resources.length,
+                                        encodedBodyBytes: resources.reduce((total, item) => total + item.encodedBodyBytes, 0),
+                                        transferBytes: resources.reduce((total, item) => total + item.transferBytes, 0),
+                                        decodedBodyBytes: resources.reduce((total, item) => total + item.decodedBodyBytes, 0),
+                                        resources,
+                                        imageCount: images.length,
+                                        visibleImageCount: images.filter(item => item.visible).length,
+                                        inViewportImageCount: images.filter(item => item.intersectsViewport).length,
+                                        requestedImageCount: images.filter(item => item.requestedBeforeAuditActivation).length,
+                                        requestedOutsideViewportCount: images.filter(item =>
+                                          item.requestedBeforeAuditActivation && !item.intersectsViewport
+                                        ).length,
+                                        images
+                                      };
+                                    }"""
+                                )
+                            except Exception as error:
+                                failures.append(
+                                    f"{page_name} at {width}px @{device_scale_factor}x: "
+                                    f"could not capture natural first-view resources before audit activation: "
+                                    f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                )
 
                             pictures = page.locator(
                                 'picture:has(source[data-responsive-image="true"])'
@@ -1964,6 +2399,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 "viewportWidthCssPixels": width,
                                 "deviceScaleFactor": device_scale_factor,
                                 "resources": page_resources,
+                                "firstView": first_view_snapshot,
                             })
                             for request_url, request_count in request_counts.items():
                                 request_path = urlsplit(request_url).path.lower()

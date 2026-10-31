@@ -794,30 +794,81 @@ for route in browser_smoke.PAGES:
 
 fixture_page_resource_evidence = []
 for route in browser_smoke.PAGES:
-    for viewport_width, _height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS:
+    for viewport_width, viewport_height in browser_smoke.RESPONSIVE_AUDIT_VIEWPORTS:
         for dpr in (1, 2):
+            hero_resource = {
+                "path": "/assets/images/responsive/rooms/fixture-640.webp",
+                "initiatorType": "img",
+                "encodedBodyBytes": 24576,
+                "transferBytes": 24880,
+                "decodedBodyBytes": 92160,
+                "durationMs": 18.2,
+            }
+            supporting_resource = {
+                "path": "/assets/images/responsive/rooms/fixture-support-640.webp",
+                "initiatorType": "img",
+                "encodedBodyBytes": 8192,
+                "transferBytes": 8496,
+                "decodedBodyBytes": 32768,
+                "durationMs": 10.4,
+            }
+            stylesheet_resource = {
+                "path": "/assets/site.css",
+                "initiatorType": "link",
+                "encodedBodyBytes": 1024,
+                "transferBytes": 1324,
+                "decodedBodyBytes": 4096,
+                "durationMs": 12.5,
+            }
             fixture_page_resource_evidence.append({
                 "route": route,
                 "viewportWidthCssPixels": viewport_width,
                 "deviceScaleFactor": dpr,
-                "resources": [
-                    {
-                        "path": "/assets/site.css",
-                        "initiatorType": "link",
-                        "encodedBodyBytes": 1024,
-                        "transferBytes": 1324,
-                        "decodedBodyBytes": 4096,
-                        "durationMs": 12.5,
-                    },
-                    {
-                        "path": "/assets/images/responsive/rooms/fixture-640.webp",
-                        "initiatorType": "img",
-                        "encodedBodyBytes": 24576,
-                        "transferBytes": 24880,
-                        "decodedBodyBytes": 92160,
-                        "durationMs": 18.2,
-                    },
-                ],
+                "resources": [stylesheet_resource, hero_resource, supporting_resource],
+                "firstView": {
+                    "capturePhase": "after-load-before-test-only-image-activation",
+                    "viewportHeightCssPixels": viewport_height,
+                    "resourceCount": 2,
+                    "encodedBodyBytes": 1024 + 24576,
+                    "transferBytes": 1324 + 24880,
+                    "decodedBodyBytes": 4096 + 92160,
+                    "resources": [stylesheet_resource, hero_resource],
+                    "imageCount": 2,
+                    "visibleImageCount": 2,
+                    "inViewportImageCount": 1,
+                    "requestedImageCount": 1,
+                    "requestedOutsideViewportCount": 0,
+                    "images": [
+                        {
+                            "index": 0,
+                            "srcPath": "/assets/images/responsive/rooms/fixture-640.webp",
+                            "currentSrcPath": "/assets/images/responsive/rooms/fixture-640.webp",
+                            "loading": "eager",
+                            "fetchpriority": "high",
+                            "visible": True,
+                            "intersectsViewport": True,
+                            "requestedBeforeAuditActivation": True,
+                            "complete": True,
+                            "naturalWidth": 640,
+                            "naturalHeight": 480,
+                            "hasAlt": True,
+                        },
+                        {
+                            "index": 1,
+                            "srcPath": "/assets/images/responsive/rooms/fixture-support-640.webp",
+                            "currentSrcPath": "/assets/images/responsive/rooms/fixture-support-640.webp",
+                            "loading": "lazy",
+                            "fetchpriority": "low",
+                            "visible": True,
+                            "intersectsViewport": False,
+                            "requestedBeforeAuditActivation": False,
+                            "complete": False,
+                            "naturalWidth": 0,
+                            "naturalHeight": 0,
+                            "hasAlt": True,
+                        },
+                    ],
+                },
             })
 
 responsive_evidence = browser_smoke.build_responsive_image_evidence_report(
@@ -846,9 +897,17 @@ assert responsive_evidence["pageResourceEvidence"]["uniqueContextCount"] == 96
 assert responsive_evidence["pageResourceEvidence"]["complete"] is True
 assert responsive_evidence["pageResourceEvidence"]["allResponsivePicturesActivatedForAudit"] is True
 assert responsive_evidence["pageResourceEvidence"]["initialNavigationPayloadClaimed"] is False
-assert responsive_evidence["pageResourceEvidence"]["observations"][0]["resourceCount"] == 2
-assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["images"]["encodedBodyBytes"] == 24576
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["resourceCount"] == 3
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["images"]["encodedBodyBytes"] == 24576 + 8192
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["byType"]["stylesheets"]["encodedBodyBytes"] == 1024
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["resourceCount"] == 2
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["imageCount"] == 2
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["inViewportImageCount"] == 1
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["requestedImageCount"] == 1
+assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
+assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
+assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1
+assert responsive_evidence["pageResourceEvidence"]["measurementClass"] == "packaged-route-resource-timing-first-view-and-after-image-activation"
 assert responsive_evidence["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
 assert responsive_evidence["fieldDataAvailable"] is False
 assert responsive_evidence["candidateBytesAreTransferMeasurements"] is False
@@ -902,6 +961,59 @@ unsafe_resource_report = browser_smoke.build_responsive_image_evidence_report(
 assert unsafe_resource_report["automatedResult"] == "FAIL"
 assert unsafe_resource_report["pageResourceEvidence"]["complete"] is False
 assert any("unsafe same-origin resource evidence" in failure for failure in unsafe_resource_report["automatedFailures"])
+
+missing_first_view = [dict(item) for item in fixture_page_resource_evidence]
+missing_first_view[0] = dict(missing_first_view[0])
+missing_first_view[0].pop("firstView")
+missing_first_view_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=missing_first_view,
+)
+assert missing_first_view_report["automatedResult"] == "FAIL"
+assert missing_first_view_report["pageResourceEvidence"]["complete"] is False
+assert any("first-view snapshot is missing" in failure for failure in missing_first_view_report["automatedFailures"])
+
+unsafe_first_view = [dict(item) for item in fixture_page_resource_evidence]
+unsafe_first_view[0] = dict(unsafe_first_view[0])
+unsafe_first_view[0]["firstView"] = dict(unsafe_first_view[0]["firstView"])
+unsafe_first_view[0]["firstView"]["resources"] = [
+    dict(resource) for resource in unsafe_first_view[0]["firstView"]["resources"]
+]
+unsafe_first_view[0]["firstView"]["resources"][0]["path"] = "/assets/site.css?private=must-not-be-retained"
+unsafe_first_view_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=unsafe_first_view,
+)
+assert unsafe_first_view_report["automatedResult"] == "FAIL"
+assert unsafe_first_view_report["pageResourceEvidence"]["complete"] is False
+assert any("unsafe same-origin resource evidence" in failure for failure in unsafe_first_view_report["automatedFailures"])
+
+invalid_priority_first_view = [dict(item) for item in fixture_page_resource_evidence]
+invalid_priority_first_view[0] = dict(invalid_priority_first_view[0])
+invalid_priority_first_view[0]["firstView"] = dict(invalid_priority_first_view[0]["firstView"])
+invalid_priority_first_view[0]["firstView"]["images"] = [
+    dict(image) for image in invalid_priority_first_view[0]["firstView"]["images"]
+]
+invalid_priority_first_view[0]["firstView"]["images"][1]["fetchpriority"] = "urgent"
+invalid_priority_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_priority_first_view,
+)
+assert invalid_priority_report["automatedResult"] == "FAIL"
+assert invalid_priority_report["pageResourceEvidence"]["complete"] is False
+assert any("loading-priority/visibility" in failure for failure in invalid_priority_report["automatedFailures"])
 
 incomplete_evidence = browser_smoke.build_responsive_image_evidence_report(
     route_picture_counts=fixture_picture_counts,
