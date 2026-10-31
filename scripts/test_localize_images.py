@@ -1320,6 +1320,31 @@ class RewriteImageReferencesTests(unittest.TestCase):
             archive = base / "preview.zip"
             payload = b"<html>guarded preview</html>"
             (output / "index.html").write_bytes(payload)
+            source_root = Path(__file__).resolve().parents[1]
+            retained_duplicate_entries = []
+            pruned_duplicate_entries = []
+            for relative, expected in sorted(_PACKAGE_PREVIEW.UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.items()):
+                retained_data = (source_root / expected["duplicateOf"]).read_bytes()
+                retained_output = output / expected["duplicateOf"]
+                retained_output.parent.mkdir(parents=True, exist_ok=True)
+                retained_output.write_bytes(retained_data)
+                retained_sha256 = _PACKAGE_PREVIEW.digest_bytes(retained_data)
+                retained_git_blob_sha = _PACKAGE_PREVIEW.git_blob_sha(retained_data)
+                self.assertEqual(retained_sha256, expected["sha256"])
+                self.assertEqual(retained_git_blob_sha, expected["gitBlobSha"])
+                retained_duplicate_entries.append({
+                    "path": expected["duplicateOf"],
+                    "bytes": len(retained_data),
+                    "sha256": retained_sha256,
+                })
+                pruned_duplicate_entries.append({
+                    "path": relative,
+                    "duplicateOf": expected["duplicateOf"],
+                    "bytes": len(retained_data),
+                    "gitBlobSha": retained_git_blob_sha,
+                    "sha256": retained_sha256,
+                })
+            package_payload_bytes = len(payload) + sum(entry["bytes"] for entry in retained_duplicate_entries)
             manifest = {
                 "deploymentPerformed": False,
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
@@ -1340,9 +1365,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "generatedBlogHtmlRoutes": 0,
                 },
                 "packageMetrics": {
-                    "uncompressedPayloadBytes": len(payload),
+                    "uncompressedPayloadBytes": package_payload_bytes,
                     "uncompressedBudgetBytes": 18 * 1024 * 1024,
                     "sizeBudgetPassed": True,
+                },
+                "runtimeAssetPruning": {
+                    "status": "PASS",
+                    "excludedFileCount": len(pruned_duplicate_entries),
+                    "excludedBytes": sum(entry["bytes"] for entry in pruned_duplicate_entries),
+                    "files": pruned_duplicate_entries,
                 },
                 "hostingDelivery": _PACKAGE_PREVIEW.validate_hosting_delivery_contract(
                     (Path(__file__).resolve().parents[1] / ".htaccess").read_text(encoding="utf-8")
@@ -1381,7 +1412,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "path": "index.html",
                     "bytes": len(payload),
                     "sha256": _PACKAGE_PREVIEW.digest_bytes(payload),
-                }],
+                }, *retained_duplicate_entries],
             }
             manifest_path = output / "RELEASE-MANIFEST.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
