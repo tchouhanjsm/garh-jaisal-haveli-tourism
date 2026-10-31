@@ -94,3 +94,14 @@ The shared homepage planning panel and inner-route guest-journey rail are full-b
 Experiences, Experience Details, Gallery and Dining use owner-controlled, manifest-backed first-view photographs. The static HTML keeps source JPEG/WebP paths; the existing staging image pipeline derives responsive WebP sources in the isolated package. The original image subjects, availability caveats, booking/enquiry handoff and photo rights are unchanged.
 
 Automated regression checks cover the palette/action roles, full-bleed decision bands, photo-led hero subject/alt text, hero priority/preload and page-specific image byte budgets. Screenshot review and owner-approved staging UAT remain separate manual acceptance gates; no visual score or release approval is inferred from a passing build.
+
+
+## M17–M19 — premium conversion and responsive visual acceptance
+
+The AsiaTech booking link remains the source-authorized external booking path and retains its new-tab target and `noopener noreferrer` safeguards. WhatsApp enquiries and restaurant table requests are separate and never represent confirmed reservations.
+
+The desktop masthead and mobile booking action share one saffron role. The floating contextual enquiry dock yields on small breakpoints, including during viewport resize, so mobile guests see one fixed conversion surface rather than competing controls.
+
+Editorial content uses larger photography, open fact rails and calmer card surfaces. Source-backed property, desert, dining and fort photographs retain accurate captions. No new amenity, rate, service or operational claim is introduced.
+
+Automated checks validate provider-link preservation, first-view primary-action geometry, responsive image rendering and mobile dock suppression. Screenshot evidence remains required for visual review; passing geometry tests is not pixel-level visual approval.

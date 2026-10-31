@@ -3736,6 +3736,65 @@ def check_staging_publication_guards(page, base_url: str) -> None:
               "canonicalHostApproved must remain false until explicit owner approval")
 
 
+def check_first_view_hierarchy(page, page_name: str, viewport_width: int) -> None:
+    """Verify one visible H1, one primary CTA and a decoded hero crop."""
+    hero = page.locator("main#main > .hero, main#main > .page-hero").first
+    check(hero.count() == 1 and hero.is_visible(),
+          f"{page_name} at {viewport_width}px: one visible hero is required")
+    if hero.count() != 1 or not hero.is_visible():
+        return
+    heading = hero.locator("h1")
+    primary = hero.locator(".button--gold")
+    check(heading.count() == 1 and heading.is_visible(),
+          f"{page_name} at {viewport_width}px: one visible H1 is required")
+    check(primary.count() == 1 and primary.is_visible(),
+          f"{page_name} at {viewport_width}px: one visible primary action is required")
+    if heading.count() != 1 or primary.count() != 1:
+        return
+    try:
+        page.wait_for_function(
+            """() => {
+              const hero = document.querySelector('main#main > .hero, main#main > .page-hero');
+              const image = hero && hero.querySelector('img');
+              return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+            }""", timeout=4000)
+    except Exception as error:
+        check(False, f"{page_name} at {viewport_width}px: hero image did not decode ({type(error).__name__})")
+        return
+    geometry = page.evaluate("""() => {
+      const hero = document.querySelector('main#main > .hero, main#main > .page-hero');
+      const header = document.querySelector('.site-header');
+      const heading = hero && hero.querySelector('h1');
+      const cta = hero && hero.querySelector('.button--gold');
+      const image = hero && hero.querySelector('img');
+      const rect = el => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};
+      };
+      return {hero:rect(hero),header:rect(header),heading:rect(heading),cta:rect(cta),
+        image:image ? {width:image.naturalWidth,height:image.naturalHeight,fit:getComputedStyle(image).objectFit} : null};
+    }""")
+    if not geometry or not geometry["hero"] or not geometry["heading"] or not geometry["cta"]:
+        check(False, f"{page_name}: first-view geometry must be measurable")
+        return
+    check(geometry["heading"]["top"] >= (geometry["header"]["bottom"] - 1 if geometry["header"] else 0),
+          f"{page_name} at {viewport_width}px: heading must clear the masthead")
+    check(geometry["heading"]["left"] >= -1 and geometry["heading"]["right"] <= viewport_width + 1,
+          f"{page_name} at {viewport_width}px: H1 must fit the viewport")
+    check(geometry["cta"]["left"] >= -1 and geometry["cta"]["right"] <= viewport_width + 1,
+          f"{page_name} at {viewport_width}px: CTA must fit the viewport")
+    check(geometry["cta"]["width"] >= 44 and geometry["cta"]["height"] >= 44,
+          f"{page_name} at {viewport_width}px: CTA must meet the 44px target")
+    check(geometry["cta"]["bottom"] <= geometry["hero"]["bottom"] + 2,
+          f"{page_name} at {viewport_width}px: CTA must remain in the hero")
+    check(geometry["image"] is not None and geometry["image"]["width"] > 0 and geometry["image"]["height"] > 0,
+          f"{page_name} at {viewport_width}px: hero image must decode")
+    if geometry["image"]:
+        check(geometry["image"]["fit"] == "cover",
+              f"{page_name} at {viewport_width}px: hero image must preserve its cover crop")
+
+
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
     """Audit six responsive breakpoints and capture all eight routes at 390, 768 and 1280px."""
     screenshot_widths = {width for width, _height in VIEWPORTS}
@@ -3753,6 +3812,7 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             if width in screenshot_widths:
                 capture_route_performance(page, page_name, width, height)
             check_premium_guest_journey(page, page_name, width)
+            check_first_view_hierarchy(page, page_name, width)
             type_requirements = {
                 "index.html": [(".experience-card p", 13), (".proof-item span", 11),
                                (".room-feature__copy > p:not(.fine-print)", 13), (".faq-item > p", 13)],
@@ -3794,6 +3854,12 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             check(dimensions["document"] <= width + 2 and dimensions["body"] <= width + 2,
                   f"{page_name} at {width}px: horizontal overflow ({dimensions})")
             if width <= 390:
+                dock = page.locator("[data-direct-enquiry-dock]")
+                page.evaluate("window.scrollTo(0, 420)")
+                page.wait_for_timeout(80)
+                check(not dock.is_visible(),
+                      f"{page_name} at {width}px: floating enquiry dock must yield to mobile booking bar")
+                page.evaluate("window.scrollTo(0, 0)")
                 bar = page.locator(".mobile-booking-bar")
                 if page_name == "directions.html":
                     state = page.evaluate("""() => {

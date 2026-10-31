@@ -347,3 +347,17 @@ The M0 screenshot artifact exists, but final human visual scoring and owner-appr
 - Legacy owner facts and blockers: `garh-jaisal-website/docs/OWNER-FACTS.md`
 - Tourism target arrival contracts: `scripts/test-arrival-wayfinding.js`, `scripts/test-arrival-planning-enquiry.js`
 - Tourism target editorial schema/renderer/contracts: `content/paths.json`, `content/schemas/blog.schema.json`, `scripts/build-content-pages.js`, `scripts/test-editorial-content-cluster.js`, `scripts/test-editorial-readiness.js`, `scripts/test-editorial-media-readiness.js`
+
+
+## M17 — premium brand chrome and first-view action hierarchy
+
+Refine masthead wordmark/monogram scale, active-navigation contrast, typography and saffron action styling while retaining the owner-authorized AsiaTech booking destination. Rooms, Experiences, Dining, About and Gallery gain one route-specific first-view action; Home, Experience Details and Directions retain their existing primary actions.
+
+## M18 — editorial image and section composition
+
+Reduce repetitive boxed-card emphasis using larger photographic surfaces, open fact rails, consistent image proportions and restrained elevation. Rebalance the homepage four-fact proof strip. Preserve source-backed images, alt text, content caveats and responsive image budgets.
+
+## M19 — responsive conversion and visual regression gate
+
+Suppress the floating enquiry dock whenever the persistent mobile booking bar is active, including after viewport resize. Extend Chromium's six-width/eight-route matrix with a unique H1, one prominent hero action, masthead clearance, in-viewport CTA geometry and decoded cover-fit image checks. Keep full-page screenshots and performance evidence. This does not replace visual review or owner-approved staging UAT. No public indexing or deployment is authorized.
+

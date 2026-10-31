@@ -308,4 +308,25 @@ const allDockMessages = ROUTES.map(route => {
 });
 assert.equal(new Set(allDockMessages).size, ROUTES.length, 'each core route must keep its own contextual draft');
 
+
+
+// M17–M19: retain configured provider handoff and enforce first-view action hierarchy.
+for (const route of ROUTES) {
+  const html = fs.readFileSync(path.join(ROOT, route.file), 'utf8');
+  const nav = html.match(/<a class="nav-book"[^>]*data-booking-link[^>]*>[\s\S]*?<\/a>/);
+  assert.ok(nav, route.file + ': masthead must preserve the source-authorized booking action');
+  assert.match(nav[0], /Book Now/);
+  const mobile = html.match(/<div class="mobile-booking-bar"[\s\S]*?<\/div>/);
+  assert.ok(mobile && mobile[0].includes('data-booking-link'),
+    route.file + ': mobile booking bar must preserve the external provider handoff');
+  const hero = html.match(/<section\b[^>]*class="[^"]*(?:hero|page-hero)[^"]*"[^>]*>[\s\S]*?<\/section>/);
+  assert.ok(hero, route.file + ': first-view hero must exist');
+  assert.equal((hero[0].match(/class="button button--gold"/g) || []).length, 1,
+    route.file + ': exactly one visually dominant hero action is required');
+}
+assert.match(siteJs, /mobilePrimaryActionVisible/);
+assert.match(siteJs, /!mobilePrimaryActionVisible/);
+assert.match(siteJs, /addEventListener\('resize', updateDirectEnquiryDock/);
+assert.match(css, /\.proof-strip\s*\{[\s\S]*?grid-template-columns:/);
+
 console.log('PASS: premium journey, planner handoff and contextual enquiry contracts cover all eight core routes.');
