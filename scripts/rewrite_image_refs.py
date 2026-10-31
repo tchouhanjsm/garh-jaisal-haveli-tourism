@@ -114,16 +114,16 @@ BUDGET_QUALITY_STEP = 2
 # Original source-backed WebPs remain untouched and continue serving non-hero references.
 HERO_DELIVERY_VARIANTS = {
     "gallery/hotel/fort-from-roof.jpg": {
-        "path": "assets/images/responsive/gallery/hotel/fort-from-roof-2000.webp",
         "quality": 84,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
+        "maxBytesByWidth": {2000: 260_000},
     },
     "rooms/haveli-interior.jpg": {
-        "path": "assets/images/responsive/rooms/haveli-interior-1600.webp",
         "quality": 84,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
+        "maxBytesByWidth": {1600: 240_000},
     },
 }
 
@@ -443,26 +443,20 @@ def generate_responsive_variants(
             hero_delivery_variant = None
             hero_config = HERO_DELIVERY_VARIANTS.get(filename)
             if hero_config:
-                hero_relative = PurePosixPath(hero_config["path"])
-                expected_hero_path = (
+                hero_relative = (
                     PurePosixPath("assets/images/responsive")
                     / relative.parent
                     / f"{relative.stem}-{width}.webp"
-                ).as_posix()
-                if (
-                    hero_relative.is_absolute()
-                    or hero_relative.as_posix() != hero_config["path"]
-                    or any(part in {"", ".", ".."} for part in hero_relative.parts)
-                    or hero_config["path"] != expected_hero_path
-                ):
-                    raise ValueError(
-                        f"Unsafe or mismatched hero delivery path: {hero_config['path']} "
-                        f"(expected {expected_hero_path})"
-                    )
+                )
+                if hero_relative.is_absolute() or any(part in {"", ".", ".."} for part in hero_relative.parts):
+                    raise ValueError(f"Unsafe hero delivery path for {filename}: {hero_relative}")
                 hero_target = root / Path(*hero_relative.parts)
-                hero_max_bytes = RESPONSIVE_VARIANT_MAX_BYTES.get(hero_config["path"])
+                hero_max_bytes = hero_config["maxBytesByWidth"].get(width)
                 if hero_max_bytes is None:
-                    raise ValueError(f"Hero delivery candidate has no byte budget: {hero_config['path']}")
+                    hero_max_bytes = max(
+                        1,
+                        int(full_size.stat().st_size * (1 - float(hero_config["minimumSavingsPercent"]) / 100)),
+                    )
                 with Image.open(fallback) as fallback_opened:
                     _validate_source_image_header(fallback_opened, filename)
                     fallback_opened.load()
@@ -504,7 +498,7 @@ def generate_responsive_variants(
                 hero_delivery_variant = {
                     "width": width,
                     "height": height,
-                    "path": hero_config["path"],
+                    "path": hero_relative.as_posix(),
                     "bytes": hero_target.stat().st_size,
                     "quality": hero_encoding["quality"],
                     "qualityAttempts": hero_encoding["qualityAttempts"],
@@ -761,14 +755,19 @@ def _srcset(root: Path, filename: str, *, hero: bool = False) -> str:
         raise FileNotFoundError(f"Missing full-size WebP source: {full_size}")
     hero_config = HERO_DELIVERY_VARIANTS.get(filename) if hero else None
     if hero_config:
-        hero_candidate = root / Path(*PurePosixPath(hero_config["path"]).parts)
+        hero_relative = (
+            PurePosixPath("assets/images/responsive")
+            / relative.parent
+            / f"{relative.stem}-{natural_width}.webp"
+        )
+        hero_candidate = root / Path(*hero_relative.parts)
         if hero_candidate.is_symlink() or not hero_candidate.is_file():
             raise FileNotFoundError(f"Missing quality-gated hero delivery candidate: {hero_candidate}")
         with Image.open(hero_candidate) as decoded:
             decoded.load()
             if decoded.format != "WEBP" or decoded.size != (natural_width, natural_height):
                 raise ValueError(f"Hero delivery candidate dimensions do not match source: {hero_candidate}")
-        paths.append(f"{hero_config['path']} {natural_width}w")
+        paths.append(f"{hero_relative.as_posix()} {natural_width}w")
     else:
         paths.append(f"{_full_size_webp_url(filename)} {natural_width}w")
     return ", ".join(paths)
