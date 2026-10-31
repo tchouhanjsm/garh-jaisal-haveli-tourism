@@ -700,6 +700,50 @@ assert not any(path.startswith("preview/") for path in selected_runtime_paths)
 assert not any(path.startswith("content/blogs/") for path in selected_runtime_paths)
 assert not any(path.startswith("blogs/") and path.lower().endswith(".html") for path in selected_runtime_paths)
 
+runtime_pruning = staging_packager.validate_runtime_duplicate_image_exclusions(ROOT)
+assert runtime_pruning["status"] == "PASS"
+assert runtime_pruning["excludedFileCount"] == 2
+assert runtime_pruning["excludedBytes"] == 201710
+assert {entry["path"] for entry in runtime_pruning["files"]} == {
+    "assets/images/legacy/room-carved.jpg",
+    "assets/images/legacy/room-purple.jpg",
+}
+for entry in runtime_pruning["files"]:
+    assert entry["path"] not in selected_runtime_paths
+    assert entry["duplicateOf"] in selected_runtime_paths
+    assert (ROOT / entry["path"]).is_file(), "Source originals must remain in Git."
+
+with tempfile.TemporaryDirectory(prefix="garh-duplicate-image-exclusion-") as temporary_directory:
+    fixture_root = Path(temporary_directory)
+    for entry in runtime_pruning["files"]:
+        for relative in (entry["path"], entry["duplicateOf"]):
+            source_path = ROOT / relative
+            fixture_path = fixture_root / relative
+            fixture_path.parent.mkdir(parents=True, exist_ok=True)
+            fixture_path.write_bytes(source_path.read_bytes())
+    assert staging_packager.validate_runtime_duplicate_image_exclusions(fixture_root) == runtime_pruning
+    altered_duplicate = fixture_root / runtime_pruning["files"][0]["duplicateOf"]
+    altered_duplicate.write_bytes(b"not-the-approved-duplicate")
+    try:
+        staging_packager.validate_runtime_duplicate_image_exclusions(fixture_root)
+    except RuntimeError as error:
+        assert "identity changed" in str(error)
+    else:
+        raise AssertionError("Runtime pruning must fail closed when a duplicate image changes.")
+
+with tempfile.TemporaryDirectory(prefix="garh-pruned-reference-") as temporary_directory:
+    pruned_root = Path(temporary_directory)
+    (pruned_root / "index.html").write_text(
+        '<!doctype html><img src="assets/images/legacy/room-carved.jpg" alt="Room">',
+        encoding="utf-8",
+    )
+    try:
+        staging_packager.validate_runtime_asset_closure(pruned_root)
+    except RuntimeError as error:
+        assert "broken local src reference" in str(error)
+    else:
+        raise AssertionError("Runtime closure must reject references to pruned duplicate images.")
+
 with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_directory:
     package_root = Path(temporary_directory)
     (package_root / "assets").mkdir()
