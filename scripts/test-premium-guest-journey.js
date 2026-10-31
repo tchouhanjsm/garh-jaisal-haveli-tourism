@@ -182,6 +182,8 @@ for (const [route, [imagePath, altText]] of Object.entries(photoHeroContracts)) 
 
 const homeHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const galleryHeroHtml = fs.readFileSync(path.join(ROOT, 'gallery.html'), 'utf8');
+const experienceDetailsHtml = fs.readFileSync(path.join(ROOT, 'experience-details.html'), 'utf8');
+const experienceDetailsCss = fs.readFileSync(path.join(ROOT, 'assets/css/experience-details.css'), 'utf8');
 assert.ok(galleryHeroHtml.includes('<picture class="page-hero__picture">'),
   'gallery.html: the source-backed hero must use the shared page-hero picture wrapper');
 assert.ok(galleryHeroHtml.includes('<source type="image/webp" srcset="assets/images/directions/haveli-facade.webp 1333w" sizes="100vw">'),
@@ -216,6 +218,20 @@ assert.equal((roomsHtml.match(/<template data-deferred-picture-template>/g) || [
 assert.equal((roomsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'rooms.html: every deferred room card must retain a no-JavaScript image fallback');
 
+assert.equal((experienceDetailsHtml.match(/<div class="experience-detail-media__frame" data-deferred-media>/g) || []).length, 7,
+  'experience-details.html: all seven itinerary photo frames must defer their supporting image payloads');
+assert.equal((experienceDetailsHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
+  'experience-details.html: every deferred itinerary photo must retain an inert responsive-image template');
+assert.equal((experienceDetailsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
+  'experience-details.html: every deferred itinerary photo must retain a no-JavaScript image fallback');
+const experienceDetailsHero = experienceDetailsHtml.match(/<section class="page-hero[^"]*experience-detail-hero"[\\s\\S]*?<\\/section>/)?.[0] || '';
+assert.ok(experienceDetailsHero, 'experience-details.html: the first-view hero section must remain present');
+assert.doesNotMatch(experienceDetailsHero, /data-deferred-media/,
+  'experience-details.html: the first-view hero must never be deferred');
+assert.match(experienceDetailsHero, /fetchpriority="high"[^>]*loading="eager"/,
+  'experience-details.html: the first-view hero must remain eager and high priority');
+assert.match(experienceDetailsCss, /experience-detail-media__frame[\\s\\S]*?aspect-ratio:\\s*3\\s*\\/\\s*2/,
+  'experience-details.css: deferred photo frames must reserve the existing wide-media geometry');
 assert.ok(roomCompareJs.includes('function getRoomCardImage(card)')
   && roomCompareJs.includes("template.content.querySelector('img')"),
   'room comparison must resolve photographs from active DOM or inert deferred templates');

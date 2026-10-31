@@ -828,7 +828,7 @@ for route in browser_smoke.PAGES:
                 "firstView": {
                     "capturePhase": "after-load-before-test-only-image-activation",
                     "viewportHeightCssPixels": viewport_height,
-                    "deferredTemplateCount": 5 if route == "index.html" else 7 if route in ("gallery.html", "rooms.html") else 0,
+                    "deferredTemplateCount": browser_smoke.EXPECTED_DEFERRED_MEDIA_COUNTS.get(route, 0),
                     "deferredActivatedCount": 0,
                     "resourceCount": 2,
                     "encodedBodyBytes": 1024 + 24576,
@@ -925,6 +925,12 @@ rooms_fixture_first_view = next(
 )
 assert rooms_fixture_first_view["deferredTemplateCount"] == 7
 assert rooms_fixture_first_view["deferredActivatedCount"] == 0
+experience_details_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "experience-details.html"
+)
+assert experience_details_fixture_first_view["deferredTemplateCount"] == 7
+assert experience_details_fixture_first_view["deferredActivatedCount"] == 0
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1
@@ -1068,6 +1074,30 @@ assert invalid_rooms_deferred_report["automatedResult"] == "FAIL"
 assert invalid_rooms_deferred_report["pageResourceEvidence"]["complete"] is False
 assert any("deferred image counts do not match the route contract" in failure for failure in invalid_rooms_deferred_report["automatedFailures"])
 
+
+invalid_experience_details_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_experience_details_index = next(
+    index for index, item in enumerate(invalid_experience_details_deferred_counts)
+    if item["route"] == "experience-details.html"
+)
+invalid_experience_details_deferred_counts[invalid_experience_details_index] = dict(
+    invalid_experience_details_deferred_counts[invalid_experience_details_index]
+)
+invalid_experience_details_deferred_counts[invalid_experience_details_index]["firstView"] = dict(
+    invalid_experience_details_deferred_counts[invalid_experience_details_index]["firstView"]
+)
+invalid_experience_details_deferred_counts[invalid_experience_details_index]["firstView"]["deferredTemplateCount"] = 6
+invalid_experience_details_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_experience_details_deferred_counts,
+)
+assert invalid_experience_details_report["automatedResult"] == "FAIL"
+assert invalid_experience_details_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_experience_details_report["automatedFailures"])
 
 invalid_priority_first_view = [dict(item) for item in fixture_page_resource_evidence]
 invalid_priority_first_view[0] = dict(invalid_priority_first_view[0])
