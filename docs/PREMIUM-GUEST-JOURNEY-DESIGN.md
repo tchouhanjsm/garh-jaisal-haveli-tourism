@@ -105,3 +105,8 @@ The desktop masthead and mobile booking action share one saffron role. The float
 Editorial content uses larger photography, open fact rails and calmer card surfaces. Source-backed property, desert, dining and fort photographs retain accurate captions. No new amenity, rate, service or operational claim is introduced.
 
 Automated checks validate provider-link preservation, first-view primary-action geometry, responsive image rendering and mobile dock suppression. Screenshot evidence remains required for visual review; passing geometry tests is not pixel-level visual approval.
+
+
+## M20 — tablet navigation acceptance
+
+At 761–820px, the masthead switches from the desktop link row to the same keyboard-operable menu toggle used on mobile. The collapsed menu opens on explicit activation, exposes the existing route links and external booking action, and closes with Escape. Chromium also asserts no horizontal document overflow at the 768px viewport. The AsiaTech handoff destination and safe external-link attributes remain unchanged.

@@ -361,3 +361,8 @@ Reduce repetitive boxed-card emphasis using larger photographic surfaces, open f
 
 Suppress the floating enquiry dock whenever the persistent mobile booking bar is active, including after viewport resize. Extend Chromium's six-width/eight-route matrix with a unique H1, one prominent hero action, masthead clearance, in-viewport CTA geometry and decoded cover-fit image checks. Keep full-page screenshots and performance evidence. This does not replace visual review or owner-approved staging UAT. No public indexing or deployment is authorized.
 
+
+
+## M20 — tablet masthead and navigation breakpoint
+
+The 768px visual review exposed a 34px horizontal overflow in the desktop masthead. The navigation now changes to the same accessible hamburger pattern from 761–820px rather than compressing or clipping the primary links. The 820px boundary is covered by Chromium: toggle visible, navigation collapsed by default, explicit open, and Escape-to-close. Horizontal overflow remains a hard failure.

@@ -328,5 +328,8 @@ assert.match(siteJs, /mobilePrimaryActionVisible/);
 assert.match(siteJs, /!mobilePrimaryActionVisible/);
 assert.match(siteJs, /addEventListener\('resize', updateDirectEnquiryDock/);
 assert.match(css, /\.proof-strip\s*\{[\s\S]*?grid-template-columns:/);
+assert.match(css, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*820px\)[\s\S]*?\.menu-toggle\s*\{[\s\S]*?display:\s*flex[\s\S]*?\.primary-nav\.is-open\s*\{\s*display:\s*flex\s*\}/,
+  'tablet navigation must collapse the desktop link row and retain the accessible toggle/open state');
+
 
 console.log('PASS: premium journey, planner handoff and contextual enquiry contracts cover all eight core routes.');

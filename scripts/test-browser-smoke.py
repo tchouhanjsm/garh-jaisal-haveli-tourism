@@ -3270,7 +3270,7 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         href = action.get_attribute("href") or ""
         parsed = urlparse(href)
         check(parsed.scheme == "https" and parsed.hostname == "wa.me"
-              and bool(re.fullmatch(r"/\\d{8,15}", parsed.path)),
+              and bool(re.fullmatch(r"/\d{8,15}", parsed.path)),
               "direct enquiry dock: CTA must use the authorized HTTPS WhatsApp endpoint")
         check(action.get_attribute("target") == "_blank",
               "direct enquiry dock: external draft must open separately for guest review")
@@ -3854,6 +3854,21 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 if actual:
                     check(min(actual) + 0.01 >= minimum,
                           f"{page_name} at {width}px: {selector} minimum font size {minimum}px, found {min(actual):g}px")
+            if 760 < width <= 820:
+                menu_toggle = page.locator(".menu-toggle")
+                primary_nav = page.locator("#primary-navigation")
+                check(menu_toggle.is_visible(),
+                      f"{page_name} at {width}px: compact tablet navigation control must be visible")
+                check(not primary_nav.is_visible(),
+                      f"{page_name} at {width}px: desktop link row must collapse at tablet width")
+                if menu_toggle.is_visible():
+                    menu_toggle.click()
+                    check(primary_nav.is_visible(),
+                          f"{page_name} at {width}px: tablet menu must open on explicit activation")
+                    page.keyboard.press("Escape")
+                    check(not primary_nav.is_visible()
+                          and menu_toggle.get_attribute("aria-expanded") == "false",
+                          f"{page_name} at {width}px: Escape must close the tablet menu accessibly")
             dimensions = page.evaluate(
                 """() => ({
                   viewport: window.innerWidth,
