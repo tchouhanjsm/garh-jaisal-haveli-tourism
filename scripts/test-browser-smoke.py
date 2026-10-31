@@ -1002,7 +1002,8 @@ def build_responsive_image_evidence_report(
         viewport_width = item.get("viewportWidthCssPixels")
         dpr = item.get("deviceScaleFactor")
         picture_index = item.get("pictureIndex")
-        selected_path = item.get("selectedWebpPath")
+        selected_path = item.get("selectedImagePath")
+        selected_format = item.get("selectedImageFormat")
         selected_width = item.get("selectedWidth")
         required_width = item.get("requiredPixelWidth")
         ratio = item.get("selectionPixelRatio")
@@ -1029,7 +1030,8 @@ def build_responsive_image_evidence_report(
         if (
             not isinstance(selected_path, str)
             or not selected_path.startswith("assets/images/")
-            or not selected_path.endswith(".webp")
+            or selected_format not in {"webp", "avif"}
+            or not selected_path.endswith("." + selected_format)
             or "\\" in selected_path
             or ".." in selected_path.split("/")
             or "?" in selected_path
@@ -1064,7 +1066,7 @@ def build_responsive_image_evidence_report(
         if abs(calculated_ratio - float(ratio)) > 0.02:
             validation_failures.append(f"Observation {index + 1}: selected/required pixel ratio does not match its widths")
         if http_status != 200:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate did not return HTTP 200")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate did not return HTTP 200")
         if encoded_bytes < 1:
             validation_failures.append(f"Observation {index + 1}: selected WebP candidate has no encoded body bytes")
         if request_count != 1:
@@ -1079,7 +1081,9 @@ def build_responsive_image_evidence_report(
             "pictureIndex": picture_index,
             "viewportWidthCssPixels": viewport_width,
             "deviceScaleFactor": dpr,
-            "selectedWebpPath": selected_path,
+            "selectedImagePath": selected_path,
+            "selectedImageFormat": selected_format,
+            "selectedWebpPath": selected_path if selected_format == "webp" else None,
             "selectedWidth": selected_width,
             "requiredPixelWidth": round(float(required_width), 1),
             "selectionPixelRatio": round(calculated_ratio, 3),
@@ -1493,7 +1497,7 @@ def build_responsive_image_evidence_report(
     commit_sha = os.environ.get("GITHUB_SHA", "")
     workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
     report = {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
         "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
@@ -1568,8 +1572,8 @@ def build_responsive_image_evidence_report(
 
 def validate_responsive_image_evidence_report(report: dict) -> None:
     """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
-    if not isinstance(report, dict) or report.get("schemaVersion") != 4:
-        raise ValueError("Responsive-image browser evidence must use schema version 4")
+    if not isinstance(report, dict) or report.get("schemaVersion") != 5:
+        raise ValueError("Responsive-image browser evidence must use schema version 5")
     if (
         report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
         or report.get("fieldDataAvailable") is not False
@@ -2113,7 +2117,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
 
                             for index in range(picture_count):
                                 picture = pictures.nth(index)
-                                source = picture.locator('source[data-responsive-image="true"]').first
+                                source_elements = picture.locator('source[data-responsive-image="true"]')
+                                source = source_elements.first
                                 image = picture.locator("img").first
                                 label = f"{page_name} at {width}px @{device_scale_factor}x picture {index + 1}"
                                 # Activate an associated tab panel before measuring its images.
@@ -2270,13 +2275,31 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                           };
                                         }"""
                                     )
-                                    source_details = source.evaluate(
-                                        """(element) => ({
-                                          type: element.getAttribute('type') || '',
-                                          srcset: element.getAttribute('srcset') || '',
-                                          sizes: element.getAttribute('sizes') || ''
-                                        })"""
-                                    )
+                                    selected_path_for_source = urlsplit(details["currentSrc"]).path.lstrip("/")
+                                    source_details_options = []
+                                    for source_index in range(source_elements.count()):
+                                        source_element = source_elements.nth(source_index)
+                                        candidate_source_details = source_element.evaluate(
+                                            """(element) => ({
+                                              type: element.getAttribute('type') || '',
+                                              srcset: element.getAttribute('srcset') || '',
+                                              sizes: element.getAttribute('sizes') || '',
+                                              media: element.getAttribute('media') || ''
+                                            })"""
+                                        )
+                                        candidate_source_paths = [
+                                            item.strip().rsplit(None, 1)[0].split("?", 1)[0].lstrip("/")
+                                            for item in candidate_source_details["srcset"].split(",")
+                                            if len(item.strip().rsplit(None, 1)) == 2
+                                        ]
+                                        if selected_path_for_source in candidate_source_paths:
+                                            source_details_options.append(candidate_source_details)
+                                    if len(source_details_options) != 1:
+                                        raise ValueError(
+                                            "selected currentSrc must match exactly one declared responsive source "
+                                            f"(matched {len(source_details_options)})"
+                                        )
+                                    source_details = source_details_options[0]
                                 except Exception as error:
                                     try:
                                         selected_url = image.evaluate("(img) => img.currentSrc")
@@ -2295,14 +2318,21 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     )
                                     continue
 
+                                selected_format = source_details["type"].lower().replace("image/", "")
                                 check_preview(
-                                    source_details["type"].lower() == "image/webp",
-                                    f"{label}: responsive source must declare image/webp",
+                                    selected_format in {"webp", "avif"},
+                                    f"{label}: selected responsive source must declare image/webp or image/avif",
                                 )
                                 check_preview(
                                     bool(source_details["sizes"].strip()),
                                     f"{label}: responsive source must declare sizes",
                                 )
+                                if selected_format == "avif":
+                                    check_preview(
+                                        page_name == "directions.html"
+                                        and source_details["media"] == "(min-width: 1160px)",
+                                        f"{label}: AVIF selection must be limited to the approved Directions desktop hero",
+                                    )
                                 candidate_pairs: list[tuple[str, int]] = []
                                 for raw_candidate in source_details["srcset"].split(","):
                                     pieces = raw_candidate.strip().rsplit(None, 1)
@@ -2316,8 +2346,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         ))
                                 candidates = [path for path, _width in candidate_pairs]
                                 check_preview(
-                                    len(candidates) >= 2,
-                                    f"{label}: responsive source must expose multiple width candidates",
+                                    len(candidates) >= (2 if selected_format == "webp" else 1),
+                                    f"{label}: responsive source must expose the required width candidates",
                                 )
                                 selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
                                 candidate_paths = [
@@ -2325,8 +2355,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     for candidate in candidates
                                 ]
                                 check_preview(
-                                    selected_path.endswith(".webp") and selected_path in candidate_paths,
-                                    f"{label}: Chromium selected a WebP candidate declared by srcset; "
+                                    selected_path.endswith("." + selected_format) and selected_path in candidate_paths,
+                                    f"{label}: Chromium selected a {selected_format.upper()} candidate declared by srcset; "
                                     f"selected {selected_path or '<empty>'}",
                                 )
                                 selected_width = next(
@@ -2335,7 +2365,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 )
                                 check_preview(
                                     selected_width is not None,
-                                    f"{label}: selected WebP width descriptor must be recoverable from srcset",
+                                    f"{label}: selected responsive-image width descriptor must be recoverable from srcset",
                                 )
                                 check_preview(
                                     details["renderedWidth"] > 0,
@@ -2405,7 +2435,11 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         matching_preload = matching_preload or (
                                             preload.get_attribute("imagesrcset") == source_details["srcset"]
                                             and preload.get_attribute("imagesizes") == source_details["sizes"]
-                                            and (preload.get_attribute("type") or "").lower() == "image/webp"
+                                            and (preload.get_attribute("type") or "").lower() == source_details["type"].lower()
+                                            and (
+                                                source_details["type"].lower() != "image/avif"
+                                                or preload.get_attribute("media") == source_details["media"]
+                                            )
                                         )
                                     check_preview(
                                         matching_preload,
@@ -2439,7 +2473,9 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     "route": page_name,
                                     "viewportWidthCssPixels": width,
                                     "deviceScaleFactor": device_scale_factor,
-                                    "selectedWebpPath": selected_path,
+                                    "selectedImagePath": selected_path,
+                                    "selectedImageFormat": selected_format,
+                                    "selectedWebpPath": selected_path if selected_format == "webp" else None,
                                     "pictureIndex": index,
                                     "selectedWidth": selected_width if selected_width is not None else 0,
                                     "requiredPixelWidth": round(required_pixels, 1),

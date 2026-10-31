@@ -146,17 +146,24 @@ def validate_responsive_markup(
             picture_count += 1
             sources = picture["sources"]
             fallbacks = picture["fallbacks"]
-            if len(sources) != 1 or len(fallbacks) != 1:
+            if len(sources) not in (1, 2) or len(fallbacks) != 1:
                 fail(
-                    f"{page.name}: responsive picture must contain exactly one WebP source "
-                    "and one marked JPEG fallback."
+                    f"{page.name}: responsive picture must contain one WebP source, "
+                    "at most one AVIF source and one marked JPEG fallback."
                 )
-            source = sources[0]
+            sources_by_type: dict[str, dict] = {}
+            for source_candidate in sources:
+                source_type = source_candidate.get("type", "").lower()
+                if source_type not in {"image/webp", "image/avif"} or source_type in sources_by_type:
+                    fail(f"{page.name}: responsive picture has an unsupported or duplicate source format.")
+                if not source_candidate.get("sizes", "").strip():
+                    fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
+                sources_by_type[source_type] = source_candidate
+            if "image/webp" not in sources_by_type:
+                fail(f"{page.name}: every responsive picture must retain its WebP fallback source.")
+            source = sources_by_type["image/webp"]
+            avif_source = sources_by_type.get("image/avif")
             fallback = fallbacks[0]
-            if source.get("type", "").lower() != "image/webp":
-                fail(f"{page.name}: responsive picture source must declare type=image/webp.")
-            if not source.get("sizes", "").strip():
-                fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
 
             fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
             source_record = source_by_path.get(fallback_path)
@@ -172,6 +179,7 @@ def validate_responsive_markup(
             classes = fallback.get("class", "").split()
             is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
             hero_delivery_path = source_record.get("heroDeliveryWebp") or ""
+            hero_delivery_avif = source_record.get("heroDeliveryAvif") or {}
             if hero_delivery_path:
                 hero_relative = PurePosixPath(hero_delivery_path)
                 if (
@@ -181,6 +189,21 @@ def validate_responsive_markup(
                     or not hero_delivery_path.startswith("assets/images/responsive/")
                 ):
                     fail(f"{page.name}: hero delivery candidate path is unsafe: {hero_delivery_path}")
+            if avif_source and (not is_hero or not hero_delivery_avif):
+                fail(f"{page.name}: AVIF source is permitted only for a verified hero candidate.")
+            if is_hero and hero_delivery_avif and avif_source is None:
+                fail(f"{page.name}: approved AVIF hero candidate is missing from responsive picture markup.")
+            if hero_delivery_avif:
+                avif_path = hero_delivery_avif.get("path", "")
+                avif_relative = PurePosixPath(avif_path)
+                if (
+                    avif_relative.is_absolute()
+                    or avif_relative.as_posix() != avif_path
+                    or any(part in {"", ".", ".."} for part in avif_relative.parts)
+                    or not avif_path.startswith("assets/images/responsive/")
+                    or not avif_path.endswith(".avif")
+                ):
+                    fail(f"{page.name}: AVIF hero delivery candidate path is unsafe: {avif_path}")
             if source_record.get("sourceFormat") == "WEBP" and (
                 source_record.get("sourceWebp") != source_record.get("fullSizeWebp")
             ):
@@ -382,7 +405,105 @@ def validate_responsive_markup(
                     f"{page.name}: srcset candidates must include the verified responsive widths "
                     "in ascending order and the full-size WebP candidate last."
                 )
-            candidate_count += len(candidates)
+            avif_candidates: list[tuple[str, int]] = []
+            if avif_source is not None:
+                if not hero_delivery_avif:
+                    fail(f"{page.name}: AVIF source has no generated quality evidence.")
+                expected_media = hero_delivery_avif.get("media")
+                if (
+                    expected_media != "(min-width: 1160px)"
+                    or avif_source.get("media", "").strip() != expected_media
+                    or avif_source.get("sizes", "").strip() != "100vw"
+                ):
+                    fail(f"{page.name}: AVIF hero media/sizes contract does not match its generated metadata.")
+                avif_parts = avif_source.get("srcset", "").strip().rsplit(None, 1)
+                if len(avif_parts) != 2:
+                    fail(f"{page.name}: AVIF hero srcset must contain one width-descriptor candidate.")
+                else:
+                    avif_path, avif_descriptor = avif_parts
+                    avif_match = re.fullmatch(r"([1-9][0-9]*)w", avif_descriptor)
+                    avif_width = int(avif_match.group(1)) if avif_match else 0
+                    source_relative = PurePosixPath(fallback_path).relative_to(PurePosixPath("assets/images"))
+                    expected_avif_path = (
+                        PurePosixPath("assets/images/responsive")
+                        / source_relative.parent
+                        / f"{source_relative.stem}-{natural_width}.avif"
+                    ).as_posix()
+                    if avif_width != natural_width or avif_path != expected_avif_path or avif_path != hero_delivery_avif.get("path"):
+                        fail(f"{page.name}: AVIF hero candidate path/descriptor does not match the approved source dimensions.")
+                    avif_metadata = candidate_by_path.get(avif_path)
+                    avif_absolute = output / avif_path
+                    if avif_metadata is None:
+                        fail(f"{page.name}: AVIF srcset references an unverified candidate: {avif_path}")
+                    elif (
+                        avif_absolute.is_symlink()
+                        or not avif_absolute.is_file()
+                        or not is_within(avif_absolute.resolve(), output)
+                    ):
+                        fail(f"{page.name}: AVIF hero candidate is missing or unsafe: {avif_path}")
+                    else:
+                        actual_avif_bytes = avif_absolute.stat().st_size
+                        avif_quality = hero_delivery_avif.get("quality")
+                        avif_max_bytes = hero_delivery_avif.get("maxBytes")
+                        avif_attempts = hero_delivery_avif.get("qualityAttempts")
+                        if (
+                            actual_avif_bytes != avif_metadata.get("bytes")
+                            or actual_avif_bytes != hero_delivery_avif.get("bytes")
+                            or isinstance(avif_quality, bool)
+                            or not isinstance(avif_quality, int)
+                            or not 1 <= avif_quality <= 100
+                            or isinstance(avif_max_bytes, bool)
+                            or not isinstance(avif_max_bytes, int)
+                            or avif_max_bytes < 1
+                            or actual_avif_bytes > avif_max_bytes
+                            or not isinstance(avif_attempts, list)
+                            or not avif_attempts
+                            or avif_attempts[-1] != {"quality": avif_quality, "bytes": actual_avif_bytes}
+                        ):
+                            fail(f"{page.name}: AVIF hero quality/byte-budget metadata does not match the packaged file.")
+                        with Image.open(avif_absolute) as avif_image:
+                            avif_image.load()
+                            if avif_image.format != "AVIF" or avif_image.size != (natural_width, natural_height):
+                                fail(f"{page.name}: AVIF hero candidate failed format/dimension verification.")
+                        measured_avif_psnr = _psnr_db(output / fallback_path, avif_absolute)
+                        minimum_avif_psnr = hero_delivery_avif.get("minPsnrDb")
+                        minimum_avif_savings = hero_delivery_avif.get("minimumSavingsPercent")
+                        declared_avif_psnr = hero_delivery_avif.get("psnrDb")
+                        webp_path = source_record.get("fullSizeWebp", "")
+                        webp_file = output / webp_path
+                        if (
+                            isinstance(minimum_avif_psnr, bool)
+                            or not isinstance(minimum_avif_psnr, (int, float))
+                            or minimum_avif_psnr < 35.0
+                            or isinstance(minimum_avif_savings, bool)
+                            or not isinstance(minimum_avif_savings, (int, float))
+                            or minimum_avif_savings < 10.0
+                            or isinstance(declared_avif_psnr, bool)
+                            or not isinstance(declared_avif_psnr, (int, float))
+                            or measured_avif_psnr < minimum_avif_psnr
+                            or abs(measured_avif_psnr - declared_avif_psnr) > 0.05
+                            or webp_file.is_symlink()
+                            or not webp_file.is_file()
+                        ):
+                            fail(f"{page.name}: AVIF hero candidate fails its recomputed quality or source-integrity checks.")
+                        else:
+                            webp_bytes = webp_file.stat().st_size
+                            saved_percent = (webp_bytes - actual_avif_bytes) / webp_bytes * 100 if webp_bytes else 0
+                            if saved_percent + 0.01 < minimum_avif_savings:
+                                fail(f"{page.name}: AVIF hero candidate does not meet its minimum source-WebP savings.")
+                            if (
+                                avif_metadata.get("width") != natural_width
+                                or avif_metadata.get("height") != natural_height
+                                or hero_delivery_avif.get("width") != natural_width
+                                or hero_delivery_avif.get("height") != natural_height
+                                or abs(saved_percent - float(hero_delivery_avif.get("savedPercent", -100))) > 0.05
+                            ):
+                                fail(f"{page.name}: AVIF hero candidate metadata does not match decoded pixels or measured savings.")
+                            avif_candidates.append((avif_path, avif_width))
+            elif hero_delivery_avif and is_hero:
+                fail(f"{page.name}: generated AVIF hero metadata has no matching picture source.")
+
+            candidate_count += len(candidates) + len(avif_candidates)
 
     if picture_count == 0:
         fail("No responsive picture markup was found in the generated preview package.")
@@ -1626,6 +1747,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                 generated_variants[filename]["heroDeliveryVariant"]["path"]
                 if generated_variants[filename].get("heroDeliveryVariant") else ""
             ),
+            "heroDeliveryAvif": generated_variants[filename].get("heroDeliveryAvif"),
         })
         candidates = [full_size]
         responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
@@ -1675,6 +1797,34 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             generated_files.append(candidate_record)
             if candidate.resolve() != source_asset.resolve():
                 generated_output_files.append(candidate_record)
+
+        avif_metadata = generated_variants[filename].get("heroDeliveryAvif")
+        if avif_metadata:
+            avif_candidate = output / avif_metadata["path"]
+            if avif_candidate.is_symlink() or not avif_candidate.is_file():
+                fail(f"Generated AVIF hero candidate is missing or unsafe: {avif_metadata['path']}")
+            with generator.Image.open(avif_candidate) as converted:
+                converted.load()
+                if converted.format != "AVIF" or converted.size != (width, height):
+                    fail(f"Generated AVIF hero candidate failed decoded format/dimension verification: {avif_candidate.name}")
+            payload = avif_candidate.read_bytes()
+            avif_record = {
+                "path": avif_metadata["path"],
+                "bytes": len(payload),
+                "sha256": digest_bytes(payload),
+                "width": width,
+                "height": height,
+                "format": "AVIF",
+                "quality": avif_metadata["quality"],
+                "qualityAttempts": avif_metadata["qualityAttempts"],
+                "maxBytes": avif_metadata["maxBytes"],
+                "psnrDb": avif_metadata["psnrDb"],
+                "minPsnrDb": avif_metadata["minPsnrDb"],
+                "minimumSavingsPercent": avif_metadata["minimumSavingsPercent"],
+                "savedPercent": avif_metadata["savedPercent"],
+            }
+            generated_files.append(avif_record)
+            generated_output_files.append(avif_record)
 
     markup_validation = validate_responsive_markup(
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
@@ -1770,10 +1920,26 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         ),
         "enforcedFullSizeByteBudgets": sorted(enforced_full_size_budgets, key=lambda item: item["path"]),
         "sourceImages": image_sources,
-        "generatedWebpFileCount": len(generated_output_files),
-        "generatedWebpFiles": sorted(generated_output_files, key=lambda item: item["path"]),
-        "verifiedWebpCandidateCount": len(generated_files),
-        "verifiedWebpCandidates": sorted(generated_files, key=lambda item: item["path"]),
+        "generatedWebpFileCount": sum(item["path"].endswith(".webp") for item in generated_output_files),
+        "generatedWebpFiles": sorted(
+            (item for item in generated_output_files if item["path"].endswith(".webp")),
+            key=lambda item: item["path"],
+        ),
+        "generatedAvifFileCount": sum(item["path"].endswith(".avif") for item in generated_output_files),
+        "generatedAvifFiles": sorted(
+            (item for item in generated_output_files if item["path"].endswith(".avif")),
+            key=lambda item: item["path"],
+        ),
+        "verifiedWebpCandidateCount": sum(item["path"].endswith(".webp") for item in generated_files),
+        "verifiedWebpCandidates": sorted(
+            (item for item in generated_files if item["path"].endswith(".webp")),
+            key=lambda item: item["path"],
+        ),
+        "verifiedAvifCandidateCount": sum(item["path"].endswith(".avif") for item in generated_files),
+        "verifiedAvifCandidates": sorted(
+            (item for item in generated_files if item["path"].endswith(".avif")),
+            key=lambda item: item["path"],
+        ),
         "responsiveMarkupValidation": markup_validation,
         "deliveryEvidence": delivery_evidence,
         "rewrittenHtmlRoutes": [path.relative_to(output).as_posix() for path in rewritten],

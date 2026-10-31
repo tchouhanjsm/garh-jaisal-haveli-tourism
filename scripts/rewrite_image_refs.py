@@ -128,6 +128,16 @@ HERO_DELIVERY_VARIANTS = {
 }
 
 
+AVIF_HERO_DELIVERY_VARIANTS = {
+    "courtyard.jpg": {
+        "quality": 50,
+        "minPsnrDb": 35.0,
+        "minimumSavingsPercent": 10.0,
+        "media": "(min-width: 1160px)",
+    },
+}
+
+
 def _resolve_site_root(root: Path) -> Path:
     """Resolve an existing site root without accepting a symlink as the root itself."""
     candidate = Path(os.path.abspath(os.fspath(root)))
@@ -505,6 +515,68 @@ def generate_responsive_variants(
                     "savedPercent": round(saved_percent, 3),
                 }
 
+            hero_delivery_avif = None
+            avif_config = AVIF_HERO_DELIVERY_VARIANTS.get(filename)
+            if avif_config:
+                if source_filename != filename:
+                    raise RuntimeError(f"AVIF hero delivery requires the exact approved JPEG source: {filename}")
+                avif_relative = PurePosixPath(_hero_avif_delivery_relative_path(filename, width))
+                if avif_relative.is_absolute() or any(part in {"", ".", ".."} for part in avif_relative.parts):
+                    raise ValueError(f"Unsafe AVIF hero delivery path for {filename}: {avif_relative}")
+                avif_target = root / Path(*avif_relative.parts)
+                with Image.open(fallback) as fallback_opened:
+                    _validate_source_image_header(fallback_opened, filename)
+                    fallback_opened.load()
+                    avif_icc_profile = fallback_opened.info.get("icc_profile")
+                    avif_image = ImageOps.exif_transpose(fallback_opened)
+                    if avif_image.size != (width, height):
+                        raise ValueError(f"AVIF hero fallback dimensions differ from source: {filename}")
+                    if avif_image.mode not in ("RGB", "RGBA"):
+                        avif_image = avif_image.convert("RGBA" if "A" in avif_image.getbands() else "RGB")
+                    avif_encoding = _save_avif(
+                        avif_image,
+                        avif_target,
+                        avif_icc_profile,
+                        quality=int(avif_config["quality"]),
+                    )
+                    with Image.open(avif_target) as avif_candidate:
+                        avif_candidate.load()
+                        if avif_candidate.format != "AVIF" or avif_candidate.size != (width, height):
+                            raise RuntimeError(f"AVIF hero delivery verification mismatch: {avif_target}")
+                        measured_avif_psnr = _psnr_db(avif_image, avif_candidate)
+                minimum_avif_psnr = float(avif_config["minPsnrDb"])
+                if measured_avif_psnr < minimum_avif_psnr:
+                    raise RuntimeError(
+                        f"AVIF hero candidate fails the {minimum_avif_psnr:.2f} dB PSNR floor: "
+                        f"{avif_relative.as_posix()} ({measured_avif_psnr:.3f} dB)"
+                    )
+                source_webp_bytes = full_size.stat().st_size
+                saved_avif_percent = (
+                    (source_webp_bytes - avif_target.stat().st_size) / source_webp_bytes * 100
+                    if source_webp_bytes else 0.0
+                )
+                minimum_avif_savings = float(avif_config["minimumSavingsPercent"])
+                if saved_avif_percent < minimum_avif_savings:
+                    raise RuntimeError(
+                        f"AVIF hero candidate saves less than {minimum_avif_savings:.1f}% "
+                        f"against its preserved source WebP: {avif_relative.as_posix()}"
+                    )
+                avif_max_bytes = int(source_webp_bytes * (1 - minimum_avif_savings / 100))
+                hero_delivery_avif = {
+                    "width": width,
+                    "height": height,
+                    "path": avif_relative.as_posix(),
+                    "bytes": avif_target.stat().st_size,
+                    "quality": avif_encoding["quality"],
+                    "qualityAttempts": [{"quality": avif_encoding["quality"], "bytes": avif_encoding["bytes"]}],
+                    "maxBytes": avif_max_bytes,
+                    "psnrDb": round(measured_avif_psnr, 3),
+                    "minPsnrDb": minimum_avif_psnr,
+                    "minimumSavingsPercent": minimum_avif_savings,
+                    "savedPercent": round(saved_avif_percent, 3),
+                    "media": avif_config["media"],
+                }
+
             source_format = "WEBP" if source_filename != filename else "JPEG"
             output[filename] = {
                 "width": width,
@@ -523,6 +595,7 @@ def generate_responsive_variants(
                 "fullSizeQualityAttempts": full_size_encoding["qualityAttempts"] if full_size_encoding else [],
                 "fullSizeMaxBytes": full_size_encoding["maxBytes"] if full_size_encoding else None,
                 "heroDeliveryVariant": hero_delivery_variant,
+                "heroDeliveryAvif": hero_delivery_avif,
                 "variants": generated,
             }
     return output
@@ -737,6 +810,72 @@ def _hero_delivery_relative_path(filename: str, natural_width: int) -> str:
     ).as_posix()
 
 
+def _hero_avif_delivery_relative_path(filename: str, natural_width: int) -> str:
+    relative = _validated_image_relative_path(filename)
+    return (
+        PurePosixPath("assets/images/responsive")
+        / relative.parent
+        / f"{relative.stem}-{natural_width}.avif"
+    ).as_posix()
+
+
+def _save_avif(
+    image: Image.Image,
+    target: Path,
+    icc_profile: bytes | None,
+    *,
+    quality: int = 50,
+) -> dict:
+    """Write a verified AVIF derivative without replacing an existing source asset."""
+    if target.parent.is_symlink():
+        raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
+    if isinstance(quality, bool) or not isinstance(quality, int) or not 1 <= quality <= 100:
+        raise ValueError(f"Invalid AVIF quality: {quality!r}")
+    temporary = target.with_name(target.name + ".tmp")
+    for candidate in (target, temporary):
+        if candidate.is_symlink():
+            raise ValueError(f"Refusing to replace a symlinked AVIF output: {candidate}")
+        if candidate.exists() and not candidate.is_file():
+            raise ValueError(f"AVIF output is not a regular file: {candidate}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        kwargs = {"quality": quality, "speed": 6}
+        if icc_profile:
+            kwargs["icc_profile"] = icc_profile
+        image.save(temporary, format="AVIF", **kwargs)
+        with Image.open(temporary) as check:
+            check.load()
+            if check.format != "AVIF" or check.size != image.size:
+                raise RuntimeError(f"AVIF verification mismatch: {target}")
+        if target.is_file():
+            if target.read_bytes() == temporary.read_bytes():
+                temporary.unlink()
+            else:
+                raise FileExistsError(f"Refusing to overwrite an existing AVIF source: {target}")
+        else:
+            temporary.replace(target)
+        return {"quality": quality, "bytes": target.stat().st_size}
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _avif_srcset(root: Path, filename: str) -> str:
+    """Return the verified full-resolution AVIF candidate for an approved hero."""
+    if filename not in AVIF_HERO_DELIVERY_VARIANTS:
+        raise ValueError(f"AVIF hero delivery is not approved for {filename}")
+    width, height = _natural_dimensions(root, filename)
+    relative = _hero_avif_delivery_relative_path(filename, width)
+    target = root / relative
+    if target.is_symlink() or not target.is_file() or target.stat().st_size <= 0:
+        raise FileNotFoundError(f"Missing quality-gated AVIF hero candidate: {target}")
+    with Image.open(target) as decoded:
+        decoded.load()
+        if decoded.format != "AVIF" or decoded.size != (width, height):
+            raise ValueError(f"AVIF hero candidate dimensions do not match source: {target}")
+    return f"{relative} {width}w"
+
+
 def _srcset(root: Path, filename: str, *, hero: bool = False) -> str:
     """Build a verified width-descriptor srcset, using a quality-gated hero derivative when applicable."""
     root = _resolve_site_root(root)
@@ -870,6 +1009,15 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             + sizes
             + '">'
         )
+        if is_hero and image_name in AVIF_HERO_DELIVERY_VARIANTS:
+            avif_source = (
+                '<source data-responsive-image="true" type="image/avif" media="'
+                + AVIF_HERO_DELIVERY_VARIANTS[image_name]["media"]
+                + '" srcset="'
+                + _avif_srcset(root, image_name)
+                + '" sizes="100vw">'
+            )
+            source = avif_source + source
         tag = set_attribute(tag, "data-responsive-image-fallback", "true")
         if picture_start > picture_end:
             return source + tag
@@ -918,16 +1066,34 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if is_hero and HERO_DELIVERY_VARIANTS.get(image_name):
             natural_width, _ = _natural_dimensions(root, image_name)
             preload_href = _hero_delivery_relative_path(image_name, natural_width)
-        tag = set_attribute(tag, "href", preload_href)
-        return set_attribute(
+        webp_tag = set_attribute(tag, "href", preload_href)
+        webp_tag = set_attribute(
             set_attribute(
-                set_attribute(tag, "imagesrcset", _srcset(root, image_name, hero=is_hero)),
+                set_attribute(webp_tag, "imagesrcset", _srcset(root, image_name, hero=is_hero)),
                 "imagesizes",
                 sizes,
             ),
             "type",
             "image/webp",
         )
+        avif_config = AVIF_HERO_DELIVERY_VARIANTS.get(image_name) if is_hero else None
+        if avif_config:
+            webp_tag = set_attribute(webp_tag, "media", "(max-width: 1159px)")
+            avif_srcset = _avif_srcset(root, image_name)
+            avif_href = avif_srcset.rsplit(None, 1)[0]
+            avif_tag = set_attribute(tag, "href", avif_href)
+            avif_tag = set_attribute(
+                set_attribute(
+                    set_attribute(avif_tag, "imagesrcset", avif_srcset),
+                    "imagesizes",
+                    "100vw",
+                ),
+                "type",
+                "image/avif",
+            )
+            avif_tag = set_attribute(avif_tag, "media", avif_config["media"])
+            return avif_tag + webp_tag
+        return webp_tag
 
     text = LINK_PATTERN.sub(rewrite_preload, text)
     for token, source in protected_sources:

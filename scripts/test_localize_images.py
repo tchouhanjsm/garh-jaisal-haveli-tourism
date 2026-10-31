@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image, ImageDraw
 
 from rewrite_image_refs import (
+    AVIF_HERO_DELIVERY_VARIANTS,
     FULL_SIZE_WEBP_MAX_BYTES,
     HERO_DELIVERY_VARIANTS,
     IMAGE_NAMES,
@@ -86,9 +87,12 @@ def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
     """Build the byte/dimension/quality evidence shape consumed by the package validator."""
     variants = {item["path"]: item for item in entry["variants"]}
     hero = entry.get("heroDeliveryVariant")
+    hero_avif = entry.get("heroDeliveryAvif")
     paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
     if hero:
         paths.append(hero["path"])
+    if hero_avif:
+        paths.append(hero_avif["path"])
     records = []
     for relative in paths:
         target = root / relative
@@ -115,6 +119,16 @@ def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
                 "psnrDb": hero["psnrDb"],
                 "minPsnrDb": hero["minPsnrDb"],
                 "minimumSavingsPercent": hero["minimumSavingsPercent"],
+            })
+        if hero_avif and relative == hero_avif["path"]:
+            record.update({
+                "quality": hero_avif["quality"],
+                "qualityAttempts": hero_avif["qualityAttempts"],
+                "maxBytes": hero_avif["maxBytes"],
+                "psnrDb": hero_avif["psnrDb"],
+                "minPsnrDb": hero_avif["minPsnrDb"],
+                "minimumSavingsPercent": hero_avif["minimumSavingsPercent"],
+                "savedPercent": hero_avif["savedPercent"],
             })
         if relative == entry["fullSizePath"] and entry.get("fullSizeMaxBytes") is not None:
             record.update({
@@ -1516,7 +1530,65 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
 
 
-    def test_responsive_sizes_follow_verified_layout_contexts(self) -> None:
+    def test_directions_hero_avif_is_quality_gated_and_preloaded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_jpeg(root, "courtyard.jpg", (2200, 1467))
+            test_config = {
+                **AVIF_HERO_DELIVERY_VARIANTS["courtyard.jpg"],
+                "quality": 56,
+                "minPsnrDb": 35.0,
+                "minimumSavingsPercent": 10.0,
+            }
+            with patch.dict(AVIF_HERO_DELIVERY_VARIANTS, {"courtyard.jpg": test_config}):
+                generated = generate_responsive_variants(root, ("courtyard.jpg",))
+                entry = generated["courtyard.jpg"]
+                avif = entry["heroDeliveryAvif"]
+                self.assertIsNotNone(avif)
+                with Image.open(root / avif["path"]) as decoded:
+                    decoded.load()
+                    self.assertEqual(decoded.format, "AVIF")
+                    self.assertEqual(decoded.size, (2200, 1467))
+
+                html = (
+                    '<head><link rel="preload" as="image" href="assets/images/courtyard.jpg" '
+                    'fetchpriority="high"></head>'
+                    '<section class="page-hero"><img class="hero__image" '
+                    'src="assets/images/courtyard.jpg" alt="Sandstone passage" '
+                    'fetchpriority="high" loading="eager"></section>'
+                )
+                rewritten = rewrite_html_text(html, "responsive", root=root)
+                self.assertIn('type="image/avif"', rewritten)
+                self.assertIn('media="(min-width: 1160px)"', rewritten)
+                self.assertIn('type="image/webp"', rewritten)
+                self.assertIn('media="(max-width: 1159px)"', rewritten)
+                self.assertIn('href="' + avif["path"] + '"', rewritten)
+                self.assertIn('src="assets/images/courtyard.jpg"', rewritten)
+
+                source_record = {
+                    "sourceJpeg": "assets/images/courtyard.jpg",
+                    "sourceFormat": "JPEG",
+                    "sourceWebp": "",
+                    "naturalWidth": entry["width"],
+                    "naturalHeight": entry["height"],
+                    "sourceBytes": entry["sourceBytes"],
+                    "fallbackBytes": entry["fallbackBytes"],
+                    "fullSizeWebp": entry["fullSizePath"],
+                    "fullSizeBytes": entry["fullSizeBytes"],
+                    "heroDeliveryWebp": "",
+                    "heroDeliveryAvif": avif,
+                }
+                validation = _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root,
+                    generated_candidate_records(root, entry),
+                    [source_record],
+                    RESPONSIVE_WIDTHS,
+                    RESPONSIVE_WIDTH_OVERRIDES,
+                )
+                self.assertEqual(validation["status"], "PASS")
+                self.assertEqual(validation["validatedSrcsetCandidateCount"], len(entry["variants"]) + 2)
+
+    def test_responsive_sizes_follow_verified_layout_contexts(self) -> None>
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source_names = (

@@ -186,8 +186,13 @@ for (const page of PAGES) {
     if (!attr.srcset) continue;
     const inHero = Boolean(heroHtml && heroHtml.includes(tag));
     if ((attr['data-responsive-image'] || '').toLowerCase() === 'true') {
-      if ((attr.type || '').toLowerCase() !== 'image/webp') {
-        fail(page + ': responsive picture source must declare type="image/webp"');
+      const sourceType = (attr.type || '').toLowerCase();
+      if (!['image/webp', 'image/avif'].includes(sourceType)) {
+        fail(page + ': responsive picture source must declare image/webp or image/avif');
+      }
+      if (sourceType === 'image/avif'
+        && (page !== 'directions.html' || !inHero || attr.media !== '(min-width: 1160px)')) {
+        fail(page + ': AVIF delivery is restricted to the approved Directions hero desktop media range');
       }
       if (!attr.sizes) fail(page + ': responsive picture source must declare sizes');
     }
@@ -233,6 +238,7 @@ for (const page of PAGES) {
     const extension = path.extname(href).toLowerCase();
     const expectedType = ({
       '.webp': 'image/webp',
+      '.avif': 'image/avif',
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
       '.png': 'image/png',
@@ -256,7 +262,7 @@ for (const page of PAGES) {
     }
     const candidateSourceTag = sourceTags.find(sourceTag => {
       const source = attributes(sourceTag);
-      return (source.type || '').toLowerCase() === 'image/webp'
+      return (source.type || '').toLowerCase() === (attr.type || '').toLowerCase()
         && source.srcset === attr.imagesrcset;
     });
     if (!candidateSourceTag) {
@@ -266,6 +272,16 @@ for (const page of PAGES) {
     const candidateSource = attributes(candidateSourceTag);
     if (candidateSource.sizes !== attr.imagesizes) {
       fail(page + ': responsive preload imagesizes must match picture source sizes');
+    }
+    if ((attr.type || '').toLowerCase() === 'image/avif'
+      && (candidateSource.media || '') !== (attr.media || '')) {
+      fail(page + ': AVIF preload media must match its picture source media');
+    }
+    if ((attr.type || '').toLowerCase() === 'image/webp'
+      && page === 'directions.html'
+      && sourceTags.some(sourceTag => (attributes(sourceTag).type || '').toLowerCase() === 'image/avif')
+      && attr.media !== '(max-width: 1159px)') {
+      fail(page + ': WebP fallback preload must be limited to the non-AVIF Directions viewport range');
     }
     const candidatePaths = srcsetCandidates(attr.imagesrcset);
     const preloadHref = (attr.href || '').split(/[?#]/, 1)[0];

@@ -781,6 +781,8 @@ for route in browser_smoke.PAGES:
                 "pictureIndex": 0,
                 "viewportWidthCssPixels": viewport_width,
                 "deviceScaleFactor": dpr,
+                "selectedImagePath": "assets/images/responsive/rooms/fixture-640.webp",
+                "selectedImageFormat": "webp",
                 "selectedWebpPath": "assets/images/responsive/rooms/fixture-640.webp",
                 "selectedWidth": 640,
                 "requiredPixelWidth": 600.0,
@@ -881,7 +883,7 @@ responsive_evidence = browser_smoke.build_responsive_image_evidence_report(
     failures=[],
     page_resource_evidence=fixture_page_resource_evidence,
 )
-assert responsive_evidence["schemaVersion"] == 4
+assert responsive_evidence["schemaVersion"] == 5
 assert responsive_evidence["automatedResult"] == "PASS"
 assert responsive_evidence["coverage"] == {
     "expectedObservationCount": 96,
