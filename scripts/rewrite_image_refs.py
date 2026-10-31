@@ -53,6 +53,13 @@ SOURCE_PREFIX = (
     "tchouhanjsm/garh-jaisal-website/main/img/"
 )
 RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
+# M27 first-view evidence showed 1200px-to-1600px jumps for two-column cards
+# at high DPR. Add a 1280px bridge only for the three measured Gallery assets.
+RESPONSIVE_WIDTH_OVERRIDES = {
+    "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "legacy/fort-temple-spires.jpg": (320, 480, 768, 1200, 1280, 1600),
+}
 MAX_PIXELS = 64_000_000
 WEBP_QUALITY = 82
 # Mirrors quality_overrides in the authoritative source repository's
@@ -66,6 +73,7 @@ SOURCE_QUALITY_OVERRIDES = {
 RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/courtyard-1200.webp": 250_000,
     "assets/images/responsive/courtyard-1600.webp": 250_000,
+    "assets/images/responsive/courtyard-1280.webp": 145_000,
     "assets/images/responsive/rooms/haveli-interior-1200.webp": 250_000,
     "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
     "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
@@ -73,7 +81,9 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/directions/haveli-facade-768.webp": 200_000,
     "assets/images/responsive/directions/haveli-facade-1200.webp": 250_000,
     "assets/images/responsive/legacy/camel-day-1200.webp": 170_000,
+    "assets/images/responsive/legacy/camel-day-1280.webp": 185_000,
     "assets/images/responsive/legacy/fort-temple-spires-1200.webp": 100_000,
+    "assets/images/responsive/legacy/fort-temple-spires-1280.webp": 105_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
@@ -363,7 +373,8 @@ def generate_responsive_variants(
                 Path("assets/images/responsive") / relative.parent,
                 create=True,
             )
-            for target_width in RESPONSIVE_WIDTHS:
+            target_widths = RESPONSIVE_WIDTH_OVERRIDES.get(filename, RESPONSIVE_WIDTHS)
+            for target_width in target_widths:
                 if target_width >= width:
                     continue
                 target_height = max(1, round(height * target_width / width))
@@ -615,7 +626,7 @@ def _srcset(root: Path, filename: str) -> str:
     )
     paths = [
         f"{_responsive_webp_url(filename, width)} {width}w"
-        for width in RESPONSIVE_WIDTHS
+        for width in RESPONSIVE_WIDTH_OVERRIDES.get(filename, RESPONSIVE_WIDTHS)
         if width < natural_width
         and (responsive_parent / f"{relative.stem}-{width}.webp").is_file()
         and not (responsive_parent / f"{relative.stem}-{width}.webp").is_symlink()
