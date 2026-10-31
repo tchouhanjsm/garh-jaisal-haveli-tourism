@@ -4176,34 +4176,50 @@ def check_experience_detail_visual_refinement(page, base_url: str) -> None:
             if section.count() != 1:
                 continue
             figure = section.locator("figure.experience-detail-media")
-            frame = figure.locator(".experience-detail-media__frame[data-deferred-media]")
+            frame = figure.locator(".experience-detail-media__frame")
             template = frame.locator("template[data-deferred-picture-template]")
-            check(figure.count() == 1 and frame.count() == 1 and template.count() == 1,
-                  f"{section_id}: exactly one deferred source-matched photo template must exist")
-            if template.count() != 1:
+            image = frame.locator(":scope > img")
+            template_count = template.count()
+            active_image_count = image.count()
+            check(
+                figure.count() == 1 and frame.count() == 1
+                and ((template_count == 1 and active_image_count == 0)
+                     or (template_count == 0 and active_image_count == 1)),
+                f"{section_id}: exactly one pending template or activated photo reference must exist",
+            )
+            if frame.count() != 1 or (template_count, active_image_count) not in ((1, 0), (0, 1)):
                 continue
 
-            template_image = template.evaluate("""node => {
-              const image = node.content && node.content.querySelector('img');
-              return image ? {
-                src: image.getAttribute('src'),
-                alt: image.getAttribute('alt'),
-                loading: image.getAttribute('loading'),
-                decoding: image.getAttribute('decoding')
-              } : null;
-            }""")
-            check(template_image is not None,
-                  f"{section_id}: deferred photo template must contain one image payload")
-            if not template_image:
+            if template_count == 1:
+                image_reference = template.evaluate("""node => {
+                  const image = node.content && node.content.querySelector('img');
+                  return image ? {
+                    src: image.getAttribute('src'),
+                    alt: image.getAttribute('alt'),
+                    loading: image.getAttribute('loading'),
+                    decoding: image.getAttribute('decoding')
+                  } : null;
+                }""")
+            else:
+                image_reference = image.evaluate("""node => ({
+                  src: node.getAttribute('src'),
+                  alt: node.getAttribute('alt'),
+                  loading: node.getAttribute('loading'),
+                  decoding: node.getAttribute('decoding')
+                })""")
+                check(frame.get_attribute("data-deferred-media-activated") == "true",
+                      f"{section_id}: an already-rendered image must have an explicit activated state")
+
+            check(image_reference is not None,
+                  f"{section_id}: photo reference must contain one image payload")
+            if not image_reference:
                 continue
-            check(template_image["src"] == expected_src,
-                  f"{section_id}: deferred image must use its reviewed local subject reference")
-            check(template_image["alt"] == expected_alt,
-                  f"{section_id}: deferred image must retain its descriptive, subject-accurate alt text")
-            check(template_image["loading"] == "lazy" and template_image["decoding"] == "async",
+            check(image_reference["src"] == expected_src,
+                  f"{section_id}: image must use its reviewed local subject reference")
+            check(image_reference["alt"] == expected_alt,
+                  f"{section_id}: image must retain its descriptive, subject-accurate alt text")
+            check(image_reference["loading"] == "lazy" and image_reference["decoding"] == "async",
                   f"{section_id}: supporting image must lazy-load and decode asynchronously")
-            check(frame.locator(":scope > img").count() == 0,
-                  f"{section_id}: supporting image must remain inert before its activation boundary")
 
             frame.scroll_into_view_if_needed()
             frame_selector = f"#{section_id} .experience-detail-media__frame"
