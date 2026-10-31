@@ -1526,6 +1526,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "tent.jpg",
                 "dining/rooftop-candlelit-table.jpg",
                 "legacy/camel-sunset.jpg",
+                "experiences/cultural-programme.jpg",
                 "experiences/open-air-sleeping-setup.jpeg",
                 "experiences/sleep-under-stars-dusk-camp.jpeg",
                 "experiences/sleep-under-stars-shelter.jpeg",
@@ -1559,6 +1560,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<section class="experience-detail-section experience-detail-section--visual">'
                 '<figure class="experience-detail-media"><img src="assets/images/legacy/camel-sunset.jpg" '
                 'alt="Camel caravan"></figure></section>'
+                '<section class="experience-detail-section experience-detail-section--visual">'
+                '<figure class="experience-detail-media experience-detail-media--portrait">'
+                '<img src="assets/images/experiences/cultural-programme.jpg" alt="Desert performance">'
+                '</figure></section>'
             )
             result = rewrite_html_text(html, "responsive", root=root)
 
@@ -1580,12 +1585,16 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '(max-width: 900px) min(620px, calc(100vw - 76px)), '
                 'min(460px, 36vw)'
             )
+            portrait_detail_sizes = (
+                '(max-width: 900px) min(375px, calc(100vw - 76px)), 336px'
+            )
             self.assertIn('sizes="100vw"', result)
             self.assertIn(f'sizes="{experience_sizes}"', result)
             self.assertIn(f'imagesizes="{experience_sizes}"', result)
             self.assertIn(f'sizes="{room_sizes}"', result)
             self.assertIn(f'sizes="{gallery_sizes}"', result)
             self.assertIn(f'sizes="{detail_sizes}"', result)
+            self.assertIn(f'sizes="{portrait_detail_sizes}"', result)
             self.assertIn('assets/images/responsive/legacy/camel-sunset-320.webp 320w', result)
             self.assertIn(
                 'sizes="(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"',

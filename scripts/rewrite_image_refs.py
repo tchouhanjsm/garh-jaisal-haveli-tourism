@@ -623,6 +623,11 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         return "(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"
     if "story-image" in ancestors:
         return "(max-width: 760px) calc(100vw - 36px), min(600px, 43vw)"
+    if "experience-detail-media--portrait" in ancestors:
+        # The portrait frame is capped by its CSS aspect-ratio/max-height pair:
+        # 5:4 at <=900px (375px wide at the 300px height cap), then 4:5
+        # above 900px (336px wide at the 420px height cap).
+        return "(max-width: 900px) min(375px, calc(100vw - 76px)), 336px"
     if "experience-detail-media" in ancestors:
         return (
             "(max-width: 900px) min(620px, calc(100vw - 76px)), "
