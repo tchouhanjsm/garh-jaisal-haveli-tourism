@@ -1317,7 +1317,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             invalid_structured_data_cases = (
                 (
                     index_html.replace(valid_jsonld, '<script type="application/ld+json">{invalid json}</script>'),
-                    "invalid JSON-LD block",
+                    "contains invalid JSON",
                 ),
                 (
                     index_html.replace('"@context":"https://schema.org"', '"@context":"https://example.test/schema"'),
@@ -1333,7 +1333,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 ),
                 (
                     index_html.replace(valid_jsonld, ''),
-                    "requires at least one application/ld+json block",
+                    r"requires at least one application/ld\+json block",
                 ),
             )
             for invalid_html, expected_error in invalid_structured_data_cases:
