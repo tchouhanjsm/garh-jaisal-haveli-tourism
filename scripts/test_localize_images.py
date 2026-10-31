@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -122,6 +123,7 @@ def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
             })
         if hero_avif and relative == hero_avif["path"]:
             record.update({
+                "sourceGitBlobSha": hero_avif["sourceGitBlobSha"],
                 "quality": hero_avif["quality"],
                 "qualityAttempts": hero_avif["qualityAttempts"],
                 "maxBytes": hero_avif["maxBytes"],
@@ -1534,9 +1536,14 @@ class RewriteImageReferencesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = create_jpeg(root, "courtyard.jpg", (2200, 1467))
+            source_payload = source.read_bytes()
+            source_git_blob_sha = hashlib.sha1(
+                f"blob {len(source_payload)}\0".encode("ascii") + source_payload
+            ).hexdigest()
             test_config = {
                 **AVIF_HERO_DELIVERY_VARIANTS["courtyard.jpg"],
                 "quality": 56,
+                "sourceGitBlobSha": source_git_blob_sha,
                 "minPsnrDb": 35.0,
                 "minimumSavingsPercent": 10.0,
             }
@@ -1545,6 +1552,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 entry = generated["courtyard.jpg"]
                 avif = entry["heroDeliveryAvif"]
                 self.assertIsNotNone(avif)
+                self.assertEqual(avif["sourceGitBlobSha"], source_git_blob_sha)
                 with Image.open(root / avif["path"]) as decoded:
                     decoded.load()
                     self.assertEqual(decoded.format, "AVIF")
@@ -1588,6 +1596,28 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 )
                 self.assertEqual(validation["status"], "PASS")
                 self.assertEqual(validation["validatedSrcsetCandidateCount"], len(entry["variants"]) + 2)
+
+    def test_directions_hero_avif_skips_unmatched_source_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_jpeg(root, "courtyard.jpg", (2200, 1467))
+            mismatched_config = {
+                **AVIF_HERO_DELIVERY_VARIANTS["courtyard.jpg"],
+                "sourceGitBlobSha": "0" * 40,
+            }
+            with patch.dict(AVIF_HERO_DELIVERY_VARIANTS, {"courtyard.jpg": mismatched_config}):
+                generated = generate_responsive_variants(root, ("courtyard.jpg",))
+                entry = generated["courtyard.jpg"]
+                self.assertIsNone(entry["heroDeliveryAvif"])
+                self.assertEqual(entry["heroDeliveryAvifSkippedReason"], "source-provenance-mismatch")
+                html = (
+                    '<section class="page-hero"><img class="hero__image" '
+                    'src="assets/images/courtyard.jpg" alt="Sandstone passage" '
+                    'fetchpriority="high" loading="eager"></section>'
+                )
+                rewritten = rewrite_html_text(html, "responsive", root=root)
+                self.assertNotIn('type="image/avif"', rewritten)
+                self.assertIn('type="image/webp"', rewritten)
 
     def test_responsive_sizes_follow_verified_layout_contexts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

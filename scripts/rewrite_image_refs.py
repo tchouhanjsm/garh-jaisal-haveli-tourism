@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import math
 import os
 from pathlib import Path, PurePosixPath
@@ -131,6 +132,7 @@ HERO_DELIVERY_VARIANTS = {
 AVIF_HERO_DELIVERY_VARIANTS = {
     "courtyard.jpg": {
         "quality": 50,
+        "sourceGitBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295",
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
         "media": "(min-width: 1160px)",
@@ -516,7 +518,12 @@ def generate_responsive_variants(
                 }
 
             hero_delivery_avif = None
+            hero_delivery_avif_skipped_reason = None
             avif_config = AVIF_HERO_DELIVERY_VARIANTS.get(filename)
+            actual_source_git_blob_sha = _git_blob_sha1(fallback) if avif_config else None
+            if avif_config and actual_source_git_blob_sha != avif_config["sourceGitBlobSha"]:
+                hero_delivery_avif_skipped_reason = "source-provenance-mismatch"
+                avif_config = None
             if avif_config:
                 if source_filename != filename:
                     raise RuntimeError(f"AVIF hero delivery requires the exact approved JPEG source: {filename}")
@@ -566,6 +573,7 @@ def generate_responsive_variants(
                     "width": width,
                     "height": height,
                     "path": avif_relative.as_posix(),
+                    "sourceGitBlobSha": actual_source_git_blob_sha,
                     "bytes": avif_target.stat().st_size,
                     "quality": avif_encoding["quality"],
                     "qualityAttempts": [{"quality": avif_encoding["quality"], "bytes": avif_encoding["bytes"]}],
@@ -596,6 +604,7 @@ def generate_responsive_variants(
                 "fullSizeMaxBytes": full_size_encoding["maxBytes"] if full_size_encoding else None,
                 "heroDeliveryVariant": hero_delivery_variant,
                 "heroDeliveryAvif": hero_delivery_avif,
+                "heroDeliveryAvifSkippedReason": hero_delivery_avif_skipped_reason,
                 "variants": generated,
             }
     return output
@@ -810,6 +819,12 @@ def _hero_delivery_relative_path(filename: str, natural_width: int) -> str:
     ).as_posix()
 
 
+def _git_blob_sha1(path: Path) -> str:
+    payload = path.read_bytes()
+    header = f"blob {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload).hexdigest()
+
+
 def _hero_avif_delivery_relative_path(filename: str, natural_width: int) -> str:
     relative = _validated_image_relative_path(filename)
     return (
@@ -863,7 +878,12 @@ def _save_avif(
 def _avif_srcset(root: Path, filename: str) -> str:
     """Return the verified full-resolution AVIF candidate for an approved hero."""
     if filename not in AVIF_HERO_DELIVERY_VARIANTS:
-        raise ValueError(f"AVIF hero delivery is not approved for {filename}")
+        return ""
+    relative_source = _validated_image_relative_path(filename)
+    source_path = root / Path("assets/images") / Path(*relative_source.parts)
+    expected_source_sha = AVIF_HERO_DELIVERY_VARIANTS[filename]["sourceGitBlobSha"]
+    if _git_blob_sha1(source_path) != expected_source_sha:
+        return ""
     width, height = _natural_dimensions(root, filename)
     relative = _hero_avif_delivery_relative_path(filename, width)
     target = root / relative
@@ -1010,14 +1030,16 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             + '">'
         )
         if is_hero and image_name in AVIF_HERO_DELIVERY_VARIANTS:
-            avif_source = (
-                '<source data-responsive-image="true" type="image/avif" media="'
-                + AVIF_HERO_DELIVERY_VARIANTS[image_name]["media"]
-                + '" srcset="'
-                + _avif_srcset(root, image_name)
-                + '" sizes="100vw">'
-            )
-            source = avif_source + source
+            avif_srcset = _avif_srcset(root, image_name)
+            if avif_srcset:
+                avif_source = (
+                    '<source data-responsive-image="true" type="image/avif" media="'
+                    + AVIF_HERO_DELIVERY_VARIANTS[image_name]["media"]
+                    + '" srcset="'
+                    + avif_srcset
+                    + '" sizes="100vw">'
+                )
+                source = avif_source + source
         tag = set_attribute(tag, "data-responsive-image-fallback", "true")
         if picture_start > picture_end:
             return source + tag
@@ -1078,21 +1100,22 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         )
         avif_config = AVIF_HERO_DELIVERY_VARIANTS.get(image_name) if is_hero else None
         if avif_config:
-            webp_tag = set_attribute(webp_tag, "media", "(max-width: 1159px)")
             avif_srcset = _avif_srcset(root, image_name)
-            avif_href = avif_srcset.rsplit(None, 1)[0]
-            avif_tag = set_attribute(tag, "href", avif_href)
-            avif_tag = set_attribute(
-                set_attribute(
-                    set_attribute(avif_tag, "imagesrcset", avif_srcset),
-                    "imagesizes",
-                    "100vw",
-                ),
-                "type",
-                "image/avif",
-            )
-            avif_tag = set_attribute(avif_tag, "media", avif_config["media"])
-            return avif_tag + webp_tag
+            if avif_srcset:
+                webp_tag = set_attribute(webp_tag, "media", "(max-width: 1159px)")
+                avif_href = avif_srcset.rsplit(None, 1)[0]
+                avif_tag = set_attribute(tag, "href", avif_href)
+                avif_tag = set_attribute(
+                    set_attribute(
+                        set_attribute(avif_tag, "imagesrcset", avif_srcset),
+                        "imagesizes",
+                        "100vw",
+                    ),
+                    "type",
+                    "image/avif",
+                )
+                avif_tag = set_attribute(avif_tag, "media", avif_config["media"])
+                return avif_tag + webp_tag
         return webp_tag
 
     text = LINK_PATTERN.sub(rewrite_preload, text)

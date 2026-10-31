@@ -443,12 +443,20 @@ def validate_responsive_markup(
                         fail(f"{page.name}: AVIF hero candidate is missing or unsafe: {avif_path}")
                     else:
                         actual_avif_bytes = avif_absolute.stat().st_size
+                        fallback_payload = (output / fallback_path).read_bytes()
+                        actual_source_git_blob_sha = hashlib.sha1(
+                            f"blob {len(fallback_payload)}\0".encode("ascii") + fallback_payload
+                        ).hexdigest()
+                        declared_source_git_blob_sha = hero_delivery_avif.get("sourceGitBlobSha")
                         avif_quality = hero_delivery_avif.get("quality")
                         avif_max_bytes = hero_delivery_avif.get("maxBytes")
                         avif_attempts = hero_delivery_avif.get("qualityAttempts")
                         if (
                             actual_avif_bytes != avif_metadata.get("bytes")
                             or actual_avif_bytes != hero_delivery_avif.get("bytes")
+                            or not re.fullmatch(r"[0-9a-f]{40}", str(declared_source_git_blob_sha))
+                            or declared_source_git_blob_sha != actual_source_git_blob_sha
+                            or avif_metadata.get("sourceGitBlobSha") != actual_source_git_blob_sha
                             or isinstance(avif_quality, bool)
                             or not isinstance(avif_quality, int)
                             or not 1 <= avif_quality <= 100
@@ -1748,6 +1756,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                 if generated_variants[filename].get("heroDeliveryVariant") else ""
             ),
             "heroDeliveryAvif": generated_variants[filename].get("heroDeliveryAvif"),
+            "heroDeliveryAvifSkippedReason": generated_variants[filename].get("heroDeliveryAvifSkippedReason"),
         })
         candidates = [full_size]
         responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
@@ -1815,6 +1824,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                 "width": width,
                 "height": height,
                 "format": "AVIF",
+                "sourceGitBlobSha": avif_metadata["sourceGitBlobSha"],
                 "quality": avif_metadata["quality"],
                 "qualityAttempts": avif_metadata["qualityAttempts"],
                 "maxBytes": avif_metadata["maxBytes"],
