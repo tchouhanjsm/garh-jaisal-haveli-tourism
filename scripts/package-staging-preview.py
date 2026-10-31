@@ -76,7 +76,8 @@ def is_within(path: Path, root: Path) -> bool:
 
 def git_blob_sha(data: bytes) -> str:
     """Return Git's blob object SHA-1 for exact source-identity checks."""
-    return hashlib.sha1(f"blob {len(data)}\\0".encode("ascii") + data).hexdigest()
+    header = b"blob " + str(len(data)).encode("ascii") + bytes((0,))
+    return hashlib.sha1(header + data).hexdigest()
 
 
 def validate_runtime_duplicate_image_exclusions(root: Path = ROOT) -> dict:
