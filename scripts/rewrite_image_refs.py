@@ -882,7 +882,6 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         image_name = _image_name_for_reference(href)
         if image_name is None:
             return tag
-        tag = set_attribute(tag, "href", _full_size_webp_url(image_name))
         matching_image_match = next(
             (
                 image_match
@@ -910,6 +909,11 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             if matching_image_match
             else (get_attribute(tag, "fetchpriority") or "").lower() == "high"
         )
+        preload_href = _full_size_webp_url(image_name)
+        if is_hero and HERO_DELIVERY_VARIANTS.get(image_name):
+            natural_width, _ = _natural_dimensions(root, image_name)
+            preload_href = _hero_delivery_relative_path(image_name, natural_width)
+        tag = set_attribute(tag, "href", preload_href)
         return set_attribute(
             set_attribute(
                 set_attribute(tag, "imagesrcset", _srcset(root, image_name, hero=is_hero)),

@@ -542,7 +542,8 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn('sizes="100vw"', rewritten)
             self.assertIn('src="assets/images/rooms/haveli-interior.jpg"', rewritten)
             self.assertIn('data-responsive-image-fallback="true"', rewritten)
-            self.assertIn('href="assets/images/rooms/haveli-sitting-room.webp"', rewritten)
+            self.assertIn(f'href="{hero["path"]}"', rewritten)
+            self.assertNotIn('href="assets/images/rooms/haveli-sitting-room.webp"', rewritten)
             self.assertIn('imagesizes="100vw"', rewritten)
 
             nonhero = rewrite_html_text(
@@ -654,7 +655,8 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn(f'{hero["path"]} 2000w', rewritten)
             self.assertNotIn("assets/images/gallery/hotel/fort-from-roof.webp 2000w", rewritten)
             self.assertIn('src="assets/images/gallery/hotel/fort-from-roof.jpg"', rewritten)
-            self.assertIn('href="assets/images/gallery/hotel/fort-from-roof.webp"', rewritten)
+            self.assertIn(f'href="{hero["path"]}"', rewritten)
+            self.assertNotIn('href="assets/images/gallery/hotel/fort-from-roof.webp"', rewritten)
             self.assertIn('imagesizes="100vw"', rewritten)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
