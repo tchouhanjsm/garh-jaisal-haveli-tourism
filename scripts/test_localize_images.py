@@ -1564,6 +1564,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 self.assertIn('media="(max-width: 1159px)"', rewritten)
                 self.assertIn('href="' + avif["path"] + '"', rewritten)
                 self.assertIn('src="assets/images/courtyard.jpg"', rewritten)
+                (root / "directions.html").write_text(rewritten, encoding="utf-8")
 
                 source_record = {
                     "sourceJpeg": "assets/images/courtyard.jpg",

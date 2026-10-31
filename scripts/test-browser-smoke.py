@@ -1068,11 +1068,11 @@ def build_responsive_image_evidence_report(
         if http_status != 200:
             validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate did not return HTTP 200")
         if encoded_bytes < 1:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate has no encoded body bytes")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate has no encoded body bytes")
         if request_count != 1:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate was not requested exactly once")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate was not requested exactly once")
         if calculated_ratio > 1.9:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate exceeds the 1.9x pixel-demand guard")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate exceeds the 1.9x pixel-demand guard")
 
         unique_key = (route, viewport_width, dpr, picture_index)
         unique_keys.add(unique_key)
@@ -2462,12 +2462,12 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 )
                                 check_preview(
                                     selected_response.get("status") == 200,
-                                    f"{label}: selected WebP candidate must return HTTP 200; observed {selected_response.get('status')!r}",
+                                    f"{label}: selected responsive-image candidate must return HTTP 200; observed {selected_response.get('status')!r}",
                                 )
                                 check_preview(
                                     isinstance(selected_transfer, dict)
                                     and selected_transfer.get("encodedBodyBytes", 0) > 0,
-                                    f"{label}: selected WebP candidate must expose non-zero encoded body bytes",
+                                    f"{label}: selected responsive-image candidate must expose non-zero encoded body bytes",
                                 )
                                 selected_resource_evidence.append({
                                     "route": page_name,
@@ -2488,7 +2488,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 })
                                 check_preview(
                                     selected_request_count == 1,
-                                    f"{label}: selected WebP candidate should be requested once, "
+                                    f"{label}: selected responsive-image candidate should be requested once, "
                                     f"observed {selected_request_count}",
                                 )
 
