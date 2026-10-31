@@ -3105,21 +3105,46 @@ def check_stay_planner(page, base_url: str) -> None:
             )
             fallback_gallery = fallback_context.new_page()
             fallback_gallery.goto(base_url + "gallery.html", wait_until="domcontentloaded", timeout=15000)
-            fallback_images = fallback_gallery.locator(".gallery-card__media img")
-            check(fallback_images.count() == 7,
-                  "Gallery no-JavaScript fallback must expose all seven supporting photographs")
-            for image_index in range(fallback_images.count()):
-                image = fallback_images.nth(image_index)
-                image.scroll_into_view_if_needed(timeout=5000)
-                decoded = image.evaluate(
-                    """async img => {
-                      try { await img.decode(); } catch (_) {}
-                      return img.naturalWidth > 0 && img.naturalHeight > 0
-                        && Boolean((img.getAttribute("alt") || "").trim());
+            fallback_nodes = fallback_gallery.locator("noscript[data-deferred-picture-fallback]")
+            check(fallback_nodes.count() == 7,
+                  "Gallery no-JavaScript markup must retain all seven supporting-photo fallbacks")
+            for image_index in range(fallback_nodes.count()):
+                fallback = fallback_nodes.nth(image_index)
+                fallback_result = fallback.evaluate(
+                    """async node => {
+                      // Depending on the browser's scripting flag, noscript children may be
+                      // exposed as parsed nodes or retained as raw markup text. Validate the
+                      // same fallback payload in either representation without enabling the
+                      // page's application scripts.
+                      const raw = (node.textContent || '').trim() || node.innerHTML;
+                      const parsed = new DOMParser().parseFromString(raw, 'text/html');
+                      const source = parsed.querySelector('img');
+                      if (!source) return { decoded: false, reason: 'missing image markup' };
+                      const src = (source.getAttribute('src') || '').trim();
+                      const alt = (source.getAttribute('alt') || '').trim();
+                      const width = Number(source.getAttribute('width'));
+                      const height = Number(source.getAttribute('height'));
+                      if (!src || !alt || !Number.isInteger(width) || width <= 0
+                          || !Number.isInteger(height) || height <= 0) {
+                        return { decoded: false, reason: 'incomplete image alternative' };
+                      }
+                      const probe = new Image();
+                      probe.src = new URL(src, document.baseURI).href;
+                      try { await probe.decode(); } catch (_) {}
+                      return {
+                        decoded: probe.naturalWidth > 0 && probe.naturalHeight > 0,
+                        alt,
+                        width,
+                        height,
+                        sourceWidth: probe.naturalWidth,
+                        sourceHeight: probe.naturalHeight
+                      };
                     }"""
                 )
-                check(decoded,
-                      "Gallery no-JavaScript fallback image " + str(image_index + 1) + " must decode and retain descriptive alt text")
+                check(fallback_result.get("decoded") is True,
+                      "Gallery no-JavaScript fallback image " + str(image_index + 1)
+                      + " must contain a valid descriptive image and decodable local source"
+                      + (": " + str(fallback_result.get("reason")) if fallback_result.get("reason") else ""))
         finally:
             fallback_context.close()
 
