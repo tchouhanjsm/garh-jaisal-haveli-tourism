@@ -1594,7 +1594,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 # use the real tab control so its accessibility state and layout
                                 # are exercised exactly as a guest would activate them.
                                 panel_id = image.evaluate(
-                                    "(img) => img.closest('[role=\\"tabpanel\\"]')?.id || ''"
+                                    """(img) => img.closest('[role="tabpanel"]')?.id || ''"""
                                 )
                                 if panel_id:
                                     panel = page.locator(f'[role="tabpanel"]#{panel_id}')
