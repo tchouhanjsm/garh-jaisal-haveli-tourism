@@ -9,6 +9,7 @@ const html = fs.readFileSync(path.join(ROOT, 'dining.html'), 'utf8');
 const cssPath = path.join(ROOT, 'assets', 'css', 'dining-tabs.css');
 const jsPath = path.join(ROOT, 'assets', 'dining-tabs.js');
 const css = fs.readFileSync(cssPath, 'utf8');
+const siteCss = fs.readFileSync(path.join(ROOT, 'assets', 'site.css'), 'utf8');
 const js = fs.readFileSync(jsPath, 'utf8');
 
 const tabs = [...html.matchAll(/<button\b(?=[^>]*\brole="tab")(?=[^>]*\bdata-restaurant-tab="([^"]+)")[^>]*>([\s\S]*?)<\/button>/g)];
@@ -90,6 +91,11 @@ assert.ok(html.includes('href="https://maps.app.goo.gl/28gGJ6tX8xoanQ9D8"'), 'Re
 assert.ok(html.includes('https://www.instagram.com/garhjaisal/'), 'Owner-provided restaurant Instagram link is retained');
 assert.ok(html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"'), 'The rooftop table image remains locally hosted');
 assert.ok(html.includes('src="assets/images/gallery/hotel/fort-from-roof.jpg"'), 'The separate fort view retains its source-backed JPEG fallback');
+const featurePictureRule = '.feature-photo>picture.responsive-image{display:block;width:100%;min-width:0;overflow:hidden}';
+assert.ok(siteCss.lastIndexOf('picture.responsive-image{display:contents}') < siteCss.indexOf(featurePictureRule),
+  'The feature-photo responsive picture overrides the generic display:contents layout rule');
+assert.ok(siteCss.includes(featurePictureRule),
+  'The packaged Dining feature picture retains a measurable block-level image slot');
 assert.ok(html.includes('href="directions.html"'), 'The main Directions journey remains linked');
 assert.ok(html.includes('assets/css/dining-tabs.css') && html.includes('assets/dining-tabs.js'),
   'Dining loads the tab/form assets');
