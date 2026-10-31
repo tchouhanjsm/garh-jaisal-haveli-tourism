@@ -19,6 +19,7 @@ from rewrite_image_refs import (
     RESPONSIVE_VARIANT_MAX_BYTES,
     SOURCE_QUALITY_OVERRIDES,
     RESPONSIVE_WIDTHS,
+    RESPONSIVE_WIDTH_OVERRIDES,
     _save_webp,
     generate_responsive_variants,
     rewrite_html_text,
@@ -114,6 +115,106 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     self.assertEqual(decoded.size, (item["width"], item["height"]))
                 self.assertGreater(item["bytes"], 0)
                 self.assertLess(item["bytes"], entry["fullSizeBytes"])
+
+    def test_gallery_two_column_assets_use_targeted_1280_candidates_and_package_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_sizes = {
+                "courtyard.jpg": (2200, 1467),
+                "legacy/camel-day.jpg": (1366, 768),
+                "legacy/fort-temple-spires.jpg": (1366, 768),
+            }
+            expected_widths = (320, 480, 768, 1200, 1280, 1600)
+            for filename, dimensions in source_sizes.items():
+                create_jpeg(root, filename, dimensions)
+
+            generated = generate_responsive_variants(root, tuple(source_sizes))
+            html_parts = ['<section class="gallery-grid">']
+            generated_files = []
+            source_records = []
+            expected_candidate_count = 0
+
+            for filename in source_sizes:
+                self.assertEqual(RESPONSIVE_WIDTH_OVERRIDES[filename], expected_widths)
+                entry = generated[filename]
+                expected_generated_widths = [
+                    width for width in expected_widths if width < entry["width"]
+                ]
+                self.assertEqual(
+                    [item["width"] for item in entry["variants"]],
+                    expected_generated_widths,
+                )
+                candidate = next(item for item in entry["variants"] if item["width"] == 1280)
+                self.assertEqual(
+                    candidate["maxBytes"],
+                    RESPONSIVE_VARIANT_MAX_BYTES[candidate["path"]],
+                )
+                self.assertLessEqual(candidate["bytes"], candidate["maxBytes"])
+                self.assertEqual(candidate["qualityAttempts"][-1]["bytes"], candidate["bytes"])
+                html_parts.append(
+                    f'<figure class="gallery-card"><img src="assets/images/{filename}" '
+                    f'alt="Verified source photograph for {filename}"></figure>'
+                )
+
+                candidate_paths = [
+                    entry["fullSizePath"],
+                    *(item["path"] for item in entry["variants"]),
+                ]
+                variant_by_path = {item["path"]: item for item in entry["variants"]}
+                for relative in candidate_paths:
+                    target = root / relative
+                    with Image.open(target) as decoded:
+                        decoded.load()
+                        record = {
+                            "path": relative,
+                            "bytes": target.stat().st_size,
+                            "sha256": "0" * 64,
+                            "width": decoded.width,
+                            "height": decoded.height,
+                        }
+                    variant_metadata = variant_by_path.get(relative)
+                    if variant_metadata and variant_metadata["maxBytes"] is not None:
+                        record.update({
+                            "quality": variant_metadata["quality"],
+                            "qualityAttempts": variant_metadata["qualityAttempts"],
+                            "maxBytes": variant_metadata["maxBytes"],
+                        })
+                    if relative == entry["fullSizePath"] and entry["fullSizeMaxBytes"] is not None:
+                        record.update({
+                            "quality": entry["fullSizeQuality"],
+                            "qualityAttempts": entry["fullSizeQualityAttempts"],
+                            "maxBytes": entry["fullSizeMaxBytes"],
+                        })
+                    generated_files.append(record)
+
+                source_records.append({
+                    "sourceJpeg": f"assets/images/{filename}",
+                    "sourceFormat": "JPEG",
+                    "sourceWebp": "",
+                    "naturalWidth": entry["width"],
+                    "naturalHeight": entry["height"],
+                    "fullSizeWebp": entry["fullSizePath"],
+                })
+                expected_candidate_count += len(candidate_paths)
+
+            html_parts.append("</section>")
+            rewritten = rewrite_html_text("".join(html_parts), "responsive", root=root)
+            page = root / "gallery.html"
+            page.write_text(rewritten, encoding="utf-8")
+            self.assertEqual(rewritten.count('data-responsive-image="true"'), 3)
+            for filename in source_sizes:
+                self.assertIn(f"{Path(filename).stem}-1280.webp 1280w", rewritten)
+
+            report = _PACKAGE_PREVIEW.validate_responsive_markup(
+                root,
+                generated_files,
+                source_records,
+                RESPONSIVE_WIDTHS,
+                RESPONSIVE_WIDTH_OVERRIDES,
+            )
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["responsivePictureCount"], 3)
+            self.assertEqual(report["validatedSrcsetCandidateCount"], expected_candidate_count)
 
     def test_budgeted_responsive_variant_uses_highest_quality_that_fits_and_package_revalidates_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
