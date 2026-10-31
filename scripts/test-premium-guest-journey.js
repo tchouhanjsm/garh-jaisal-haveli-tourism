@@ -334,6 +334,10 @@ assert.match(css, /#plan-stay\.home-plan-panel\s*\{[\s\S]*?grid-template-columns
   'homepage planner must explicitly reset the legacy booking-form grid columns');
 assert.match(css, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*900px\)[\s\S]*?#plan-stay\s+\.home-plan-paths\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
   'tablet homepage planner must use a balanced two-by-two decision layout');
+assert.match(css, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*900px\)[\s\S]*?\.section--intro\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1\.05fr\)\s+minmax\(0,\s*\.95fr\)/,
+  'homepage editorial intro must use shrink-safe two-column tracks on compact tablets');
+assert.match(css, /\.section--intro\s+\.intro__image\s*\{[\s\S]*?min-width:\s*0[\s\S]*?width:\s*100%/,
+  'homepage intro image must be allowed to shrink within its assigned tablet grid track');
 assert.match(css, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*820px\)[\s\S]*?\.menu-toggle\s*\{[\s\S]*?display:\s*flex\s*;?[\s\S]*?\.primary-nav\.is-open\s*\{\s*display:\s*flex\s*;?\s*\}/,
   'tablet navigation must collapse the desktop link row and retain the accessible toggle/open state');
 

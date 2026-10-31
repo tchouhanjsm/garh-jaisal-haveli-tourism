@@ -1195,6 +1195,28 @@ body {
   gap: 0;
 }
 @media (min-width: 761px) and (max-width: 900px) {
+  /* At compact tablet widths, use two stable tracks; the old three-column
+     intro allowed the intrinsic image minimum to push the document to 802px. */
+  .section--intro {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+    gap: 20px clamp(20px, 3vw, 28px);
+  }
+  .section--intro .intro__index {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .section--intro .intro__copy {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .section--intro .intro__image {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    width: 100%;
+    min-height: 360px;
+  }
   #plan-stay .home-plan-paths {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

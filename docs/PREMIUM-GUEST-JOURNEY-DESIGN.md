@@ -114,7 +114,7 @@ At 761–820px, the masthead switches from the desktop link row to the same keyb
 
 ## M21 — tablet editorial planner repair
 
-The homepage full-width planning band explicitly resets the legacy booking-panel grid. At 761–900px, its four guest decisions become a balanced two-by-two layout with independent touch-sized links; narrow mobile already follows the same two-column rhythm. The existing Chromium suite enforces zero horizontal document overflow across the six viewport widths.
+The 768px capture identified the homepage three-column intro as the actual overflow source: the photo's intrinsic minimum expanded its grid track beyond the content rail. At 761–900px the folio spans the first row, with copy and image in two shrink-safe `minmax(0, …)` tracks. The full-width planner also explicitly resets the legacy booking-panel grid and uses a balanced two-by-two decision layout. Chromium's six-width overflow assertion is the acceptance gate.
 
 ## M22 — palette contrast regression
 

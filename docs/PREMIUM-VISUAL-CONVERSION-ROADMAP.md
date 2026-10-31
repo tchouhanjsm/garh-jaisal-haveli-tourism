@@ -370,7 +370,7 @@ The 768px visual review exposed a 34px horizontal overflow in the desktop masthe
 
 ## M21 — tablet planner composition and overflow repair
 
-The 768px Chromium capture exposed that the full-width homepage planner retained the old booking-panel CSS grid. The inherited two-column form geometry compressed its four decisions and overflowed the viewport. The planner now resets that legacy grid at all widths and switches to a deliberate 2×2 path layout from 761–900px. Existing six-width Chromium checks remain the hard acceptance gate.
+The 768px Chromium capture exposed a 34px overflow in the homepage introduction: the three-column grid let the property photograph's intrinsic minimum widen the third track beyond the content rail. The tablet correction spans the folio across row one and assigns copy/photo to two shrink-safe `minmax(0, …)` tracks. Independently, the full-width planning band explicitly resets the old booking-panel form grid and adopts a 2×2 decision layout from 761–900px. The existing six-width Chromium overflow assertion remains the hard acceptance gate.
 
 ## M22 — measurable heritage palette contrast
 
