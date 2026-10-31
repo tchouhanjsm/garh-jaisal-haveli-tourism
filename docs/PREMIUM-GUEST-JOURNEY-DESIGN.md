@@ -94,3 +94,28 @@ The shared homepage planning panel and inner-route guest-journey rail are full-b
 Experiences, Experience Details, Gallery and Dining use owner-controlled, manifest-backed first-view photographs. The static HTML keeps source JPEG/WebP paths; the existing staging image pipeline derives responsive WebP sources in the isolated package. The original image subjects, availability caveats, booking/enquiry handoff and photo rights are unchanged.
 
 Automated regression checks cover the palette/action roles, full-bleed decision bands, photo-led hero subject/alt text, hero priority/preload and page-specific image byte budgets. Screenshot review and owner-approved staging UAT remain separate manual acceptance gates; no visual score or release approval is inferred from a passing build.
+
+
+## M17–M19 — premium conversion and responsive visual acceptance
+
+The AsiaTech booking link remains the source-authorized external booking path and retains its new-tab target and `noopener noreferrer` safeguards. WhatsApp enquiries and restaurant table requests are separate and never represent confirmed reservations.
+
+The desktop masthead and mobile booking action share one saffron role. The floating contextual enquiry dock yields on small breakpoints, including during viewport resize, so mobile guests see one fixed conversion surface rather than competing controls.
+
+Editorial content uses larger photography, open fact rails and calmer card surfaces. Source-backed property, desert, dining and fort photographs retain accurate captions. No new amenity, rate, service or operational claim is introduced.
+
+Automated checks validate provider-link preservation, first-view primary-action geometry, responsive image rendering and mobile dock suppression. Screenshot evidence remains required for visual review; passing geometry tests is not pixel-level visual approval.
+
+
+## M20 — tablet navigation acceptance
+
+At 761–820px, the masthead switches from the desktop link row to the same keyboard-operable menu toggle used on mobile. The collapsed menu opens on explicit activation, exposes the existing route links and external booking action, and closes with Escape. Chromium also asserts no horizontal document overflow at the 768px viewport. The AsiaTech handoff destination and safe external-link attributes remain unchanged.
+
+
+## M21 — tablet editorial planner repair
+
+The 768px capture identified the homepage three-column intro as the actual overflow source: the photo's intrinsic minimum expanded its grid track beyond the content rail. At 761–900px the folio spans the first row, with copy and image in two shrink-safe `minmax(0, …)` tracks. The full-width planner also explicitly resets the legacy booking-panel grid and uses a balanced two-by-two decision layout. Chromium's six-width overflow assertion is the acceptance gate.
+
+## M22 — palette contrast regression
+
+The canonical token suite calculates WCAG relative luminance and contrast for representative primary actions, inverse text, muted copy, deep brass and functional focus pairs. Each text/functional pair is required to meet 4.5:1. Antique brass is also tested against the dark fort-green editorial band. These checks are deliberate representative sentinels, not a substitute for a full rendered-state audit or manual screenshot/accessibility review.

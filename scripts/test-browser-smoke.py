@@ -3427,7 +3427,8 @@ def check_contact_hydration(page, base_url: str) -> None:
 
 
 def check_direct_enquiry_dock(page, base_url: str) -> None:
-    """Exercise the contextual enquiry dock without following WhatsApp or sending data."""
+    """Verify desktop dock behavior and ensure it yields to mobile's fixed booking action."""
+    page.set_viewport_size({"width": 1440, "height": 900})
     response = page.goto(base_url + "about.html", wait_until="domcontentloaded", timeout=15000)
     check(response is not None and response.status == 200, "direct enquiry dock: expected About route HTTP 200")
     page.wait_for_selector("main#main", timeout=5000)
@@ -3442,7 +3443,7 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
         timeout=5000,
     )
-    check(dock.is_visible(), "direct enquiry dock: it should appear after scrolling")
+    check(dock.is_visible(), "direct enquiry dock: it should appear after scrolling on desktop")
     action = dock.locator("a[data-enquiry-link]")
     check(action.count() == 1, "direct enquiry dock: expected one validated enquiry action")
     if action.count() == 1:
@@ -3466,23 +3467,31 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         check("nothing is sent automatically" in (dock.inner_text() or "").lower(),
               "direct enquiry dock: visitor disclosure must state draft-only behavior")
 
-    for width in (320, 390, 1440):
+    for width in (320, 390):
+        page.set_viewport_size({"width": width, "height": 900})
+        page.evaluate("window.scrollTo(0, 420)")
+        page.wait_for_timeout(100)
+        check(dock.is_hidden(),
+              f"direct enquiry dock at {width}px: it must yield to the persistent mobile booking bar")
+        mobile_bar = page.locator(".mobile-booking-bar")
+        check(mobile_bar.is_visible(),
+              f"mobile booking bar at {width}px: the primary mobile booking action must remain visible")
+        check(mobile_bar.locator("[data-booking-link]").count() == 1,
+              f"mobile booking bar at {width}px: the source-authorized provider action must remain present")
+
+    for width in (768, 1440):
         page.set_viewport_size({"width": width, "height": 900})
         page.evaluate("window.scrollTo(0, 420)")
         page.wait_for_function(
             "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
             timeout=5000,
         )
+        check(dock.is_visible(), f"direct enquiry dock at {width}px: it should return above the mobile breakpoint")
         bounds = dock.bounding_box()
         check(bounds is not None, f"direct enquiry dock at {width}px: missing rendered geometry")
         if bounds:
             check(bounds["x"] >= -1 and bounds["x"] + bounds["width"] <= width + 1,
                   f"direct enquiry dock at {width}px: dock must remain inside the viewport ({bounds})")
-            if width <= 520:
-                mobile_bar = page.locator(".mobile-booking-bar")
-                bar_bounds = mobile_bar.bounding_box()
-                check(bar_bounds is not None and bounds["y"] + bounds["height"] <= bar_bounds["y"] - 1,
-                      f"direct enquiry dock at {width}px: dock must sit above the fixed booking bar ({bounds}, {bar_bounds})")
         for selector in ("a[data-enquiry-link]", "[data-direct-enquiry-dismiss]"):
             box = dock.locator(selector).bounding_box()
             check(box is not None and box["width"] >= 44 and box["height"] >= 44,
@@ -3505,6 +3514,7 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
     page.evaluate("window.scrollTo(0, 420)")
     check(dock.is_hidden(), "direct enquiry dock: dismissal must persist while scrolling")
     page.set_viewport_size({"width": 1440, "height": 900})
+
 
 
 def check_guest_enquiry_forms(page, base_url: str) -> None:
@@ -3920,6 +3930,65 @@ def check_staging_publication_guards(page, base_url: str) -> None:
               "canonicalHostApproved must remain false until explicit owner approval")
 
 
+def check_first_view_hierarchy(page, page_name: str, viewport_width: int) -> None:
+    """Verify one visible H1, one primary CTA and a decoded hero crop."""
+    hero = page.locator("main#main > .hero, main#main > .page-hero").first
+    check(hero.count() == 1 and hero.is_visible(),
+          f"{page_name} at {viewport_width}px: one visible hero is required")
+    if hero.count() != 1 or not hero.is_visible():
+        return
+    heading = hero.locator("h1")
+    primary = hero.locator(".button--gold")
+    check(heading.count() == 1 and heading.is_visible(),
+          f"{page_name} at {viewport_width}px: one visible H1 is required")
+    check(primary.count() == 1 and primary.is_visible(),
+          f"{page_name} at {viewport_width}px: one visible primary action is required")
+    if heading.count() != 1 or primary.count() != 1:
+        return
+    try:
+        page.wait_for_function(
+            """() => {
+              const hero = document.querySelector('main#main > .hero, main#main > .page-hero');
+              const image = hero && hero.querySelector('img');
+              return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+            }""", timeout=4000)
+    except Exception as error:
+        check(False, f"{page_name} at {viewport_width}px: hero image did not decode ({type(error).__name__})")
+        return
+    geometry = page.evaluate("""() => {
+      const hero = document.querySelector('main#main > .hero, main#main > .page-hero');
+      const header = document.querySelector('.site-header');
+      const heading = hero && hero.querySelector('h1');
+      const cta = hero && hero.querySelector('.button--gold');
+      const image = hero && hero.querySelector('img');
+      const rect = el => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};
+      };
+      return {hero:rect(hero),header:rect(header),heading:rect(heading),cta:rect(cta),
+        image:image ? {width:image.naturalWidth,height:image.naturalHeight,fit:getComputedStyle(image).objectFit} : null};
+    }""")
+    if not geometry or not geometry["hero"] or not geometry["heading"] or not geometry["cta"]:
+        check(False, f"{page_name}: first-view geometry must be measurable")
+        return
+    check(geometry["heading"]["top"] >= (geometry["header"]["bottom"] - 1 if geometry["header"] else 0),
+          f"{page_name} at {viewport_width}px: heading must clear the masthead")
+    check(geometry["heading"]["left"] >= -1 and geometry["heading"]["right"] <= viewport_width + 1,
+          f"{page_name} at {viewport_width}px: H1 must fit the viewport")
+    check(geometry["cta"]["left"] >= -1 and geometry["cta"]["right"] <= viewport_width + 1,
+          f"{page_name} at {viewport_width}px: CTA must fit the viewport")
+    check(geometry["cta"]["width"] >= 44 and geometry["cta"]["height"] >= 44,
+          f"{page_name} at {viewport_width}px: CTA must meet the 44px target")
+    check(geometry["cta"]["bottom"] <= geometry["hero"]["bottom"] + 2,
+          f"{page_name} at {viewport_width}px: CTA must remain in the hero")
+    check(geometry["image"] is not None and geometry["image"]["width"] > 0 and geometry["image"]["height"] > 0,
+          f"{page_name} at {viewport_width}px: hero image must decode")
+    if geometry["image"]:
+        check(geometry["image"]["fit"] == "cover",
+              f"{page_name} at {viewport_width}px: hero image must preserve its cover crop")
+
+
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
     """Audit six responsive breakpoints and capture all eight routes at 390, 768 and 1280px."""
     screenshot_widths = {width for width, _height in VIEWPORTS}
@@ -3937,6 +4006,7 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             if width in screenshot_widths:
                 capture_route_performance(page, page_name, width, height)
             check_premium_guest_journey(page, page_name, width)
+            check_first_view_hierarchy(page, page_name, width)
             type_requirements = {
                 "index.html": [(".experience-card p", 13), (".proof-item span", 11),
                                (".room-feature__copy > p:not(.fine-print)", 13), (".faq-item > p", 13)],
@@ -3968,6 +4038,21 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 if actual:
                     check(min(actual) + 0.01 >= minimum,
                           f"{page_name} at {width}px: {selector} minimum font size {minimum}px, found {min(actual):g}px")
+            if 760 < width <= 820:
+                menu_toggle = page.locator(".menu-toggle")
+                primary_nav = page.locator("#primary-navigation")
+                check(menu_toggle.is_visible(),
+                      f"{page_name} at {width}px: compact tablet navigation control must be visible")
+                check(not primary_nav.is_visible(),
+                      f"{page_name} at {width}px: desktop link row must collapse at tablet width")
+                if menu_toggle.is_visible():
+                    menu_toggle.click()
+                    check(primary_nav.is_visible(),
+                          f"{page_name} at {width}px: tablet menu must open on explicit activation")
+                    page.keyboard.press("Escape")
+                    check(not primary_nav.is_visible()
+                          and menu_toggle.get_attribute("aria-expanded") == "false",
+                          f"{page_name} at {width}px: Escape must close the tablet menu accessibly")
             dimensions = page.evaluate(
                 """() => ({
                   viewport: window.innerWidth,
@@ -3978,6 +4063,12 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
             check(dimensions["document"] <= width + 2 and dimensions["body"] <= width + 2,
                   f"{page_name} at {width}px: horizontal overflow ({dimensions})")
             if width <= 390:
+                dock = page.locator("[data-direct-enquiry-dock]")
+                page.evaluate("window.scrollTo(0, 420)")
+                page.wait_for_timeout(80)
+                check(not dock.is_visible(),
+                      f"{page_name} at {width}px: floating enquiry dock must yield to mobile booking bar")
+                page.evaluate("window.scrollTo(0, 0)")
                 bar = page.locator(".mobile-booking-bar")
                 if page_name == "directions.html":
                     state = page.evaluate("""() => {
