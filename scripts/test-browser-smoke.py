@@ -3243,7 +3243,8 @@ def check_contact_hydration(page, base_url: str) -> None:
 
 
 def check_direct_enquiry_dock(page, base_url: str) -> None:
-    """Exercise the contextual enquiry dock without following WhatsApp or sending data."""
+    """Verify desktop dock behavior and ensure it yields to mobile's fixed booking action."""
+    page.set_viewport_size({"width": 1440, "height": 900})
     response = page.goto(base_url + "about.html", wait_until="domcontentloaded", timeout=15000)
     check(response is not None and response.status == 200, "direct enquiry dock: expected About route HTTP 200")
     page.wait_for_selector("main#main", timeout=5000)
@@ -3258,7 +3259,7 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
         timeout=5000,
     )
-    check(dock.is_visible(), "direct enquiry dock: it should appear after scrolling")
+    check(dock.is_visible(), "direct enquiry dock: it should appear after scrolling on desktop")
     action = dock.locator("a[data-enquiry-link]")
     check(action.count() == 1, "direct enquiry dock: expected one validated enquiry action")
     if action.count() == 1:
@@ -3269,7 +3270,7 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         href = action.get_attribute("href") or ""
         parsed = urlparse(href)
         check(parsed.scheme == "https" and parsed.hostname == "wa.me"
-              and bool(re.fullmatch(r"/\d{8,15}", parsed.path)),
+              and bool(re.fullmatch(r"/\\d{8,15}", parsed.path)),
               "direct enquiry dock: CTA must use the authorized HTTPS WhatsApp endpoint")
         check(action.get_attribute("target") == "_blank",
               "direct enquiry dock: external draft must open separately for guest review")
@@ -3282,23 +3283,31 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
         check("nothing is sent automatically" in (dock.inner_text() or "").lower(),
               "direct enquiry dock: visitor disclosure must state draft-only behavior")
 
-    for width in (320, 390, 1440):
+    for width in (320, 390):
+        page.set_viewport_size({"width": width, "height": 900})
+        page.evaluate("window.scrollTo(0, 420)")
+        page.wait_for_timeout(100)
+        check(dock.is_hidden(),
+              f"direct enquiry dock at {width}px: it must yield to the persistent mobile booking bar")
+        mobile_bar = page.locator(".mobile-booking-bar")
+        check(mobile_bar.is_visible(),
+              f"mobile booking bar at {width}px: the primary mobile booking action must remain visible")
+        check(mobile_bar.locator("[data-booking-link]").count() == 1,
+              f"mobile booking bar at {width}px: the source-authorized provider action must remain present")
+
+    for width in (768, 1440):
         page.set_viewport_size({"width": width, "height": 900})
         page.evaluate("window.scrollTo(0, 420)")
         page.wait_for_function(
             "() => { const dock = document.querySelector('[data-direct-enquiry-dock]'); return dock && !dock.hidden; }",
             timeout=5000,
         )
+        check(dock.is_visible(), f"direct enquiry dock at {width}px: it should return above the mobile breakpoint")
         bounds = dock.bounding_box()
         check(bounds is not None, f"direct enquiry dock at {width}px: missing rendered geometry")
         if bounds:
             check(bounds["x"] >= -1 and bounds["x"] + bounds["width"] <= width + 1,
                   f"direct enquiry dock at {width}px: dock must remain inside the viewport ({bounds})")
-            if width <= 520:
-                mobile_bar = page.locator(".mobile-booking-bar")
-                bar_bounds = mobile_bar.bounding_box()
-                check(bar_bounds is not None and bounds["y"] + bounds["height"] <= bar_bounds["y"] - 1,
-                      f"direct enquiry dock at {width}px: dock must sit above the fixed booking bar ({bounds}, {bar_bounds})")
         for selector in ("a[data-enquiry-link]", "[data-direct-enquiry-dismiss]"):
             box = dock.locator(selector).bounding_box()
             check(box is not None and box["width"] >= 44 and box["height"] >= 44,
@@ -3321,6 +3330,7 @@ def check_direct_enquiry_dock(page, base_url: str) -> None:
     page.evaluate("window.scrollTo(0, 420)")
     check(dock.is_hidden(), "direct enquiry dock: dismissal must persist while scrolling")
     page.set_viewport_size({"width": 1440, "height": 900})
+
 
 
 def check_guest_enquiry_forms(page, base_url: str) -> None:
