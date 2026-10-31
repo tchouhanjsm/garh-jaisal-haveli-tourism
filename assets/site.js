@@ -63,7 +63,7 @@
     const activate = target => {
       if (!pendingTargets.has(target)) return false;
       const template = target.querySelector('template[data-deferred-picture-template]');
-      if (!template || !template.content || !template.content.childNodes.length) {
+      if (!template || !template.content || !template.content.querySelector('img')) {
         target.removeAttribute('data-deferred-media');
         target.setAttribute('data-deferred-media-failed', 'true');
         pendingTargets.delete(target);
