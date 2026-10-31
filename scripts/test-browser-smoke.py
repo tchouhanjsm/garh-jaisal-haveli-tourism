@@ -2032,16 +2032,24 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
                                 )
 
-                            deferred_targets = page.locator("[data-deferred-media]")
-                            while deferred_targets.count():
-                                target = deferred_targets.first
-                                deferred_label = f"{page_name} deferred Gallery image"
+                            deferred_targets = page.locator(
+                                "[data-deferred-media], "
+                                "[data-deferred-media-activated='true'], "
+                                "[data-deferred-media-failed='true']"
+                            )
+                            deferred_target_handles = deferred_targets.element_handles()
+                            expected_deferred_targets = 7 if page_name == "gallery.html" else 0
+                            check_preview(
+                                len(deferred_target_handles) == expected_deferred_targets,
+                                f"{page_name}: expected {expected_deferred_targets} deferred media targets, "
+                                f"observed {len(deferred_target_handles)}",
+                            )
+                            for deferred_index, target_handle in enumerate(deferred_target_handles, start=1):
+                                deferred_label = f"{page_name} deferred Gallery image {deferred_index}"
                                 try:
-                                    target_handle = target.element_handle()
-                                    if target_handle is None:
-                                        raise RuntimeError("deferred media target disappeared before activation")
-                                    target.evaluate(
-                                        "(element) => element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})"
+                                    page.evaluate(
+                                        "(element) => element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})",
+                                        target_handle,
                                     )
                                     page.wait_for_function(
                                         """element => element && (
@@ -2051,14 +2059,15 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         arg=target_handle,
                                         timeout=5000,
                                     )
-                                    activation_state = target.get_attribute("data-deferred-media-activated")
+                                    activation_state = target_handle.get_attribute("data-deferred-media-activated")
                                     if activation_state != "true":
                                         raise RuntimeError(
                                             "deferred media runtime reported failure: "
-                                            + str(target.get_attribute("data-deferred-media-failed") or "unknown")
+                                            + str(target_handle.get_attribute("data-deferred-media-failed") or "unknown")
                                         )
-                                    image = target.locator("img").first
-                                    image.wait_for(state="attached", timeout=5000)
+                                    image = target_handle.query_selector("img")
+                                    if image is None:
+                                        raise RuntimeError("activated deferred media did not contain an image")
                                     decoded = image.evaluate(
                                         """async img => {
                                           try { await img.decode(); } catch (_) {}
