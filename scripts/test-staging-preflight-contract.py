@@ -740,7 +740,7 @@ with tempfile.TemporaryDirectory(prefix="garh-pruned-reference-") as temporary_d
     try:
         staging_packager.validate_runtime_asset_closure(pruned_root)
     except RuntimeError as error:
-        assert "broken local src reference" in str(error)
+        assert "broken local asset reference (src)" in str(error)
     else:
         raise AssertionError("Runtime closure must reject references to pruned duplicate images.")
 
