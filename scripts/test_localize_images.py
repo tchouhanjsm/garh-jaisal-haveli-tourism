@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import importlib.util
 import json
 import tempfile
@@ -13,7 +14,9 @@ from unittest.mock import MagicMock, patch
 from PIL import Image, ImageDraw
 
 from rewrite_image_refs import (
+    AVIF_HERO_DELIVERY_VARIANTS,
     FULL_SIZE_WEBP_MAX_BYTES,
+    HERO_DELIVERY_VARIANTS,
     IMAGE_NAMES,
     RESPONSIVE_SOURCE_OVERRIDES,
     RESPONSIVE_VARIANT_MAX_BYTES,
@@ -64,6 +67,79 @@ def create_webp(
     draw.rectangle((size[0] // 4, size[1] // 4, size[0] * 3 // 4, size[1] * 3 // 4), fill=(180, 130, 75))
     image.save(target, format="WEBP", quality=90, method=6)
     return target
+
+
+def create_webp_from_jpeg(
+    root: Path,
+    source_filename: str,
+    output_filename: str,
+    quality: int = 90,
+) -> Path:
+    """Create a source-backed WebP fixture from the exact JPEG fallback pixels."""
+    source = root / "assets" / "images" / source_filename
+    target = root / "assets" / "images" / output_filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with Image.open(source) as image:
+        image.save(target, format="WEBP", quality=quality, method=6)
+    return target
+
+
+def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
+    """Build the byte/dimension/quality evidence shape consumed by the package validator."""
+    variants = {item["path"]: item for item in entry["variants"]}
+    hero = entry.get("heroDeliveryVariant")
+    hero_avif = entry.get("heroDeliveryAvif")
+    paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
+    if hero:
+        paths.append(hero["path"])
+    if hero_avif:
+        paths.append(hero_avif["path"])
+    records = []
+    for relative in paths:
+        target = root / relative
+        with Image.open(target) as decoded:
+            decoded.load()
+            record = {
+                "path": relative,
+                "bytes": target.stat().st_size,
+                "sha256": "0" * 64,
+                "width": decoded.width,
+                "height": decoded.height,
+            }
+        metadata = variants.get(relative)
+        if metadata is None and hero and relative == hero["path"]:
+            metadata = hero
+        if metadata and metadata.get("maxBytes") is not None:
+            record.update({
+                "quality": metadata["quality"],
+                "qualityAttempts": metadata["qualityAttempts"],
+                "maxBytes": metadata["maxBytes"],
+            })
+        if hero and relative == hero["path"]:
+            record.update({
+                "psnrDb": hero["psnrDb"],
+                "minPsnrDb": hero["minPsnrDb"],
+                "minimumSavingsPercent": hero["minimumSavingsPercent"],
+            })
+        if hero_avif and relative == hero_avif["path"]:
+            record.update({
+                "sourceGitBlobSha": hero_avif["sourceGitBlobSha"],
+                "quality": hero_avif["quality"],
+                "qualityAttempts": hero_avif["qualityAttempts"],
+                "maxBytes": hero_avif["maxBytes"],
+                "psnrDb": hero_avif["psnrDb"],
+                "minPsnrDb": hero_avif["minPsnrDb"],
+                "minimumSavingsPercent": hero_avif["minimumSavingsPercent"],
+                "savedPercent": hero_avif["savedPercent"],
+            })
+        if relative == entry["fullSizePath"] and entry.get("fullSizeMaxBytes") is not None:
+            record.update({
+                "quality": entry["fullSizeQuality"],
+                "qualityAttempts": entry["fullSizeQualityAttempts"],
+                "maxBytes": entry["fullSizeMaxBytes"],
+            })
+        records.append(record)
+    return records
 
 
 class RewriteImageReferencesTests(unittest.TestCase):
@@ -433,11 +509,14 @@ class RewriteImageReferencesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fallback = create_jpeg(root, "rooms/haveli-interior.jpg", (1600, 1066))
-            source_webp = create_webp(root, "rooms/haveli-sitting-room.webp", (1600, 1066))
+            source_webp = create_webp_from_jpeg(
+                root, "rooms/haveli-interior.jpg", "rooms/haveli-sitting-room.webp"
+            )
             original_webp = source_webp.read_bytes()
 
             generated = generate_responsive_variants(root, ("rooms/haveli-interior.jpg",))
             entry = generated["rooms/haveli-interior.jpg"]
+            hero = entry["heroDeliveryVariant"]
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(entry["sourceFormat"], "WEBP")
             self.assertEqual(entry["sourcePath"], "assets/images/rooms/haveli-sitting-room.webp")
@@ -445,6 +524,19 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(entry["fullSizeSavingsBytes"], 0)
             self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
             self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
+            self.assertEqual(hero["path"], "assets/images/responsive/rooms/haveli-interior-1600.webp")
+            self.assertEqual((hero["width"], hero["height"]), (1600, 1066))
+            self.assertGreaterEqual(hero["psnrDb"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["minPsnrDb"])
+            self.assertGreaterEqual(hero["savedPercent"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["minimumSavingsPercent"])
+            self.assertLessEqual(hero["bytes"], 240_000)
+            self.assertGreaterEqual(hero["psnrDb"], 35.0)
+            self.assertGreaterEqual(hero["savedPercent"], 10.0)
+            self.assertEqual([item["width"] for item in entry["variants"]], [320, 480, 768, 800, 1200, 1280])
+            for width, budget in ((800, 95_000), (1200, 180_000), (1280, 190_000)):
+                relative = f"assets/images/responsive/rooms/haveli-interior-{width}.webp"
+                candidate = next(item for item in entry["variants"] if item["width"] == width)
+                self.assertEqual(RESPONSIVE_VARIANT_MAX_BYTES[relative], budget)
+                self.assertLessEqual(candidate["bytes"], budget)
 
             html = (
                 '<link rel="preload" as="image" href="assets/images/rooms/haveli-interior.jpg" '
@@ -459,40 +551,28 @@ class RewriteImageReferencesTests(unittest.TestCase):
             rewritten = rewrite_html_text(html, "responsive", root=root)
             self.assertEqual(rewritten.count("<source"), 1)
             self.assertIn('data-responsive-image="true"', rewritten)
-            self.assertIn(
-                "assets/images/responsive/rooms/haveli-interior-320.webp 320w",
-                rewritten,
-            )
-            self.assertIn(
-                "assets/images/rooms/haveli-sitting-room.webp 1600w",
-                rewritten,
-            )
+            self.assertIn("assets/images/responsive/rooms/haveli-interior-800.webp 800w", rewritten)
+            self.assertIn("assets/images/responsive/rooms/haveli-interior-1280.webp 1280w", rewritten)
+            self.assertIn(f'{hero["path"]} 1600w', rewritten)
+            self.assertNotIn("assets/images/rooms/haveli-sitting-room.webp 1600w", rewritten)
             self.assertIn('sizes="100vw"', rewritten)
             self.assertIn('src="assets/images/rooms/haveli-interior.jpg"', rewritten)
             self.assertIn('data-responsive-image-fallback="true"', rewritten)
-            self.assertIn('href="assets/images/rooms/haveli-sitting-room.webp"', rewritten)
-            self.assertIn(
-                'imagesrcset="assets/images/responsive/rooms/haveli-interior-320.webp 320w',
-                rewritten,
-            )
+            self.assertIn(f'href="{hero["path"]}"', rewritten)
+            self.assertNotIn('href="assets/images/rooms/haveli-sitting-room.webp"', rewritten)
             self.assertIn('imagesizes="100vw"', rewritten)
-            self.assertIn('type="image/webp"', rewritten)
+
+            nonhero = rewrite_html_text(
+                '<img src="assets/images/rooms/haveli-interior.jpg" alt="Room detail" loading="lazy">',
+                "responsive",
+                root=root,
+            )
+            self.assertIn("assets/images/rooms/haveli-sitting-room.webp 1600w", nonhero)
+            self.assertNotIn(hero["path"], nonhero)
 
             page = root / "rooms.html"
             page.write_text(rewritten, encoding="utf-8")
-            candidate_paths = [entry["fullSizePath"], *(item["path"] for item in entry["variants"])]
-            generated_files = []
-            for relative in candidate_paths:
-                target = root / relative
-                with Image.open(target) as decoded:
-                    decoded.load()
-                    generated_files.append({
-                        "path": relative,
-                        "bytes": target.stat().st_size,
-                        "sha256": "0" * 64,
-                        "width": decoded.width,
-                        "height": decoded.height,
-                    })
+            generated_files = generated_candidate_records(root, entry)
             source_record = [{
                 "sourceJpeg": "assets/images/rooms/haveli-interior.jpg",
                 "sourceFormat": "WEBP",
@@ -500,14 +580,25 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
+                "heroDeliveryWebp": hero["path"],
             }]
             report = _PACKAGE_PREVIEW.validate_responsive_markup(
-                root, generated_files, source_record, RESPONSIVE_WIDTHS
+                root, generated_files, source_record, RESPONSIVE_WIDTHS,
+                RESPONSIVE_WIDTH_OVERRIDES,
             )
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["responsivePictureCount"], 1)
-            self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
+            self.assertEqual(report["validatedSrcsetCandidateCount"], len(entry["variants"]) + 1)
             self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
+            hero_record = next(item for item in generated_files if item["path"] == hero["path"])
+            original_psnr = hero_record["psnrDb"]
+            hero_record["psnrDb"] = 34.0
+            with self.assertRaisesRegex(RuntimeError, "PSNR/quality evidence"):
+                _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root, generated_files, source_record, RESPONSIVE_WIDTHS,
+                    RESPONSIVE_WIDTH_OVERRIDES,
+                )
+            hero_record["psnrDb"] = original_psnr
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
@@ -516,7 +607,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             root = Path(directory)
             filename = "gallery/hotel/fort-from-roof.jpg"
             fallback = create_jpeg(root, filename, (2000, 1333))
-            source_webp = create_webp(root, "gallery/hotel/fort-from-roof.webp", (2000, 1333))
+            source_webp = create_webp_from_jpeg(
+                root, filename, "gallery/hotel/fort-from-roof.webp"
+            )
             original_webp = source_webp.read_bytes()
 
             self.assertIn(filename, IMAGE_NAMES)
@@ -526,25 +619,29 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             generated = generate_responsive_variants(root, (filename,))
             entry = generated[filename]
+            hero = entry["heroDeliveryVariant"]
             self.assertEqual(source_webp.read_bytes(), original_webp)
             self.assertEqual(entry["sourceFormat"], "WEBP")
-            self.assertEqual(
-                entry["sourcePath"],
-                "assets/images/gallery/hotel/fort-from-roof.webp",
-            )
-            self.assertEqual(
-                entry["fullSizePath"],
-                "assets/images/gallery/hotel/fort-from-roof.webp",
-            )
+            self.assertEqual(entry["sourcePath"], "assets/images/gallery/hotel/fort-from-roof.webp")
+            self.assertEqual(entry["fullSizePath"], "assets/images/gallery/hotel/fort-from-roof.webp")
             self.assertEqual(entry["fullSizeSavingsBytes"], 0)
             self.assertEqual(entry["fallbackBytes"], fallback.stat().st_size)
             self.assertEqual(entry["sourceBytes"], source_webp.stat().st_size)
+            self.assertEqual(hero["path"], "assets/images/responsive/gallery/hotel/fort-from-roof-2000.webp")
+            self.assertEqual((hero["width"], hero["height"]), (2000, 1333))
+            self.assertGreaterEqual(hero["psnrDb"], HERO_DELIVERY_VARIANTS[filename]["minPsnrDb"])
+            self.assertGreaterEqual(hero["savedPercent"], HERO_DELIVERY_VARIANTS[filename]["minimumSavingsPercent"])
+            self.assertLessEqual(hero["bytes"], 260_000)
+            self.assertGreaterEqual(hero["psnrDb"], 35.0)
+            self.assertGreaterEqual(hero["savedPercent"], 10.0)
 
             expected_budgets = (
                 (320, 20_000),
                 (480, 35_000),
                 (768, 80_000),
+                (800, 80_000),
                 (1200, 170_000),
+                (1280, 180_000),
                 (1600, 250_000),
             )
             for width, budget in expected_budgets:
@@ -569,52 +666,19 @@ class RewriteImageReferencesTests(unittest.TestCase):
             rewritten = rewrite_html_text(html, "responsive", root=root)
             self.assertEqual(rewritten.count("<source"), 1)
             self.assertIn('data-responsive-image="true"', rewritten)
-            self.assertIn(
-                "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp 320w",
-                rewritten,
-            )
-            self.assertIn(
-                "assets/images/gallery/hotel/fort-from-roof.webp 2000w",
-                rewritten,
-            )
-            self.assertIn(
-                'src="assets/images/gallery/hotel/fort-from-roof.jpg"',
-                rewritten,
-            )
-            self.assertIn(
-                'href="assets/images/gallery/hotel/fort-from-roof.webp"',
-                rewritten,
-            )
-            self.assertIn(
-                'imagesrcset="assets/images/responsive/gallery/hotel/fort-from-roof-320.webp 320w',
-                rewritten,
-            )
+            self.assertIn("assets/images/responsive/gallery/hotel/fort-from-roof-800.webp 800w", rewritten)
+            self.assertIn("assets/images/responsive/gallery/hotel/fort-from-roof-1280.webp 1280w", rewritten)
+            self.assertIn(f'{hero["path"]} 2000w', rewritten)
+            self.assertNotIn("assets/images/gallery/hotel/fort-from-roof.webp 2000w", rewritten)
+            self.assertIn('src="assets/images/gallery/hotel/fort-from-roof.jpg"', rewritten)
+            self.assertIn(f'href="{hero["path"]}"', rewritten)
+            self.assertNotIn('href="assets/images/gallery/hotel/fort-from-roof.webp"', rewritten)
             self.assertIn('imagesizes="100vw"', rewritten)
             self.assertEqual(rewrite_html_text(rewritten, "responsive", root=root), rewritten)
 
             page = root / "about.html"
             page.write_text(rewritten, encoding="utf-8")
-            candidate_paths = [
-                entry["fullSizePath"],
-                *(item["path"] for item in entry["variants"]),
-            ]
-            variant_by_path = {item["path"]: item for item in entry["variants"]}
-            generated_files = []
-            for relative in candidate_paths:
-                target = root / relative
-                with Image.open(target) as decoded:
-                    decoded.load()
-                    variant = variant_by_path.get(relative, {})
-                    generated_files.append({
-                        "path": relative,
-                        "bytes": target.stat().st_size,
-                        "sha256": "0" * 64,
-                        "width": decoded.width,
-                        "height": decoded.height,
-                        "maxBytes": variant.get("maxBytes"),
-                        "quality": variant.get("quality"),
-                        "qualityAttempts": variant.get("qualityAttempts", []),
-                    })
+            generated_files = generated_candidate_records(root, entry)
             source_record = [{
                 "sourceJpeg": "assets/images/gallery/hotel/fort-from-roof.jpg",
                 "sourceFormat": "WEBP",
@@ -622,13 +686,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "naturalWidth": entry["width"],
                 "naturalHeight": entry["height"],
                 "fullSizeWebp": entry["fullSizePath"],
+                "heroDeliveryWebp": hero["path"],
             }]
             report = _PACKAGE_PREVIEW.validate_responsive_markup(
-                root, generated_files, source_record, RESPONSIVE_WIDTHS
+                root, generated_files, source_record, RESPONSIVE_WIDTHS,
+                RESPONSIVE_WIDTH_OVERRIDES,
             )
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["responsivePictureCount"], 1)
-            self.assertEqual(report["validatedSrcsetCandidateCount"], len(candidate_paths))
+            self.assertEqual(report["validatedSrcsetCandidateCount"], len(entry["variants"]) + 1)
             self.assertTrue(report["widthDescriptorsMatchDecodedPixels"])
             self.assertEqual(source_webp.read_bytes(), original_webp)
 
@@ -1254,6 +1320,31 @@ class RewriteImageReferencesTests(unittest.TestCase):
             archive = base / "preview.zip"
             payload = b"<html>guarded preview</html>"
             (output / "index.html").write_bytes(payload)
+            source_root = Path(__file__).resolve().parents[1]
+            retained_duplicate_entries = []
+            pruned_duplicate_entries = []
+            for relative, expected in sorted(_PACKAGE_PREVIEW.UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.items()):
+                retained_data = (source_root / expected["duplicateOf"]).read_bytes()
+                retained_output = output / expected["duplicateOf"]
+                retained_output.parent.mkdir(parents=True, exist_ok=True)
+                retained_output.write_bytes(retained_data)
+                retained_sha256 = _PACKAGE_PREVIEW.digest_bytes(retained_data)
+                retained_git_blob_sha = _PACKAGE_PREVIEW.git_blob_sha(retained_data)
+                self.assertEqual(retained_sha256, expected["sha256"])
+                self.assertEqual(retained_git_blob_sha, expected["gitBlobSha"])
+                retained_duplicate_entries.append({
+                    "path": expected["duplicateOf"],
+                    "bytes": len(retained_data),
+                    "sha256": retained_sha256,
+                })
+                pruned_duplicate_entries.append({
+                    "path": relative,
+                    "duplicateOf": expected["duplicateOf"],
+                    "bytes": len(retained_data),
+                    "gitBlobSha": retained_git_blob_sha,
+                    "sha256": retained_sha256,
+                })
+            package_payload_bytes = len(payload) + sum(entry["bytes"] for entry in retained_duplicate_entries)
             manifest = {
                 "deploymentPerformed": False,
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
@@ -1274,9 +1365,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "generatedBlogHtmlRoutes": 0,
                 },
                 "packageMetrics": {
-                    "uncompressedPayloadBytes": len(payload),
+                    "uncompressedPayloadBytes": package_payload_bytes,
                     "uncompressedBudgetBytes": 18 * 1024 * 1024,
                     "sizeBudgetPassed": True,
+                },
+                "runtimeAssetPruning": {
+                    "status": "PASS",
+                    "excludedFileCount": len(pruned_duplicate_entries),
+                    "excludedBytes": sum(entry["bytes"] for entry in pruned_duplicate_entries),
+                    "files": pruned_duplicate_entries,
                 },
                 "hostingDelivery": _PACKAGE_PREVIEW.validate_hosting_delivery_contract(
                     (Path(__file__).resolve().parents[1] / ".htaccess").read_text(encoding="utf-8")
@@ -1315,7 +1412,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "path": "index.html",
                     "bytes": len(payload),
                     "sha256": _PACKAGE_PREVIEW.digest_bytes(payload),
-                }],
+                }, *retained_duplicate_entries],
             }
             manifest_path = output / "RELEASE-MANIFEST.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -1440,9 +1537,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 size = (1200, 800) if Path(name).name in {"rest3.jpg", "courtyard.jpg"} else (900, 600)
                 create_jpeg(root, name, size)
             create_webp(root, "rooms/sweet-purple.webp", (900, 600))
-            create_webp(root, "rooms/haveli-sitting-room.webp", (900, 600))
+            create_webp_from_jpeg(root, "rooms/haveli-interior.jpg", "rooms/haveli-sitting-room.webp")
             create_webp(root, "directions/haveli-facade.webp", (900, 600))
-            create_webp(root, "gallery/hotel/fort-from-roof.webp", (900, 600))
+            create_webp_from_jpeg(root, "gallery/hotel/fort-from-roof.jpg", "gallery/hotel/fort-from-roof.webp")
             home = root / "index.html"
             rooms = root / "rooms.html"
             home.write_text(
@@ -1466,6 +1563,95 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
 
 
+    def test_directions_hero_avif_is_quality_gated_and_preloaded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = create_jpeg(root, "courtyard.jpg", (2200, 1467))
+            source_payload = source.read_bytes()
+            source_git_blob_sha = hashlib.sha1(
+                f"blob {len(source_payload)}\0".encode("ascii") + source_payload
+            ).hexdigest()
+            test_config = {
+                **AVIF_HERO_DELIVERY_VARIANTS["courtyard.jpg"],
+                "quality": 56,
+                "sourceGitBlobSha": source_git_blob_sha,
+                "minPsnrDb": 35.0,
+                "minimumSavingsPercent": 10.0,
+            }
+            with patch.dict(AVIF_HERO_DELIVERY_VARIANTS, {"courtyard.jpg": test_config}):
+                generated = generate_responsive_variants(root, ("courtyard.jpg",))
+                entry = generated["courtyard.jpg"]
+                avif = entry["heroDeliveryAvif"]
+                self.assertIsNotNone(avif)
+                self.assertEqual(avif["sourceGitBlobSha"], source_git_blob_sha)
+                with Image.open(root / avif["path"]) as decoded:
+                    decoded.load()
+                    self.assertEqual(decoded.format, "AVIF")
+                    self.assertEqual(decoded.size, (2200, 1467))
+
+                html = (
+                    '<head><link rel="preload" as="image" href="assets/images/courtyard.jpg" '
+                    'fetchpriority="high"></head>'
+                    '<section class="page-hero"><img class="hero__image" '
+                    'src="assets/images/courtyard.jpg" alt="Sandstone passage" '
+                    'fetchpriority="high" loading="eager"></section>'
+                )
+                rewritten = rewrite_html_text(html, "responsive", root=root)
+                self.assertIn('type="image/avif"', rewritten)
+                self.assertIn('media="(min-width: 1160px) and (min-resolution: 1.5dppx)"', rewritten)
+                self.assertIn('type="image/webp"', rewritten)
+                self.assertIn('media="not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"', rewritten)
+                self.assertEqual(rewritten.count('media="(min-width: 1160px) and (min-resolution: 1.5dppx)"'), 2)
+                self.assertEqual(rewritten.count('media="not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"'), 1)
+                self.assertIn('href="' + avif["path"] + '"', rewritten)
+                self.assertIn('src="assets/images/courtyard.jpg"', rewritten)
+                (root / "directions.html").write_text(rewritten, encoding="utf-8")
+
+                source_record = {
+                    "sourceJpeg": "assets/images/courtyard.jpg",
+                    "sourceFormat": "JPEG",
+                    "sourceWebp": "",
+                    "naturalWidth": entry["width"],
+                    "naturalHeight": entry["height"],
+                    "sourceBytes": entry["sourceBytes"],
+                    "fallbackBytes": entry["fallbackBytes"],
+                    "fullSizeWebp": entry["fullSizePath"],
+                    "fullSizeBytes": entry["fullSizeBytes"],
+                    "heroDeliveryWebp": "",
+                    "heroDeliveryAvif": avif,
+                }
+                validation = _PACKAGE_PREVIEW.validate_responsive_markup(
+                    root,
+                    generated_candidate_records(root, entry),
+                    [source_record],
+                    RESPONSIVE_WIDTHS,
+                    RESPONSIVE_WIDTH_OVERRIDES,
+                )
+                self.assertEqual(validation["status"], "PASS")
+                self.assertEqual(validation["validatedSrcsetCandidateCount"], len(entry["variants"]) + 2)
+
+    def test_directions_hero_avif_skips_unmatched_source_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_jpeg(root, "courtyard.jpg", (2200, 1467))
+            mismatched_config = {
+                **AVIF_HERO_DELIVERY_VARIANTS["courtyard.jpg"],
+                "sourceGitBlobSha": "0" * 40,
+            }
+            with patch.dict(AVIF_HERO_DELIVERY_VARIANTS, {"courtyard.jpg": mismatched_config}):
+                generated = generate_responsive_variants(root, ("courtyard.jpg",))
+                entry = generated["courtyard.jpg"]
+                self.assertIsNone(entry["heroDeliveryAvif"])
+                self.assertEqual(entry["heroDeliveryAvifSkippedReason"], "source-provenance-mismatch")
+                html = (
+                    '<section class="page-hero"><img class="hero__image" '
+                    'src="assets/images/courtyard.jpg" alt="Sandstone passage" '
+                    'fetchpriority="high" loading="eager"></section>'
+                )
+                rewritten = rewrite_html_text(html, "responsive", root=root)
+                self.assertNotIn('type="image/avif"', rewritten)
+                self.assertIn('type="image/webp"', rewritten)
+
     def test_responsive_sizes_follow_verified_layout_contexts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1476,6 +1662,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "tent.jpg",
                 "dining/rooftop-candlelit-table.jpg",
                 "legacy/camel-sunset.jpg",
+                "experiences/cultural-programme.jpg",
                 "experiences/open-air-sleeping-setup.jpeg",
                 "experiences/sleep-under-stars-dusk-camp.jpeg",
                 "experiences/sleep-under-stars-shelter.jpeg",
@@ -1509,6 +1696,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<section class="experience-detail-section experience-detail-section--visual">'
                 '<figure class="experience-detail-media"><img src="assets/images/legacy/camel-sunset.jpg" '
                 'alt="Camel caravan"></figure></section>'
+                '<section class="experience-detail-section experience-detail-section--visual">'
+                '<figure class="experience-detail-media experience-detail-media--portrait">'
+                '<img src="assets/images/experiences/cultural-programme.jpg" alt="Desert performance">'
+                '</figure></section>'
             )
             result = rewrite_html_text(html, "responsive", root=root)
 
@@ -1530,12 +1721,16 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '(max-width: 900px) min(620px, calc(100vw - 76px)), '
                 'min(460px, 36vw)'
             )
+            portrait_detail_sizes = (
+                '(max-width: 900px) min(375px, calc(100vw - 76px)), 336px'
+            )
             self.assertIn('sizes="100vw"', result)
             self.assertIn(f'sizes="{experience_sizes}"', result)
             self.assertIn(f'imagesizes="{experience_sizes}"', result)
             self.assertIn(f'sizes="{room_sizes}"', result)
             self.assertIn(f'sizes="{gallery_sizes}"', result)
             self.assertIn(f'sizes="{detail_sizes}"', result)
+            self.assertIn(f'sizes="{portrait_detail_sizes}"', result)
             self.assertIn('assets/images/responsive/legacy/camel-sunset-320.webp 320w', result)
             self.assertIn(
                 'sizes="(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"',

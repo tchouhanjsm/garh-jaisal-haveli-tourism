@@ -34,7 +34,14 @@ function makeCarousel(sources, options = {}) {
   const slides = sources.map((src, index) => {
     const image = new FakeElement({ attributes: { src } });
     const slide = new FakeElement({ hidden: index > 0, attributes: { 'aria-hidden': String(index > 0) } });
-    slide.selectors.img = image;
+    if (index === 0 && options.deferredFirst) {
+      slide.selectors.img = null;
+      slide.selectors['template[data-deferred-picture-template]'] = {
+        content: { querySelector: selector => selector === 'img' ? image : null }
+      };
+    } else {
+      slide.selectors.img = image;
+    }
     return slide;
   });
   const controls = new FakeElement({ hidden: true });
@@ -60,14 +67,16 @@ assert.ok(socialImageMatch, 'Experiences page has an Open Graph image');
 assert.ok(socialAltMatch && socialAltMatch[1].trim(), 'Experiences social image has descriptive alt text');
 assert.ok(html.includes('src="' + socialImageMatch[1] + '"'), 'social image is one of the page\'s locally hosted option images');
 
-const pageImageTags = [...html.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
+const executableMarkup = html.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+const pageImageTags = [...executableMarkup.matchAll(/<img\b[^>]*>/gi)].map(match => match[0]);
 const pageImageSources = pageImageTags.map(tag => (tag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || '');
 assert.ok(pageImageSources.every(Boolean), 'every Experiences image has a source');
 assert.equal(new Set(pageImageSources).size, pageImageSources.length, 'Experiences page must not reuse an image source');
 
 for (const match of articles) {
-  const imageTags = [...match[2].matchAll(/<img\b[^>]*>/gi)].map(item => item[0]);
-  assert.ok(imageTags.length >= 1, match[1] + ' has at least one image');
+  const cardMarkup = match[2].replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+  const imageTags = [...cardMarkup.matchAll(/<img\b[^>]*>/gi)].map(item => item[0]);
+  assert.equal(imageTags.length, 2, match[1] + ' has two authored slide images apart from the no-JavaScript duplicate');
   for (const tag of imageTags) {
     assert.match(tag, /\balt=["'][^"']+["']/i, 'each experience image has descriptive alt text');
     assert.match(tag, /\bwidth=["']\d+["']/i, 'each experience image declares width');
@@ -77,6 +86,12 @@ for (const match of articles) {
   }
 }
 
+const deferredLeadSlides = [...html.matchAll(/<figure class="experience-carousel__slide"[^>]*aria-label="Photo 1 of 2"[^>]*data-deferred-media>/g)];
+assert.equal(deferredLeadSlides.length, 6, 'all six Experiences lead slides defer their supporting image payloads');
+assert.equal((html.match(/<template data-deferred-picture-template>/g) || []).length, 6,
+  'all six deferred Experiences slides retain inert image templates');
+assert.equal((html.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 6,
+  'all six deferred Experiences slides retain no-JavaScript fallbacks');
 const carouselCards = articles.filter(match => match[2].includes('data-experience-carousel'));
 assert.equal(carouselCards.length, 6, 'all six source-listed options have distinct reviewed photos and carousel controls');
 for (const match of carouselCards) {
@@ -112,7 +127,7 @@ assert.match(css, /\.experience-carousel__controls\[hidden\]/);
 assert.match(css, /\.experience-carousel__button\{[^}]*min-height:44px/);
 assert.doesNotMatch(script, /setInterval|setTimeout|autoplay/i, 'carousel does not auto-advance');
 
-const working = makeCarousel(['camel-sunset.jpg', 'camel-day.jpg']);
+const working = makeCarousel(['camel-sunset.jpg', 'camel-day.jpg'], { deferredFirst: true });
 const duplicate = makeCarousel(['same-image.jpg', 'same-image.jpg']);
 const incomplete = makeCarousel(['only-one.jpg']);
 const missingControls = makeCarousel(['one.jpg', 'two.jpg'], { missingControls: true });

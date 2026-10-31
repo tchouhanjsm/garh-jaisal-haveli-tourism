@@ -32,6 +32,15 @@ ROUTE_CONTRACT_PATH = CONTRACT_ROOT / "content" / "staging-route-contract.json"
 with ROUTE_CONTRACT_PATH.open("r", encoding="utf-8") as route_contract_file:
     ROUTE_CONTRACT = json.load(route_contract_file)
 PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]
+DIRECTIONS_AVIF_MEDIA = "(min-width: 1160px) and (min-resolution: 1.5dppx)"
+DIRECTIONS_WEBP_PRELOAD_MEDIA = "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"
+EXPECTED_DEFERRED_MEDIA_COUNTS = {
+    "index.html": 5,
+    "rooms.html": 7,
+    "gallery.html": 7,
+    "experiences.html": 6,
+    "experience-details.html": 7,
+}
 VIEWPORTS = [
     (viewport["width"], viewport["height"])
     for viewport in ROUTE_CONTRACT["viewports"]
@@ -995,7 +1004,8 @@ def build_responsive_image_evidence_report(
         viewport_width = item.get("viewportWidthCssPixels")
         dpr = item.get("deviceScaleFactor")
         picture_index = item.get("pictureIndex")
-        selected_path = item.get("selectedWebpPath")
+        selected_path = item.get("selectedImagePath")
+        selected_format = item.get("selectedImageFormat")
         selected_width = item.get("selectedWidth")
         required_width = item.get("requiredPixelWidth")
         ratio = item.get("selectionPixelRatio")
@@ -1022,7 +1032,8 @@ def build_responsive_image_evidence_report(
         if (
             not isinstance(selected_path, str)
             or not selected_path.startswith("assets/images/")
-            or not selected_path.endswith(".webp")
+            or selected_format not in {"webp", "avif"}
+            or not selected_path.endswith("." + selected_format)
             or "\\" in selected_path
             or ".." in selected_path.split("/")
             or "?" in selected_path
@@ -1057,13 +1068,13 @@ def build_responsive_image_evidence_report(
         if abs(calculated_ratio - float(ratio)) > 0.02:
             validation_failures.append(f"Observation {index + 1}: selected/required pixel ratio does not match its widths")
         if http_status != 200:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate did not return HTTP 200")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate did not return HTTP 200")
         if encoded_bytes < 1:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate has no encoded body bytes")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate has no encoded body bytes")
         if request_count != 1:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate was not requested exactly once")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate was not requested exactly once")
         if calculated_ratio > 1.9:
-            validation_failures.append(f"Observation {index + 1}: selected WebP candidate exceeds the 1.9x pixel-demand guard")
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate exceeds the 1.9x pixel-demand guard")
 
         unique_key = (route, viewport_width, dpr, picture_index)
         unique_keys.add(unique_key)
@@ -1072,7 +1083,9 @@ def build_responsive_image_evidence_report(
             "pictureIndex": picture_index,
             "viewportWidthCssPixels": viewport_width,
             "deviceScaleFactor": dpr,
-            "selectedWebpPath": selected_path,
+            "selectedImagePath": selected_path,
+            "selectedImageFormat": selected_format,
+            "selectedWebpPath": selected_path if selected_format == "webp" else None,
             "selectedWidth": selected_width,
             "requiredPixelWidth": round(float(required_width), 1),
             "selectionPixelRatio": round(calculated_ratio, 3),
@@ -1235,6 +1248,8 @@ def build_responsive_image_evidence_report(
         normalized_first_view: dict = {
             "capturePhase": "invalid",
             "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+            "deferredTemplateCount": 0,
+            "deferredActivatedCount": 0,
             "resourceCount": 0,
             "imageCount": 0,
             "visibleImageCount": 0,
@@ -1251,6 +1266,8 @@ def build_responsive_image_evidence_report(
             "resources": [],
             "images": [],
         }
+        deferred_template_count = 0
+        deferred_activated_count = 0
         if (
             not isinstance(first_view, dict)
             or first_view.get("capturePhase") != "after-load-before-test-only-image-activation"
@@ -1260,6 +1277,19 @@ def build_responsive_image_evidence_report(
                 f"{route} at {viewport_width}px @{dpr}x: first-view snapshot is missing or was captured after test-only activation"
             )
         else:
+            deferred_template_count = first_view.get("deferredTemplateCount")
+            deferred_activated_count = first_view.get("deferredActivatedCount")
+            expected_deferred_total = EXPECTED_DEFERRED_MEDIA_COUNTS.get(route, 0)
+            valid_deferred_counts = all(
+                isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                for value in (deferred_template_count, deferred_activated_count)
+            )
+            if not valid_deferred_counts or deferred_template_count + deferred_activated_count != expected_deferred_total:
+                page_resource_validation_failures.append(
+                    f"{route} at {viewport_width}px @{dpr}x: deferred image counts do not match the route contract"
+                )
+                deferred_template_count = 0
+                deferred_activated_count = 0
             first_view_resources, first_view_totals, _first_view_path_counts = normalize_resource_entries(
                 first_view.get("resources"), route, viewport_width, dpr, "first-view"
             )
@@ -1357,6 +1387,8 @@ def build_responsive_image_evidence_report(
             normalized_first_view = {
                 "capturePhase": "after-load-before-test-only-image-activation",
                 "viewportHeightCssPixels": expected_viewport_heights[viewport_width],
+                "deferredTemplateCount": deferred_template_count,
+                "deferredActivatedCount": deferred_activated_count,
                 **expected_first_view_counts,
                 "encodedBodyBytes": sum(resource["encodedBodyBytes"] for resource in first_view_resources),
                 "transferBytes": sum(resource["transferBytes"] for resource in first_view_resources),
@@ -1467,7 +1499,7 @@ def build_responsive_image_evidence_report(
     commit_sha = os.environ.get("GITHUB_SHA", "")
     workflow_run_id = os.environ.get("GITHUB_RUN_ID", "")
     report = {
-        "schemaVersion": 3,
+        "schemaVersion": 5,
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "commitSha": commit_sha if re.fullmatch(r"[0-9a-f]{40}", commit_sha, re.IGNORECASE) else None,
         "workflowRunId": int(workflow_run_id) if workflow_run_id.isdigit() else None,
@@ -1486,6 +1518,8 @@ def build_responsive_image_evidence_report(
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
+                "Homepage, Rooms, Gallery and Experience Details supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
+                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms, seven Gallery and seven Experience Details supporting images.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
@@ -1540,8 +1574,8 @@ def build_responsive_image_evidence_report(
 
 def validate_responsive_image_evidence_report(report: dict) -> None:
     """Fail closed on evidence mislabeled as transfer savings or real-user field data."""
-    if not isinstance(report, dict) or report.get("schemaVersion") != 3:
-        raise ValueError("Responsive-image browser evidence must use schema version 2")
+    if not isinstance(report, dict) or report.get("schemaVersion") != 5:
+        raise ValueError("Responsive-image browser evidence must use schema version 5")
     if (
         report.get("measurementClass") != "packaged-chromium-laboratory-diagnostic"
         or report.get("fieldDataAvailable") is not False
@@ -1986,6 +2020,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                       return {
                                         capturePhase: 'after-load-before-test-only-image-activation',
                                         viewportHeightCssPixels: window.innerHeight,
+                                        deferredTemplateCount: document.querySelectorAll('template[data-deferred-picture-template]').length,
+                                        deferredActivatedCount: document.querySelectorAll('[data-deferred-media-activated="true"]').length,
                                         resourceCount: resources.length,
                                         encodedBodyBytes: resources.reduce((total, item) => total + item.encodedBodyBytes, 0),
                                         transferBytes: resources.reduce((total, item) => total + item.transferBytes, 0),
@@ -2009,6 +2045,68 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
                                 )
 
+                            deferred_targets = page.locator(
+                                "[data-deferred-media], "
+                                "[data-deferred-media-activated='true'], "
+                                "[data-deferred-media-failed='true']"
+                            )
+                            deferred_target_handles = deferred_targets.element_handles()
+                            expected_deferred_targets = EXPECTED_DEFERRED_MEDIA_COUNTS.get(page_name, 0)
+                            check_preview(
+                                len(deferred_target_handles) == expected_deferred_targets,
+                                f"{page_name}: expected {expected_deferred_targets} deferred media targets, "
+                                f"observed {len(deferred_target_handles)}",
+                            )
+                            for deferred_index, target_handle in enumerate(deferred_target_handles, start=1):
+                                deferred_label = f"{page_name} deferred supporting image {deferred_index}"
+                                try:
+                                    page.evaluate(
+                                        "(element) => element.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'})",
+                                        target_handle,
+                                    )
+                                    page.wait_for_function(
+                                        """element => element && (
+                                          element.getAttribute("data-deferred-media-activated") === "true"
+                                          || element.getAttribute("data-deferred-media-failed") === "true"
+                                        )""",
+                                        arg=target_handle,
+                                        timeout=5000,
+                                    )
+                                    activation_state = target_handle.get_attribute("data-deferred-media-activated")
+                                    if activation_state != "true":
+                                        raise RuntimeError(
+                                            "deferred media runtime reported failure: "
+                                            + str(target_handle.get_attribute("data-deferred-media-failed") or "unknown")
+                                        )
+                                    image = target_handle.query_selector("img")
+                                    if image is None:
+                                        raise RuntimeError("activated deferred media did not contain an image")
+                                    decoded = image.evaluate(
+                                        """async img => {
+                                          try { await img.decode(); } catch (_) {}
+                                          return img.naturalWidth > 0 && img.naturalHeight > 0
+                                            && Boolean((img.getAttribute("alt") || "").trim());
+                                        }"""
+                                    )
+                                    check_preview(decoded, f"{deferred_label}: image must activate, decode and retain descriptive alt text")
+                                except Exception as error:
+                                    failures.append(
+                                        f"{deferred_label}: bounded deferred activation failed: "
+                                        f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                    )
+                                    break
+                            expected_deferred_activated = EXPECTED_DEFERRED_MEDIA_COUNTS.get(page_name, 0)
+                            actual_deferred_activated = page.locator('[data-deferred-media-activated="true"]').count()
+                            check_preview(
+                                actual_deferred_activated == expected_deferred_activated,
+                                f"{page_name}: expected {expected_deferred_activated} deferred media activations, observed {actual_deferred_activated}",
+                            )
+                            check_preview(
+                                page.locator("[data-deferred-media]").count() == 0,
+                                f"{page_name}: no deferred media placeholder may remain after full-page audit activation",
+                            )
+                            page.evaluate("window.scrollTo(0, 0)")
+
                             pictures = page.locator(
                                 'picture:has(source[data-responsive-image="true"])'
                             )
@@ -2021,7 +2119,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
 
                             for index in range(picture_count):
                                 picture = pictures.nth(index)
-                                source = picture.locator('source[data-responsive-image="true"]').first
+                                source_elements = picture.locator('source[data-responsive-image="true"]')
+                                source = source_elements.first
                                 image = picture.locator("img").first
                                 label = f"{page_name} at {width}px @{device_scale_factor}x picture {index + 1}"
                                 # Activate an associated tab panel before measuring its images.
@@ -2178,13 +2277,31 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                           };
                                         }"""
                                     )
-                                    source_details = source.evaluate(
-                                        """(element) => ({
-                                          type: element.getAttribute('type') || '',
-                                          srcset: element.getAttribute('srcset') || '',
-                                          sizes: element.getAttribute('sizes') || ''
-                                        })"""
-                                    )
+                                    selected_path_for_source = urlsplit(details["currentSrc"]).path.lstrip("/")
+                                    source_details_options = []
+                                    for source_index in range(source_elements.count()):
+                                        source_element = source_elements.nth(source_index)
+                                        candidate_source_details = source_element.evaluate(
+                                            """(element) => ({
+                                              type: element.getAttribute('type') || '',
+                                              srcset: element.getAttribute('srcset') || '',
+                                              sizes: element.getAttribute('sizes') || '',
+                                              media: element.getAttribute('media') || ''
+                                            })"""
+                                        )
+                                        candidate_source_paths = [
+                                            item.strip().rsplit(None, 1)[0].split("?", 1)[0].lstrip("/")
+                                            for item in candidate_source_details["srcset"].split(",")
+                                            if len(item.strip().rsplit(None, 1)) == 2
+                                        ]
+                                        if selected_path_for_source in candidate_source_paths:
+                                            source_details_options.append(candidate_source_details)
+                                    if len(source_details_options) != 1:
+                                        raise ValueError(
+                                            "selected currentSrc must match exactly one declared responsive source "
+                                            f"(matched {len(source_details_options)})"
+                                        )
+                                    source_details = source_details_options[0]
                                 except Exception as error:
                                     try:
                                         selected_url = image.evaluate("(img) => img.currentSrc")
@@ -2203,14 +2320,21 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     )
                                     continue
 
+                                selected_format = source_details["type"].lower().replace("image/", "")
                                 check_preview(
-                                    source_details["type"].lower() == "image/webp",
-                                    f"{label}: responsive source must declare image/webp",
+                                    selected_format in {"webp", "avif"},
+                                    f"{label}: selected responsive source must declare image/webp or image/avif",
                                 )
                                 check_preview(
                                     bool(source_details["sizes"].strip()),
                                     f"{label}: responsive source must declare sizes",
                                 )
+                                if selected_format == "avif":
+                                    check_preview(
+                                        page_name == "directions.html"
+                                        and source_details["media"] == DIRECTIONS_AVIF_MEDIA,
+                                        f"{label}: AVIF selection must be limited to the approved Directions desktop hero",
+                                    )
                                 candidate_pairs: list[tuple[str, int]] = []
                                 for raw_candidate in source_details["srcset"].split(","):
                                     pieces = raw_candidate.strip().rsplit(None, 1)
@@ -2224,8 +2348,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         ))
                                 candidates = [path for path, _width in candidate_pairs]
                                 check_preview(
-                                    len(candidates) >= 2,
-                                    f"{label}: responsive source must expose multiple width candidates",
+                                    len(candidates) >= (2 if selected_format == "webp" else 1),
+                                    f"{label}: responsive source must expose the required width candidates",
                                 )
                                 selected_path = urlsplit(details["currentSrc"]).path.lstrip("/")
                                 candidate_paths = [
@@ -2233,8 +2357,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     for candidate in candidates
                                 ]
                                 check_preview(
-                                    selected_path.endswith(".webp") and selected_path in candidate_paths,
-                                    f"{label}: Chromium selected a WebP candidate declared by srcset; "
+                                    selected_path.endswith("." + selected_format) and selected_path in candidate_paths,
+                                    f"{label}: Chromium selected a {selected_format.upper()} candidate declared by srcset; "
                                     f"selected {selected_path or '<empty>'}",
                                 )
                                 selected_width = next(
@@ -2243,7 +2367,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 )
                                 check_preview(
                                     selected_width is not None,
-                                    f"{label}: selected WebP width descriptor must be recoverable from srcset",
+                                    f"{label}: selected responsive-image width descriptor must be recoverable from srcset",
                                 )
                                 check_preview(
                                     details["renderedWidth"] > 0,
@@ -2295,6 +2419,13 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     details["fetchpriority"].lower() == "high"
                                     or "hero__image" in details["classes"]
                                 )
+                                if is_hero and page_name == "directions.html":
+                                    expected_format = "avif" if width >= 1160 and device_scale_factor >= 1.5 else "webp"
+                                    check_preview(
+                                        selected_format == expected_format,
+                                        f"{label}: Directions hero must use {expected_format.upper()} at "
+                                        f"{width}px/DPR{device_scale_factor}; observed {selected_format.upper()}",
+                                    )
                                 expected_loading = "eager" if is_hero else "lazy"
                                 check_preview(
                                     production_loading.lower() == expected_loading,
@@ -2313,7 +2444,14 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         matching_preload = matching_preload or (
                                             preload.get_attribute("imagesrcset") == source_details["srcset"]
                                             and preload.get_attribute("imagesizes") == source_details["sizes"]
-                                            and (preload.get_attribute("type") or "").lower() == "image/webp"
+                                            and (preload.get_attribute("type") or "").lower() == source_details["type"].lower()
+                                            and (preload.get_attribute("media") or "") == (
+                                                source_details["media"]
+                                                if selected_format == "avif"
+                                                else DIRECTIONS_WEBP_PRELOAD_MEDIA
+                                                if page_name == "directions.html"
+                                                else ""
+                                            )
                                         )
                                     check_preview(
                                         matching_preload,
@@ -2336,18 +2474,20 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 )
                                 check_preview(
                                     selected_response.get("status") == 200,
-                                    f"{label}: selected WebP candidate must return HTTP 200; observed {selected_response.get('status')!r}",
+                                    f"{label}: selected responsive-image candidate must return HTTP 200; observed {selected_response.get('status')!r}",
                                 )
                                 check_preview(
                                     isinstance(selected_transfer, dict)
                                     and selected_transfer.get("encodedBodyBytes", 0) > 0,
-                                    f"{label}: selected WebP candidate must expose non-zero encoded body bytes",
+                                    f"{label}: selected responsive-image candidate must expose non-zero encoded body bytes",
                                 )
                                 selected_resource_evidence.append({
                                     "route": page_name,
                                     "viewportWidthCssPixels": width,
                                     "deviceScaleFactor": device_scale_factor,
-                                    "selectedWebpPath": selected_path,
+                                    "selectedImagePath": selected_path,
+                                    "selectedImageFormat": selected_format,
+                                    "selectedWebpPath": selected_path if selected_format == "webp" else None,
                                     "pictureIndex": index,
                                     "selectedWidth": selected_width if selected_width is not None else 0,
                                     "requiredPixelWidth": round(required_pixels, 1),
@@ -2360,7 +2500,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 })
                                 check_preview(
                                     selected_request_count == 1,
-                                    f"{label}: selected WebP candidate should be requested once, "
+                                    f"{label}: selected responsive-image candidate should be requested once, "
                                     f"observed {selected_request_count}",
                                 )
 
@@ -3046,6 +3186,50 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
+            for fallback_route, expected_fallback_count in (("index.html", 5), ("rooms.html", 7), ("gallery.html", 7), ("experiences.html", 6), ("experience-details.html", 7)):
+                fallback_media_page = fallback_context.new_page()
+                fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
+                fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")
+                check(
+                    fallback_nodes.count() == expected_fallback_count,
+                    fallback_route + ": no-JavaScript markup must retain all "
+                    + str(expected_fallback_count) + " supporting-image fallbacks",
+                )
+                for image_index in range(fallback_nodes.count()):
+                    fallback = fallback_nodes.nth(image_index)
+                    fallback_result = fallback.evaluate(
+                        """async node => {
+                          const raw = (node.textContent || '').trim() || node.innerHTML;
+                          const parsed = new DOMParser().parseFromString(raw, 'text/html');
+                          const source = parsed.querySelector('img');
+                          if (!source) return { decoded: false, reason: 'missing image markup' };
+                          const src = (source.getAttribute('src') || '').trim();
+                          const alt = (source.getAttribute('alt') || '').trim();
+                          const width = Number(source.getAttribute('width'));
+                          const height = Number(source.getAttribute('height'));
+                          if (!src || !alt || !Number.isInteger(width) || width <= 0
+                              || !Number.isInteger(height) || height <= 0) {
+                            return { decoded: false, reason: 'incomplete image alternative' };
+                          }
+                          const probe = new Image();
+                          probe.src = new URL(src, document.baseURI).href;
+                          try { await probe.decode(); } catch (_) {}
+                          return {
+                            decoded: probe.naturalWidth > 0 && probe.naturalHeight > 0,
+                            alt,
+                            width,
+                            height,
+                            sourceWidth: probe.naturalWidth,
+                            sourceHeight: probe.naturalHeight
+                          };
+                        }"""
+                    )
+                    check(
+                        fallback_result.get("decoded") is True,
+                        fallback_route + " no-JavaScript fallback image " + str(image_index + 1)
+                        + " must contain a valid descriptive image and decodable local source"
+                        + (": " + str(fallback_result.get("reason")) if fallback_result.get("reason") else ""),
+                    )
         finally:
             fallback_context.close()
 
@@ -4041,26 +4225,88 @@ def check_experience_detail_visual_refinement(page, base_url: str) -> None:
             if section.count() != 1:
                 continue
             figure = section.locator("figure.experience-detail-media")
-            image = figure.locator("img")
-            check(figure.count() == 1 and image.count() == 1,
-                  f"{section_id}: exactly one source-matched photo reference must render")
-            if image.count() != 1:
+            frame = figure.locator(".experience-detail-media__frame")
+            template = frame.locator("template[data-deferred-picture-template]")
+            image = frame.locator(":scope > img")
+            template_count = template.count()
+            active_image_count = image.count()
+            check(
+                figure.count() == 1 and frame.count() == 1
+                and ((template_count == 1 and active_image_count == 0)
+                     or (template_count == 0 and active_image_count == 1)),
+                f"{section_id}: exactly one pending template or activated photo reference must exist",
+            )
+            if frame.count() != 1 or (template_count, active_image_count) not in ((1, 0), (0, 1)):
                 continue
-            check(image.get_attribute("src") == expected_src,
+
+            if template_count == 1:
+                image_reference = template.evaluate("""node => {
+                  const image = node.content && node.content.querySelector('img');
+                  return image ? {
+                    src: image.getAttribute('src'),
+                    alt: image.getAttribute('alt'),
+                    loading: image.getAttribute('loading'),
+                    decoding: image.getAttribute('decoding')
+                  } : null;
+                }""")
+            else:
+                image_reference = image.evaluate("""node => ({
+                  src: node.getAttribute('src'),
+                  alt: node.getAttribute('alt'),
+                  loading: node.getAttribute('loading'),
+                  decoding: node.getAttribute('decoding')
+                })""")
+                check(frame.get_attribute("data-deferred-media-activated") == "true",
+                      f"{section_id}: an already-rendered image must have an explicit activated state")
+
+            check(image_reference is not None,
+                  f"{section_id}: photo reference must contain one image payload")
+            if not image_reference:
+                continue
+            check(image_reference["src"] == expected_src,
                   f"{section_id}: image must use its reviewed local subject reference")
-            check(image.get_attribute("alt") == expected_alt,
+            check(image_reference["alt"] == expected_alt,
                   f"{section_id}: image must retain its descriptive, subject-accurate alt text")
-            check(image.get_attribute("loading") == "lazy" and image.get_attribute("decoding") == "async",
+            check(image_reference["loading"] == "lazy" and image_reference["decoding"] == "async",
                   f"{section_id}: supporting image must lazy-load and decode asynchronously")
-            image.scroll_into_view_if_needed()
+
+            frame.scroll_into_view_if_needed()
+            frame_selector = f"#{section_id} .experience-detail-media__frame"
             try:
                 page.wait_for_function(
-                    "(selector) => { const image = document.querySelector(selector); return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0); }",
-                    arg=f"#{section_id} figure img",
+                    """selector => {
+                      const frame = document.querySelector(selector);
+                      return Boolean(frame && (
+                        frame.getAttribute('data-deferred-media-activated') === 'true'
+                        || frame.getAttribute('data-deferred-media-failed') === 'true'
+                      ));
+                    }""",
+                    arg=frame_selector,
                     timeout=8000,
                 )
             except Exception as error:
-                check(False, f"{section_id}: image did not decode at {width}px ({type(error).__name__})")
+                check(False, f"{section_id}: deferred activation did not settle at {width}px ({type(error).__name__})")
+                continue
+
+            check(frame.get_attribute("data-deferred-media-activated") == "true",
+                  f"{section_id}: deferred image must activate after entering the viewport")
+            image = frame.locator(":scope > img")
+            check(image.count() == 1,
+                  f"{section_id}: exactly one activated source-matched photo must render")
+            if image.count() != 1:
+                continue
+            check(image.get_attribute("src") == expected_src,
+                  f"{section_id}: activated image must retain its reviewed local subject reference")
+            check(image.get_attribute("alt") == expected_alt,
+                  f"{section_id}: activated image must retain its descriptive, subject-accurate alt text")
+            try:
+                page.wait_for_function(
+                    "(selector) => { const image = document.querySelector(selector); return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0); }",
+                    arg=frame_selector + " > img",
+                    timeout=8000,
+                )
+            except Exception as error:
+                check(False, f"{section_id}: activated image did not decode at {width}px ({type(error).__name__})")
                 continue
 
             layout = page.evaluate("""({id, side, width}) => {
@@ -5170,6 +5416,38 @@ def check_carousels(page, base_url: str, browser,
             continue
         slides = card.locator("[data-carousel-slide]")
         check(slides.count() == 2, f"{label}: expected two distinct slides")
+        first_slide = slides.nth(0)
+        first_slide_handle = first_slide.element_handle()
+        try:
+            first_slide.scroll_into_view_if_needed(timeout=3000)
+            if first_slide_handle is None:
+                raise RuntimeError("first carousel slide is missing")
+            page.wait_for_function(
+                """element => element && (
+                  element.getAttribute("data-deferred-media-activated") === "true"
+                  || element.getAttribute("data-deferred-media-failed") === "true"
+                )""",
+                arg=first_slide_handle,
+                timeout=5000,
+            )
+            check(
+                first_slide_handle.get_attribute("data-deferred-media-activated") == "true",
+                f"{label}: first carousel image must activate when its slide enters the viewport",
+            )
+            first_image = first_slide.locator("img")
+            first_image.wait_for(state="attached", timeout=3000)
+            first_details = first_image.evaluate(
+                """async img => {
+                  try { await img.decode(); } catch (_) {}
+                  return {width: img.naturalWidth, height: img.naturalHeight, alt: img.getAttribute('alt')};
+                }"""
+            )
+            check(first_details["width"] > 0 and first_details["height"] > 0,
+                  f"{label}: first deferred image must decode in the browser")
+            check(bool(first_details["alt"] and first_details["alt"].strip()),
+                  f"{label}: first deferred image must retain descriptive alt text")
+        except Exception as error:
+            check(False, f"{label}: first deferred slide failed activation/decode: {error}")
         status = card.locator("[data-carousel-status]")
         previous = card.locator("[data-carousel-previous]")
         next_button = card.locator("[data-carousel-next]")

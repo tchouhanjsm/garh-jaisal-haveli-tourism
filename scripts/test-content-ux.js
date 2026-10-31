@@ -263,8 +263,14 @@ for (const rule of PAGE_RULES) {
       continue;
     }
     if (!alt || /^(image|photo|picture|img)\s*\d*$/i.test(alt)) fail(`${rule.file}: missing or generic alt text for ${src}`);
-    if (seenImages.has(src)) fail(`${rule.file}: repeated image source on the same page: ${src}`);
-    seenImages.add(src);
+    const imagePrefix = html.slice(0, match.index);
+    const noScriptStart = imagePrefix.lastIndexOf('<noscript');
+    const noScriptEnd = imagePrefix.lastIndexOf('</noscript>');
+    const isNoScriptFallback = noScriptStart > noScriptEnd;
+    if (!isNoScriptFallback) {
+      if (seenImages.has(src)) fail(`${rule.file}: repeated image source on the same page: ${src}`);
+      seenImages.add(src);
+    }
     if (!attr.width || !attr.height || Number(attr.width) <= 0 || Number(attr.height) <= 0) {
       fail(`${rule.file}: image needs explicit positive width and height: ${src}`);
     }
@@ -491,7 +497,8 @@ for (const rule of PAGE_RULES) {
         fail('experiences.html: missing confirmation prompts for ' + option.title);
       }
       const hasCarousel = /data-experience-carousel/.test(card);
-      const carouselImages = [...card.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
+      const carouselMarkup = card.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+      const carouselImages = [...carouselMarkup.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
       if (!hasCarousel
           || (card.match(/data-carousel-slide/g) || []).length !== 2
           || !/data-carousel-previous/.test(card)
@@ -518,7 +525,8 @@ for (const rule of PAGE_RULES) {
       }
     }
     const openSkyCard = cards.find((candidate) => candidate[1] === 'open-sky')?.[0] || '';
-    const openSkySlides = [...openSkyCard.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
+    const openSkyMarkup = openSkyCard.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '');
+    const openSkySlides = [...openSkyMarkup.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/gi)].map((image) => image[1]);
     const expectedOpenSkySlides = [
       'assets/images/experiences/sleep-under-stars-dusk-camp.jpeg',
       'assets/images/experiences/sleep-under-stars-shelter.jpeg',

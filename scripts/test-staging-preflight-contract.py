@@ -700,6 +700,50 @@ assert not any(path.startswith("preview/") for path in selected_runtime_paths)
 assert not any(path.startswith("content/blogs/") for path in selected_runtime_paths)
 assert not any(path.startswith("blogs/") and path.lower().endswith(".html") for path in selected_runtime_paths)
 
+runtime_pruning = staging_packager.validate_runtime_duplicate_image_exclusions(ROOT)
+assert runtime_pruning["status"] == "PASS"
+assert runtime_pruning["excludedFileCount"] == 2
+assert runtime_pruning["excludedBytes"] == 201710
+assert {entry["path"] for entry in runtime_pruning["files"]} == {
+    "assets/images/legacy/room-carved.jpg",
+    "assets/images/legacy/room-purple.jpg",
+}
+for entry in runtime_pruning["files"]:
+    assert entry["path"] not in selected_runtime_paths
+    assert entry["duplicateOf"] in selected_runtime_paths
+    assert (ROOT / entry["path"]).is_file(), "Source originals must remain in Git."
+
+with tempfile.TemporaryDirectory(prefix="garh-duplicate-image-exclusion-") as temporary_directory:
+    fixture_root = Path(temporary_directory)
+    for entry in runtime_pruning["files"]:
+        for relative in (entry["path"], entry["duplicateOf"]):
+            source_path = ROOT / relative
+            fixture_path = fixture_root / relative
+            fixture_path.parent.mkdir(parents=True, exist_ok=True)
+            fixture_path.write_bytes(source_path.read_bytes())
+    assert staging_packager.validate_runtime_duplicate_image_exclusions(fixture_root) == runtime_pruning
+    altered_duplicate = fixture_root / runtime_pruning["files"][0]["duplicateOf"]
+    altered_duplicate.write_bytes(b"not-the-approved-duplicate")
+    try:
+        staging_packager.validate_runtime_duplicate_image_exclusions(fixture_root)
+    except RuntimeError as error:
+        assert "identity changed" in str(error)
+    else:
+        raise AssertionError("Runtime pruning must fail closed when a duplicate image changes.")
+
+with tempfile.TemporaryDirectory(prefix="garh-pruned-reference-") as temporary_directory:
+    pruned_root = Path(temporary_directory)
+    (pruned_root / "index.html").write_text(
+        '<!doctype html><img src="assets/images/legacy/room-carved.jpg" alt="Room">',
+        encoding="utf-8",
+    )
+    try:
+        staging_packager.validate_runtime_asset_closure(pruned_root)
+    except RuntimeError as error:
+        assert "broken local asset reference (src)" in str(error)
+    else:
+        raise AssertionError("Runtime closure must reject references to pruned duplicate images.")
+
 with tempfile.TemporaryDirectory(prefix="garh-package-assets-") as temporary_directory:
     package_root = Path(temporary_directory)
     (package_root / "assets").mkdir()
@@ -781,6 +825,8 @@ for route in browser_smoke.PAGES:
                 "pictureIndex": 0,
                 "viewportWidthCssPixels": viewport_width,
                 "deviceScaleFactor": dpr,
+                "selectedImagePath": "assets/images/responsive/rooms/fixture-640.webp",
+                "selectedImageFormat": "webp",
                 "selectedWebpPath": "assets/images/responsive/rooms/fixture-640.webp",
                 "selectedWidth": 640,
                 "requiredPixelWidth": 600.0,
@@ -828,6 +874,8 @@ for route in browser_smoke.PAGES:
                 "firstView": {
                     "capturePhase": "after-load-before-test-only-image-activation",
                     "viewportHeightCssPixels": viewport_height,
+                    "deferredTemplateCount": browser_smoke.EXPECTED_DEFERRED_MEDIA_COUNTS.get(route, 0),
+                    "deferredActivatedCount": 0,
                     "resourceCount": 2,
                     "encodedBodyBytes": 1024 + 24576,
                     "transferBytes": 1324 + 24880,
@@ -879,6 +927,7 @@ responsive_evidence = browser_smoke.build_responsive_image_evidence_report(
     failures=[],
     page_resource_evidence=fixture_page_resource_evidence,
 )
+assert responsive_evidence["schemaVersion"] == 5
 assert responsive_evidence["automatedResult"] == "PASS"
 assert responsive_evidence["coverage"] == {
     "expectedObservationCount": 96,
@@ -904,6 +953,36 @@ assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["imageCount"] == 2
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["inViewportImageCount"] == 1
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["requestedImageCount"] == 1
+gallery_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "gallery.html"
+)
+assert gallery_fixture_first_view["deferredTemplateCount"] == 7
+assert gallery_fixture_first_view["deferredActivatedCount"] == 0
+home_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "index.html"
+)
+assert home_fixture_first_view["deferredTemplateCount"] == 5
+assert home_fixture_first_view["deferredActivatedCount"] == 0
+rooms_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "rooms.html"
+)
+assert rooms_fixture_first_view["deferredTemplateCount"] == 7
+assert rooms_fixture_first_view["deferredActivatedCount"] == 0
+experience_details_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "experience-details.html"
+)
+assert experience_details_fixture_first_view["deferredTemplateCount"] == 7
+assert experience_details_fixture_first_view["deferredActivatedCount"] == 0
+experiences_fixture_first_view = next(
+    item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+    if item["route"] == "experiences.html"
+)
+assert experiences_fixture_first_view["deferredTemplateCount"] == 6
+assert experiences_fixture_first_view["deferredActivatedCount"] == 0
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1
@@ -995,6 +1074,106 @@ unsafe_first_view_report = browser_smoke.build_responsive_image_evidence_report(
 assert unsafe_first_view_report["automatedResult"] == "FAIL"
 assert unsafe_first_view_report["pageResourceEvidence"]["complete"] is False
 assert any("unsafe same-origin resource evidence" in failure for failure in unsafe_first_view_report["automatedFailures"])
+
+invalid_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_gallery_index = next(index for index, item in enumerate(invalid_deferred_counts) if item["route"] == "gallery.html")
+invalid_deferred_counts[invalid_gallery_index] = dict(invalid_deferred_counts[invalid_gallery_index])
+invalid_deferred_counts[invalid_gallery_index]["firstView"] = dict(invalid_deferred_counts[invalid_gallery_index]["firstView"])
+invalid_deferred_counts[invalid_gallery_index]["firstView"]["deferredTemplateCount"] = 6
+invalid_deferred_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_deferred_counts,
+)
+assert invalid_deferred_report["automatedResult"] == "FAIL"
+assert invalid_deferred_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_deferred_report["automatedFailures"])
+
+invalid_home_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_home_index = next(index for index, item in enumerate(invalid_home_deferred_counts) if item["route"] == "index.html")
+invalid_home_deferred_counts[invalid_home_index] = dict(invalid_home_deferred_counts[invalid_home_index])
+invalid_home_deferred_counts[invalid_home_index]["firstView"] = dict(invalid_home_deferred_counts[invalid_home_index]["firstView"])
+invalid_home_deferred_counts[invalid_home_index]["firstView"]["deferredTemplateCount"] = 4
+invalid_home_deferred_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_home_deferred_counts,
+)
+assert invalid_home_deferred_report["automatedResult"] == "FAIL"
+assert invalid_home_deferred_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_home_deferred_report["automatedFailures"])
+
+invalid_rooms_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_rooms_index = next(index for index, item in enumerate(invalid_rooms_deferred_counts) if item["route"] == "rooms.html")
+invalid_rooms_deferred_counts[invalid_rooms_index] = dict(invalid_rooms_deferred_counts[invalid_rooms_index])
+invalid_rooms_deferred_counts[invalid_rooms_index]["firstView"] = dict(invalid_rooms_deferred_counts[invalid_rooms_index]["firstView"])
+invalid_rooms_deferred_counts[invalid_rooms_index]["firstView"]["deferredTemplateCount"] = 6
+invalid_rooms_deferred_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_rooms_deferred_counts,
+)
+assert invalid_rooms_deferred_report["automatedResult"] == "FAIL"
+assert invalid_rooms_deferred_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_rooms_deferred_report["automatedFailures"])
+
+
+invalid_experience_details_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_experience_details_index = next(
+    index for index, item in enumerate(invalid_experience_details_deferred_counts)
+    if item["route"] == "experience-details.html"
+)
+invalid_experience_details_deferred_counts[invalid_experience_details_index] = dict(
+    invalid_experience_details_deferred_counts[invalid_experience_details_index]
+)
+invalid_experience_details_deferred_counts[invalid_experience_details_index]["firstView"] = dict(
+    invalid_experience_details_deferred_counts[invalid_experience_details_index]["firstView"]
+)
+invalid_experience_details_deferred_counts[invalid_experience_details_index]["firstView"]["deferredTemplateCount"] = 6
+invalid_experience_details_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_experience_details_deferred_counts,
+)
+assert invalid_experience_details_report["automatedResult"] == "FAIL"
+assert invalid_experience_details_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_experience_details_report["automatedFailures"])
+
+invalid_experiences_deferred_counts = [dict(item) for item in fixture_page_resource_evidence]
+invalid_experiences_index = next(
+    index for index, item in enumerate(invalid_experiences_deferred_counts)
+    if item["route"] == "experiences.html"
+)
+invalid_experiences_deferred_counts[invalid_experiences_index] = dict(
+    invalid_experiences_deferred_counts[invalid_experiences_index]
+)
+invalid_experiences_deferred_counts[invalid_experiences_index]["firstView"] = dict(
+    invalid_experiences_deferred_counts[invalid_experiences_index]["firstView"]
+)
+invalid_experiences_deferred_counts[invalid_experiences_index]["firstView"]["deferredTemplateCount"] = 5
+invalid_experiences_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=invalid_experiences_deferred_counts,
+)
+assert invalid_experiences_report["automatedResult"] == "FAIL"
+assert invalid_experiences_report["pageResourceEvidence"]["complete"] is False
+assert any("deferred image counts do not match the route contract" in failure for failure in invalid_experiences_report["automatedFailures"])
 
 invalid_priority_first_view = [dict(item) for item in fixture_page_resource_evidence]
 invalid_priority_first_view[0] = dict(invalid_priority_first_view[0])

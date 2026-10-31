@@ -8,6 +8,15 @@
   const cards = Array.from(grid.querySelectorAll('.room-card--named[data-room-floor][data-room-features]'));
   const ids = new Set();
   const validFloors = new Set(['ground', 'first']);
+
+  // Room-card photographs may be active DOM images or remain inside inert templates
+  // until the shared near-viewport loader activates them. Comparison must work in both states.
+  function getRoomCardImage(card) {
+    const renderedImage = card.querySelector('.room-card__image img');
+    if (renderedImage) return renderedImage;
+    const template = card.querySelector('.room-card__image template[data-deferred-picture-template]');
+    return template && template.content ? template.content.querySelector('img') : null;
+  }
   const validCards = cards.length === 7 && cards.every(card => {
     const id = card.id;
     const body = card.querySelector('.room-card__body');
@@ -16,7 +25,7 @@
     const description = card.querySelector('p:not(.room-feature-label)');
     const features = card.querySelector('.room-feature-list');
     const enquiry = card.querySelector('[data-enquiry-link][data-enquiry-message]');
-    const image = card.querySelector('.room-card__image img');
+    const image = getRoomCardImage(card);
     const featureItems = features ? Array.from(features.querySelectorAll('li')) : [];
     const valid = Boolean(id && !ids.has(id) && body && heading && floor && description
       && featureItems.length && enquiry && image && validFloors.has(card.dataset.roomFloor));
@@ -110,7 +119,7 @@
   grid.parentNode.insertBefore(panel, grid);
 
   function recordFor(card) {
-    const image = card.querySelector('.room-card__image img');
+    const image = getRoomCardImage(card);
     const descriptionNode = card.querySelector('p:not(.room-feature-label)');
     const description = descriptionNode.textContent.trim()
       .replace(/\s*These details are taken from the owner-maintained source catalogue and do not indicate live room assignment\.?$/i, '')

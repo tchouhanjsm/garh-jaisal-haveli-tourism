@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
+
+from PIL import Image, ImageChops, ImageOps, ImageStat
 
 ROOT = Path(__file__).resolve().parents[1]
 # The legacy `img/` tree is retained in Git as a source/asset archive, not
@@ -28,6 +31,23 @@ EDITORIAL_PREVIEW_ONLY_ASSETS = frozenset({
     "assets/css/journal-preview.css",
     "assets/js/journal-preview.js",
 })
+
+# These two legacy room JPEGs are exact, unreferenced byte-for-byte duplicates
+# of the active room-card JPEGs. Keep both originals in Git, but omit only the
+# redundant copies from the runtime package. Exact Git/SHA-256 identities and
+# the post-copy runtime-closure audit make this exclusion fail closed.
+UNREFERENCED_DUPLICATE_RUNTIME_IMAGES = {
+    "assets/images/legacy/room-carved.jpg": {
+        "duplicateOf": "assets/images/rooms/opium.jpg",
+        "gitBlobSha": "58184ddc4144e0355dce38912648d63596d8a458",
+        "sha256": "cccf83a500b4e63298b7c629b7d202c2c45815c133890db736c8b0b24e2abb8c",
+    },
+    "assets/images/legacy/room-purple.jpg": {
+        "duplicateOf": "assets/images/rooms/rising-sun.jpg",
+        "gitBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d",
+        "sha256": "1962dfbbb131d1fbf21d703aabbd14197801fe52187cbb948ec6d066780d8ae6",
+    },
+}
 MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
 LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
@@ -52,6 +72,64 @@ def digest_bytes(data: bytes) -> str:
 
 def is_within(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
+
+
+def git_blob_sha(data: bytes) -> str:
+    """Return Git's blob object SHA-1 for exact source-identity checks."""
+    header = b"blob " + str(len(data)).encode("ascii") + bytes((0,))
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def validate_runtime_duplicate_image_exclusions(root: Path = ROOT) -> dict:
+    """Verify only the two reviewed, unreferenced duplicate JPEGs may be pruned."""
+    raw_root = Path(root)
+    if raw_root.is_symlink():
+        fail("Runtime duplicate-image exclusion root must not be a symlink.")
+    resolved_root = raw_root.resolve(strict=True)
+    if not resolved_root.is_dir():
+        fail("Runtime duplicate-image exclusion root must be a directory.")
+
+    entries: list[dict] = []
+    for relative, expected in sorted(UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.items()):
+        source_path = resolved_root / PurePosixPath(relative)
+        duplicate_relative = expected["duplicateOf"]
+        duplicate_path = resolved_root / PurePosixPath(duplicate_relative)
+        for label, candidate in (("excluded image", source_path), ("retained duplicate", duplicate_path)):
+            if candidate.is_symlink() or not candidate.is_file():
+                fail(f"Runtime duplicate-image exclusion requires a regular {label}: {relative}")
+            if not is_within(candidate.resolve(strict=True), resolved_root):
+                fail(f"Runtime duplicate-image exclusion escapes its root: {relative}")
+
+        source_bytes = source_path.read_bytes()
+        duplicate_bytes = duplicate_path.read_bytes()
+        source_sha256 = digest_bytes(source_bytes)
+        source_git_blob_sha = git_blob_sha(source_bytes)
+        if (
+            source_sha256 != expected["sha256"]
+            or source_git_blob_sha != expected["gitBlobSha"]
+            or duplicate_bytes != source_bytes
+            or digest_bytes(duplicate_bytes) != expected["sha256"]
+            or git_blob_sha(duplicate_bytes) != expected["gitBlobSha"]
+        ):
+            fail(
+                "Runtime duplicate-image exclusion identity changed; review the source mapping before pruning: "
+                + relative
+            )
+
+        entries.append({
+            "path": relative,
+            "duplicateOf": duplicate_relative,
+            "bytes": len(source_bytes),
+            "gitBlobSha": source_git_blob_sha,
+            "sha256": source_sha256,
+        })
+
+    return {
+        "status": "PASS",
+        "excludedFileCount": len(entries),
+        "excludedBytes": sum(entry["bytes"] for entry in entries),
+        "files": entries,
+    }
 
 
 class ResponsivePictureParser(HTMLParser):
@@ -96,6 +174,19 @@ class ResponsivePictureParser(HTMLParser):
             raise ValueError("responsive picture element was not closed")
 
 
+
+def _psnr_db(reference_path: Path, candidate_path: Path) -> float:
+    """Recompute RGB PSNR from the packaged JPEG fallback to a same-dimension WebP."""
+    with Image.open(reference_path) as reference_opened, Image.open(candidate_path) as candidate_opened:
+        reference = ImageOps.exif_transpose(reference_opened).convert("RGB")
+        candidate = ImageOps.exif_transpose(candidate_opened).convert("RGB")
+        if reference.size != candidate.size:
+            fail(f"Hero delivery PSNR dimensions differ: {reference.size} vs {candidate.size}")
+        rms = ImageStat.Stat(ImageChops.difference(reference, candidate)).rms
+        mse = sum(channel * channel for channel in rms) / len(rms)
+    return float("inf") if mse == 0 else 20 * math.log10(255 / math.sqrt(mse))
+
+
 def validate_responsive_markup(
     output: Path,
     generated_files: list[dict],
@@ -130,17 +221,26 @@ def validate_responsive_markup(
             picture_count += 1
             sources = picture["sources"]
             fallbacks = picture["fallbacks"]
-            if len(sources) != 1 or len(fallbacks) != 1:
+            if len(sources) not in (1, 2) or len(fallbacks) != 1:
                 fail(
-                    f"{page.name}: responsive picture must contain exactly one WebP source "
-                    "and one marked JPEG fallback."
+                    f"{page.name}: responsive picture must contain one WebP source, "
+                    "at most one AVIF source and one marked JPEG fallback."
                 )
-            source = sources[0]
+            sources_by_type: dict[str, dict] = {}
+            for source_candidate in sources:
+                source_type = source_candidate.get("type", "").lower()
+                if source_type not in {"image/webp", "image/avif"} or source_type in sources_by_type:
+                    fail(f"{page.name}: responsive picture has an unsupported or duplicate source format.")
+                if not source_candidate.get("sizes", "").strip():
+                    fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
+                sources_by_type[source_type] = source_candidate
+            if "image/webp" not in sources_by_type:
+                fail(f"{page.name}: every responsive picture must retain its WebP fallback source.")
+            source = sources_by_type["image/webp"]
+            avif_source = sources_by_type.get("image/avif")
+            if avif_source is not None and sources[0].get("type", "").lower() != "image/avif":
+                fail(f"{page.name}: AVIF source must precede its WebP fallback in picture source order.")
             fallback = fallbacks[0]
-            if source.get("type", "").lower() != "image/webp":
-                fail(f"{page.name}: responsive picture source must declare type=image/webp.")
-            if not source.get("sizes", "").strip():
-                fail(f"{page.name}: responsive picture source must declare a non-empty sizes value.")
 
             fallback_path = fallback.get("src", "").split("?", 1)[0].split("#", 1)[0]
             source_record = source_by_path.get(fallback_path)
@@ -153,12 +253,49 @@ def validate_responsive_markup(
                     f"{page.name}: responsive picture has an unapproved or mismatched JPEG "
                     f"fallback: {fallback_path or '[missing src]'}."
                 )
+            classes = fallback.get("class", "").split()
+            is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
+            hero_delivery_path = source_record.get("heroDeliveryWebp") or ""
+            hero_delivery_avif = source_record.get("heroDeliveryAvif") or {}
+            if hero_delivery_path:
+                hero_relative = PurePosixPath(hero_delivery_path)
+                if (
+                    hero_relative.is_absolute()
+                    or hero_relative.as_posix() != hero_delivery_path
+                    or any(part in {"", ".", ".."} for part in hero_relative.parts)
+                    or not hero_delivery_path.startswith("assets/images/responsive/")
+                ):
+                    fail(f"{page.name}: hero delivery candidate path is unsafe: {hero_delivery_path}")
+            if avif_source and (not is_hero or not hero_delivery_avif):
+                fail(f"{page.name}: AVIF source is permitted only for a verified hero candidate.")
+            if is_hero and hero_delivery_avif and avif_source is None:
+                fail(f"{page.name}: approved AVIF hero candidate is missing from responsive picture markup.")
+            if hero_delivery_avif:
+                avif_path = hero_delivery_avif.get("path", "")
+                avif_relative = PurePosixPath(avif_path)
+                if (
+                    avif_relative.is_absolute()
+                    or avif_relative.as_posix() != avif_path
+                    or any(part in {"", ".", ".."} for part in avif_relative.parts)
+                    or not avif_path.startswith("assets/images/responsive/")
+                    or not avif_path.endswith(".avif")
+                ):
+                    fail(f"{page.name}: AVIF hero delivery candidate path is unsafe: {avif_path}")
             if source_record.get("sourceFormat") == "WEBP" and (
                 source_record.get("sourceWebp") != source_record.get("fullSizeWebp")
             ):
-                fail(f"{page.name}: source-backed WebP art direction must remain the full-size candidate.")
+                fail(f"{page.name}: the original source-backed WebP must remain preserved as the full-size asset.")
             natural_width = int(source_record["naturalWidth"])
             natural_height = int(source_record["naturalHeight"])
+            if hero_delivery_path:
+                source_relative = PurePosixPath(fallback_path).relative_to(PurePosixPath("assets/images"))
+                expected_hero_path = (
+                    PurePosixPath("assets/images/responsive")
+                    / source_relative.parent
+                    / f"{source_relative.stem}-{natural_width}.webp"
+                ).as_posix()
+                if hero_delivery_path != expected_hero_path:
+                    fail(f"{page.name}: hero delivery path does not match its source identity and natural width.")
             if (
                 fallback.get("width") != str(natural_width)
                 or fallback.get("height") != str(natural_height)
@@ -166,8 +303,6 @@ def validate_responsive_markup(
                 fail(f"{page.name}: JPEG fallback dimensions do not match decoded source dimensions.")
             if fallback.get("decoding", "").lower() != "async":
                 fail(f"{page.name}: responsive JPEG fallback must use decoding=async.")
-            classes = fallback.get("class", "").split()
-            is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
             expected_loading = "eager" if is_hero else "lazy"
             if fallback.get("loading", "").lower() != expected_loading:
                 fail(f"{page.name}: responsive image loading policy does not match its hero/supporting role.")
@@ -249,7 +384,11 @@ def validate_responsive_markup(
                         f"decoded asset width {metadata['width']}px for {relative}."
                     )
                 if declared_width == natural_width:
-                    expected_relative = source_record["fullSizeWebp"]
+                    expected_relative = (
+                        hero_delivery_path
+                        if is_hero and hero_delivery_path
+                        else source_record["fullSizeWebp"]
+                    )
                 else:
                     source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
                         PurePosixPath("assets/images")
@@ -275,6 +414,36 @@ def validate_responsive_markup(
                         f"{page.name}: responsive candidate exceeds its {max_bytes}-byte budget: "
                         f"{relative} ({actual_bytes} bytes)."
                     )
+                if relative == hero_delivery_path:
+                    if not is_hero or source_record.get("sourceFormat") != "WEBP":
+                        fail(f"{page.name}: optimized same-dimension delivery is permitted only for a source-backed hero.")
+                    measured_psnr = _psnr_db(output / fallback_path, absolute)
+                    declared_psnr = metadata.get("psnrDb")
+                    minimum_psnr = metadata.get("minPsnrDb")
+                    minimum_savings = metadata.get("minimumSavingsPercent")
+                    if (
+                        isinstance(declared_psnr, bool)
+                        or not isinstance(declared_psnr, (int, float))
+                        or isinstance(minimum_psnr, bool)
+                        or not isinstance(minimum_psnr, (int, float))
+                        or isinstance(minimum_savings, bool)
+                        or not isinstance(minimum_savings, (int, float))
+                        or minimum_psnr < 35.0
+                        or minimum_savings < 10.0
+                        or measured_psnr < minimum_psnr
+                        or abs(measured_psnr - declared_psnr) > 0.05
+                    ):
+                        fail(f"{page.name}: hero delivery candidate fails its recomputed PSNR/quality evidence: {relative}")
+                    source_webp_path = source_record.get("sourceWebp", "")
+                    source_webp = output / source_webp_path
+                    if not source_webp_path or source_webp.is_symlink() or not source_webp.is_file():
+                        fail(f"{page.name}: original source-backed WebP is missing for hero savings validation.")
+                    source_webp_bytes = source_webp.stat().st_size
+                    if source_webp_bytes < 1:
+                        fail(f"{page.name}: original source-backed WebP is empty for hero savings validation.")
+                    saved_percent = (source_webp_bytes - actual_bytes) / source_webp_bytes * 100
+                    if saved_percent + 0.01 < minimum_savings:
+                        fail(f"{page.name}: hero delivery candidate does not meet its minimum source-WebP savings: {relative}")
                 expected_height = max(1, round(natural_height * declared_width / natural_width))
                 if int(metadata["height"]) != expected_height:
                     fail(f"{page.name}: responsive candidate aspect ratio does not match source: {relative}")
@@ -302,13 +471,126 @@ def validate_responsive_markup(
                 for width in expected_widths
                 if width < natural_width
             ]
-            expected_candidates.append((source_record["fullSizeWebp"], natural_width))
+            expected_candidates.append((
+                hero_delivery_path
+                if is_hero and hero_delivery_path
+                else source_record["fullSizeWebp"],
+                natural_width,
+            ))
             if candidates != expected_candidates:
                 fail(
                     f"{page.name}: srcset candidates must include the verified responsive widths "
                     "in ascending order and the full-size WebP candidate last."
                 )
-            candidate_count += len(candidates)
+            avif_candidates: list[tuple[str, int]] = []
+            if avif_source is not None:
+                if not hero_delivery_avif:
+                    fail(f"{page.name}: AVIF source has no generated quality evidence.")
+                expected_media = hero_delivery_avif.get("media")
+                expected_webp_preload_media = hero_delivery_avif.get("webpPreloadMedia")
+                if (
+                    expected_media != "(min-width: 1160px) and (min-resolution: 1.5dppx)"
+                    or expected_webp_preload_media != "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"
+                    or avif_source.get("media", "").strip() != expected_media
+                    or avif_source.get("sizes", "").strip() != "100vw"
+                ):
+                    fail(f"{page.name}: AVIF hero media/sizes contract does not match its generated metadata.")
+                avif_parts = avif_source.get("srcset", "").strip().rsplit(None, 1)
+                if len(avif_parts) != 2:
+                    fail(f"{page.name}: AVIF hero srcset must contain one width-descriptor candidate.")
+                else:
+                    avif_path, avif_descriptor = avif_parts
+                    avif_match = re.fullmatch(r"([1-9][0-9]*)w", avif_descriptor)
+                    avif_width = int(avif_match.group(1)) if avif_match else 0
+                    source_relative = PurePosixPath(fallback_path).relative_to(PurePosixPath("assets/images"))
+                    expected_avif_path = (
+                        PurePosixPath("assets/images/responsive")
+                        / source_relative.parent
+                        / f"{source_relative.stem}-{natural_width}.avif"
+                    ).as_posix()
+                    if avif_width != natural_width or avif_path != expected_avif_path or avif_path != hero_delivery_avif.get("path"):
+                        fail(f"{page.name}: AVIF hero candidate path/descriptor does not match the approved source dimensions.")
+                    avif_metadata = candidate_by_path.get(avif_path)
+                    avif_absolute = output / avif_path
+                    if avif_metadata is None:
+                        fail(f"{page.name}: AVIF srcset references an unverified candidate: {avif_path}")
+                    elif (
+                        avif_absolute.is_symlink()
+                        or not avif_absolute.is_file()
+                        or not is_within(avif_absolute.resolve(), output)
+                    ):
+                        fail(f"{page.name}: AVIF hero candidate is missing or unsafe: {avif_path}")
+                    else:
+                        actual_avif_bytes = avif_absolute.stat().st_size
+                        fallback_payload = (output / fallback_path).read_bytes()
+                        actual_source_git_blob_sha = hashlib.sha1(
+                            f"blob {len(fallback_payload)}\0".encode("ascii") + fallback_payload
+                        ).hexdigest()
+                        declared_source_git_blob_sha = hero_delivery_avif.get("sourceGitBlobSha")
+                        avif_quality = hero_delivery_avif.get("quality")
+                        avif_max_bytes = hero_delivery_avif.get("maxBytes")
+                        avif_attempts = hero_delivery_avif.get("qualityAttempts")
+                        if (
+                            actual_avif_bytes != avif_metadata.get("bytes")
+                            or actual_avif_bytes != hero_delivery_avif.get("bytes")
+                            or not re.fullmatch(r"[0-9a-f]{40}", str(declared_source_git_blob_sha))
+                            or declared_source_git_blob_sha != actual_source_git_blob_sha
+                            or avif_metadata.get("sourceGitBlobSha") != actual_source_git_blob_sha
+                            or isinstance(avif_quality, bool)
+                            or not isinstance(avif_quality, int)
+                            or not 1 <= avif_quality <= 100
+                            or isinstance(avif_max_bytes, bool)
+                            or not isinstance(avif_max_bytes, int)
+                            or avif_max_bytes < 1
+                            or actual_avif_bytes > avif_max_bytes
+                            or not isinstance(avif_attempts, list)
+                            or not avif_attempts
+                            or avif_attempts[-1] != {"quality": avif_quality, "bytes": actual_avif_bytes}
+                        ):
+                            fail(f"{page.name}: AVIF hero quality/byte-budget metadata does not match the packaged file.")
+                        with Image.open(avif_absolute) as avif_image:
+                            avif_image.load()
+                            if avif_image.format != "AVIF" or avif_image.size != (natural_width, natural_height):
+                                fail(f"{page.name}: AVIF hero candidate failed format/dimension verification.")
+                        measured_avif_psnr = _psnr_db(output / fallback_path, avif_absolute)
+                        minimum_avif_psnr = hero_delivery_avif.get("minPsnrDb")
+                        minimum_avif_savings = hero_delivery_avif.get("minimumSavingsPercent")
+                        declared_avif_psnr = hero_delivery_avif.get("psnrDb")
+                        webp_path = source_record.get("fullSizeWebp", "")
+                        webp_file = output / webp_path
+                        if (
+                            isinstance(minimum_avif_psnr, bool)
+                            or not isinstance(minimum_avif_psnr, (int, float))
+                            or minimum_avif_psnr < 35.0
+                            or isinstance(minimum_avif_savings, bool)
+                            or not isinstance(minimum_avif_savings, (int, float))
+                            or minimum_avif_savings < 10.0
+                            or isinstance(declared_avif_psnr, bool)
+                            or not isinstance(declared_avif_psnr, (int, float))
+                            or measured_avif_psnr < minimum_avif_psnr
+                            or abs(measured_avif_psnr - declared_avif_psnr) > 0.05
+                            or webp_file.is_symlink()
+                            or not webp_file.is_file()
+                        ):
+                            fail(f"{page.name}: AVIF hero candidate fails its recomputed quality or source-integrity checks.")
+                        else:
+                            webp_bytes = webp_file.stat().st_size
+                            saved_percent = (webp_bytes - actual_avif_bytes) / webp_bytes * 100 if webp_bytes else 0
+                            if saved_percent + 0.01 < minimum_avif_savings:
+                                fail(f"{page.name}: AVIF hero candidate does not meet its minimum source-WebP savings.")
+                            if (
+                                avif_metadata.get("width") != natural_width
+                                or avif_metadata.get("height") != natural_height
+                                or hero_delivery_avif.get("width") != natural_width
+                                or hero_delivery_avif.get("height") != natural_height
+                                or abs(saved_percent - float(hero_delivery_avif.get("savedPercent", -100))) > 0.05
+                            ):
+                                fail(f"{page.name}: AVIF hero candidate metadata does not match decoded pixels or measured savings.")
+                            avif_candidates.append((avif_path, avif_width))
+            elif hero_delivery_avif and is_hero:
+                fail(f"{page.name}: generated AVIF hero metadata has no matching picture source.")
+
+            candidate_count += len(candidates) + len(avif_candidates)
 
     if picture_count == 0:
         fail("No responsive picture markup was found in the generated preview package.")
@@ -1198,8 +1480,11 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
     }
 
 
-def checked_paths() -> list[Path]:
-    """Select only browser runtime files and explicit release-safety policy files."""
+def checked_paths(excluded_runtime_assets: set[str] | None = None) -> list[Path]:
+    """Select browser runtime files, omitting only verified duplicate legacy images."""
+    if excluded_runtime_assets is None:
+        exclusion_report = validate_runtime_duplicate_image_exclusions()
+        excluded_runtime_assets = {entry["path"] for entry in exclusion_report["files"]}
     files: set[Path] = set()
     for candidate in ROOT.glob("*.html"):
         if candidate.is_symlink() or not candidate.is_file():
@@ -1251,7 +1536,7 @@ def checked_paths() -> list[Path]:
             if candidate.is_dir() or not candidate.is_file() or candidate.name == ".gitkeep":
                 continue
             relative = candidate.relative_to(ROOT).as_posix()
-            if relative in EDITORIAL_PREVIEW_ONLY_ASSETS:
+            if relative in EDITORIAL_PREVIEW_ONLY_ASSETS or relative in excluded_runtime_assets:
                 continue
             files.add(candidate)
 
@@ -1482,6 +1767,11 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         for source_record in generated_variants.values()
         for variant in source_record["variants"]
     }
+    hero_delivery_metadata_by_path = {
+        source_record["heroDeliveryVariant"]["path"]: source_record["heroDeliveryVariant"]
+        for source_record in generated_variants.values()
+        if source_record.get("heroDeliveryVariant")
+    }
     full_size_metadata_by_path = {
         source_record["fullSizePath"]: source_record
         for source_record in generated_variants.values()
@@ -1543,6 +1833,12 @@ def apply_responsive_image_delivery(output: Path) -> dict:
             "fullSizeQuality": generated_variants[filename].get("fullSizeQuality"),
             "fullSizeQualityAttempts": generated_variants[filename].get("fullSizeQualityAttempts", []),
             "fullSizeMaxBytes": generated_variants[filename].get("fullSizeMaxBytes"),
+            "heroDeliveryWebp": (
+                generated_variants[filename]["heroDeliveryVariant"]["path"]
+                if generated_variants[filename].get("heroDeliveryVariant") else ""
+            ),
+            "heroDeliveryAvif": generated_variants[filename].get("heroDeliveryAvif"),
+            "heroDeliveryAvifSkippedReason": generated_variants[filename].get("heroDeliveryAvifSkippedReason"),
         })
         candidates = [full_size]
         responsive_dir = output / "assets" / "images" / "responsive" / Path(filename).parent
@@ -1579,9 +1875,48 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                     "qualityAttempts": full_size_metadata["fullSizeQualityAttempts"],
                     "maxBytes": full_size_metadata["fullSizeMaxBytes"],
                 })
+            hero_delivery_metadata = hero_delivery_metadata_by_path.get(candidate_path)
+            if hero_delivery_metadata is not None:
+                candidate_record.update({
+                    "quality": hero_delivery_metadata["quality"],
+                    "qualityAttempts": hero_delivery_metadata["qualityAttempts"],
+                    "maxBytes": hero_delivery_metadata["maxBytes"],
+                    "psnrDb": hero_delivery_metadata["psnrDb"],
+                    "minPsnrDb": hero_delivery_metadata["minPsnrDb"],
+                    "minimumSavingsPercent": hero_delivery_metadata["minimumSavingsPercent"],
+                })
             generated_files.append(candidate_record)
             if candidate.resolve() != source_asset.resolve():
                 generated_output_files.append(candidate_record)
+
+        avif_metadata = generated_variants[filename].get("heroDeliveryAvif")
+        if avif_metadata:
+            avif_candidate = output / avif_metadata["path"]
+            if avif_candidate.is_symlink() or not avif_candidate.is_file():
+                fail(f"Generated AVIF hero candidate is missing or unsafe: {avif_metadata['path']}")
+            with generator.Image.open(avif_candidate) as converted:
+                converted.load()
+                if converted.format != "AVIF" or converted.size != (width, height):
+                    fail(f"Generated AVIF hero candidate failed decoded format/dimension verification: {avif_candidate.name}")
+            payload = avif_candidate.read_bytes()
+            avif_record = {
+                "path": avif_metadata["path"],
+                "bytes": len(payload),
+                "sha256": digest_bytes(payload),
+                "width": width,
+                "height": height,
+                "format": "AVIF",
+                "sourceGitBlobSha": avif_metadata["sourceGitBlobSha"],
+                "quality": avif_metadata["quality"],
+                "qualityAttempts": avif_metadata["qualityAttempts"],
+                "maxBytes": avif_metadata["maxBytes"],
+                "psnrDb": avif_metadata["psnrDb"],
+                "minPsnrDb": avif_metadata["minPsnrDb"],
+                "minimumSavingsPercent": avif_metadata["minimumSavingsPercent"],
+                "savedPercent": avif_metadata["savedPercent"],
+            }
+            generated_files.append(avif_record)
+            generated_output_files.append(avif_record)
 
     markup_validation = validate_responsive_markup(
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
@@ -1677,10 +2012,26 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         ),
         "enforcedFullSizeByteBudgets": sorted(enforced_full_size_budgets, key=lambda item: item["path"]),
         "sourceImages": image_sources,
-        "generatedWebpFileCount": len(generated_output_files),
-        "generatedWebpFiles": sorted(generated_output_files, key=lambda item: item["path"]),
-        "verifiedWebpCandidateCount": len(generated_files),
-        "verifiedWebpCandidates": sorted(generated_files, key=lambda item: item["path"]),
+        "generatedWebpFileCount": sum(item["path"].endswith(".webp") for item in generated_output_files),
+        "generatedWebpFiles": sorted(
+            (item for item in generated_output_files if item["path"].endswith(".webp")),
+            key=lambda item: item["path"],
+        ),
+        "generatedAvifFileCount": sum(item["path"].endswith(".avif") for item in generated_output_files),
+        "generatedAvifFiles": sorted(
+            (item for item in generated_output_files if item["path"].endswith(".avif")),
+            key=lambda item: item["path"],
+        ),
+        "verifiedWebpCandidateCount": sum(item["path"].endswith(".webp") for item in generated_files),
+        "verifiedWebpCandidates": sorted(
+            (item for item in generated_files if item["path"].endswith(".webp")),
+            key=lambda item: item["path"],
+        ),
+        "verifiedAvifCandidateCount": sum(item["path"].endswith(".avif") for item in generated_files),
+        "verifiedAvifCandidates": sorted(
+            (item for item in generated_files if item["path"].endswith(".avif")),
+            key=lambda item: item["path"],
+        ),
         "responsiveMarkupValidation": markup_validation,
         "deliveryEvidence": delivery_evidence,
         "rewrittenHtmlRoutes": [path.relative_to(output).as_posix() for path in rewritten],
@@ -1816,6 +2167,50 @@ def deterministic_archive(output: Path, archive: Path) -> None:
                 fail(f"Runtime asset-closure metric is invalid: {field}.")
         if closure_files == 0 or closure_missing != 0:
             fail("The release manifest must record a completed asset-closure audit with zero missing local references.")
+
+        pruning = manifest.get("runtimeAssetPruning")
+        if not isinstance(pruning, dict) or pruning.get("status") != "PASS":
+            fail("The release manifest must record a passing runtime duplicate-image pruning audit.")
+        pruned_entries = pruning.get("files")
+        if not isinstance(pruned_entries, list):
+            fail("Runtime duplicate-image pruning files must be an array.")
+        expected_pruned_paths = set(UNREFERENCED_DUPLICATE_RUNTIME_IMAGES)
+        actual_pruned_paths: set[str] = set()
+        actual_pruned_bytes = 0
+        for entry in pruned_entries:
+            if not isinstance(entry, dict):
+                fail("Runtime duplicate-image pruning contains a malformed entry.")
+            pruned_path = _validate_archive_member_path(entry.get("path"), "Pruned runtime image")
+            duplicate_path = _validate_archive_member_path(entry.get("duplicateOf"), "Retained duplicate image")
+            expected = UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.get(pruned_path)
+            if expected is None or duplicate_path != expected["duplicateOf"]:
+                fail(f"Runtime duplicate-image pruning contains an unapproved path mapping: {pruned_path}")
+            if pruned_path in names:
+                fail(f"Pruned duplicate image unexpectedly remains in the staging archive: {pruned_path}")
+            if duplicate_path not in names:
+                fail(f"Retained duplicate image is missing from the staging archive: {duplicate_path}")
+            byte_count = entry.get("bytes")
+            if isinstance(byte_count, bool) or not isinstance(byte_count, int) or byte_count < 1:
+                fail(f"Runtime duplicate-image byte count is invalid: {pruned_path}")
+            if entry.get("sha256") != expected["sha256"] or entry.get("gitBlobSha") != expected["gitBlobSha"]:
+                fail(f"Runtime duplicate-image identity metadata is invalid: {pruned_path}")
+            retained_bytes = package.read(duplicate_path)
+            if (
+                len(retained_bytes) != byte_count
+                or digest_bytes(retained_bytes) != expected["sha256"]
+                or git_blob_sha(retained_bytes) != expected["gitBlobSha"]
+            ):
+                fail(f"Retained duplicate does not match the pruned source identity: {duplicate_path}")
+            if pruned_path in actual_pruned_paths:
+                fail(f"Runtime duplicate-image pruning repeats a path: {pruned_path}")
+            actual_pruned_paths.add(pruned_path)
+            actual_pruned_bytes += byte_count
+        if (
+            actual_pruned_paths != expected_pruned_paths
+            or pruning.get("excludedFileCount") != len(expected_pruned_paths)
+            or pruning.get("excludedBytes") != actual_pruned_bytes
+        ):
+            fail("Runtime duplicate-image pruning report does not reconcile with the approved exact-duplicate set.")
 
         document_contract = manifest.get("documentContract")
         if not isinstance(document_contract, dict) or document_contract.get("status") != "PASS":
@@ -1968,7 +2363,9 @@ def main() -> int:
         archive.unlink()
     output.mkdir(parents=True)
 
-    files = checked_paths()
+    runtime_asset_pruning_report = validate_runtime_duplicate_image_exclusions()
+    excluded_runtime_assets = {entry["path"] for entry in runtime_asset_pruning_report["files"]}
+    files = checked_paths(excluded_runtime_assets)
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
     hosting_delivery_report = validate_staging_policy(
         source_config,
@@ -1982,6 +2379,10 @@ def main() -> int:
     legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
     asset_closure_report = validate_runtime_asset_closure(output)
+    for entry in runtime_asset_pruning_report["files"]:
+        pruned_path = output / entry["path"]
+        if pruned_path.is_symlink() or pruned_path.exists():
+            fail(f"Verified duplicate runtime image was not pruned from the package: {entry['path']}")
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     document_contract_report = validate_document_contract(output)
@@ -2003,6 +2404,7 @@ def main() -> int:
         "files": entries,
         "packageMetrics": package_metrics,
         "runtimeAssetClosure": runtime_asset_report,
+        "runtimeAssetPruning": runtime_asset_pruning_report,
         "documentContract": document_contract_report,
         "editorialDraftIsolation": editorial_draft_isolation_report,
         "hostingDelivery": hosting_delivery_report,
@@ -2022,6 +2424,11 @@ def main() -> int:
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
     print(f"Runtime files: {len(entries)}")
+    print(
+        "Verified unreferenced duplicate runtime images excluded: "
+        f"{runtime_asset_pruning_report['excludedFileCount']} files / "
+        f"{runtime_asset_pruning_report['excludedBytes']} bytes"
+    )
     print("Draft editorial source records, preview route/assets and generated draft blog routes excluded: PASS")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
     print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
