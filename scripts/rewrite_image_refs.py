@@ -444,15 +444,21 @@ def generate_responsive_variants(
             hero_config = HERO_DELIVERY_VARIANTS.get(filename)
             if hero_config:
                 hero_relative = PurePosixPath(hero_config["path"])
-                expected_parent = PurePosixPath("assets/images/responsive") / relative.parent
+                expected_hero_path = (
+                    PurePosixPath("assets/images/responsive")
+                    / relative.parent
+                    / f"{relative.stem}-{width}.webp"
+                ).as_posix()
                 if (
                     hero_relative.is_absolute()
                     or hero_relative.as_posix() != hero_config["path"]
                     or any(part in {"", ".", ".."} for part in hero_relative.parts)
-                    or hero_relative.parent != expected_parent
-                    or hero_relative.name != f"{relative.stem}-{width}.webp"
+                    or hero_config["path"] != expected_hero_path
                 ):
-                    raise ValueError(f"Unsafe or mismatched hero delivery path: {hero_config['path']}")
+                    raise ValueError(
+                        f"Unsafe or mismatched hero delivery path: {hero_config['path']} "
+                        f"(expected {expected_hero_path})"
+                    )
                 hero_target = root / Path(*hero_relative.parts)
                 hero_max_bytes = RESPONSIVE_VARIANT_MAX_BYTES.get(hero_config["path"])
                 if hero_max_bytes is None:
@@ -833,10 +839,16 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         picture_end = prefix.lower().rfind("</picture")
         if picture_start > picture_end:
             picture_prefix = prefix[picture_start:]
+            expected_source_urls = {_full_size_webp_url(image_name)}
+            hero_config = HERO_DELIVERY_VARIANTS.get(image_name) if is_hero else None
+            if hero_config:
+                expected_source_urls.add(hero_config["path"])
             has_mapped_source = any(
                 (get_attribute(source_match.group(0), "data-responsive-image") or "").lower() == "true"
-                and _full_size_webp_url(image_name) in _srcset_urls(
-                    get_attribute(source_match.group(0), "srcset") or ""
+                and bool(
+                    expected_source_urls.intersection(
+                        _srcset_urls(get_attribute(source_match.group(0), "srcset") or "")
+                    )
                 )
                 for source_match in SOURCE_TAG_PATTERN.finditer(picture_prefix)
             )
