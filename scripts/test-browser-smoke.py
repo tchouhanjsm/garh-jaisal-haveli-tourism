@@ -32,6 +32,8 @@ ROUTE_CONTRACT_PATH = CONTRACT_ROOT / "content" / "staging-route-contract.json"
 with ROUTE_CONTRACT_PATH.open("r", encoding="utf-8") as route_contract_file:
     ROUTE_CONTRACT = json.load(route_contract_file)
 PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]
+DIRECTIONS_AVIF_MEDIA = "(min-width: 1160px) and (min-resolution: 1.5dppx)"
+DIRECTIONS_WEBP_PRELOAD_MEDIA = "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"
 EXPECTED_DEFERRED_MEDIA_COUNTS = {
     "index.html": 5,
     "rooms.html": 7,
@@ -2330,7 +2332,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 if selected_format == "avif":
                                     check_preview(
                                         page_name == "directions.html"
-                                        and source_details["media"] == "(min-width: 1160px)",
+                                        and source_details["media"] == DIRECTIONS_AVIF_MEDIA,
                                         f"{label}: AVIF selection must be limited to the approved Directions desktop hero",
                                     )
                                 candidate_pairs: list[tuple[str, int]] = []
@@ -2417,6 +2419,13 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     details["fetchpriority"].lower() == "high"
                                     or "hero__image" in details["classes"]
                                 )
+                                if is_hero and page_name == "directions.html":
+                                    expected_format = "avif" if width >= 1160 and device_scale_factor >= 1.5 else "webp"
+                                    check_preview(
+                                        selected_format == expected_format,
+                                        f"{label}: Directions hero must use {expected_format.upper()} at "
+                                        f"{width}px/DPR{device_scale_factor}; observed {selected_format.upper()}",
+                                    )
                                 expected_loading = "eager" if is_hero else "lazy"
                                 check_preview(
                                     production_loading.lower() == expected_loading,
@@ -2436,9 +2445,12 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                             preload.get_attribute("imagesrcset") == source_details["srcset"]
                                             and preload.get_attribute("imagesizes") == source_details["sizes"]
                                             and (preload.get_attribute("type") or "").lower() == source_details["type"].lower()
-                                            and (
-                                                source_details["type"].lower() != "image/avif"
-                                                or preload.get_attribute("media") == source_details["media"]
+                                            and (preload.get_attribute("media") or "") == (
+                                                source_details["media"]
+                                                if selected_format == "avif"
+                                                else DIRECTIONS_WEBP_PRELOAD_MEDIA
+                                                if page_name == "directions.html"
+                                                else ""
                                             )
                                         )
                                     check_preview(

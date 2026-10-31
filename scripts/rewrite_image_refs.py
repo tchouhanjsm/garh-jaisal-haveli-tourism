@@ -135,7 +135,8 @@ AVIF_HERO_DELIVERY_VARIANTS = {
         "sourceGitBlobSha": "13c01ff7ca772a3fc6909698c82e4edab6485295",
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "media": "(min-width: 1160px)",
+        "media": "(min-width: 1160px) and (min-resolution: 1.5dppx)",
+        "webpPreloadMedia": "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)",
     },
 }
 
@@ -583,6 +584,7 @@ def generate_responsive_variants(
                     "minimumSavingsPercent": minimum_avif_savings,
                     "savedPercent": round(saved_avif_percent, 3),
                     "media": avif_config["media"],
+                    "webpPreloadMedia": avif_config["webpPreloadMedia"],
                 }
 
             source_format = "WEBP" if source_filename != filename else "JPEG"
@@ -1102,7 +1104,7 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
         if avif_config:
             avif_srcset = _avif_srcset(root, image_name)
             if avif_srcset:
-                webp_tag = set_attribute(webp_tag, "media", "(max-width: 1159px)")
+                webp_tag = set_attribute(webp_tag, "media", avif_config["webpPreloadMedia"])
                 avif_href = avif_srcset.rsplit(None, 1)[0]
                 avif_tag = set_attribute(tag, "href", avif_href)
                 avif_tag = set_attribute(

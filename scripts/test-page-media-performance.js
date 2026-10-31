@@ -8,6 +8,8 @@ const ROOT = path.resolve(process.env.MEDIA_PERFORMANCE_ROOT || path.join(__dirn
 const CONTRACT_ROOT = path.resolve(process.env.MEDIA_PERFORMANCE_CONTRACT_ROOT || ROOT);
 const KIB = 1024;
 const DEFAULT_MAX_BYTES = 650 * KIB;
+const DIRECTIONS_AVIF_MEDIA = '(min-width: 1160px) and (min-resolution: 1.5dppx)';
+const DIRECTIONS_WEBP_PRELOAD_MEDIA = 'not all and (min-width: 1160px) and (min-resolution: 1.5dppx)';
 const routeContract = JSON.parse(fs.readFileSync(path.join(CONTRACT_ROOT, 'content', 'staging-route-contract.json'), 'utf8'));
 const PAGES = routeContract.routes.map(route => route.file);
 const HERO_BUDGETS = new Map([
@@ -196,7 +198,7 @@ for (const page of PAGES) {
         fail(page + ': responsive picture source must declare image/webp or image/avif');
       }
       if (sourceType === 'image/avif'
-        && (page !== 'directions.html' || !inHero || attr.media !== '(min-width: 1160px)')) {
+        && (page !== 'directions.html' || !inHero || attr.media !== DIRECTIONS_AVIF_MEDIA)) {
         fail(page + ': AVIF delivery is restricted to the approved Directions hero desktop media range');
       }
       if (!attr.sizes) fail(page + ': responsive picture source must declare sizes');
@@ -267,7 +269,7 @@ for (const page of PAGES) {
       fail(page + ': responsive image preload must declare image/webp or image/avif');
     }
     if (responsivePreloadType === 'image/avif'
-      && (page !== 'directions.html' || attr.media !== '(min-width: 1160px)')) {
+      && (page !== 'directions.html' || attr.media !== DIRECTIONS_AVIF_MEDIA)) {
       fail(page + ': AVIF preload is restricted to the approved Directions desktop hero media range');
     }
     const candidateSourceTag = sourceTags.find(sourceTag => {
@@ -290,7 +292,7 @@ for (const page of PAGES) {
     if ((attr.type || '').toLowerCase() === 'image/webp'
       && page === 'directions.html'
       && sourceTags.some(sourceTag => (attributes(sourceTag).type || '').toLowerCase() === 'image/avif')
-      && attr.media !== '(max-width: 1159px)') {
+      && attr.media !== DIRECTIONS_WEBP_PRELOAD_MEDIA) {
       fail(page + ': WebP fallback preload must be limited to the non-AVIF Directions viewport range');
     }
     const candidatePaths = srcsetCandidates(attr.imagesrcset);

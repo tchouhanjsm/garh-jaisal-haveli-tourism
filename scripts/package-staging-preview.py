@@ -412,8 +412,10 @@ def validate_responsive_markup(
                 if not hero_delivery_avif:
                     fail(f"{page.name}: AVIF source has no generated quality evidence.")
                 expected_media = hero_delivery_avif.get("media")
+                expected_webp_preload_media = hero_delivery_avif.get("webpPreloadMedia")
                 if (
-                    expected_media != "(min-width: 1160px)"
+                    expected_media != "(min-width: 1160px) and (min-resolution: 1.5dppx)"
+                    or expected_webp_preload_media != "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"
                     or avif_source.get("media", "").strip() != expected_media
                     or avif_source.get("sizes", "").strip() != "100vw"
                 ):
