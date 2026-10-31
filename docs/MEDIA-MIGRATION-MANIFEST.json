@@ -28,6 +28,30 @@
       ]
     },
     {
+      "sourcePath": "img/v2/fort-from-roof.jpg",
+      "sourceBlobSha": "656ded73d9912c5e91033b4f076164a91688ba3c",
+      "targetPath": "assets/images/gallery/hotel/fort-from-roof.jpg",
+      "visualSubject": "Fort-side rooftop view",
+      "intendedRole": "Gallery: fort/rooftop orientation — JPEG fallback",
+      "dimensions": {
+        "width": 2000,
+        "height": 1333
+      },
+      "bytes": 704260,
+      "mimeType": "image/jpeg",
+      "altText": "Carved sandstone rooftop terrace looking across Jaisalmer Fort and the surrounding city at dusk",
+      "provenance": "Owner-controlled legacy repository; the original JPEG was copied byte-for-byte from img/v2/fort-from-roof.jpg and the source/target Git blob identities match.",
+      "approvalStatus": "migrated-source-backed-asset",
+      "publicationCaveat": "Shows a photo reference only; does not promise that a room, camp, tour, programme or arrangement is currently available.",
+      "targetBlobSha": "656ded73d9912c5e91033b4f076164a91688ba3c",
+      "verificationPage": "about.html",
+      "additionalVerificationPages": [
+        "gallery.html",
+        "dining.html",
+        "experiences.html"
+      ]
+    },
+    {
       "sourcePath": "img/Desert_Camp/camp_from_above.jpeg",
       "sourceBlobSha": "ba705f85039111541c35f9062748bf6e8225eb67",
       "targetPath": "assets/images/gallery/desert/camp-from-above.jpeg",
