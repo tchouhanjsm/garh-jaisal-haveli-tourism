@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import math
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
-from PIL import ImageChops, ImageOps, ImageStat
+from PIL import Image, ImageChops, ImageOps, ImageStat
 
 ROOT = Path(__file__).resolve().parents[1]
 # The legacy `img/` tree is retained in Git as a source/asset archive, not
