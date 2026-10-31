@@ -31,6 +31,23 @@ EDITORIAL_PREVIEW_ONLY_ASSETS = frozenset({
     "assets/css/journal-preview.css",
     "assets/js/journal-preview.js",
 })
+
+# These two legacy room JPEGs are exact, unreferenced byte-for-byte duplicates
+# of the active room-card JPEGs. Keep both originals in Git, but omit only the
+# redundant copies from the runtime package. Exact Git/SHA-256 identities and
+# the post-copy runtime-closure audit make this exclusion fail closed.
+UNREFERENCED_DUPLICATE_RUNTIME_IMAGES = {
+    "assets/images/legacy/room-carved.jpg": {
+        "duplicateOf": "assets/images/rooms/opium.jpg",
+        "gitBlobSha": "58184ddc4144e0355dce38912648d63596d8a458",
+        "sha256": "cccf83a500b4e63298b7c629b7d202c2c45815c133890db736c8b0b24e2abb8c",
+    },
+    "assets/images/legacy/room-purple.jpg": {
+        "duplicateOf": "assets/images/rooms/rising-sun.jpg",
+        "gitBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d",
+        "sha256": "1962dfbbb131d1fbf21d703aabbd14197801fe52187cbb948ec6d066780d8ae6",
+    },
+}
 MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
 LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
@@ -55,6 +72,63 @@ def digest_bytes(data: bytes) -> str:
 
 def is_within(path: Path, root: Path) -> bool:
     return path == root or root in path.parents
+
+
+def git_blob_sha(data: bytes) -> str:
+    """Return Git's blob object SHA-1 for exact source-identity checks."""
+    return hashlib.sha1(f"blob {len(data)}\\0".encode("ascii") + data).hexdigest()
+
+
+def validate_runtime_duplicate_image_exclusions(root: Path = ROOT) -> dict:
+    """Verify only the two reviewed, unreferenced duplicate JPEGs may be pruned."""
+    raw_root = Path(root)
+    if raw_root.is_symlink():
+        fail("Runtime duplicate-image exclusion root must not be a symlink.")
+    resolved_root = raw_root.resolve(strict=True)
+    if not resolved_root.is_dir():
+        fail("Runtime duplicate-image exclusion root must be a directory.")
+
+    entries: list[dict] = []
+    for relative, expected in sorted(UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.items()):
+        source_path = resolved_root / PurePosixPath(relative)
+        duplicate_relative = expected["duplicateOf"]
+        duplicate_path = resolved_root / PurePosixPath(duplicate_relative)
+        for label, candidate in (("excluded image", source_path), ("retained duplicate", duplicate_path)):
+            if candidate.is_symlink() or not candidate.is_file():
+                fail(f"Runtime duplicate-image exclusion requires a regular {label}: {relative}")
+            if not is_within(candidate.resolve(strict=True), resolved_root):
+                fail(f"Runtime duplicate-image exclusion escapes its root: {relative}")
+
+        source_bytes = source_path.read_bytes()
+        duplicate_bytes = duplicate_path.read_bytes()
+        source_sha256 = digest_bytes(source_bytes)
+        source_git_blob_sha = git_blob_sha(source_bytes)
+        if (
+            source_sha256 != expected["sha256"]
+            or source_git_blob_sha != expected["gitBlobSha"]
+            or duplicate_bytes != source_bytes
+            or digest_bytes(duplicate_bytes) != expected["sha256"]
+            or git_blob_sha(duplicate_bytes) != expected["gitBlobSha"]
+        ):
+            fail(
+                "Runtime duplicate-image exclusion identity changed; review the source mapping before pruning: "
+                + relative
+            )
+
+        entries.append({
+            "path": relative,
+            "duplicateOf": duplicate_relative,
+            "bytes": len(source_bytes),
+            "gitBlobSha": source_git_blob_sha,
+            "sha256": source_sha256,
+        })
+
+    return {
+        "status": "PASS",
+        "excludedFileCount": len(entries),
+        "excludedBytes": sum(entry["bytes"] for entry in entries),
+        "files": entries,
+    }
 
 
 class ResponsivePictureParser(HTMLParser):
@@ -1405,8 +1479,11 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
     }
 
 
-def checked_paths() -> list[Path]:
-    """Select only browser runtime files and explicit release-safety policy files."""
+def checked_paths(excluded_runtime_assets: set[str] | None = None) -> list[Path]:
+    """Select browser runtime files, omitting only verified duplicate legacy images."""
+    if excluded_runtime_assets is None:
+        exclusion_report = validate_runtime_duplicate_image_exclusions()
+        excluded_runtime_assets = {entry["path"] for entry in exclusion_report["files"]}
     files: set[Path] = set()
     for candidate in ROOT.glob("*.html"):
         if candidate.is_symlink() or not candidate.is_file():
@@ -1458,7 +1535,7 @@ def checked_paths() -> list[Path]:
             if candidate.is_dir() or not candidate.is_file() or candidate.name == ".gitkeep":
                 continue
             relative = candidate.relative_to(ROOT).as_posix()
-            if relative in EDITORIAL_PREVIEW_ONLY_ASSETS:
+            if relative in EDITORIAL_PREVIEW_ONLY_ASSETS or relative in excluded_runtime_assets:
                 continue
             files.add(candidate)
 
@@ -2090,6 +2167,50 @@ def deterministic_archive(output: Path, archive: Path) -> None:
         if closure_files == 0 or closure_missing != 0:
             fail("The release manifest must record a completed asset-closure audit with zero missing local references.")
 
+        pruning = manifest.get("runtimeAssetPruning")
+        if not isinstance(pruning, dict) or pruning.get("status") != "PASS":
+            fail("The release manifest must record a passing runtime duplicate-image pruning audit.")
+        pruned_entries = pruning.get("files")
+        if not isinstance(pruned_entries, list):
+            fail("Runtime duplicate-image pruning files must be an array.")
+        expected_pruned_paths = set(UNREFERENCED_DUPLICATE_RUNTIME_IMAGES)
+        actual_pruned_paths: set[str] = set()
+        actual_pruned_bytes = 0
+        for entry in pruned_entries:
+            if not isinstance(entry, dict):
+                fail("Runtime duplicate-image pruning contains a malformed entry.")
+            pruned_path = _validate_archive_member_path(entry.get("path"), "Pruned runtime image")
+            duplicate_path = _validate_archive_member_path(entry.get("duplicateOf"), "Retained duplicate image")
+            expected = UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.get(pruned_path)
+            if expected is None or duplicate_path != expected["duplicateOf"]:
+                fail(f"Runtime duplicate-image pruning contains an unapproved path mapping: {pruned_path}")
+            if pruned_path in names:
+                fail(f"Pruned duplicate image unexpectedly remains in the staging archive: {pruned_path}")
+            if duplicate_path not in names:
+                fail(f"Retained duplicate image is missing from the staging archive: {duplicate_path}")
+            byte_count = entry.get("bytes")
+            if isinstance(byte_count, bool) or not isinstance(byte_count, int) or byte_count < 1:
+                fail(f"Runtime duplicate-image byte count is invalid: {pruned_path}")
+            if entry.get("sha256") != expected["sha256"] or entry.get("gitBlobSha") != expected["gitBlobSha"]:
+                fail(f"Runtime duplicate-image identity metadata is invalid: {pruned_path}")
+            retained_bytes = package.read(duplicate_path)
+            if (
+                len(retained_bytes) != byte_count
+                or digest_bytes(retained_bytes) != expected["sha256"]
+                or git_blob_sha(retained_bytes) != expected["gitBlobSha"]
+            ):
+                fail(f"Retained duplicate does not match the pruned source identity: {duplicate_path}")
+            if pruned_path in actual_pruned_paths:
+                fail(f"Runtime duplicate-image pruning repeats a path: {pruned_path}")
+            actual_pruned_paths.add(pruned_path)
+            actual_pruned_bytes += byte_count
+        if (
+            actual_pruned_paths != expected_pruned_paths
+            or pruning.get("excludedFileCount") != len(expected_pruned_paths)
+            or pruning.get("excludedBytes") != actual_pruned_bytes
+        ):
+            fail("Runtime duplicate-image pruning report does not reconcile with the approved exact-duplicate set.")
+
         document_contract = manifest.get("documentContract")
         if not isinstance(document_contract, dict) or document_contract.get("status") != "PASS":
             fail("The release manifest must record a passing document accessibility/SEO contract.")
@@ -2241,7 +2362,9 @@ def main() -> int:
         archive.unlink()
     output.mkdir(parents=True)
 
-    files = checked_paths()
+    runtime_asset_pruning_report = validate_runtime_duplicate_image_exclusions()
+    excluded_runtime_assets = {entry["path"] for entry in runtime_asset_pruning_report["files"]}
+    files = checked_paths(excluded_runtime_assets)
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
     hosting_delivery_report = validate_staging_policy(
         source_config,
@@ -2255,6 +2378,10 @@ def main() -> int:
     legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
     asset_closure_report = validate_runtime_asset_closure(output)
+    for entry in runtime_asset_pruning_report["files"]:
+        pruned_path = output / entry["path"]
+        if pruned_path.is_symlink() or pruned_path.exists():
+            fail(f"Verified duplicate runtime image was not pruned from the package: {entry['path']}")
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     document_contract_report = validate_document_contract(output)
@@ -2276,6 +2403,7 @@ def main() -> int:
         "files": entries,
         "packageMetrics": package_metrics,
         "runtimeAssetClosure": runtime_asset_report,
+        "runtimeAssetPruning": runtime_asset_pruning_report,
         "documentContract": document_contract_report,
         "editorialDraftIsolation": editorial_draft_isolation_report,
         "hostingDelivery": hosting_delivery_report,
@@ -2295,6 +2423,11 @@ def main() -> int:
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
     print(f"Runtime files: {len(entries)}")
+    print(
+        "Verified unreferenced duplicate runtime images excluded: "
+        f"{runtime_asset_pruning_report['excludedFileCount']} files / "
+        f"{runtime_asset_pruning_report['excludedBytes']} bytes"
+    )
     print("Draft editorial source records, preview route/assets and generated draft blog routes excluded: PASS")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
     print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
