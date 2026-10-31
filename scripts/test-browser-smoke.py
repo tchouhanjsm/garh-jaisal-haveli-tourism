@@ -1266,7 +1266,7 @@ def build_responsive_image_evidence_report(
         else:
             deferred_template_count = first_view.get("deferredTemplateCount")
             deferred_activated_count = first_view.get("deferredActivatedCount")
-            expected_deferred_total = 5 if route == "index.html" else 7 if route == "gallery.html" else 0
+            expected_deferred_total = 5 if route == "index.html" else 7 if route in ("gallery.html", "rooms.html") else 0
             valid_deferred_counts = all(
                 isinstance(value, int) and not isinstance(value, bool) and value >= 0
                 for value in (deferred_template_count, deferred_activated_count)
@@ -1505,8 +1505,8 @@ def build_responsive_image_evidence_report(
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
-                "Homepage and Gallery supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
-                "Deferred-template and pre-capture activation counts reconcile to five homepage and seven Gallery supporting images.",
+                "Homepage, Rooms and Gallery supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
+                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms and seven Gallery supporting images.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
@@ -2038,7 +2038,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 "[data-deferred-media-failed='true']"
                             )
                             deferred_target_handles = deferred_targets.element_handles()
-                            expected_deferred_targets = 5 if page_name == "index.html" else 7 if page_name == "gallery.html" else 0
+                            expected_deferred_targets = 5 if page_name == "index.html" else 7 if page_name in ("gallery.html", "rooms.html") else 0
                             check_preview(
                                 len(deferred_target_handles) == expected_deferred_targets,
                                 f"{page_name}: expected {expected_deferred_targets} deferred media targets, "
@@ -2082,7 +2082,7 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                         f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
                                     )
                                     break
-                            expected_deferred_activated = 5 if page_name == "index.html" else 7 if page_name == "gallery.html" else 0
+                            expected_deferred_activated = 5 if page_name == "index.html" else 7 if page_name in ("gallery.html", "rooms.html") else 0
                             actual_deferred_activated = page.locator('[data-deferred-media-activated="true"]').count()
                             check_preview(
                                 actual_deferred_activated == expected_deferred_activated,
@@ -3131,7 +3131,7 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            for fallback_route, expected_fallback_count in (("index.html", 5), ("gallery.html", 7)):
+            for fallback_route, expected_fallback_count in (("index.html", 5), ("rooms.html", 7), ("gallery.html", 7)):
                 fallback_media_page = fallback_context.new_page()
                 fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
                 fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")

@@ -208,6 +208,12 @@ assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g
   'gallery.html: every deferred Gallery card must retain an inert responsive-image template');
 assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'gallery.html: every deferred Gallery card must retain a no-JavaScript image fallback');
+assert.equal((roomsHtml.match(/<div class="room-card__image" data-deferred-media>/g) || []).length, 7,
+  'rooms.html: all seven named-room cards must defer their supporting image payloads');
+assert.equal((roomsHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
+  'rooms.html: every deferred room card must retain an inert responsive-image template');
+assert.equal((roomsHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
+  'rooms.html: every deferred room card must retain a no-JavaScript image fallback');
 assert.match(siteJs, /function initDeferredSupportingMedia\(/,
   'shared runtime must initialize deferred supporting media');
 assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
