@@ -1673,6 +1673,13 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                             }
                                           }
                                           const box = img.getBoundingClientRect();
+                                          const pictureElement = img.closest('picture');
+                                          const featurePhoto = img.closest('.feature-photo');
+                                          const pictureBox = pictureElement ? pictureElement.getBoundingClientRect() : null;
+                                          const featurePhotoBox = featurePhoto ? featurePhoto.getBoundingClientRect() : null;
+                                          const imageStyle = getComputedStyle(img);
+                                          const pictureStyle = pictureElement ? getComputedStyle(pictureElement) : null;
+                                          const featurePhotoStyle = featurePhoto ? getComputedStyle(featurePhoto) : null;
                                           const carouselViewport = img.closest('.experience-carousel__viewport');
                                           const renderedWidth = box.width || (carouselViewport
                                             ? carouselViewport.getBoundingClientRect().width : 0);
@@ -1683,6 +1690,13 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                             width: img.naturalWidth,
                                             height: img.naturalHeight,
                                             renderedWidth,
+                                            pictureWidth: pictureBox ? pictureBox.width : 0,
+                                            pictureDisplay: pictureStyle ? pictureStyle.display : '<missing>',
+                                            featurePhotoWidth: featurePhotoBox ? featurePhotoBox.width : 0,
+                                            featurePhotoDisplay: featurePhotoStyle ? featurePhotoStyle.display : '<missing>',
+                                            imageDisplay: imageStyle.display,
+                                            imageComputedWidth: imageStyle.width,
+                                            imageVisibility: imageStyle.visibility,
                                             devicePixelRatio: window.devicePixelRatio,
                                             declaredWidth: img.getAttribute('width') || '',
                                             declaredHeight: img.getAttribute('height') || '',
@@ -1763,7 +1777,15 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 )
                                 check_preview(
                                     details["renderedWidth"] > 0,
-                                    f"{label}: responsive image slot must have a measurable rendered width",
+                                    (
+                                        f"{label}: responsive image slot must have a measurable rendered width "
+                                        f"(img={details['renderedWidth']:.1f}px; "
+                                        f"picture={details['pictureWidth']:.1f}px/{details['pictureDisplay']}; "
+                                        f"feature-photo={details['featurePhotoWidth']:.1f}px/{details['featurePhotoDisplay']}; "
+                                        f"img-display={details['imageDisplay']}; "
+                                        f"img-computed-width={details['imageComputedWidth']}; "
+                                        f"visibility={details['imageVisibility']})"
+                                    ),
                                 )
                                 required_pixels = 0.0
                                 ratio = None
