@@ -101,6 +101,7 @@ def validate_responsive_markup(
     generated_files: list[dict],
     image_sources: list[dict],
     responsive_widths: tuple[int, ...],
+    responsive_width_overrides: dict[str, tuple[int, ...]] | None = None,
 ) -> dict:
     """Match every generated srcset descriptor to decoded output bytes and JPEG fallback."""
     output = output.resolve(strict=True)
@@ -285,6 +286,10 @@ def validate_responsive_markup(
             source_relative = PurePosixPath(source_record["sourceJpeg"]).relative_to(
                 PurePosixPath("assets/images")
             )
+            source_name = source_relative.as_posix()
+            expected_widths = (responsive_width_overrides or {}).get(
+                source_name, responsive_widths
+            )
             expected_candidates = [
                 (
                     (
@@ -294,7 +299,7 @@ def validate_responsive_markup(
                     ).as_posix(),
                     width,
                 )
-                for width in responsive_widths
+                for width in expected_widths
                 if width < natural_width
             ]
             expected_candidates.append((source_record["fullSizeWebp"], natural_width))
@@ -1579,7 +1584,8 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                 generated_output_files.append(candidate_record)
 
     markup_validation = validate_responsive_markup(
-        output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS)
+        output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
+        generator.RESPONSIVE_WIDTH_OVERRIDES,
     )
     source_jpeg_bytes = sum(item["fallbackBytes"] for item in image_sources)
     optimized_jpeg_source_bytes = sum(
