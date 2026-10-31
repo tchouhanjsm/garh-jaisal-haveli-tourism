@@ -219,7 +219,7 @@ assert.equal((roomsHtml.match(/<noscript data-deferred-picture-fallback>/g) || [
 assert.ok(roomCompareJs.includes('function getRoomCardImage(card)')
   && roomCompareJs.includes("template.content.querySelector('img')"),
   'room comparison must resolve photographs from active DOM or inert deferred templates');
-assert.equal((roomCompareJs.match(/const image = getRoomCardImage\\(card\\);/g) || []).length, 2,
+assert.equal(roomCompareJs.split('const image = getRoomCardImage(card);').length - 1, 2,
   'room comparison validation and comparison records must share the deferred-aware image resolver');
 assert.match(siteJs, /function initDeferredSupportingMedia\(/,
   'shared runtime must initialize deferred supporting media');
