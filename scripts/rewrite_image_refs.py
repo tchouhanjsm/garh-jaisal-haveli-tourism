@@ -443,11 +443,7 @@ def generate_responsive_variants(
             hero_delivery_variant = None
             hero_config = HERO_DELIVERY_VARIANTS.get(filename)
             if hero_config:
-                hero_relative = (
-                    PurePosixPath("assets/images/responsive")
-                    / relative.parent
-                    / f"{relative.stem}-{width}.webp"
-                )
+                hero_relative = PurePosixPath(_hero_delivery_relative_path(filename, width))
                 if hero_relative.is_absolute() or any(part in {"", ".", ".."} for part in hero_relative.parts):
                     raise ValueError(f"Unsafe hero delivery path for {filename}: {hero_relative}")
                 hero_target = root / Path(*hero_relative.parts)
@@ -727,6 +723,15 @@ def _is_hero_image(tag: str, ancestor_classes: set[str] | None = None) -> bool:
     )
 
 
+def _hero_delivery_relative_path(filename: str, natural_width: int) -> str:
+    relative = _validated_image_relative_path(filename)
+    return (
+        PurePosixPath("assets/images/responsive")
+        / relative.parent
+        / f"{relative.stem}-{natural_width}.webp"
+    ).as_posix()
+
+
 def _srcset(root: Path, filename: str, *, hero: bool = False) -> str:
     """Build a verified width-descriptor srcset, using a quality-gated hero derivative when applicable."""
     root = _resolve_site_root(root)
@@ -755,11 +760,7 @@ def _srcset(root: Path, filename: str, *, hero: bool = False) -> str:
         raise FileNotFoundError(f"Missing full-size WebP source: {full_size}")
     hero_config = HERO_DELIVERY_VARIANTS.get(filename) if hero else None
     if hero_config:
-        hero_relative = (
-            PurePosixPath("assets/images/responsive")
-            / relative.parent
-            / f"{relative.stem}-{natural_width}.webp"
-        )
+        hero_relative = PurePosixPath(_hero_delivery_relative_path(filename, natural_width))
         hero_candidate = root / Path(*hero_relative.parts)
         if hero_candidate.is_symlink() or not hero_candidate.is_file():
             raise FileNotFoundError(f"Missing quality-gated hero delivery candidate: {hero_candidate}")
@@ -841,7 +842,8 @@ def rewrite_html_text(text: str, extension: str, root: Path | None = None) -> st
             expected_source_urls = {_full_size_webp_url(image_name)}
             hero_config = HERO_DELIVERY_VARIANTS.get(image_name) if is_hero else None
             if hero_config:
-                expected_source_urls.add(hero_config["path"])
+                hero_width, _ = _natural_dimensions(root, image_name)
+                expected_source_urls.add(_hero_delivery_relative_path(image_name, hero_width))
             has_mapped_source = any(
                 (get_attribute(source_match.group(0), "data-responsive-image") or "").lower() == "true"
                 and bool(
