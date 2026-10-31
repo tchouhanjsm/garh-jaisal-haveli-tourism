@@ -1589,6 +1589,41 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                 source = picture.locator('source[data-responsive-image="true"]').first
                                 image = picture.locator("img").first
                                 label = f"{page_name} at {width}px @{device_scale_factor}x picture {index + 1}"
+                                # Activate an associated tab panel before measuring its images.
+                                # scrollIntoView cannot expose content inside a hidden tab panel;
+                                # use the real tab control so its accessibility state and layout
+                                # are exercised exactly as a guest would activate them.
+                                panel_id = image.evaluate(
+                                    "(img) => img.closest('[role=\\"tabpanel\\"]')?.id || ''"
+                                )
+                                if panel_id:
+                                    panel = page.locator(f'[role="tabpanel"]#{panel_id}')
+                                    tab = page.locator(f'[role="tab"][aria-controls="{panel_id}"]')
+                                    if panel.count() != 1:
+                                        failures.append(
+                                            f"{label}: responsive image tab panel {panel_id} is missing or ambiguous"
+                                        )
+                                        continue
+                                    if not panel.is_visible():
+                                        if tab.count() != 1:
+                                            failures.append(
+                                                f"{label}: tab control for hidden panel {panel_id} is missing or ambiguous"
+                                            )
+                                            continue
+                                        try:
+                                            tab.click(timeout=5000)
+                                            panel.wait_for(state="visible", timeout=5000)
+                                        except Exception as error:
+                                            failures.append(
+                                                f"{label}: could not activate tab panel {panel_id}: "
+                                                f"{type(error).__name__}: {sanitize_diagnostic_text(error)}"
+                                            )
+                                            continue
+                                    if tab.count() == 1 and tab.get_attribute("aria-selected") != "true":
+                                        failures.append(
+                                            f"{label}: tab panel {panel_id} became visible without selecting its tab"
+                                        )
+                                        continue
                                 # Exercise every responsive picture in the real package, including
                                 # offscreen and inactive carousel/gallery slides. Force eager loading
                                 # only in this isolated test context; production loading policy is

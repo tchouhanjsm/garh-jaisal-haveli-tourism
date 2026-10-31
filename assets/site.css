@@ -369,4 +369,3 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 /* Keep fallback panel headings consistent when nested below an existing h3. */
 .guest-enquiry-recovery h4{margin:0;font-family:var(--serif);font-size:clamp(20px,2.4vw,26px);font-weight:400;line-height:1.2}
 picture.responsive-image{display:contents}
-.feature-photo picture{display:block;width:100%;min-width:0;overflow:hidden}
