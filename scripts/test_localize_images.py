@@ -1588,7 +1588,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 self.assertEqual(validation["status"], "PASS")
                 self.assertEqual(validation["validatedSrcsetCandidateCount"], len(entry["variants"]) + 2)
 
-    def test_responsive_sizes_follow_verified_layout_contexts(self) -> None>
+    def test_responsive_sizes_follow_verified_layout_contexts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source_names = (
