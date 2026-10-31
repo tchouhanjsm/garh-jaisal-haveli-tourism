@@ -623,6 +623,7 @@ class DocumentContractParser(HTMLParser):
         self.viewports: list[str] = []
         self.open_graph: dict[str, list[str]] = {}
         self.social_metadata: dict[str, list[str]] = {}
+        self.jsonld_scripts: list[dict] = []
         self.main_count = 0
         self.skip_link_hrefs: list[str] = []
         self.images: list[dict] = []
@@ -661,6 +662,8 @@ class DocumentContractParser(HTMLParser):
             self.h1_nodes.append(node)
         elif name == "main":
             self.main_count += 1
+        elif name == "script" and values.get("type", "").split(";", 1)[0].strip().lower() == "application/ld+json":
+            self.jsonld_scripts.append(node)
         elif name == "meta":
             meta_name = values.get("name", "").strip().lower()
             property_name = values.get("property", "").strip().lower()
@@ -871,6 +874,9 @@ def validate_document_contract(output: Path) -> dict:
         "socialPreviewRoutesChecked": 0,
         "socialPreviewImagesChecked": 0,
         "socialPreviewFailures": 0,
+        "structuredDataRoutesChecked": 0,
+        "structuredDataBlocksChecked": 0,
+        "structuredDataFailures": 0,
         "brokenAriaLabelledbyReferences": 0,
         "duplicateIds": 0,
         "duplicateTitles": 0,
@@ -963,6 +969,70 @@ def validate_document_contract(output: Path) -> dict:
         counters["duplicateIds"] += len(parser.duplicate_ids)
         if parser.duplicate_ids:
             errors.append(f"{route}: duplicate element IDs: {', '.join(sorted(parser.duplicate_ids)[:8])}.")
+
+        if route != "404.html":
+            counters["structuredDataRoutesChecked"] += 1
+            counters["structuredDataBlocksChecked"] += len(parser.jsonld_scripts)
+            route_structured_errors: list[str] = []
+            webpage_matches = 0
+            if not parser.jsonld_scripts:
+                route_structured_errors.append(
+                    f"{route}: requires at least one application/ld+json block."
+                )
+
+            page_language = parser.html_languages[0] if len(parser.html_languages) == 1 else ""
+            for block_index, script_node in enumerate(parser.jsonld_scripts, start=1):
+                try:
+                    payload = json.loads(script_node["text"].strip())
+                except (json.JSONDecodeError, TypeError) as error:
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} contains invalid JSON: {error}."
+                    )
+                    continue
+
+                if not isinstance(payload, dict):
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} must contain one Schema.org object."
+                    )
+                    continue
+                if payload.get("@context") != "https://schema.org":
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} must use https://schema.org context."
+                    )
+
+                raw_types = payload.get("@type")
+                if isinstance(raw_types, str):
+                    schema_types = [raw_types] if raw_types.strip() else []
+                elif isinstance(raw_types, list) and all(
+                    isinstance(value, str) and value.strip() for value in raw_types
+                ):
+                    schema_types = raw_types
+                else:
+                    schema_types = []
+                if not schema_types:
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} must declare a non-empty @type."
+                    )
+
+                if "WebPage" in schema_types:
+                    if (
+                        payload.get("name") == title_value
+                        and payload.get("description") == description_value
+                        and payload.get("inLanguage") == page_language
+                    ):
+                        webpage_matches += 1
+                    else:
+                        route_structured_errors.append(
+                            f"{route}: WebPage name, description and inLanguage must match visible route metadata."
+                        )
+
+            if webpage_matches != 1:
+                route_structured_errors.append(
+                    f"{route}: exactly one WebPage node must match the document title, description and language."
+                )
+            if route_structured_errors:
+                counters["structuredDataFailures"] += 1
+                errors.extend(route_structured_errors)
 
         if route != "404.html":
             required_open_graph = ("og:title", "og:description", "og:image")
@@ -2356,12 +2426,14 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             "buttonsChecked", "unnamedButtons", "formControlsChecked", "unlabelledFormControls",
             "missingLanguage", "missingTitle", "missingDescription", "missingViewport", "missingH1",
             "missingMain", "missingSkipLink", "missingOpenGraph", "socialPreviewRoutesChecked",
-            "socialPreviewImagesChecked", "socialPreviewFailures", "brokenAriaLabelledbyReferences",
+            "socialPreviewImagesChecked", "socialPreviewFailures", "structuredDataRoutesChecked",
+            "structuredDataBlocksChecked", "structuredDataFailures", "brokenAriaLabelledbyReferences",
             "duplicateIds", "duplicateTitles", "duplicateDescriptions",
         )
         count_fields = {
             "routesScanned", "imagesChecked", "linksChecked", "buttonsChecked", "formControlsChecked",
             "socialPreviewRoutesChecked", "socialPreviewImagesChecked",
+            "structuredDataRoutesChecked", "structuredDataBlocksChecked",
         }
         for field in contract_fields:
             value = document_contract.get(field)
@@ -2377,6 +2449,12 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             or document_contract["socialPreviewFailures"] != 0
         ):
             fail("The release manifest must record complete, passing social-preview image integrity checks.")
+        if (
+            document_contract["structuredDataRoutesChecked"] == 0
+            or document_contract["structuredDataBlocksChecked"] < document_contract["structuredDataRoutesChecked"]
+            or document_contract["structuredDataFailures"] != 0
+        ):
+            fail("The release manifest must record complete, passing route-level Schema.org JSON-LD checks.")
 
         hosting_delivery = manifest.get("hostingDelivery")
         if not isinstance(hosting_delivery, dict) or hosting_delivery.get("status") != "PASS":
@@ -2575,6 +2653,12 @@ def main() -> int:
         f"{document_contract_report['socialPreviewImagesChecked']} images across "
         f"{document_contract_report['socialPreviewRoutesChecked']} routes; "
         f"failures {document_contract_report['socialPreviewFailures']}"
+    )
+    print(
+        "Structured data integrity: "
+        f"{document_contract_report['structuredDataBlocksChecked']} JSON-LD blocks across "
+        f"{document_contract_report['structuredDataRoutesChecked']} routes; "
+        f"failures {document_contract_report['structuredDataFailures']}"
     )
     print(f"Runtime files: {len(entries)}")
     print(

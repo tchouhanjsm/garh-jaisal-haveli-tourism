@@ -1196,6 +1196,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             root = Path(directory)
             create_jpeg(root, "hero.jpg", (1200, 800))
             create_jpeg(root, "room.jpg", (1200, 800))
+            valid_jsonld = '<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Example home","description":"Example home description","inLanguage":"en"}</script>'
             index_html = (
                 '<!doctype html><html lang="en"><head>'
                 '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -1221,6 +1222,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 '<label for="email">Email</label><input id="email" type="email">'
                 '</main></body></html>'
             )
+            index_html = index_html.replace("</head>", valid_jsonld + "</head>", 1)
             not_found_html = (
                 '<!doctype html><html lang="en"><head>'
                 '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -1241,6 +1243,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual(report["socialPreviewRoutesChecked"], 1)
             self.assertEqual(report["socialPreviewImagesChecked"], 1)
             self.assertEqual(report["socialPreviewFailures"], 0)
+            self.assertEqual(report["structuredDataRoutesChecked"], 1)
+            self.assertEqual(report["structuredDataBlocksChecked"], 1)
+            self.assertEqual(report["structuredDataFailures"], 0)
 
             index_path.write_text(index_html.replace(' alt="A heritage room"', ""), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "image missing alt attribute"):
@@ -1308,6 +1313,35 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     index_path.write_text(invalid_html, encoding="utf-8")
                     with self.assertRaisesRegex(RuntimeError, expected_error):
                         _PACKAGE_PREVIEW.validate_document_contract(root)
+
+            invalid_structured_data_cases = (
+                (
+                    index_html.replace(valid_jsonld, '<script type="application/ld+json">{invalid json}</script>'),
+                    "invalid JSON-LD block",
+                ),
+                (
+                    index_html.replace('"@context":"https://schema.org"', '"@context":"https://example.test/schema"'),
+                    "must use https://schema.org context",
+                ),
+                (
+                    index_html.replace(',"@type":"WebPage"', ''),
+                    "must declare a non-empty @type",
+                ),
+                (
+                    index_html.replace('"name":"Example home"', '"name":"Different page"'),
+                    "WebPage name, description and inLanguage must match",
+                ),
+                (
+                    index_html.replace(valid_jsonld, ''),
+                    "requires at least one application/ld+json block",
+                ),
+            )
+            for invalid_html, expected_error in invalid_structured_data_cases:
+                with self.subTest(expected_error=expected_error):
+                    index_path.write_text(invalid_html, encoding="utf-8")
+                    with self.assertRaisesRegex(RuntimeError, expected_error):
+                        _PACKAGE_PREVIEW.validate_document_contract(root)
+
 
     def test_package_audits_reject_symlinked_output_roots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1463,6 +1497,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "socialPreviewRoutesChecked": 1,
                     "socialPreviewImagesChecked": 1,
                     "socialPreviewFailures": 0,
+                    "structuredDataRoutesChecked": 1,
+                    "structuredDataBlocksChecked": 1,
+                    "structuredDataFailures": 0,
                     "brokenAriaLabelledbyReferences": 0,
                     "duplicateIds": 0,
                     "duplicateTitles": 0,
@@ -1517,6 +1554,13 @@ class RewriteImageReferencesTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "socialPreviewFailures"):
                 _PACKAGE_PREVIEW.deterministic_archive(output, archive)
             manifest["documentContract"]["socialPreviewFailures"] = 0
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            manifest["documentContract"]["structuredDataFailures"] = 1
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "structuredDataFailures"):
+                _PACKAGE_PREVIEW.deterministic_archive(output, archive)
+            manifest["documentContract"]["structuredDataFailures"] = 0
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
             manifest["runtimeAssetClosure"]["status"] = "FAIL"
