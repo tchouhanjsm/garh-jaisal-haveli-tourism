@@ -43,6 +43,10 @@ assert.match(directions, /data-arrival-access/,
   'Vehicle access caveats must remain distinct from the measured walking estimates');
 assert.match(stylesheet, /\.arrival-distance-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
   'The two walking estimates must share a paired responsive comparison layout');
+assert.match(stylesheet, /@media\s*\(max-width:\s*620px\)[\s\S]*?\.arrival-distance-grid\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/,
+  'The two walking estimates must stack at readable full width on narrow mobile screens');
+assert.match(stylesheet, /\.arrival-distance-card:nth-child\(2\)\s*\{\s*padding-inline-start:\s*0;\s*border-inline-start:\s*0;/,
+  'The stacked mobile estimate must not retain a desktop inset divider');
 assert.match(stylesheet, /\.arrival-distance-card--access\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
   'Date-dependent vehicle access must occupy a separate full-width band');
 

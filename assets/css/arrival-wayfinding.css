@@ -95,17 +95,23 @@
 }
 
 @media (max-width: 620px) {
+  .arrival-distance-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
   .arrival-distance-card {
     gap: 7px;
     padding-block: 18px 20px;
   }
 
   .arrival-distance-card__measure {
-    font-size: clamp(19px, 6vw, 24px);
+    font-size: clamp(22px, 6vw, 26px);
   }
 
   .arrival-distance-card:nth-child(2) {
-    padding-inline-start: 14px;
+    padding-inline-start: 0;
+    border-inline-start: 0;
   }
 
   .arrival-distance-card--access {

@@ -4676,9 +4676,19 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         check(comparison is not None,
               f"Directions: paired walking-distance comparison must render at {width}px")
         if comparison:
-            check(abs(comparison["parking"]["y"] - comparison["entrance"]["y"]) <= 2,
-                  f"Directions: 300m and 200m estimates must align as a paired comparison at {width}px")
-            check(comparison["access"]["y"] > comparison["parking"]["y"]
+            if width > 620:
+                check(abs(comparison["parking"]["y"] - comparison["entrance"]["y"]) <= 2,
+                      f"Directions: 300m and 200m estimates must align as a paired comparison at {width}px")
+                check(all(comparison[item]["width"] >= comparison["grid"]["width"] * 0.40
+                          for item in ("parking", "entrance")),
+                      f"Directions: paired estimates must retain readable column widths at {width}px")
+            else:
+                check(comparison["entrance"]["y"] > comparison["parking"]["y"] + 2,
+                      f"Directions: walking estimates must stack vertically on narrow mobile at {width}px")
+                check(all(comparison[item]["width"] >= comparison["grid"]["width"] * 0.90
+                          for item in ("parking", "entrance")),
+                      f"Directions: stacked estimates must use the available mobile width at {width}px")
+            check(comparison["access"]["y"] > comparison["entrance"]["y"]
                   and comparison["access"]["width"] >= comparison["grid"]["width"] * 0.90,
                   f"Directions: vehicle-access clarification must occupy its own full-width row at {width}px")
         travel_layout = page.evaluate("""() => {
@@ -4750,7 +4760,7 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             && bounds.top < window.innerHeight
             && bounds.bottom > Math.max(0, window.innerHeight - height);
           const focused = bar.contains(document.activeElement);
-          return {overlaps, focused, expected: overlaps && !focused,
+          return {overlaps, focused, cardBottom: bounds.bottom, expected: overlaps && !focused,
             suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
             display: getComputedStyle(bar).display,
             ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')};
@@ -4832,12 +4842,23 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                   and blurred_overlap["inert"],
                   f"Directions at {width}×{height}: suppression must resume only after focus leaves the booking bar")
 
-            page.evaluate("window.scrollTo(0, 0)")
-            page.wait_for_timeout(100)
+            page.evaluate("""() => {
+              const card = document.querySelector('[data-arrival-quick-card]');
+              if (!card) return;
+              document.documentElement.style.scrollBehavior = 'auto';
+              const bounds = card.getBoundingClientRect();
+              window.scrollTo({
+                left: 0,
+                top: Math.max(0, window.scrollY + bounds.bottom + 24),
+                behavior: 'auto',
+              });
+            }""")
+            page.wait_for_timeout(120)
             cleared = mobile_booking_state()
-            check(cleared is not None and not cleared["expected"] and not cleared["suppressed"]
+            check(cleared is not None and cleared["cardBottom"] <= 0
+                  and not cleared["expected"] and not cleared["suppressed"]
                   and cleared["display"] != "none" and cleared["ariaHidden"] is None and not cleared["inert"],
-                  f"Directions at {width}×{height}: booking bar must restore after scrolling away from the quick-arrival card")
+                  f"Directions at {width}×{height}: booking bar must restore only after the quick-arrival card leaves the viewport (state={cleared})")
 
     # Resizing to landscape/desktop must clear old suppression; returning to mobile
     # must recalculate state after the orientation event.

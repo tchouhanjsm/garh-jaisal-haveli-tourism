@@ -386,4 +386,8 @@ The Directions walking-distance section is composed as a paired 300m / 200m edit
 
 Chromium coverage adds short-height mobile scenarios at 320/360/390px, deliberately positions the real quick-arrival card over the fixed booking-bar region, verifies synchronized display/aria-hidden/inert behavior, preserves a keyboard-focused booking action, checks restoration after blur and scroll-away, and exercises resize/orientation transitions. The seven other routes explicitly reject the Directions-only suppression state.
 
+At widths up to 620px the two walking estimates stack at full content width instead of being compressed into narrow side-by-side columns; tablet and desktop retain the editorial two-column comparison. Chromium now asserts the corresponding row geometry and usable widths for both responsive modes.
+
+**Browser-test RCA:** the 390×640 failure came from the test returning to scroll position zero, where the tall mobile hero still legitimately intersects the fixed booking bar. The clear-state scenario now scrolls the quick-arrival card fully above the viewport, asserts its bottom edge is at or above zero, and only then requires the booking action to restore. The product suppression condition remains overlap-based.
+
 **Acceptance state:** this implementation batch is not visually accepted until the exact PR head produces all 48 integrity-checked screenshots, all six viewport widths pass on all eight routes, updated arrival contracts pass, and the owner reviews the actual artifact. Automated checks do not replace STG-01–STG-18 manual UAT. Canonical host, robots, sitemap, editorial publication, staging deployment and production release remain unchanged and owner-controlled.
