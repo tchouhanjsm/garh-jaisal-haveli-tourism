@@ -3,12 +3,9 @@ name: Site quality gates
 on:
   pull_request:
     branches: [main]
+  # Feature branches are validated by pull_request; avoid duplicating the full suite on every branch push.
   push:
-    branches:
-      - main
-      - 'feat/**'
-      - 'fix/**'
-      - 'chore/**'
+    branches: [main]
   workflow_dispatch:
 
 permissions:

@@ -4102,7 +4102,7 @@ def check_first_view_hierarchy(page, page_name: str, viewport_width: int) -> Non
 def check_collection_editorial_composition(page, page_name: str, viewport_width: int) -> None:
     """Keep seven-item room and photo collections editorially balanced at every audit width."""
     if page_name == "rooms.html":
-        state = page.evaluate("""() => {
+        state = page.evaluate(r"""() => {
           const grid = document.querySelector('.room-card-grid--catalog');
           const cards = grid ? [...grid.querySelectorAll('.room-card--named')] : [];
           const feature = grid && grid.querySelector('[data-room-card-composition="feature"]');
@@ -4137,7 +4137,7 @@ def check_collection_editorial_composition(page, page_name: str, viewport_width:
                   f"rooms.html at {viewport_width}px: feature image must stack above room copy on mobile ({state})")
 
     elif page_name == "gallery.html":
-        state = page.evaluate("""() => {
+        state = page.evaluate(r"""() => {
           const photoGrid = document.querySelector('.gallery-grid:not(.gallery-grid--source)');
           const photoCards = photoGrid ? [...photoGrid.querySelectorAll('.gallery-card')] : [];
           const photoFeature = photoGrid && photoGrid.querySelector('[data-gallery-composition="feature"]');
