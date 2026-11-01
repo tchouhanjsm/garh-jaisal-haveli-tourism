@@ -314,13 +314,6 @@ try {
   fs.mkdirSync(path.join(temp, 'docs'), { recursive: true });
   const tempMigrationManifestPath = path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json');
   fs.copyFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'), tempMigrationManifestPath);
-  const migrationDrift = JSON.parse(fs.readFileSync(tempMigrationManifestPath, 'utf8'));
-  migrationDrift.updatedAt = '2026-11-01';
-  fs.writeFileSync(tempMigrationManifestPath, JSON.stringify(migrationDrift, null, 2) + '\n');
-  const staleMigrationValidation = validateEditorialMediaDecisions(temp, reviewOutput, sourceOptions);
-  assert.ok(staleMigrationValidation.errors.some(message => /migration manifest changed after review bundle creation/.test(message)),
-    'a review bundle must be rejected when the migration manifest changes after bundle creation');
-  fs.copyFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'), tempMigrationManifestPath);
   const fakePath = path.join(temp, 'assets/images/corrupt.png');
   fs.writeFileSync(fakePath, Buffer.from('not a png'));
   fs.copyFileSync(fakePath, path.join(temp, 'assets/images/corrupt-copy.png'));
@@ -440,15 +433,27 @@ assert.deepEqual(mediaSourceEvidenceIssues(completeLicensedSource), [],
   'structured licensed-source evidence must pass when each required field is present');
 
 const migrationManifestPath = path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json');
-const tamperedMigration = JSON.parse(fs.readFileSync(migrationManifestPath, 'utf8'));
-const fortMapping = tamperedMigration.entries.find(entry =>
-  entry.targetPath === 'assets/images/gallery/hotel/fort-from-roof.webp');
-assert.ok(fortMapping, 'negative migration fixture must include the known mapped candidate');
-fortMapping.targetBlobSha = '0'.repeat(40);
-fs.writeFileSync(migrationManifestPath, JSON.stringify(tamperedMigration, null, 2) + '\n');
-const migrationMismatchReport = auditMedia(temp);
+const originalMigrationBytes = fs.readFileSync(migrationManifestPath);
 const migrationReviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-migration-media-review-'));
 try {
+  const migrationReviewBundle = path.join(migrationReviewTemp, 'review-bundle');
+  buildEditorialMediaReview(temp, migrationReviewBundle, auditMedia(temp));
+
+  const migrationDrift = JSON.parse(originalMigrationBytes.toString('utf8'));
+  migrationDrift.updatedAt = '2026-11-01';
+  fs.writeFileSync(migrationManifestPath, JSON.stringify(migrationDrift, null, 2) + '\n');
+  const staleMigrationValidation = validateEditorialMediaDecisions(temp, migrationReviewBundle);
+  assert.ok(staleMigrationValidation.errors.some(message => /migration manifest changed after review bundle creation/.test(message)),
+    'a review bundle must be rejected when the migration manifest changes after bundle creation');
+  fs.writeFileSync(migrationManifestPath, originalMigrationBytes);
+
+  const tamperedMigration = JSON.parse(originalMigrationBytes.toString('utf8'));
+  const fortMapping = tamperedMigration.entries.find(entry =>
+    entry.targetPath === 'assets/images/gallery/hotel/fort-from-roof.webp');
+  assert.ok(fortMapping, 'negative migration fixture must include the known mapped candidate');
+  fortMapping.targetBlobSha = '0'.repeat(40);
+  fs.writeFileSync(migrationManifestPath, JSON.stringify(tamperedMigration, null, 2) + '\n');
+  const migrationMismatchReport = auditMedia(temp);
   assert.throws(
     () => buildEditorialMediaReview(temp, path.join(migrationReviewTemp, 'migration-mismatch'), migrationMismatchReport),
     /Migration manifest source and target Git blob identities differ|Recorded migration target blob does not match candidate bytes/,
