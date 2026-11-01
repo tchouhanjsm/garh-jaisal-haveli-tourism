@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const directions = fs.readFileSync(path.join(ROOT, 'directions.html'), 'utf8');
 const about = fs.readFileSync(path.join(ROOT, 'about.html'), 'utf8');
 const stylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'arrival-wayfinding.css'), 'utf8');
+const premiumStylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'premium-guest-journey.css'), 'utf8');
 const siteRuntime = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
 
 const publicPages = [
@@ -236,7 +237,10 @@ assert.match(siteRuntime, /function updateMobileBookingBar\(\)/,
   'Shared runtime must suppress the fixed mobile booking action when it covers the arrival hero card');
 assert.match(siteRuntime, /is-suppressed-by-arrival-card/,
   'Mobile booking suppression must use an explicit, page-scoped state');
-assert.match(stylesheet, /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*\{\s*display:\s*none/s,
-  'Arrival-specific CSS must let the fixed booking bar yield while it overlaps the summary card');
+assert.match(premiumStylesheet,
+  /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*,\s*\.mobile-booking-bar\.is-suppressed-by-guest-journey\s*\{\s*display:\s*none\s*!important/s,
+  'Shared premium CSS must hide the fixed booking action while it overlaps either protected in-flow decision surface');
+assert.doesNotMatch(stylesheet, /\.mobile-booking-bar\.is-suppressed-by-arrival-card/,
+  'Directions-specific CSS must not own shared fixed-action suppression presentation');
 
 console.log('PASS: source-backed distances, accessible Directions navigation, qualified travel options, mobility safeguards and exact-pin orientation are present.');
