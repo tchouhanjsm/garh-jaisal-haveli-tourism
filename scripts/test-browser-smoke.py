@@ -4177,9 +4177,12 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 }""")
                 check(state is not None and state["journeyPresent"] == (page_name != "index.html"),
                       f"{page_name}: inner routes must expose one shared guest-journey obstruction surface")
-                if page_name != "index.html":
+                if page_name not in ("index.html", "directions.html"):
                     check(state is not None and state["journeyOverlap"],
                           f"{page_name} at {width}px: the initial guest-journey rail should intersect the fixed-bar zone")
+                if page_name == "directions.html":
+                    check(state is not None and state["arrivalOverlap"],
+                          f"{page_name} at {width}px: the quick-arrival card should intersect the fixed-bar zone")
                 check(state is not None
                       and state["journeySuppressed"] == state["expectedJourneySuppression"]
                       and state["arrivalSuppressed"] == state["expectedArrivalSuppression"],
@@ -4885,18 +4888,31 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
     def mobile_booking_state():
         return page.evaluate("""() => {
           const card = document.querySelector('[data-arrival-quick-card]');
+          const journey = document.querySelector('.guest-journey');
           const bar = document.querySelector('.mobile-booking-bar');
-          if (!card || !bar) return null;
-          const bounds = card.getBoundingClientRect();
+          if (!bar || (!card && !journey)) return null;
           const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
-          const overlaps = bounds.left < window.innerWidth && bounds.right > 0
-            && bounds.top < window.innerHeight
-            && bounds.bottom > Math.max(0, window.innerHeight - height);
+          const obstructionTop = Math.max(0, window.innerHeight - height);
+          const overlaps = surface => {
+            if (!surface) return false;
+            const bounds = surface.getBoundingClientRect();
+            return bounds.left < window.innerWidth && bounds.right > 0
+              && bounds.top < window.innerHeight && bounds.bottom > obstructionTop;
+          };
+          const arrivalOverlap = overlaps(card);
+          const journeyOverlap = overlaps(journey);
+          const anyOverlap = arrivalOverlap || journeyOverlap;
           const focused = bar.contains(document.activeElement);
-          return {overlaps, focused, cardBottom: bounds.bottom, expected: overlaps && !focused,
-            suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+          return {
+            overlaps: anyOverlap, arrivalOverlap, journeyOverlap, focused,
+            cardBottom: card ? card.getBoundingClientRect().bottom : null,
+            journeyBottom: journey ? journey.getBoundingClientRect().bottom : null,
+            expected: anyOverlap && !focused,
+            suppressed: bar.classList.contains('is-suppressed-by-arrival-card')
+              || bar.classList.contains('is-suppressed-by-guest-journey'),
             display: getComputedStyle(bar).display,
-            ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')};
+            ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')
+          };
         }""")
 
     def position_quick_card_over_booking_bar():
@@ -4947,8 +4963,26 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             # Put the bar in a clear viewport before focusing, then shrink it while
             # focus is retained; the fixed action must not disappear under focus.
             page.set_viewport_size({"width": width, "height": 1600})
-            page.evaluate("window.scrollTo(0, 0)")
-            page.wait_for_timeout(80)
+            page.evaluate("""() => {
+              const surfaces = [
+                document.querySelector('[data-arrival-quick-card]'),
+                document.querySelector('.guest-journey')
+              ].filter(Boolean);
+              document.documentElement.style.scrollBehavior = 'auto';
+              const lastSurfaceBottom = surfaces.reduce(
+                (bottom, surface) => Math.max(bottom, window.scrollY + surface.getBoundingClientRect().bottom),
+                0
+              );
+              window.scrollTo({left: 0, top: lastSurfaceBottom + 24, behavior: 'auto'});
+            }""")
+            page.wait_for_function(
+                """() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  return bar && getComputedStyle(bar).display !== 'none'
+                    && bar.getAttribute('aria-hidden') === null && !bar.hasAttribute('inert');
+                }""",
+                timeout=3000,
+            )
             page.evaluate("""() => {
               document.querySelector('.mobile-booking-bar [data-booking-link]')
                 ?.focus({preventScroll: true});
@@ -4976,22 +5010,25 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                   f"Directions at {width}×{height}: suppression must resume only after focus leaves the booking bar")
 
             page.evaluate("""() => {
-              const card = document.querySelector('[data-arrival-quick-card]');
-              if (!card) return;
+              const surfaces = [
+                document.querySelector('[data-arrival-quick-card]'),
+                document.querySelector('.guest-journey')
+              ].filter(Boolean);
+              if (!surfaces.length) return;
               document.documentElement.style.scrollBehavior = 'auto';
-              const bounds = card.getBoundingClientRect();
-              window.scrollTo({
-                left: 0,
-                top: Math.max(0, window.scrollY + bounds.bottom + 24),
-                behavior: 'auto',
-              });
+              const lastSurfaceBottom = surfaces.reduce(
+                (bottom, surface) => Math.max(bottom, window.scrollY + surface.getBoundingClientRect().bottom),
+                0
+              );
+              window.scrollTo({left: 0, top: lastSurfaceBottom + 24, behavior: 'auto'});
             }""")
             page.wait_for_timeout(120)
             cleared = mobile_booking_state()
             check(cleared is not None and cleared["cardBottom"] <= 0
+                  and (cleared["journeyBottom"] is None or cleared["journeyBottom"] <= 0)
                   and not cleared["expected"] and not cleared["suppressed"]
                   and cleared["display"] != "none" and cleared["ariaHidden"] is None and not cleared["inert"],
-                  f"Directions at {width}×{height}: booking bar must restore only after the quick-arrival card leaves the viewport (state={cleared})")
+                  f"Directions at {width}×{height}: booking bar must restore only after both protected surfaces leave the viewport (state={cleared})")
 
     # Resizing to landscape/desktop must clear old suppression; returning to mobile
     # must recalculate state after the orientation event.
