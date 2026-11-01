@@ -312,10 +312,10 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
   if (!worksheet || worksheet.reviewManifestSha256 !== manifestDigest) {
     errors.push('Decision worksheet is stale: its SHA-256 does not match the exact manifest bytes.');
   }
-  const policy = worksheet && worksheet.policy;
-  if (!policy || policy.autoApplied !== false || policy.contentRecordsChanged !== false ||
-      policy.rightsInferred !== false || policy.visualRelevanceInferred !== false ||
-      policy.publicationEligible !== false) {
+  const worksheetPolicy = worksheet && worksheet.policy;
+  if (!worksheetPolicy || worksheetPolicy.autoApplied !== false || worksheetPolicy.contentRecordsChanged !== false ||
+      worksheetPolicy.rightsInferred !== false || worksheetPolicy.visualRelevanceInferred !== false ||
+      worksheetPolicy.publicationEligible !== false) {
     errors.push('Decision worksheet policy flags are missing or unsafe.');
   }
   if (!worksheet || !worksheet.summary || !Array.isArray(worksheet.decisions)) {
@@ -323,11 +323,15 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
     return emptyReport(manifestDigest, errors);
   }
 
+  if (!manifest || !Array.isArray(manifest.assets) || !Array.isArray(manifest.articles)) {
+    return emptyReport(manifestDigest, errors);
+  }
   const verified = verifyManifest(root, bundle, manifestFile.bytes, manifest, errors);
   const expected = expectedRows(manifest, errors);
   const actualCounts = { candidatePlacementCount: 0, missingCandidateRoleCount: 0 };
   const seen = new Set();
   const approvalRows = [];
+  const technicalRequests = [];
   const rowResults = [];
 
   for (const row of worksheet.decisions) {
@@ -402,9 +406,15 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
       errors.push('Decision row evidence objects are incomplete: ' + label);
       continue;
     }
+    exactKeys(row.visualReview, ['status', 'evidence', 'reviewer', 'reviewedAt'], 'Visual review ' + label, errors);
+    exactKeys(row.sourceEvidence, ['status', 'creator', 'sourceUrl', 'licenseName', 'evidenceReference', 'verifiedBy', 'verifiedAt'], 'Source evidence ' + label, errors);
+    exactKeys(row.technicalValidation, ['status', 'evidenceReference'], 'Technical validation ' + label, errors);
     const blockers = [];
     validateVisualReview(row, label, blockers);
     if (row.ownerDecision === 'approve') approvalRows.push({ row, label, blockers });
+    if (row.ownerDecision === 'approve' || row.technicalValidation.status === 'verified') {
+      technicalRequests.push({ row, label, blockers });
+    }
     if (row.ownerDecision === 'reject') {
       if (!nonEmpty(row.notes, 10)) blockers.push(label + ': rejection requires a documented reason of at least 10 characters.');
       if (row.visualReview.status === 'not_assessed' || !nonEmpty(row.visualReview.reviewer) ||
@@ -454,10 +464,13 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
   }
 
   const technicalRows = [];
-  for (const item of approvalRows) {
+  for (const item of technicalRequests) {
     const { row, label, blockers } = item;
     const candidatePath = row.entryType === 'candidate-placement' ? row.candidatePath : row.proposedCandidatePath;
-    if (typeof candidatePath !== 'string' || !candidatePath) continue;
+    if (typeof candidatePath !== 'string' || !candidatePath) {
+      blockers.push(label + ': technical validation requires a selected candidate path.');
+      continue;
+    }
     const absolute = safeImagePath(root, candidatePath);
     if (!absolute) {
       blockers.push(label + ': selected candidate path is missing or unsafe.');
@@ -490,8 +503,9 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
     }
     const resultRow = rowResults.find(row => row.articleSlug === item.row.articleSlug &&
       row.role === item.row.role && row.decision === item.row.ownerDecision);
-    if (resultRow && item.blockers.length) {
-      resultRow.state = 'BLOCKED';
+    if (resultRow) {
+      resultRow.state = item.blockers.length ? 'BLOCKED' :
+        item.row.ownerDecision === 'approve' ? 'EVIDENCE_COMPLETE_AWAITING_SEPARATE_REVIEW' : 'TECHNICAL_EVIDENCE_VERIFIED';
       resultRow.blockers = [...item.blockers];
     }
   }
