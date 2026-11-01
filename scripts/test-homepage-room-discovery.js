@@ -32,6 +32,7 @@ const records = [
     image: 'assets/images/rooms/red-maharani.jpg',
     alt: 'Red Maharani Room with red textiles, a carved bed and a bright window seat',
     floor: 'First floor',
+    wide: true,
   },
 ];
 
@@ -48,13 +49,18 @@ assert.match(section, /Room photographs and catalogue details are references, no
 assert.match(section, /Confirm the exact room, current amenities, occupancy and total rate for your dates/,
   'the preview must preserve the confirmation boundary for commercial room details');
 
-const cardMatches = [...section.matchAll(/<a class="home-room-card"[\s\S]*?<\/a>/g)];
+const cardMatches = [...section.matchAll(/<a class="home-room-card(?: home-room-card--wide)?"[\s\S]*?<\/a>/g)];
 assert.equal(cardMatches.length, records.length, 'homepage must preview exactly the three selected catalogue rooms');
 
 for (const record of records) {
   const card = cardMatches.map(match => match[0]).find(markup =>
     markup.includes('href="rooms.html#' + record.id + '"'));
   assert.ok(card, record.name + ' must link to its exact room-card anchor');
+  if (record.wide) {
+    assert.ok(card.includes('class="home-room-card home-room-card--wide"'), record.name + ' must expose its tablet-wide slot contract');
+  } else {
+    assert.ok(card.includes('class="home-room-card"'), record.name + ' must use the standard room-card slot contract');
+  }
   assert.ok(card.includes('<h3>' + record.name + '</h3>'), record.name + ' title must match the catalogue');
   assert.ok(card.includes('src="' + record.image + '"'), record.name + ' must use its reviewed local image asset');
   assert.ok(card.includes('alt="' + record.alt + '"'), record.name + ' must have descriptive image alternative text');
@@ -88,6 +94,10 @@ assert.match(css, /@media\s*\(max-width:\s*980px\)[\s\S]*?\.home-room-grid\s*\{[
   'tablet layout must rebalance the room previews into two columns');
 assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.home-room-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/,
   'phone layout must keep each room preview readable in a single column');
+assert.match(css, /\\.home-room-card--wide\\s*\\{[\\s\\S]*?grid-column:\\s*1\\s*\\/\\s*-1/,
+  'the tablet-wide preview must span the two-column grid explicitly');
+assert.match(css, /@media\\s*\\(max-width:\\s*640px\\)[\\s\\S]*?\\.home-room-card--wide\\s*\\{[\\s\\S]*?grid-column:\\s*auto/,
+  'the tablet-wide preview must return to a single normal card on phones');
 assert.match(css, /\.home-room-card:focus-visible\s*\{[\s\S]*?outline:\s*var\(--focus-ring\)/,
   'room cards must remain keyboard-visible');
 assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/,
