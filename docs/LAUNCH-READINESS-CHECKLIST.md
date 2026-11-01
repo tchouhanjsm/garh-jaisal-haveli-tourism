@@ -40,6 +40,12 @@ The test also requires a single high-priority non-lazy image in pages with a vis
 
 
 
+## Typography loading consistency — M29
+
+All eight core public routes declare one Google Fonts stylesheet using `display=optional` and preconnect to both the stylesheet and font-file origins. This removes the previous mixed `swap` / `optional` policy and avoids a late webfont replacement changing first-view text geometry. This delivery-policy improvement is not proof of better field LCP/CLS and does not replace slow-font testing or staging review.
+
+The regression contract in `scripts/test-premium-guest-journey.js` checks all eight route heads for exactly one Google Fonts stylesheet, the optional display policy and both preconnect hints. Chromium layout and visual review remain separate acceptance steps.
+
 ## Owner-gated SEO publication
 
 - Candidate origin: `https://hotelgarhjaisal.com`; `site.canonicalHostApproved` remains `false` until the owner separately authorizes canonical release. Do not infer approval from the PR merge.

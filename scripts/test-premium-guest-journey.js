@@ -144,15 +144,24 @@ for (const [label, foreground, background] of [
   assert.ok(ratio >= 4.5, label + ' must meet WCAG AA normal-text contrast; observed ' + ratio.toFixed(2));
 }
 
+const CORE_PUBLIC_ROUTES = [
+  'index.html', 'rooms.html', 'experiences.html', 'experience-details.html',
+  'dining.html', 'about.html', 'directions.html', 'gallery.html',
+];
+for (const route of CORE_PUBLIC_ROUTES) {
+  const html = fs.readFileSync(path.join(ROOT, route), 'utf8');
+  const fontStylesheets = [...html.matchAll(/<link\b[^>]*href=["']https:\/\/fonts\.googleapis\.com\/css2\?[^"']*["'][^>]*>/gi)];
+  assert.equal(fontStylesheets.length, 1, route + ': exactly one Google Fonts stylesheet must be declared');
+  assert.match(fontStylesheets[0][0], /display=optional/,
+    route + ': font loading must not swap a late webfont into the first-view layout');
+  assert.match(html, /<link rel="preconnect" href="https:\/\/fonts\.googleapis\.com">/,
+    route + ': warm the Google Fonts stylesheet connection');
+  assert.match(html, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
+    route + ': warm the cross-origin font-file connection');
+}
 const roomsHtml = fs.readFileSync(path.join(ROOT, 'rooms.html'), 'utf8');
 assert.match(roomsHtml, /class="page-hero page-hero--rooms"/,
   'Rooms hero must expose a route-specific class for responsive line-box reservation');
-assert.match(roomsHtml, /<link rel="preconnect" href="https:\/\/fonts\.googleapis\.com">/,
-  'Rooms must warm the Google Fonts stylesheet connection before the font CSS is discovered');
-assert.match(roomsHtml, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
-  'Rooms must warm the cross-origin font-file connection');
-assert.match(roomsHtml, /fonts\.googleapis\.com\/css2\?[^"]*display=optional/,
-  'Rooms must avoid a late font swap that moves hero text after first paint');
 assert.match(css, /\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*2\.1em/s,
   'Rooms desktop hero must reserve its two-line headline footprint');
 assert.match(css, /@media \(max-width: 760px\)\s*\{[\s\S]*?\.page-hero--rooms h1\s*\{[^}]*min-block-size:\s*4\.2em/s,
