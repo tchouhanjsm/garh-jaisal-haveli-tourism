@@ -320,11 +320,16 @@ assert.ok(fortMapping, 'negative migration fixture must include the known mapped
 fortMapping.targetBlobSha = '0'.repeat(40);
 fs.writeFileSync(migrationManifestPath, JSON.stringify(tamperedMigration, null, 2) + '\n');
 const migrationMismatchReport = auditMedia(temp);
-assert.throws(
-  () => buildEditorialMediaReview(temp, path.join(reviewTemp, 'migration-mismatch'), migrationMismatchReport),
-  /Recorded migration target blob does not match candidate bytes/,
-  'review bundle must fail closed when a recorded target blob does not match current candidate bytes'
-);
+const migrationReviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-migration-media-review-'));
+try {
+  assert.throws(
+    () => buildEditorialMediaReview(temp, path.join(migrationReviewTemp, 'migration-mismatch'), migrationMismatchReport),
+    /Recorded migration target blob does not match candidate bytes/,
+    'review bundle must fail closed when a recorded target blob does not match current candidate bytes'
+  );
+} finally {
+  fs.rmSync(migrationReviewTemp, { recursive: true, force: true });
+}
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
