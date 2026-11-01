@@ -3496,7 +3496,7 @@ def check_contact_hydration(page, base_url: str) -> None:
         page.wait_for_function(
             """() => {
               const section = document.querySelector("#arrival-planning");
-              const active = document.querySelector(".arrival-section-nav a[aria-current=\"location\"]");
+              const active = document.querySelector('.arrival-section-nav a[aria-current="location"]');
               return section && document.activeElement === section
                 && active && active.getAttribute("href") === "#arrival-enquiry-title";
             }""",
