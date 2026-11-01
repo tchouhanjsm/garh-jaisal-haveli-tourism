@@ -177,11 +177,11 @@
     row-gap: 34px;
   }
 
-  .home-room-card:last-child {
+  .home-room-card--wide {
     grid-column: 1 / -1;
   }
 
-  .home-room-card:last-child .home-room-card__media {
+  .home-room-card--wide .home-room-card__media {
     aspect-ratio: 1.85;
   }
 }
@@ -206,12 +206,12 @@
     margin-top: 30px;
   }
 
-  .home-room-card:last-child {
+  .home-room-card--wide {
     grid-column: auto;
   }
 
   .home-room-card__media,
-  .home-room-card:last-child .home-room-card__media {
+  .home-room-card--wide .home-room-card__media {
     aspect-ratio: 1.48;
   }
 
