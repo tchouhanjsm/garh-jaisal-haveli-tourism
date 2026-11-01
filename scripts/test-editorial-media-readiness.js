@@ -450,7 +450,7 @@ const migrationReviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-migratio
 try {
   assert.throws(
     () => buildEditorialMediaReview(temp, path.join(migrationReviewTemp, 'migration-mismatch'), migrationMismatchReport),
-    /Recorded migration target blob does not match candidate bytes/,
+    /Migration manifest source and target Git blob identities differ|Recorded migration target blob does not match candidate bytes/,
     'review bundle must fail closed when a recorded target blob does not match current candidate bytes'
   );
 } finally {
