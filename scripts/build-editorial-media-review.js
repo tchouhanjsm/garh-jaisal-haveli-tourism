@@ -29,6 +29,47 @@ function isWithin(parent, candidate) {
   return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
 }
 
+function gitBlobSha(bytes) {
+  return crypto.createHash('sha1')
+    .update(Buffer.from('blob ' + bytes.length + '\0', 'utf8'))
+    .update(bytes)
+    .digest('hex');
+}
+
+function readMigrationManifest(root) {
+  const manifestPath = path.join(root, 'docs/MEDIA-MIGRATION-MANIFEST.json');
+  const stat = fs.lstatSync(manifestPath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error('Media migration manifest must be a regular file.');
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (!Array.isArray(manifest.entries)) {
+    throw new Error('Media migration manifest entries are missing.');
+  }
+
+  const entriesByTargetPath = new Map();
+  for (const entry of manifest.entries) {
+    if (!entry || typeof entry.targetPath !== 'string' || !safeImagePath(root, entry.targetPath)) {
+      throw new Error('Migration manifest contains an unsafe or missing target path.');
+    }
+    if (entriesByTargetPath.has(entry.targetPath)) {
+      throw new Error('Migration manifest contains a duplicate target path: ' + entry.targetPath);
+    }
+    if (!/^[0-9a-f]{40}$/i.test(entry.sourceBlobSha || '') ||
+        !/^[0-9a-f]{40}$/i.test(entry.targetBlobSha || '')) {
+      throw new Error('Migration manifest contains an invalid source/target Git blob SHA: ' + entry.targetPath);
+    }
+    entriesByTargetPath.set(entry.targetPath, entry);
+  }
+
+  return {
+    sourceRepository: typeof manifest.sourceRepository === 'string' ? manifest.sourceRepository : null,
+    sourceBranch: typeof manifest.sourceBranch === 'string' ? manifest.sourceBranch : null,
+    updatedAt: typeof manifest.updatedAt === 'string' ? manifest.updatedAt : null,
+    entriesByTargetPath,
+  };
+}
+
 function prepareOutputDirectory(root, outputDirectory) {
   const rootReal = fs.realpathSync(root);
   const output = path.resolve(outputDirectory);
@@ -144,7 +185,7 @@ function renderPlacement(placement) {
   ].join('');
 }
 
-function buildHtml(manifest) {
+function buildHtml(manifest, worksheet) {
   const assetSections = manifest.assets.map((asset) => {
     const image = asset.copyPath
       ? '<img src="' + escapeHtml(asset.copyPath) + '" alt="Unreviewed candidate preview: ' + escapeHtml(asset.path) + '" loading="lazy">'
@@ -156,6 +197,21 @@ function buildHtml(manifest) {
       Number.isInteger(asset.bytes) ? asset.bytes.toLocaleString('en-IN') + ' bytes' : 'byte count unavailable',
       asset.decodeStatus || 'decode status unavailable',
     ].join(' · ');
+    const migration = asset.migrationRecord || {};
+    const migrationDetails = migration.status === 'recorded-target-blob-verified'
+      ? [
+        '<p><strong>Recorded migration mapping (not rights evidence or editorial approval):</strong> ' +
+          escapeHtml(migration.sourceRepository || 'Source repository') + ' / ' +
+          escapeHtml(migration.sourcePath || 'source path unavailable') + '</p>',
+        '<p><strong>Recorded source Git blob:</strong> <code>' + escapeHtml(migration.sourceBlobSha || 'unavailable') + '</code></p>',
+        '<p><strong>Recorded target Git blob:</strong> <code>' + escapeHtml(migration.targetBlobSha || 'unavailable') + '</code></p>',
+        '<p><strong>Current candidate Git blob:</strong> <code>' + escapeHtml(migration.targetGitBlobSha || 'unavailable') +
+          '</code> — matches the recorded target blob; this does not verify current source availability or usage rights.</p>',
+        migration.visualSubject
+          ? '<p><strong>Migration-record subject label (not visual review):</strong> ' + escapeHtml(migration.visualSubject) + '</p>'
+          : '',
+      ].join('')
+      : '<p><strong>Migration mapping:</strong> no exact target-path entry is recorded; creator, source and rights remain unverified.</p>';
 
     return [
       '<article class="asset-card">',
@@ -163,6 +219,7 @@ function buildHtml(manifest) {
       '<figure>' + image + '<figcaption>' + escapeHtml(technicalSummary) + '</figcaption></figure>',
       '<p><strong>SHA-256:</strong> <code>' + escapeHtml(asset.sha256 || 'unavailable') + '</code></p>',
       '<p><strong>Review-copy integrity:</strong> ' + escapeHtml(asset.copyStatus) + '</p>',
+      migrationDetails,
       '<h3>Existing draft declarations — not an assessment</h3>',
       placements || '<p>No article placement is recorded for this candidate.</p>',
       '</article>',
@@ -224,8 +281,15 @@ function buildHtml(manifest) {
     '<div class="metric"><strong>' + manifest.summary.candidatePlacementCount + '</strong>Declared placements</div>',
     '<div class="metric"><strong>' + manifest.summary.uniqueCandidateAssetCount + '</strong>Unique candidate files</div>',
     '<div class="metric"><strong>' + manifest.summary.approvedPlacementCount + '</strong>Approved candidate placements</div>',
+    '<div class="metric"><strong>' + manifest.summary.sourceMappedCandidateCount + '</strong>Recorded source mappings</div>',
+    '<div class="metric"><strong>' + manifest.summary.unmappedCandidateCount + '</strong>Unmapped candidates</div>',
     '</div>',
     '<p class="muted">Artifact source: existing draft candidate records and the read-only editorial media audit. Images in this bundle are byte-identical review copies, not publication derivatives.</p>',
+    '<p class="muted"><a href="review-decisions.template.json" download>Download the blank owner/editor decision worksheet (JSON)</a>. It contains ' +
+      worksheet.summary.candidatePlacementCount + ' declared candidate placements and ' +
+      worksheet.summary.missingCandidateRoleCount + ' missing-role requests. It is tied to this exact manifest SHA-256: <code>' +
+      escapeHtml(worksheet.reviewManifestSha256) +
+      '</code>. Completing it does not approve media or change repository records; return it for independent engineering validation.</p>',
     '</header>',
     '<section aria-labelledby="candidate-assets"><h2 id="candidate-assets">Candidate images — existing declarations only</h2>',
     assetSections || '<p>No candidate images are declared.</p>',
@@ -236,12 +300,123 @@ function buildHtml(manifest) {
   ].join('\n');
 }
 
+function buildDecisionWorksheet(manifest, manifestText) {
+  const requiredEvidence = [
+    'Documented visual subject match for this exact candidate and article role.',
+    'Creator identity and source reference, or an owner-controlled source record.',
+    'Owner-confirmed usage rights or a named licence with verifiable evidence.',
+    'Descriptive alt text based on inspected pixels and the article context.',
+    'Successful image decode plus role-specific format, dimensions and byte-budget validation.',
+  ];
+  const decisions = [];
+
+  for (const asset of manifest.assets) {
+    for (const placement of asset.placements) {
+      decisions.push({
+        entryType: 'candidate-placement',
+        articleSlug: placement.articleSlug,
+        articleTitle: placement.articleTitle,
+        articleStatus: placement.articleStatus,
+        role: placement.role,
+        requiredSubject: placement.requirement,
+        candidatePath: asset.path,
+        candidateSha256: asset.sha256,
+        candidateGitBlobSha: asset.migrationRecord ? asset.migrationRecord.targetGitBlobSha : null,
+        migrationStatus: asset.migrationRecord ? asset.migrationRecord.status : 'not-recorded-in-migration-manifest',
+        ownerDecision: 'pending',
+        visualReview: { status: 'not_assessed', evidence: null, reviewer: null, reviewedAt: null },
+        sourceEvidence: {
+          status: 'unverified',
+          creator: null,
+          sourceUrl: null,
+          licenseName: null,
+          evidenceReference: null,
+          verifiedBy: null,
+          verifiedAt: null,
+        },
+        rightsStatus: 'unverified',
+        altText: null,
+        technicalValidation: { status: 'not_verified', evidenceReference: null },
+        notes: null,
+      });
+    }
+  }
+
+  for (const article of manifest.articles) {
+    const declaredRoles = new Set((article.candidatePaths || []).map((candidate) => candidate.role));
+    for (const role of ['hero', 'socialPreview']) {
+      if (declaredRoles.has(role)) continue;
+      const requirement = article.requirements && article.requirements[role];
+      decisions.push({
+        entryType: 'missing-candidate-role',
+        articleSlug: article.slug,
+        articleTitle: article.title,
+        articleStatus: article.status,
+        role,
+        requiredSubject: requirement && requirement.subject ? requirement.subject : null,
+        candidatePath: null,
+        candidateSha256: null,
+        candidateGitBlobSha: null,
+        proposedCandidatePath: null,
+        migrationStatus: 'not-applicable-no-candidate',
+        ownerDecision: 'pending',
+        visualReview: { status: 'not_assessed', evidence: null, reviewer: null, reviewedAt: null },
+        sourceEvidence: {
+          status: 'unverified',
+          creator: null,
+          sourceUrl: null,
+          licenseName: null,
+          evidenceReference: null,
+          verifiedBy: null,
+          verifiedAt: null,
+        },
+        rightsStatus: 'unverified',
+        altText: null,
+        technicalValidation: { status: 'not_verified', evidenceReference: null },
+        notes: null,
+      });
+    }
+  }
+
+  const manifestSha256 = crypto.createHash('sha256').update(manifestText).digest('hex');
+  return {
+    schemaVersion: 1,
+    artifactType: 'editorial-media-decision-worksheet',
+    reviewOnly: true,
+    approvalStatus: 'not-approved',
+    publicationEligible: false,
+    reviewManifestSha256: manifestSha256,
+    instructions: [
+      'Complete this worksheet only after an authorized owner/editor inspects the exact candidate bytes and intended article role.',
+      'A requested approve decision is not an approval certificate and does not publish or modify repository content.',
+      'Do not infer rights from filenames, migration records, or visual similarity; supply creator, source and rights evidence.',
+      'For missing-candidate rows, identify a proposed source only when the visible subject can be verified; do not assign an unrelated image.',
+      'Return the completed worksheet and supporting evidence for independent engineering validation and a reviewed repository change.',
+    ],
+    requiredEvidence,
+    summary: {
+      candidatePlacementCount: decisions.filter((decision) => decision.entryType === 'candidate-placement').length,
+      missingCandidateRoleCount: decisions.filter((decision) => decision.entryType === 'missing-candidate-role').length,
+      decisionRowCount: decisions.length,
+    },
+    policy: {
+      autoApplied: false,
+      contentRecordsChanged: false,
+      rightsInferred: false,
+      visualRelevanceInferred: false,
+      publicationEligible: false,
+    },
+    decisions,
+  };
+}
+
 function buildEditorialMediaReview(root, outputDirectory, report) {
   const resolvedRoot = path.resolve(root);
   const audit = report || auditMedia(resolvedRoot);
   if (!audit || !audit.summary || !Array.isArray(audit.articles) || !Array.isArray(audit.inventory)) {
     throw new Error('Editorial media audit report is incomplete.');
   }
+  const migration = readMigrationManifest(resolvedRoot);
 
   const prepared = prepareOutputDirectory(resolvedRoot, outputDirectory);
   const inventoryByPath = new Map(audit.inventory.map((asset) => [asset.path, asset]));
@@ -261,11 +436,42 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
     let copyPath = null;
     let copyStatus = 'unavailable';
     let digest = info.sha256 || null;
+    let migrationRecord = {
+      status: 'not-recorded-in-migration-manifest',
+      targetGitBlobSha: null,
+    };
 
     const sourcePath = safeImagePath(resolvedRoot, relativePath);
+    const mapping = migration.entriesByTargetPath.get(relativePath) || null;
+    if (mapping && !sourcePath) {
+      throw new Error('Recorded migration target is not a safe candidate image: ' + relativePath);
+    }
     if (sourcePath && IMAGE_EXTENSIONS.has(path.extname(relativePath).toLowerCase())) {
       const sourceBytes = fs.readFileSync(sourcePath);
       const sourceDigest = crypto.createHash('sha256').update(sourceBytes).digest('hex');
+      const targetGitBlobSha = gitBlobSha(sourceBytes);
+      migrationRecord.targetGitBlobSha = targetGitBlobSha;
+      if (mapping) {
+        const targetBlobMatches = mapping.targetBlobSha.toLowerCase() === targetGitBlobSha;
+        const sourceTargetRecordedMatch = mapping.sourceBlobSha.toLowerCase() === mapping.targetBlobSha.toLowerCase();
+        if (!targetBlobMatches || !sourceTargetRecordedMatch) {
+          throw new Error('Recorded migration target blob does not match candidate bytes or source/target record: ' + relativePath);
+        }
+        migrationRecord = {
+          status: 'recorded-target-blob-verified',
+          sourceRepository: migration.sourceRepository,
+          sourceBranch: migration.sourceBranch,
+          manifestUpdatedAt: migration.updatedAt,
+          sourcePath: mapping.sourcePath,
+          sourceBlobSha: mapping.sourceBlobSha,
+          targetBlobSha: mapping.targetBlobSha,
+          targetGitBlobSha,
+          targetBlobMatches,
+          sourceTargetRecordedMatch,
+          visualSubject: mapping.visualSubject || null,
+          intendedRole: mapping.intendedRole || null,
+        };
+      }
       if (digest && digest !== sourceDigest) {
         throw new Error('Candidate bytes changed after the read-only audit: ' + relativePath);
       }
@@ -293,6 +499,7 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
       height: info.height || null,
       bytes: Number.isInteger(info.bytes) ? info.bytes : null,
       sha256: digest,
+      migrationRecord,
       headerValid: info.headerValid === true,
       decodeStatus: info.decodeStatus || 'unavailable',
       warnings: Array.isArray(info.warnings) ? info.warnings : [],
@@ -338,6 +545,9 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
       headerValidAssetCount: audit.summary.headerValidAssetCount,
       verifiedPixelDecodeAssetCount: audit.summary.verifiedPixelDecodeAssetCount,
       roleEligibleAssetCount: audit.summary.roleEligibleAssetCount,
+      sourceMappedCandidateCount: assets.filter((asset) => asset.migrationRecord.status === 'recorded-target-blob-verified').length,
+      unmappedCandidateCount: assets.filter((asset) => asset.migrationRecord.status === 'not-recorded-in-migration-manifest').length,
+      verifiedTargetBlobCount: assets.filter((asset) => asset.migrationRecord.targetBlobMatches === true).length,
     },
     policy: {
       originalBytesPreserved: true,
@@ -353,8 +563,12 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
     articles,
   };
 
-  fs.writeFileSync(path.join(prepared.output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
-  fs.writeFileSync(path.join(prepared.output, 'index.html'), buildHtml(manifest), { flag: 'wx' });
+  const manifestText = JSON.stringify(manifest, null, 2) + '\n';
+  const worksheet = buildDecisionWorksheet(manifest, manifestText);
+  fs.writeFileSync(path.join(prepared.output, 'manifest.json'), manifestText, { flag: 'wx' });
+  fs.writeFileSync(path.join(prepared.output, 'review-decisions.template.json'),
+    JSON.stringify(worksheet, null, 2) + '\n', { flag: 'wx' });
+  fs.writeFileSync(path.join(prepared.output, 'index.html'), buildHtml(manifest, worksheet), { flag: 'wx' });
   return manifest;
 }
 
@@ -374,6 +588,9 @@ if (require.main === module) {
     console.log('Declared placements: ' + manifest.summary.candidatePlacementCount);
     console.log('Unique candidate files: ' + manifest.summary.uniqueCandidateAssetCount);
     console.log('Approved placements: ' + manifest.summary.approvedPlacementCount);
+    console.log('Recorded source mappings: ' + manifest.summary.sourceMappedCandidateCount);
+    console.log('Unmapped candidate files: ' + manifest.summary.unmappedCandidateCount);
+    console.log('Review-only decision worksheet: review-decisions.template.json');
     console.log('Review-only output: ' + path.resolve(output));
     if (manifest.errors.length) {
       console.error('FAIL: editorial media audit reported integrity errors; review artifact is not an acceptance result.');
