@@ -391,3 +391,16 @@ At widths up to 620px the two walking estimates stack at full content width inst
 **Browser-test RCA:** the 390×640 failure came from the test returning to scroll position zero, where the tall mobile hero still legitimately intersects the fixed booking bar. The clear-state scenario now scrolls the quick-arrival card fully above the viewport, asserts its bottom edge is at or above zero, and only then requires the booking action to restore. The product suppression condition remains overlap-based.
 
 **Acceptance state:** this implementation batch is not visually accepted until the exact PR head produces all 48 integrity-checked screenshots, all six viewport widths pass on all eight routes, updated arrival contracts pass, and the owner reviews the actual artifact. Automated checks do not replace STG-01–STG-18 manual UAT. Canonical host, robots, sitemap, editorial publication, staging deployment and production release remain unchanged and owner-controlled.
+
+
+## M24 — media-complete visual evidence and deferred-image acceptance
+
+**Evidence review finding:** the M23 full-page baseline exposed beige image panels in several image-led sections. The media files and source-backed manifest entries were present; the screenshot runner was the gap. It decoded only images already in the live DOM. Supporting images held in inert template elements are not part of the live image collection until the site's real IntersectionObserver activation runs after scrolling near them.
+
+**Implementation batch:** the browser evidence runner now walks each page from top to bottom in overlapping viewport steps before taking its full-page screenshot. This deliberately exercises the production deferred-media observer instead of bypassing it or cloning templates in the test. The runner verifies that every initially deferred target is activated, no target remains pending or reports activation failure, then eagerly decodes every rendered image and returns to the top before capture.
+
+Each of the 48 screenshot records now carries expected, activated, pending and failed deferred-media counts plus the decoded-image count. The report's screenshot-completeness contract rejects missing, unhydrated or failed media even when route coverage, PNG geometry and SHA-256 are otherwise valid. The preflight contract includes positive and negative fixtures for pending and mismatched activation counts.
+
+**Measurement boundary:** route performance samples are collected before the media-hydration scroll and remain explicitly laboratory diagnostics, not field Core Web Vitals. This M24 change is limited to QA evidence and regression contracts; it does not modify production lazy-loading behavior, source media, guest-facing copy, contact/booking actions, SEO publication settings or deployment configuration.
+
+**Acceptance:** all 48 full-page screenshots must carry valid geometry/hash metadata and complete deferred-media hydration; all 48 route/viewport performance samples and eight-route/six-width coverage must remain complete; every rendered image must decode. Owner screenshot review and STG-01–STG-18 staging UAT remain separate manual gates. No merge, staging deployment or production release is authorized by this milestone.
