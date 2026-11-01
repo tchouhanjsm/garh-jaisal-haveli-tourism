@@ -35,7 +35,7 @@ PAGES = [route["file"] for route in ROUTE_CONTRACT["routes"]]
 DIRECTIONS_AVIF_MEDIA = "(min-width: 1160px) and (min-resolution: 1.5dppx)"
 DIRECTIONS_WEBP_PRELOAD_MEDIA = "not all and (min-width: 1160px) and (min-resolution: 1.5dppx)"
 EXPECTED_DEFERRED_MEDIA_COUNTS = {
-    "index.html": 5,
+    "index.html": 7,
     "rooms.html": 7,
     "gallery.html": 7,
     "experiences.html": 6,
@@ -3279,7 +3279,7 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            for fallback_route, expected_fallback_count in (("index.html", 5), ("rooms.html", 7), ("gallery.html", 7), ("experiences.html", 6), ("experience-details.html", 7)):
+            for fallback_route, expected_fallback_count in (("index.html", 7), ("rooms.html", 7), ("gallery.html", 7), ("experiences.html", 6), ("experience-details.html", 7)):
                 fallback_media_page = fallback_context.new_page()
                 fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
                 fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")
