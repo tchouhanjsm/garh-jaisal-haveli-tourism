@@ -175,6 +175,11 @@ function verifyManifest(root, bundle, manifestBytes, manifest, errors) {
       manifest.policy.candidateDeclarationsAreNotApproval !== true) {
     errors.push('Review manifest policy flags are missing or unsafe.');
   }
+  if (!manifest || !manifest.summary || manifest.summary.approvedPlacementCount !== 0 ||
+      (manifest.articles || []).some(article => article.status !== 'draft' || article.approvedAssetCount !== 0) ||
+      (manifest.assets || []).some(asset => (asset.placements || []).some(placement => placement.approvalState !== 'not-approved'))) {
+    errors.push('Review manifest must contain only draft articles and unapproved candidate placements.');
+  }
   if (!manifest || !Array.isArray(manifest.assets) || !Array.isArray(manifest.articles) ||
       !manifest.summary || !Number.isInteger(manifest.summary.articleCount)) {
     errors.push('Review manifest inventory or summary is incomplete.');
@@ -425,9 +430,24 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
     if (row.altText !== null && row.altText !== undefined &&
         (typeof row.altText !== 'string' || row.altText.length > 200)) {
       blockers.push(label + ': alt text must be null or at most 200 characters.');
+    } else if (row.altText !== null && !meaningfulAlt(row.altText)) {
+      blockers.push(label + ': supplied alt text is generic or too short.');
     }
     if (!['unverified', 'owner-confirmed', 'licensed', 'rejected'].includes(row.rightsStatus)) {
       blockers.push(label + ': rightsStatus is invalid.');
+    }
+    if (row.rightsStatus === 'rejected' && row.ownerDecision !== 'reject') {
+      blockers.push(label + ': rejected rights must have an explicit reject decision.');
+    }
+    const sourceIssues = mediaSourceEvidenceIssues({
+      sourceEvidence: row.sourceEvidence,
+      rightsStatus: row.rightsStatus,
+      reviewStatus: row.ownerDecision === 'approve' ? 'approved' : row.ownerDecision === 'reject' ? 'rejected' : 'unreviewed',
+    });
+    for (const issue of sourceIssues) blockers.push(label + ': ' + issue);
+    if (row.notes !== null && row.notes !== undefined &&
+        (typeof row.notes !== 'string' || row.notes.length > 1000)) {
+      blockers.push(label + ': notes must be null or at most 1,000 characters.');
     }
     if (!row.technicalValidation || !['not_verified', 'verified'].includes(row.technicalValidation.status) ||
         !(row.technicalValidation.evidenceReference === null || typeof row.technicalValidation.evidenceReference === 'string')) {
@@ -436,16 +456,34 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
     if (row.ownerDecision === 'approve') {
       if (row.visualReview.status !== 'matched') blockers.push(label + ': approval requires a documented visual subject match.');
       if (!meaningfulAlt(row.altText)) blockers.push(label + ': approval requires descriptive, non-generic alt text.');
-      const sourceIssues = mediaSourceEvidenceIssues({
-        sourceEvidence: row.sourceEvidence,
-        rightsStatus: row.rightsStatus,
-        reviewStatus: 'approved',
-      });
-      for (const issue of sourceIssues) blockers.push(label + ': ' + issue);
       if (isMissing && !row.proposedCandidatePath) blockers.push(label + ': missing role requires a proposed candidate path before approval can be assessed.');
     }
     if (row.technicalValidation.status === 'verified' && !row.technicalValidation.evidenceReference) {
       blockers.push(label + ': verified technical validation requires its deterministic evidence reference.');
+    }
+    if (row.technicalValidation.status === 'not_verified' && row.technicalValidation.evidenceReference !== null) {
+      blockers.push(label + ': unverified technical validation cannot carry an evidence reference.');
+    }
+    if (isMissing && row.proposedCandidatePath === null &&
+        (row.proposedCandidateSha256 !== null || row.proposedCandidateGitBlobSha !== null)) {
+      errors.push('Missing-role row has candidate hashes without a proposed path: ' + label);
+    }
+    if (isMissing && row.proposedCandidatePath !== null) {
+      if (typeof row.proposedCandidatePath !== 'string' ||
+          !/^[0-9a-f]{64}$/i.test(row.proposedCandidateSha256 || '') ||
+          !/^[0-9a-f]{40}$/i.test(row.proposedCandidateGitBlobSha || '')) {
+        blockers.push(label + ': proposed candidate requires a safe path and pinned SHA-256/Git blob identities.');
+      } else {
+        const proposedAbsolute = safeImagePath(root, row.proposedCandidatePath);
+        if (!proposedAbsolute) blockers.push(label + ': proposed candidate path is missing or unsafe.');
+        else {
+          const proposedBytes = fs.readFileSync(proposedAbsolute);
+          if (sha256(proposedBytes) !== row.proposedCandidateSha256 ||
+              gitBlobSha(proposedBytes) !== row.proposedCandidateGitBlobSha) {
+            blockers.push(label + ': proposed candidate bytes do not match the worksheet SHA-256/Git blob pins.');
+          }
+        }
+      }
     }
     if (blockers.length) warnings.push(...blockers);
     rowResults.push({ articleSlug: row.articleSlug, role: row.role, decision: row.ownerDecision,
@@ -464,6 +502,7 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
   }
 
   const technicalRows = [];
+  const policy = imagePolicy(root);
   for (const item of technicalRequests) {
     const { row, label, blockers } = item;
     const candidatePath = row.entryType === 'candidate-placement' ? row.candidatePath : row.proposedCandidatePath;
@@ -485,11 +524,10 @@ function validateEditorialMediaDecisions(root, bundleDirectory) {
       blockers.push(label + ': selected candidate bytes do not match the worksheet SHA-256/Git blob pins.');
       continue;
     }
-    const info = imageInfo(root, candidatePath, imagePolicy(root));
+    const info = imageInfo(root, candidatePath, policy);
     technicalRows.push({ row, label, blockers, info, blob });
   }
 
-  const policy = imagePolicy(root);
   const decode = verifyImageDecode(root, technicalRows.map(item => item.info));
   for (const item of technicalRows) {
     const result = decode.get(item.info.path);
