@@ -35,6 +35,8 @@ assert.equal(count(directions, /class="arrival-distance-card(?: arrival-distance
   'Directions must show exactly three arrival fact cards');
 assert.match(directions, /data-arrival-distance-comparison[^>]*aria-label="Approximate walking distances"/,
   'Walking estimates must be grouped as one named comparison');
+assert.match(directions, /data-arrival-distance-comparison[^>]*role="group"/,
+  'The named comparison must use a semantic group role for its accessible name');
 assert.match(directions, /data-arrival-distance="fort-parking"[\s\S]*?data-arrival-distance="fort-entrance"/,
   'The two pedestrian estimates must appear in a deliberate, ordered comparison');
 assert.match(directions, /data-arrival-access/,
@@ -44,9 +46,11 @@ assert.match(stylesheet, /\.arrival-distance-grid\s*\{[\s\S]*?grid-template-colu
 assert.match(stylesheet, /\.arrival-distance-card--access\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
   'Date-dependent vehicle access must occupy a separate full-width band');
 
-const parking = directions.match(/<article class="arrival-distance-card">[\s\S]*?<\/article>/)?.[0] || '';
-const entrance = directions.match(/<article class="arrival-distance-card">[\s\S]*?<\/article>/g)?.[1] || '';
-const rickshaw = directions.match(/<article class="arrival-distance-card arrival-distance-card--access">[\s\S]*?<\/article>/)?.[0] || '';
+const distanceArticles = [...directions.matchAll(/<article\b[^>]*class="arrival-distance-card"[^>]*>[\s\S]*?<\/article>/g)]
+  .map(([article]) => article);
+const parking = distanceArticles[0] || '';
+const entrance = distanceArticles[1] || '';
+const rickshaw = directions.match(/<article\b[^>]*class="arrival-distance-card arrival-distance-card--access"[^>]*>[\s\S]*?<\/article>/)?.[0] || '';
 
 assert.match(parking, /Fort Parking[\s\S]*?300 metres[\s\S]*?5–6 minutes/i,
   'Fort Parking estimate must match the source-listed approximate 300 m / 5–6 minute walk');
