@@ -60,6 +60,10 @@ for (const page of [rooms, gallery]) {
 assert.ok(css.includes('.room-card-grid--catalog [data-room-card-composition="feature"] {'));
 assert.ok(css.includes('.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] {'));
 assert.ok(css.includes('.room-gallery-grid [data-room-card-composition="feature"] {'));
+const roomsFeatureImage = css.match(/\.room-card-grid--catalog \[data-room-card-composition="feature"\] \.room-card__image\s*\{([^}]*)\}/);
+assert.ok(roomsFeatureImage && /aspect-ratio:\s*auto/.test(roomsFeatureImage[1])
+  && /min-width:\s*0/.test(roomsFeatureImage[1]),
+  'the horizontal Rooms feature must not retain the catalogue thumbnail ratio or intrinsic min-content width');
 assert.equal((css.match(/grid-column: 1 \/ -1;/g) || []).length, 3,
   'each final collection card must span the complete parent grid row');
 assert.ok(css.includes('@media (max-width: 760px)'), 'room and primary photo features must stack on mobile');

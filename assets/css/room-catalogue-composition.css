@@ -10,8 +10,10 @@
 }
 
 .room-card-grid--catalog [data-room-card-composition="feature"] .room-card__image {
+  min-width: 0;
   height: 100%;
   min-height: 360px;
+  aspect-ratio: auto;
 }
 
 .room-card-grid--catalog [data-room-card-composition="feature"] .room-card__image picture,
@@ -23,6 +25,7 @@
 }
 
 .room-card-grid--catalog [data-room-card-composition="feature"] .room-card__body {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
