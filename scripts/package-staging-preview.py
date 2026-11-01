@@ -622,6 +622,8 @@ class DocumentContractParser(HTMLParser):
         self.descriptions: list[str] = []
         self.viewports: list[str] = []
         self.open_graph: dict[str, list[str]] = {}
+        self.social_metadata: dict[str, list[str]] = {}
+        self.jsonld_scripts: list[dict] = []
         self.main_count = 0
         self.skip_link_hrefs: list[str] = []
         self.images: list[dict] = []
@@ -660,6 +662,8 @@ class DocumentContractParser(HTMLParser):
             self.h1_nodes.append(node)
         elif name == "main":
             self.main_count += 1
+        elif name == "script" and values.get("type", "").split(";", 1)[0].strip().lower() == "application/ld+json":
+            self.jsonld_scripts.append(node)
         elif name == "meta":
             meta_name = values.get("name", "").strip().lower()
             property_name = values.get("property", "").strip().lower()
@@ -670,6 +674,9 @@ class DocumentContractParser(HTMLParser):
                 self.viewports.append(content)
             if property_name in {"og:title", "og:description", "og:image"}:
                 self.open_graph.setdefault(property_name, []).append(content)
+            social_key = property_name or meta_name
+            if social_key.startswith(("og:", "twitter:")):
+                self.social_metadata.setdefault(social_key, []).append(content)
 
         if name == "a" and "href" in values:
             self.links.append(node)
@@ -778,6 +785,61 @@ class DocumentContractParser(HTMLParser):
         return False
 
 
+SOCIAL_PREVIEW_REQUIRED_FIELDS = (
+    "og:title",
+    "og:description",
+    "og:image",
+    "og:image:alt",
+    "og:image:type",
+    "og:image:width",
+    "og:image:height",
+    "twitter:card",
+    "twitter:title",
+    "twitter:description",
+    "twitter:image",
+    "twitter:image:alt",
+)
+SOCIAL_PREVIEW_IMAGE_MIME_TYPES = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "AVIF": "image/avif",
+}
+
+
+def resolve_social_preview_image(root: Path, route: str, value: str) -> Path:
+    """Resolve a social-card image only when it is a safe, packaged local asset."""
+    parsed = urlsplit(value.strip())
+    if parsed.scheme or parsed.netloc or value.strip().startswith("//"):
+        fail(f"{route}: social preview image must be a same-site local asset: {value!r}.")
+
+    decoded_path = unquote(parsed.path)
+    if not decoded_path or "\\" in decoded_path or "\x00" in decoded_path:
+        fail(f"{route}: social preview image has an invalid local path.")
+    normalized_path = decoded_path.lstrip("/") if decoded_path.startswith("/") else decoded_path
+    raw_parts = normalized_path.split("/")
+    if any(part in {"", ".", ".."} for part in raw_parts):
+        fail(f"{route}: social preview image path contains an unsafe segment.")
+
+    relative_path = PurePosixPath(normalized_path)
+    if relative_path.is_absolute() or not relative_path.parts:
+        fail(f"{route}: social preview image path is not a package-relative asset.")
+
+    candidate = root.joinpath(*relative_path.parts)
+    if candidate.is_symlink() or not candidate.is_file():
+        fail(f"{route}: social preview image is missing or not a regular packaged file: {normalized_path}.")
+    for parent in candidate.parents:
+        if parent == root:
+            break
+        if parent.is_symlink():
+            fail(f"{route}: social preview image path traverses a symlink: {normalized_path}.")
+
+    resolved = candidate.resolve(strict=True)
+    if not is_within(resolved, root) or not resolved.is_file():
+        fail(f"{route}: social preview image escapes the package root: {normalized_path}.")
+    return resolved
+
+
 def validate_document_contract(output: Path) -> dict:
     """Fail closed when packaged routes regress core SEO or accessible-name contracts."""
     raw_root = Path(output)
@@ -809,6 +871,12 @@ def validate_document_contract(output: Path) -> dict:
         "missingMain": 0,
         "missingSkipLink": 0,
         "missingOpenGraph": 0,
+        "socialPreviewRoutesChecked": 0,
+        "socialPreviewImagesChecked": 0,
+        "socialPreviewFailures": 0,
+        "structuredDataRoutesChecked": 0,
+        "structuredDataBlocksChecked": 0,
+        "structuredDataFailures": 0,
         "brokenAriaLabelledbyReferences": 0,
         "duplicateIds": 0,
         "duplicateTitles": 0,
@@ -903,6 +971,70 @@ def validate_document_contract(output: Path) -> dict:
             errors.append(f"{route}: duplicate element IDs: {', '.join(sorted(parser.duplicate_ids)[:8])}.")
 
         if route != "404.html":
+            counters["structuredDataRoutesChecked"] += 1
+            counters["structuredDataBlocksChecked"] += len(parser.jsonld_scripts)
+            route_structured_errors: list[str] = []
+            webpage_matches = 0
+            if not parser.jsonld_scripts:
+                route_structured_errors.append(
+                    f"{route}: requires at least one application/ld+json block."
+                )
+
+            page_language = parser.html_languages[0] if len(parser.html_languages) == 1 else ""
+            for block_index, script_node in enumerate(parser.jsonld_scripts, start=1):
+                try:
+                    payload = json.loads(script_node["text"].strip())
+                except (json.JSONDecodeError, TypeError) as error:
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} contains invalid JSON: {error}."
+                    )
+                    continue
+
+                if not isinstance(payload, dict):
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} must contain one Schema.org object."
+                    )
+                    continue
+                if payload.get("@context") != "https://schema.org":
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} must use https://schema.org context."
+                    )
+
+                raw_types = payload.get("@type")
+                if isinstance(raw_types, str):
+                    schema_types = [raw_types] if raw_types.strip() else []
+                elif isinstance(raw_types, list) and all(
+                    isinstance(value, str) and value.strip() for value in raw_types
+                ):
+                    schema_types = raw_types
+                else:
+                    schema_types = []
+                if not schema_types:
+                    route_structured_errors.append(
+                        f"{route}: JSON-LD block {block_index} must declare a non-empty @type."
+                    )
+
+                if "WebPage" in schema_types:
+                    if (
+                        payload.get("name") == title_value
+                        and payload.get("description") == description_value
+                        and payload.get("inLanguage") == page_language
+                    ):
+                        webpage_matches += 1
+                    else:
+                        route_structured_errors.append(
+                            f"{route}: WebPage name, description and inLanguage must match visible route metadata."
+                        )
+
+            if webpage_matches != 1:
+                route_structured_errors.append(
+                    f"{route}: exactly one WebPage node must match the document title, description and language."
+                )
+            if route_structured_errors:
+                counters["structuredDataFailures"] += 1
+                errors.extend(route_structured_errors)
+
+        if route != "404.html":
             required_open_graph = ("og:title", "og:description", "og:image")
             missing = [
                 key for key in required_open_graph
@@ -911,6 +1043,80 @@ def validate_document_contract(output: Path) -> dict:
             if missing:
                 counters["missingOpenGraph"] += 1
                 errors.append(f"{route}: required Open Graph metadata missing or duplicated: {', '.join(missing)}.")
+
+            counters["socialPreviewRoutesChecked"] += 1
+            route_social_errors: list[str] = []
+            social_values: dict[str, str] = {}
+            for key in SOCIAL_PREVIEW_REQUIRED_FIELDS:
+                values = parser.social_metadata.get(key, [])
+                if len(values) != 1 or not values[0]:
+                    route_social_errors.append(
+                        f"{route}: social preview metadata must contain exactly one non-empty {key} tag."
+                    )
+                else:
+                    social_values[key] = values[0]
+
+            if len(social_values) == len(SOCIAL_PREVIEW_REQUIRED_FIELDS):
+                if social_values["twitter:card"].lower() != "summary_large_image":
+                    route_social_errors.append(
+                        f"{route}: Twitter card must use summary_large_image for the selected social image."
+                    )
+                if social_values["og:title"] != social_values["twitter:title"]:
+                    route_social_errors.append(f"{route}: Open Graph and Twitter titles must match.")
+                if social_values["og:description"] != social_values["twitter:description"]:
+                    route_social_errors.append(f"{route}: Open Graph and Twitter descriptions must match.")
+                if social_values["og:image:alt"] != social_values["twitter:image:alt"]:
+                    route_social_errors.append(f"{route}: Open Graph and Twitter image alt text must match.")
+
+                try:
+                    og_image_path = resolve_social_preview_image(root, route, social_values["og:image"])
+                    twitter_image_path = resolve_social_preview_image(root, route, social_values["twitter:image"])
+                    if og_image_path != twitter_image_path:
+                        route_social_errors.append(
+                            f"{route}: Open Graph and Twitter images must resolve to the same local asset."
+                        )
+
+                    with Image.open(og_image_path) as opened:
+                        image_format = opened.format or ""
+                        oriented = ImageOps.exif_transpose(opened)
+                        oriented.load()
+                        actual_width, actual_height = oriented.size
+                    counters["socialPreviewImagesChecked"] += 1
+
+                    expected_mime = SOCIAL_PREVIEW_IMAGE_MIME_TYPES.get(image_format.upper())
+                    if expected_mime is None or social_values["og:image:type"].lower() != expected_mime:
+                        route_social_errors.append(
+                            f"{route}: social preview image MIME type does not match the decoded file format."
+                        )
+
+                    try:
+                        declared_width = int(social_values["og:image:width"])
+                        declared_height = int(social_values["og:image:height"])
+                    except ValueError:
+                        route_social_errors.append(
+                            f"{route}: social preview image width and height must be positive integers."
+                        )
+                    else:
+                        if (
+                            declared_width <= 0
+                            or declared_height <= 0
+                            or declared_width != actual_width
+                            or declared_height != actual_height
+                        ):
+                            route_social_errors.append(
+                                f"{route}: social preview image dimensions do not match the decoded file "
+                                f"(declared {declared_width}x{declared_height}, decoded {actual_width}x{actual_height})."
+                            )
+                except RuntimeError as error:
+                    route_social_errors.append(str(error))
+                except Exception as error:
+                    route_social_errors.append(
+                        f"{route}: social preview image could not be decoded safely: {error}."
+                    )
+
+            if route_social_errors:
+                counters["socialPreviewFailures"] += 1
+                errors.extend(route_social_errors)
 
     title_counts: dict[str, int] = {}
     for value in titles:
@@ -2219,17 +2425,36 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             "routesScanned", "imagesChecked", "imagesMissingAlt", "linksChecked", "unnamedLinks",
             "buttonsChecked", "unnamedButtons", "formControlsChecked", "unlabelledFormControls",
             "missingLanguage", "missingTitle", "missingDescription", "missingViewport", "missingH1",
-            "missingMain", "missingSkipLink", "missingOpenGraph", "brokenAriaLabelledbyReferences",
+            "missingMain", "missingSkipLink", "missingOpenGraph", "socialPreviewRoutesChecked",
+            "socialPreviewImagesChecked", "socialPreviewFailures", "structuredDataRoutesChecked",
+            "structuredDataBlocksChecked", "structuredDataFailures", "brokenAriaLabelledbyReferences",
             "duplicateIds", "duplicateTitles", "duplicateDescriptions",
         )
+        count_fields = {
+            "routesScanned", "imagesChecked", "linksChecked", "buttonsChecked", "formControlsChecked",
+            "socialPreviewRoutesChecked", "socialPreviewImagesChecked",
+            "structuredDataRoutesChecked", "structuredDataBlocksChecked",
+        }
         for field in contract_fields:
             value = document_contract.get(field)
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                 fail(f"Document accessibility/SEO metric is invalid: {field}.")
-            if field != "routesScanned" and field not in {"imagesChecked", "linksChecked", "buttonsChecked", "formControlsChecked"} and value != 0:
+            if field not in count_fields and value != 0:
                 fail(f"Document accessibility/SEO metric must be zero: {field}.")
         if document_contract["routesScanned"] == 0:
             fail("The release manifest must record a completed document accessibility/SEO audit.")
+        if (
+            document_contract["socialPreviewRoutesChecked"] == 0
+            or document_contract["socialPreviewImagesChecked"] != document_contract["socialPreviewRoutesChecked"]
+            or document_contract["socialPreviewFailures"] != 0
+        ):
+            fail("The release manifest must record complete, passing social-preview image integrity checks.")
+        if (
+            document_contract["structuredDataRoutesChecked"] == 0
+            or document_contract["structuredDataBlocksChecked"] < document_contract["structuredDataRoutesChecked"]
+            or document_contract["structuredDataFailures"] != 0
+        ):
+            fail("The release manifest must record complete, passing route-level Schema.org JSON-LD checks.")
 
         hosting_delivery = manifest.get("hostingDelivery")
         if not isinstance(hosting_delivery, dict) or hosting_delivery.get("status") != "PASS":
@@ -2423,6 +2648,18 @@ def main() -> int:
     archive_bytes = archive.stat().st_size
     print("PASS: guarded staging preview package created after the full quality suite.")
     print(f"Routes checked: {route_report['pagesChecked']}")
+    print(
+        "Social preview integrity: "
+        f"{document_contract_report['socialPreviewImagesChecked']} images across "
+        f"{document_contract_report['socialPreviewRoutesChecked']} routes; "
+        f"failures {document_contract_report['socialPreviewFailures']}"
+    )
+    print(
+        "Structured data integrity: "
+        f"{document_contract_report['structuredDataBlocksChecked']} JSON-LD blocks across "
+        f"{document_contract_report['structuredDataRoutesChecked']} routes; "
+        f"failures {document_contract_report['structuredDataFailures']}"
+    )
     print(f"Runtime files: {len(entries)}")
     print(
         "Verified unreferenced duplicate runtime images excluded: "

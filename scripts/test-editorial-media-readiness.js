@@ -2,11 +2,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, roleEligibilitySummary, verifyImageDecode } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
+const { buildEditorialMediaReview } = require('./build-editorial-media-review');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
@@ -56,6 +58,124 @@ for (const article of report.articles) {
 for (const rel of ['sitemap.xml', 'content/site-config.json', 'robots.txt']) before.set(rel, fs.readFileSync(path.join(ROOT, rel)));
 const publicBlogDir = path.join(ROOT, 'blogs');
 const publicBlogFilesBefore = fs.readdirSync(publicBlogDir).sort();
+
+const reviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-editorial-media-review-'));
+try {
+  const reviewOutput = path.join(reviewTemp, 'bundle');
+  const reviewManifest = buildEditorialMediaReview(ROOT, reviewOutput, report);
+  assert.equal(reviewManifest.reviewOnly, true, 'review bundle must remain explicitly local-only');
+  assert.equal(reviewManifest.publicationEligible, false, 'review bundle must never claim publication eligibility');
+  assert.equal(reviewManifest.summary.articleCount, 12);
+  assert.equal(reviewManifest.summary.candidatePlacementCount, 13);
+  assert.equal(reviewManifest.summary.uniqueCandidateAssetCount, 5);
+  assert.equal(reviewManifest.summary.approvedPlacementCount, 0);
+  assert.equal(reviewManifest.summary.approvedArticleCount, 0);
+  assert.equal(reviewManifest.summary.sourceMappedCandidateCount, 2);
+  assert.equal(reviewManifest.summary.unmappedCandidateCount, 3);
+  assert.equal(reviewManifest.summary.verifiedTargetBlobCount, 2);
+  assert.equal(reviewManifest.assets.length, 5);
+  assert.equal(fs.readdirSync(path.join(reviewOutput, 'images')).length, 5);
+
+  for (const asset of reviewManifest.assets) {
+    assert.equal(asset.copyStatus, 'copied-verified', 'each current candidate must be copied byte-for-byte for review');
+    const copied = fs.readFileSync(path.join(reviewOutput, asset.copyPath));
+    assert.equal(copied.length, asset.bytes, 'review copy byte count must match the source');
+    assert.equal(crypto.createHash('sha256').update(copied).digest('hex'), asset.sha256,
+      'review copy SHA-256 must match the original candidate');
+    assert.ok(asset.placements.every(placement =>
+      placement.approvalState === 'not-approved' &&
+      placement.fit === 'not-assessed' &&
+      placement.visualReviewStatus === 'not_assessed' &&
+      placement.rightsStatus === 'unverified' &&
+      placement.sourceEvidenceStatus === 'unverified'
+    ), 'candidate review bundle must preserve all current unapproved states');
+  }
+
+  const decisionWorksheetPath = path.join(reviewOutput, 'review-decisions.template.json');
+  const decisionWorksheetBytes = fs.readFileSync(decisionWorksheetPath);
+  const decisionWorksheet = JSON.parse(decisionWorksheetBytes.toString('utf8'));
+  const manifestBytes = fs.readFileSync(path.join(reviewOutput, 'manifest.json'));
+  assert.equal(decisionWorksheet.artifactType, 'editorial-media-decision-worksheet');
+  assert.equal(decisionWorksheet.approvalStatus, 'not-approved');
+  assert.equal(decisionWorksheet.publicationEligible, false);
+  assert.equal(decisionWorksheet.policy.autoApplied, false);
+  assert.equal(decisionWorksheet.policy.contentRecordsChanged, false);
+  assert.equal(decisionWorksheet.reviewManifestSha256,
+    crypto.createHash('sha256').update(manifestBytes).digest('hex'),
+    'decision worksheet must be bound to the exact review manifest bytes');
+  assert.equal(decisionWorksheet.summary.candidatePlacementCount, 13);
+  assert.equal(decisionWorksheet.summary.missingCandidateRoleCount, 11);
+  assert.equal(decisionWorksheet.summary.decisionRowCount, 24);
+  assert.equal(decisionWorksheet.decisions.length, 24);
+
+  const candidateDecisionRows = decisionWorksheet.decisions.filter(row => row.entryType === 'candidate-placement');
+  const missingRoleRows = decisionWorksheet.decisions.filter(row => row.entryType === 'missing-candidate-role');
+  assert.equal(candidateDecisionRows.length, 13);
+  assert.equal(missingRoleRows.length, 11);
+  assert.ok(decisionWorksheet.decisions.every(row =>
+    row.ownerDecision === 'pending' &&
+    row.rightsStatus === 'unverified' &&
+    row.sourceEvidence.status === 'unverified' &&
+    row.sourceEvidence.creator === null &&
+    row.sourceEvidence.sourceUrl === null &&
+    row.sourceEvidence.licenseName === null &&
+    row.sourceEvidence.evidenceReference === null &&
+    row.visualReview.status === 'not_assessed' &&
+    row.visualReview.reviewer === null &&
+    row.visualReview.reviewedAt === null &&
+    row.altText === null &&
+    row.technicalValidation.status === 'not_verified'
+  ), 'worksheet must leave every human decision and evidence field unfilled');
+
+  for (const row of candidateDecisionRows) {
+    const asset = reviewManifest.assets.find(item => item.path === row.candidatePath);
+    assert.ok(asset, 'candidate decision must reference an inventoried image');
+    assert.equal(row.candidateSha256, asset.sha256);
+    assert.equal(row.candidateGitBlobSha, asset.migrationRecord.targetGitBlobSha);
+    assert.equal(row.migrationStatus, asset.migrationRecord.status);
+  }
+  for (const row of missingRoleRows) {
+    assert.equal(row.candidatePath, null);
+    assert.equal(row.proposedCandidatePath, null, 'missing media must not receive an invented candidate path');
+    assert.ok(row.requiredSubject, 'missing-role request must preserve the draft-stated subject requirement');
+  }
+
+  const mappedAssets = reviewManifest.assets.filter(asset => asset.migrationRecord.status === 'recorded-target-blob-verified');
+  assert.equal(mappedAssets.length, 2);
+  assert.ok(mappedAssets.every(asset =>
+    asset.migrationRecord.targetBlobMatches === true &&
+    asset.migrationRecord.sourceTargetRecordedMatch === true &&
+    /^[0-9a-f]{40}$/.test(asset.migrationRecord.targetGitBlobSha)
+  ), 'recorded source/target mapping must match the current candidate Git blob');
+  assert.ok(reviewManifest.assets.filter(asset => asset.migrationRecord.status === 'not-recorded-in-migration-manifest')
+    .every(asset => asset.migrationRecord.targetGitBlobSha && asset.migrationRecord.sourcePath === undefined),
+  'unmapped candidates may have a target identity but must not gain an invented source path');
+
+  const reviewHtml = fs.readFileSync(path.join(reviewOutput, 'index.html'), 'utf8');
+  assert.match(reviewHtml, /REVIEW ONLY/);
+  assert.match(reviewHtml, /NOT APPROVED/);
+  assert.match(reviewHtml, /noindex,nofollow/);
+  assert.match(reviewHtml, /review-decisions\.template\.json/);
+  assert.match(reviewHtml, /does not approve media or change repository records/);
+  assert.doesNotMatch(reviewHtml, /<script\b/i, 'review artifact must not execute scripts');
+  assert.ok(reviewHtml.includes('bada-bagh-vyas-chhatri-guide'),
+    'article candidate gaps must remain visible to the reviewer');
+  assert.throws(() => buildEditorialMediaReview(ROOT, path.join(ROOT, 'artifacts', 'editorial-media-review'), report),
+    /outside the repository root/, 'review artifact must never be written into the website repository');
+
+  const escapedReport = JSON.parse(JSON.stringify(report));
+  escapedReport.articles.find(article => article.candidates.length > 0).candidates[0].rationale = '<script>alert(1)</script>';
+  const escapedOutput = path.join(reviewTemp, 'escaped');
+  buildEditorialMediaReview(ROOT, escapedOutput, escapedReport);
+  const escapedHtml = fs.readFileSync(path.join(escapedOutput, 'index.html'), 'utf8');
+  assert.ok(escapedHtml.includes('&lt;script&gt;alert(1)&lt;/script&gt;'),
+    'candidate text must be escaped before inclusion in review HTML');
+  assert.ok(!escapedHtml.includes('<script>alert(1)</script>'),
+    'review artifact must not permit candidate text to inject markup');
+} finally {
+  fs.rmSync(reviewTemp, { recursive: true, force: true });
+}
+
 assert.ok(!publicBlogFilesBefore.some(name => name.endsWith('.html')), 'there must be no generated public blog pages for drafts');
 const second = auditMedia(ROOT);
 assert.deepEqual(second, report, 'repeated audit calls must return deterministic data');
@@ -71,6 +191,9 @@ try {
   fs.cpSync(path.join(ROOT, 'content'), path.join(temp, 'content'), { recursive: true });
   fs.cpSync(path.join(ROOT, 'assets/images'), path.join(temp, 'assets/images'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'content/paths.json'), path.join(temp, 'content/paths.json'));
+  fs.mkdirSync(path.join(temp, 'docs'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'),
+    path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json'));
   const fakePath = path.join(temp, 'assets/images/corrupt.png');
   fs.writeFileSync(fakePath, Buffer.from('not a png'));
   fs.copyFileSync(fakePath, path.join(temp, 'assets/images/corrupt-copy.png'));
@@ -188,6 +311,25 @@ const completeLicensedSource = {
 };
 assert.deepEqual(mediaSourceEvidenceIssues(completeLicensedSource), [],
   'structured licensed-source evidence must pass when each required field is present');
+
+const migrationManifestPath = path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json');
+const tamperedMigration = JSON.parse(fs.readFileSync(migrationManifestPath, 'utf8'));
+const fortMapping = tamperedMigration.entries.find(entry =>
+  entry.targetPath === 'assets/images/gallery/hotel/fort-from-roof.webp');
+assert.ok(fortMapping, 'negative migration fixture must include the known mapped candidate');
+fortMapping.targetBlobSha = '0'.repeat(40);
+fs.writeFileSync(migrationManifestPath, JSON.stringify(tamperedMigration, null, 2) + '\n');
+const migrationMismatchReport = auditMedia(temp);
+const migrationReviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-migration-media-review-'));
+try {
+  assert.throws(
+    () => buildEditorialMediaReview(temp, path.join(migrationReviewTemp, 'migration-mismatch'), migrationMismatchReport),
+    /Recorded migration target blob does not match candidate bytes/,
+    'review bundle must fail closed when a recorded target blob does not match current candidate bytes'
+  );
+} finally {
+  fs.rmSync(migrationReviewTemp, { recursive: true, force: true });
+}
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
