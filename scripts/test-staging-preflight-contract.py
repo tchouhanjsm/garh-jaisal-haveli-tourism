@@ -1007,7 +1007,7 @@ home_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
     if item["route"] == "index.html"
 )
-assert home_fixture_first_view["deferredTemplateCount"] == 5
+assert home_fixture_first_view["deferredTemplateCount"] == 7
 assert home_fixture_first_view["deferredActivatedCount"] == 0
 rooms_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
@@ -1140,7 +1140,7 @@ invalid_home_deferred_counts = [dict(item) for item in fixture_page_resource_evi
 invalid_home_index = next(index for index, item in enumerate(invalid_home_deferred_counts) if item["route"] == "index.html")
 invalid_home_deferred_counts[invalid_home_index] = dict(invalid_home_deferred_counts[invalid_home_index])
 invalid_home_deferred_counts[invalid_home_index]["firstView"] = dict(invalid_home_deferred_counts[invalid_home_index]["firstView"])
-invalid_home_deferred_counts[invalid_home_index]["firstView"]["deferredTemplateCount"] = 4
+invalid_home_deferred_counts[invalid_home_index]["firstView"]["deferredTemplateCount"] = 6
 invalid_home_deferred_report = browser_smoke.build_responsive_image_evidence_report(
     route_picture_counts=fixture_picture_counts,
     checked_picture_count=len(fixture_observations),
