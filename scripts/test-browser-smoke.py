@@ -5594,11 +5594,12 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     related=article.locator("[data-journal-related] a").first
     check(related.count()>0,"Journal preview: related drafts must be discoverable")
     if related.count():
+        # Capture attributes before navigation: the click replaces the related-link DOM.
+        related_slug = related.get_attribute("data-journal-related")
         related_title=related.inner_text()
         related.click()
         check(article.locator("#journal-article-title").inner_text()==related_title,
               "Journal preview: related-draft navigation must open the selected record")
-        related_slug = related.get_attribute("data-journal-related")
         check(page.evaluate("() => new URL(location.href).searchParams.get('article')") == related_slug,
               "Journal preview: related navigation must update the bookmarkable article query parameter")
         page.go_back()
