@@ -55,7 +55,20 @@ All current records remain drafts while editorial, source, factual and owner rev
 
 The review bundle pins the exact bytes of `docs/MEDIA-MIGRATION-MANIFEST.json`, the source repository/branch/commit, every article record, and every candidate image. The validator rejects a stale migration manifest, a changed draft record, omitted or added candidate placements, duplicate or mismatched placement inventories, and changed source/target image bytes.
 
-CI checks out the authoritative source repository at the exact `sourceCommit` recorded in the migration manifest, then verifies every mapped source path against its Git blob SHA and every target path against the recorded target Git blob SHA. The validator is read-only: it reports evidence completeness but never applies worksheet decisions, edits articles, populates `media.approvedAssets`, or makes content publication-eligible.
+CI checks out the authoritative source repository at the exact `sourceCommit` recorded in the migration manifest, then verifies every mapped source path against its Git blob SHA and every target path against the recorded target Git blob SHA. The generated `review-decisions.template.json` is the default input. To validate a worksheet returned by an editor, keep the original review bundle unchanged and pass the returned JSON file explicitly:
+
+```sh
+node scripts/validate-editorial-media-decisions.js \
+  --bundle <review-bundle-outside-repository> \
+  --decisions <returned-review-decisions.json-outside-repository> \
+  --source-root <pinned-source-checkout> \
+  --source-commit <40-character-source-sha> \
+  --json
+```
+
+The returned worksheet must be a regular, non-symlink file outside the target repository. The report records whether it consumed the generated template or a returned file and includes the exact worksheet SHA-256. That digest identifies the bytes; it is not a signature and does not authenticate the named reviewer. Until an owner-defined reviewer policy and authenticated GitHub review binding are configured, `reviewerAuthorization.state` remains `NOT_CONFIGURED`, `approvalAuthorized` remains false, and publication eligibility remains false.
+
+The validator is read-only: it reports evidence completeness but never applies worksheet decisions, edits articles, populates `media.approvedAssets`, or makes content publication-eligible.
 
 The local validator requires the pinned source checkout as well as the generated review bundle:
 

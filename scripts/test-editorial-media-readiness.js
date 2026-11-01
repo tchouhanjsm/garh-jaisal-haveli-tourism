@@ -178,6 +178,47 @@ try {
   assert.equal(decisionValidation.policy.contentRecordsChanged, false);
   assert.equal(decisionValidation.policy.approvedMediaChanged, false);
 
+  const returnedWorksheetPath = path.join(reviewTemp, 'returned-review-decisions.json');
+  const returnedWorksheet = JSON.parse(JSON.stringify(decisionWorksheet));
+  returnedWorksheet.decisions[0].notes = 'Returned worksheet fixture; no approval is asserted.';
+  const returnedWorksheetBytes = Buffer.from(JSON.stringify(returnedWorksheet, null, 2) + '\n');
+  fs.writeFileSync(returnedWorksheetPath, returnedWorksheetBytes);
+  const returnedValidation = validateEditorialMediaDecisions(ROOT, reviewOutput, {
+    ...sourceOptions,
+    decisionsPath: returnedWorksheetPath,
+  });
+  assert.equal(returnedValidation.state, 'PENDING_OWNER_REVIEW',
+    'a returned worksheet with pending decisions must remain pending');
+  assert.equal(returnedValidation.decisionWorksheet.source, 'returned-file',
+    'the validator must consume the explicitly returned worksheet instead of silently reading the generated template');
+  assert.equal(returnedValidation.decisionWorksheet.sha256,
+    crypto.createHash('sha256').update(returnedWorksheetBytes).digest('hex'),
+    'the report must bind the exact returned worksheet bytes');
+  assert.equal(returnedValidation.reviewerAuthorization.state, 'NOT_CONFIGURED',
+    'returned reviewer fields must not imply authenticated owner/editor authority');
+  assert.equal(returnedValidation.reviewerAuthorization.approvalAuthorized, false);
+  assert.equal(returnedValidation.policy.publicationEligible, false);
+  assert.deepEqual(returnedValidation.errors, []);
+
+  assert.throws(
+    () => validateEditorialMediaDecisions(ROOT, reviewOutput, {
+      ...sourceOptions,
+      decisionsPath: path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'),
+    }),
+    /outside the repository root/,
+    'returned decision input must not be read from inside the target repository'
+  );
+  const returnedWorksheetLink = path.join(reviewTemp, 'returned-review-decisions-link.json');
+  fs.symlinkSync(returnedWorksheetPath, returnedWorksheetLink);
+  assert.throws(
+    () => validateEditorialMediaDecisions(ROOT, reviewOutput, {
+      ...sourceOptions,
+      decisionsPath: returnedWorksheetLink,
+    }),
+    /must not traverse a symlink/,
+    'returned decision input must reject symlink paths'
+  );
+
   const missingSourceValidation = validateEditorialMediaDecisions(ROOT, reviewOutput);
   assert.equal(missingSourceValidation.state, 'INVALID',
     'decision validation must fail closed when the authoritative source checkout is omitted');

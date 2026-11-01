@@ -86,6 +86,43 @@ function readJsonFile(root, relative, label) {
   }
 }
 
+function readExternalJsonFile(root, filePath, label) {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    throw new Error(label + ' path is required.');
+  }
+  const absolute = path.resolve(filePath);
+  const rootReal = fs.realpathSync(root);
+  if (isWithin(rootReal, absolute)) {
+    throw new Error(label + ' must be outside the repository root.');
+  }
+
+  const parsed = path.parse(absolute);
+  const segments = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
+  let current = parsed.root;
+  for (let index = 0; index < segments.length; index += 1) {
+    current = path.join(current, segments[index]);
+    const stat = fs.lstatSync(current);
+    if (stat.isSymbolicLink()) throw new Error(label + ' must not traverse a symlink.');
+    if (index < segments.length - 1 && !stat.isDirectory()) {
+      throw new Error(label + ' contains a non-directory parent.');
+    }
+    if (index === segments.length - 1 && !stat.isFile()) {
+      throw new Error(label + ' must be a regular file.');
+    }
+  }
+
+  const real = fs.realpathSync(absolute);
+  if (isWithin(rootReal, real)) {
+    throw new Error(label + ' resolves inside the repository root.');
+  }
+  const bytes = fs.readFileSync(real);
+  try {
+    return { bytes, value: JSON.parse(bytes.toString('utf8')) };
+  } catch (error) {
+    throw new Error(label + ' is not valid JSON: ' + error.message);
+  }
+}
+
 function resolveBundle(root, bundleDirectory) {
   const rootReal = fs.realpathSync(root);
   const output = path.resolve(bundleDirectory);
@@ -501,10 +538,14 @@ function validateEditorialMediaDecisions(root, bundleDirectory, options = {}) {
   const warnings = [];
   const bundle = resolveBundle(root, bundleDirectory);
   const manifestFile = readJsonFile(bundle, 'manifest.json', 'Review manifest');
-  const worksheetFile = readJsonFile(bundle, 'review-decisions.template.json', 'Decision worksheet');
+  const worksheetSource = options.decisionsPath ? 'returned-file' : 'generated-template';
+  const worksheetFile = options.decisionsPath
+    ? readExternalJsonFile(root, options.decisionsPath, 'Returned decision worksheet')
+    : readJsonFile(bundle, 'review-decisions.template.json', 'Decision worksheet');
   const manifest = manifestFile.value;
   const worksheet = worksheetFile.value;
   const manifestDigest = sha256(manifestFile.bytes);
+  const worksheetDigest = sha256(worksheetFile.bytes);
 
   if (!worksheet || worksheet.schemaVersion !== 1 ||
       worksheet.artifactType !== 'editorial-media-decision-worksheet' ||
@@ -523,11 +564,11 @@ function validateEditorialMediaDecisions(root, bundleDirectory, options = {}) {
   }
   if (!worksheet || !worksheet.summary || !Array.isArray(worksheet.decisions)) {
     errors.push('Decision worksheet summary or decision rows are missing.');
-    return emptyReport(manifestDigest, errors);
+    return emptyReport(manifestDigest, errors, worksheetSource, worksheetDigest);
   }
 
   if (!manifest || !Array.isArray(manifest.assets) || !Array.isArray(manifest.articles)) {
-    return emptyReport(manifestDigest, errors);
+    return emptyReport(manifestDigest, errors, worksheetSource, worksheetDigest);
   }
   const verified = verifyManifest(root, bundle, manifestFile.bytes, manifest, errors, options, warnings);
   const expected = expectedRows(manifest, errors);
@@ -768,6 +809,8 @@ function validateEditorialMediaDecisions(root, bundleDirectory, options = {}) {
     artifactType: 'editorial-media-decision-validation',
     state,
     reviewManifestSha256: manifestDigest,
+    decisionWorksheet: { source: worksheetSource, sha256: worksheetDigest },
+    reviewerAuthorization: reviewerAuthorizationState(),
     sourceVerification: verified.sourceVerification,
     summary,
     policy: {
@@ -785,12 +828,23 @@ function validateEditorialMediaDecisions(root, bundleDirectory, options = {}) {
   };
 }
 
-function emptyReport(manifestDigest, errors) {
+function reviewerAuthorizationState() {
+  return {
+    state: 'NOT_CONFIGURED',
+    policyConfigured: false,
+    identityVerified: false,
+    approvalAuthorized: false,
+  };
+}
+
+function emptyReport(manifestDigest, errors, worksheetSource = 'unknown', worksheetDigest = null) {
   return {
     schemaVersion: 1,
     artifactType: 'editorial-media-decision-validation',
     state: 'INVALID',
     reviewManifestSha256: manifestDigest,
+    decisionWorksheet: { source: worksheetSource, sha256: worksheetDigest },
+    reviewerAuthorization: reviewerAuthorizationState(),
     sourceVerification: { state: 'NOT_RUN', sourceRepository: null, sourceBranch: null, sourceCommit: null,
       entryCount: 0, verifiedEntryCount: 0 },
     summary: { decisionRowCount: 0, candidatePlacementCount: 0, missingCandidateRoleCount: 0,
@@ -809,6 +863,7 @@ function parseArgs(args) {
   let bundle = null;
   let sourceRoot = null;
   let sourceCommit = null;
+  let decisionsPath = null;
   let json = false;
   let strictApprovals = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -816,14 +871,15 @@ function parseArgs(args) {
     if (argument === '--bundle' && args[index + 1]) bundle = args[++index];
     else if (argument === '--source-root' && args[index + 1]) sourceRoot = args[++index];
     else if (argument === '--source-commit' && args[index + 1]) sourceCommit = args[++index];
+    else if (argument === '--decisions' && args[index + 1]) decisionsPath = args[++index];
     else if (argument === '--json') json = true;
     else if (argument === '--strict-approvals') strictApprovals = true;
     else throw new Error('Unknown or incomplete argument: ' + argument);
   }
   if (!bundle || !sourceRoot || !/^[0-9a-f]{40}$/i.test(sourceCommit || '')) {
-    throw new Error('Usage: node scripts/validate-editorial-media-decisions.js --bundle <review-bundle-outside-repository> --source-root <pinned-source-checkout> --source-commit <40-character-sha> [--json] [--strict-approvals]');
+    throw new Error('Usage: node scripts/validate-editorial-media-decisions.js --bundle <review-bundle-outside-repository> --source-root <pinned-source-checkout> --source-commit <40-character-sha> [--decisions <returned-worksheet-outside-repository>] [--json] [--strict-approvals]');
   }
-  return { bundle, sourceRoot, sourceCommit, json, strictApprovals };
+  return { bundle, sourceRoot, sourceCommit, decisionsPath, json, strictApprovals };
 }
 
 if (require.main === module) {
@@ -832,6 +888,7 @@ if (require.main === module) {
     const report = validateEditorialMediaDecisions(ROOT, args.bundle, {
       sourceRoot: args.sourceRoot,
       sourceCommit: args.sourceCommit,
+      decisionsPath: args.decisionsPath,
     });
     if (args.json) console.log(JSON.stringify(report, null, 2));
     else {
@@ -844,6 +901,10 @@ if (require.main === module) {
         ' | blocked approvals: ' + report.summary.blockedApprovalCount);
       for (const error of report.errors) console.error('ERROR: ' + error);
       for (const warning of report.warnings) console.error('BLOCKED: ' + warning);
+      console.log('Decision worksheet: ' + report.decisionWorksheet.source +
+        ' (sha256:' + report.decisionWorksheet.sha256 + ')');
+      console.log('Reviewer authorization: ' + report.reviewerAuthorization.state +
+        ' | publication authorized: no');
       console.log('Authoritative source verification: ' + report.sourceVerification.state +
         ' (' + report.sourceVerification.verifiedEntryCount + '/' + report.sourceVerification.entryCount + ' source blobs)');
       console.log('Review-only: yes | content records changed: no | publication eligible: no');
