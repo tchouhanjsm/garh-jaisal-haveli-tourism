@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const rooms = fs.readFileSync(path.join(ROOT, 'rooms.html'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'assets/css/homepage-room-discovery.css'), 'utf8');
+const mediaManifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'), 'utf8'));
 
 const records = [
   {
@@ -22,14 +23,14 @@ const records = [
     id: 'room-rising-sun',
     name: 'Rising Sun Room',
     image: 'assets/images/rooms/rising-sun.jpg',
-    alt: 'Rising Sun Room at Garh Jaisal Haveli, with a carved wooden bed and a blue-curtained window.',
+    alt: 'Rising Sun Room with a carved wooden bed, purple bedspread and blue-curtained window',
     floor: 'Ground floor',
   },
   {
     id: 'room-red-maharani',
     name: 'Red Maharani Room',
     image: 'assets/images/rooms/red-maharani.jpg',
-    alt: 'Red Maharani Room at Garh Jaisal Haveli, with red textiles, a king bed and a bright window seat.',
+    alt: 'Red Maharani Room with red textiles, a carved bed and a bright window seat',
     floor: 'First floor',
   },
 ];
@@ -66,6 +67,14 @@ for (const record of records) {
   assert.equal((card.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 1,
     record.name + ' must retain its no-JavaScript image fallback');
   assert.ok(fs.existsSync(path.join(ROOT, record.image)), record.name + ' local image asset must exist');
+  const mediaEntry = mediaManifest.entries.find(entry => entry.targetPath === record.image);
+  assert.ok(mediaEntry, record.name + ' image must have an exact curated source-manifest entry');
+  assert.equal(mediaEntry.sourceBlobSha, mediaEntry.targetBlobSha,
+    record.name + ' homepage image must retain verified source-byte provenance');
+  assert.equal(mediaEntry.altText, record.alt,
+    record.name + ' homepage alternative text must match the reviewed media manifest');
+  assert.ok(mediaEntry.verificationPage === 'index.html' || mediaEntry.additionalVerificationPages?.includes('index.html'),
+    record.name + ' media manifest must include the homepage in its page-specific verification set');
 
   const catalogueCard = rooms.match(new RegExp('<article class="room-card room-card--named"[^>]*id="' + record.id + '"[\\s\\S]*?<\\/article>'));
   assert.ok(catalogueCard, record.name + ' exact destination must exist in the seven-room catalogue');
