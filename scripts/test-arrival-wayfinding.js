@@ -33,6 +33,16 @@ assert.match(directions, /id="arrival-walk-distances-title"/,
   'Context links must target a real visible section heading');
 assert.equal(count(directions, /class="arrival-distance-card(?: arrival-distance-card--access)?"/g), 3,
   'Directions must show exactly three arrival fact cards');
+assert.match(directions, /data-arrival-distance-comparison[^>]*aria-label="Approximate walking distances"/,
+  'Walking estimates must be grouped as one named comparison');
+assert.match(directions, /data-arrival-distance="fort-parking"[\s\S]*?data-arrival-distance="fort-entrance"/,
+  'The two pedestrian estimates must appear in a deliberate, ordered comparison');
+assert.match(directions, /data-arrival-access/,
+  'Vehicle access caveats must remain distinct from the measured walking estimates');
+assert.match(stylesheet, /\.arrival-distance-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+  'The two walking estimates must share a paired responsive comparison layout');
+assert.match(stylesheet, /\.arrival-distance-card--access\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
+  'Date-dependent vehicle access must occupy a separate full-width band');
 
 const parking = directions.match(/<article class="arrival-distance-card">[\s\S]*?<\/article>/)?.[0] || '';
 const entrance = directions.match(/<article class="arrival-distance-card">[\s\S]*?<\/article>/g)?.[1] || '';

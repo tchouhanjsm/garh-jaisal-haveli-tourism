@@ -377,3 +377,13 @@ The 768px Chromium capture exposed a 34px overflow in the homepage introduction:
 Add executable WCAG AA contrast sentinels for primary saffron/white actions, deep brass/limestone text, muted/limestone copy, peacock/ivory focus, inverse fort-green text and antique brass on the dark editorial band. The checker documents that these are representative pairs; rendered colour combinations and screenshots still require review.
 
 **Next milestone (M23):** validate screenshot and layout quality at all six responsive widths for all eight routes, inspect the captured 320/360/390/768/1280/1440 composition, and calibrate hero text/photo crops, primary-action prominence, section rhythm, mobile fixed-action clearance and tablet navigation. Do not accept the design on CSS-only checks or a single desktop view.
+
+## M23 — full-width responsive visual acceptance and Directions arrival refinement
+
+**Implementation batch:** expand core-route screenshot and laboratory-performance evidence from three representative widths to the complete six-width responsive matrix (320, 360, 390, 768, 1280 and 1440 CSS pixels) for all eight routes. A complete run produces 48 full-page PNGs and 48 route/viewport performance samples.
+
+The Directions walking-distance section is composed as a paired 300m / 200m editorial comparison, with date-dependent vehicle access separated into a full-width clarification band. Source-qualified approximate times, current-access caveats, the exact-pin orientation, contact authorization and the enquiry-only boundary remain intact.
+
+Chromium coverage adds short-height mobile scenarios at 320/360/390px, deliberately positions the real quick-arrival card over the fixed booking-bar region, verifies synchronized display/aria-hidden/inert behavior, preserves a keyboard-focused booking action, checks restoration after blur and scroll-away, and exercises resize/orientation transitions. The seven other routes explicitly reject the Directions-only suppression state.
+
+**Acceptance state:** this implementation batch is not visually accepted until the exact PR head produces all 48 integrity-checked screenshots, all six viewport widths pass on all eight routes, updated arrival contracts pass, and the owner reviews the actual artifact. Automated checks do not replace STG-01–STG-18 manual UAT. Canonical host, robots, sitemap, editorial publication, staging deployment and production release remain unchanged and owner-controlled.

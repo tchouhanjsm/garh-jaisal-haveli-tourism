@@ -4092,6 +4092,14 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                               f"{page_name}: hidden booking bar must leave visual and keyboard access")
                 else:
                     check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
+                    state = page.evaluate("""() => {
+                      const bar = document.querySelector('.mobile-booking-bar');
+                      return bar ? {suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                        ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')} : null;
+                    }""")
+                    check(state is not None and not state["suppressed"]
+                          and state["ariaHidden"] is None and not state["inert"],
+                          f"{page_name}: Directions-only suppression state must never leak to another route")
                 box = bar.bounding_box()
                 if box:
                     check(box["x"] >= -1 and box["x"] + box["width"] <= width + 1,
@@ -4655,6 +4663,24 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance cards must not overflow horizontally at {width}px")
         check(page.locator("#arrival-walk-distances-title").is_visible(),
               f"Directions: arrival distance heading must remain available at {width}px")
+        comparison = page.evaluate("""() => {
+          const grid = document.querySelector('[data-arrival-distance-comparison]');
+          const items = Array.from(grid?.querySelectorAll('.arrival-distance-card') || []);
+          if (!grid || items.length !== 3) return null;
+          const rect = node => {
+            const box = node.getBoundingClientRect();
+            return {x: box.x, y: box.y, width: box.width};
+          };
+          return {grid: rect(grid), parking: rect(items[0]), entrance: rect(items[1]), access: rect(items[2])};
+        }""")
+        check(comparison is not None,
+              f"Directions: paired walking-distance comparison must render at {width}px")
+        if comparison:
+            check(abs(comparison["parking"]["y"] - comparison["entrance"]["y"]) <= 2,
+                  f"Directions: 300m and 200m estimates must align as a paired comparison at {width}px")
+            check(comparison["access"]["y"] > comparison["parking"]["y"]
+                  and comparison["access"]["width"] >= comparison["grid"]["width"] * 0.90,
+                  f"Directions: vehicle-access clarification must occupy its own full-width row at {width}px")
         travel_layout = page.evaluate("""() => {
           const section = document.querySelector('#travel-options');
           const grid = document.querySelector('#travel-options .arrival-travel__grid');
@@ -4708,6 +4734,126 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                 check(state["display"] != "none" and state["ariaHidden"] is None and not state["inert"],
                       f"Directions at {width}px: booking bar must return when the hero summary clears")
 
+
+
+    # Exercise the Directions-only mobile booking-bar state machine at short heights.
+    # Position the quick-arrival card in the fixed bar's obstruction area so the test
+    # cannot pass without actually exercising a true overlap.
+    def mobile_booking_state():
+        return page.evaluate("""() => {
+          const card = document.querySelector('[data-arrival-quick-card]');
+          const bar = document.querySelector('.mobile-booking-bar');
+          if (!card || !bar) return null;
+          const bounds = card.getBoundingClientRect();
+          const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+          const overlaps = bounds.left < window.innerWidth && bounds.right > 0
+            && bounds.top < window.innerHeight
+            && bounds.bottom > Math.max(0, window.innerHeight - height);
+          const focused = bar.contains(document.activeElement);
+          return {overlaps, focused, expected: overlaps && !focused,
+            suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+            display: getComputedStyle(bar).display,
+            ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')};
+        }""")
+
+    def position_quick_card_over_booking_bar():
+        page.evaluate("""() => {
+          const card = document.querySelector('[data-arrival-quick-card]');
+          const bar = document.querySelector('.mobile-booking-bar');
+          if (!card || !bar) return;
+          const bounds = card.getBoundingClientRect();
+          const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+          const targetBottom = window.innerHeight - Math.max(8, Math.min(20, height / 4));
+          window.scrollTo(0, Math.max(0, window.scrollY + bounds.bottom - targetBottom));
+        }""")
+        page.wait_for_timeout(80)
+
+    for width in (320, 360, 390):
+        for height in (568, 640):
+            page.set_viewport_size({"width": width, "height": height})
+            response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+            check(response is not None and response.status == 200,
+                  f"Directions: short-screen scenario must load at {width}×{height}")
+            page.wait_for_timeout(80)
+
+            initial = mobile_booking_state()
+            check(initial is not None and initial["suppressed"] == initial["expected"],
+                  f"Directions at {width}×{height}: initial booking-bar state must match real overlap geometry")
+            if initial:
+                check((initial["ariaHidden"] == "true" and initial["inert"])
+                      if initial["expected"] else (initial["ariaHidden"] is None and not initial["inert"]),
+                      f"Directions at {width}×{height}: initial visual and accessibility states must stay synchronized")
+
+            position_quick_card_over_booking_bar()
+            overlapped = mobile_booking_state()
+            check(overlapped is not None and overlapped["overlaps"] and overlapped["expected"]
+                  and overlapped["suppressed"],
+                  f"Directions at {width}×{height}: booking bar must yield when the quick-arrival card truly overlaps")
+            if overlapped:
+                check(overlapped["display"] == "none" and overlapped["ariaHidden"] == "true" and overlapped["inert"],
+                      f"Directions at {width}×{height}: an overlapping bar must leave visual and keyboard access")
+
+            # Put the bar in a clear viewport before focusing, then shrink it while
+            # focus is retained; the fixed action must not disappear under focus.
+            page.set_viewport_size({"width": width, "height": 1600})
+            page.evaluate("window.scrollTo(0, 0)")
+            page.wait_for_timeout(80)
+            page.evaluate("""() => {
+              document.querySelector('.mobile-booking-bar [data-booking-link]')
+                ?.focus({preventScroll: true});
+            }""")
+            focused_before_scroll = page.evaluate(
+                "() => !!document.querySelector('.mobile-booking-bar')?.contains(document.activeElement)"
+            )
+            check(focused_before_scroll,
+                  f"Directions at {width}×{height}: the Book Now control must be keyboard-focusable")
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(80)
+            position_quick_card_over_booking_bar()
+            focused_overlap = mobile_booking_state()
+            check(focused_overlap is not None and focused_overlap["overlaps"] and focused_overlap["focused"]
+                  and not focused_overlap["suppressed"] and focused_overlap["display"] != "none"
+                  and focused_overlap["ariaHidden"] is None and not focused_overlap["inert"],
+                  f"Directions at {width}×{height}: a focused booking action must not be hidden or made inert")
+
+            page.evaluate("document.activeElement?.blur()")
+            page.wait_for_timeout(100)
+            blurred_overlap = mobile_booking_state()
+            check(blurred_overlap is not None and blurred_overlap["expected"] and blurred_overlap["suppressed"]
+                  and blurred_overlap["display"] == "none" and blurred_overlap["ariaHidden"] == "true"
+                  and blurred_overlap["inert"],
+                  f"Directions at {width}×{height}: suppression must resume only after focus leaves the booking bar")
+
+            page.evaluate("window.scrollTo(0, 0)")
+            page.wait_for_timeout(100)
+            cleared = mobile_booking_state()
+            check(cleared is not None and not cleared["expected"] and not cleared["suppressed"]
+                  and cleared["display"] != "none" and cleared["ariaHidden"] is None and not cleared["inert"],
+                  f"Directions at {width}×{height}: booking bar must restore after scrolling away from the quick-arrival card")
+
+    # Resizing to landscape/desktop must clear old suppression; returning to mobile
+    # must recalculate state after the orientation event.
+    page.set_viewport_size({"width": 390, "height": 568})
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    position_quick_card_over_booking_bar()
+    state_before_orientation = mobile_booking_state()
+    check(state_before_orientation is not None and state_before_orientation["suppressed"],
+          "Directions: orientation scenario must begin with a genuine mobile overlap")
+    page.set_viewport_size({"width": 844, "height": 390})
+    page.evaluate("window.dispatchEvent(new Event('orientationchange'))")
+    page.wait_for_timeout(100)
+    landscape = mobile_booking_state()
+    check(landscape is not None and not landscape["suppressed"]
+          and landscape["ariaHidden"] is None and not landscape["inert"],
+          "Directions: resize/orientation beyond the mobile breakpoint must clear suppression and inert state")
+    page.set_viewport_size({"width": 390, "height": 568})
+    page.evaluate("window.dispatchEvent(new Event('orientationchange'))")
+    page.wait_for_timeout(100)
+    returned = mobile_booking_state()
+    check(returned is not None and returned["suppressed"] == returned["expected"]
+          and ((returned["ariaHidden"] == "true" and returned["inert"])
+               if returned["expected"] else (returned["ariaHidden"] is None and not returned["inert"])),
+          "Directions: returning to mobile must recalculate overlap after resize/orientation")
 
 
 def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:

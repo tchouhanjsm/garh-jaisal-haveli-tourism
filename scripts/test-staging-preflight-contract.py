@@ -15,6 +15,7 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load the browser smoke module")
 browser_smoke = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(browser_smoke)
+EXPECTED_SCREENSHOT_COUNT = len(browser_smoke.PAGES) * len(browser_smoke.VIEWPORTS)
 
 SERVER_SPEC = importlib.util.spec_from_file_location(
     "static_404_test_server", ROOT / "scripts" / "test-static-server.py"
@@ -212,7 +213,7 @@ def valid_screenshot_records() -> list[dict]:
 
 
 complete_screenshots = valid_screenshot_records()
-assert len(complete_screenshots) == 24
+assert len(complete_screenshots) == EXPECTED_SCREENSHOT_COUNT
 assert [record["filename"] for record in complete_screenshots] == browser_smoke.expected_screenshot_names()
 
 
@@ -388,7 +389,7 @@ assert incomplete_report["visualEvidence"]["complete"] is False
 assert incomplete_report["visualEvidence"]["required"] is True
 assert incomplete_report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
 assert incomplete_report["visualEvidence"]["ownerApproved"] is False
-assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == 24
+assert incomplete_report["visualEvidence"]["expectedScreenshotCount"] == EXPECTED_SCREENSHOT_COUNT
 assert incomplete_report["pagesAttempted"] == []
 assert incomplete_report["pagesWithHttp200OnTargetOrigin"] == []
 assert incomplete_report["completedResponsiveViewportWidthsCssPixels"] == []
@@ -421,17 +422,17 @@ assert report["evidenceCoverage"] == {
 }
 assert report["unknownRouteEvidence"]["complete"] is True
 assert report["performanceBaseline"]["complete"] is True
-assert report["performanceBaseline"]["expectedSampleCount"] == 24
-assert report["performanceBaseline"]["capturedSampleCount"] == 24
+assert report["performanceBaseline"]["expectedSampleCount"] == EXPECTED_SCREENSHOT_COUNT
+assert report["performanceBaseline"]["capturedSampleCount"] == EXPECTED_SCREENSHOT_COUNT
 assert report["performanceBaseline"]["fieldDataAvailable"] is False
 assert report["performanceBaseline"]["thresholdsEnforced"] is False
 assert report["performanceBaseline"]["dataClass"] == "laboratory-diagnostic-not-field-core-web-vitals"
-assert len(report["performanceBaseline"]["samples"]) == 24
+assert len(report["performanceBaseline"]["samples"]) == EXPECTED_SCREENSHOT_COUNT
 assert report["visualEvidence"]["complete"] is True
 assert report["visualEvidence"]["required"] is True
 assert report["visualEvidence"]["reviewStatus"] == "PENDING_OWNER_REVIEW"
 assert report["visualEvidence"]["ownerApproved"] is False
-assert report["visualEvidence"]["capturedScreenshotCount"] == 24
+assert report["visualEvidence"]["capturedScreenshotCount"] == EXPECTED_SCREENSHOT_COUNT
 assert report["visualEvidence"]["capturedFiles"] == complete_screenshots
 assert report["releaseStatus"] == "BLOCKED_PENDING_MANUAL_UAT"
 assert report["operator"] == "QA operator"
