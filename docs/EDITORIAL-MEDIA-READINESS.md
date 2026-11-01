@@ -51,6 +51,24 @@ Use only provenance/rights evidence that actually exists. Do not set `owner-conf
 
 All current records remain drafts while editorial, source, factual and owner reviews are incomplete. This pipeline must not activate production canonical tags, change the pre-launch blocking `robots.txt`, populate the public sitemap, submit URLs to Search Console, or deploy the site. The existing canonical-host approval flag remains an independent owner-controlled gate.
 
+## Decision worksheet validation
+
+The review bundle pins the exact bytes of `docs/MEDIA-MIGRATION-MANIFEST.json`, the source repository/branch/commit, every article record, and every candidate image. The validator rejects a stale migration manifest, a changed draft record, omitted or added candidate placements, duplicate or mismatched placement inventories, and changed source/target image bytes.
+
+CI checks out the authoritative source repository at the exact `sourceCommit` recorded in the migration manifest, then verifies every mapped source path against its Git blob SHA and every target path against the recorded target Git blob SHA. The validator is read-only: it reports evidence completeness but never applies worksheet decisions, edits articles, populates `media.approvedAssets`, or makes content publication-eligible.
+
+The local validator requires the pinned source checkout as well as the generated review bundle:
+
+```sh
+SOURCE_COMMIT="$(node -p "require('./docs/MEDIA-MIGRATION-MANIFEST.json').sourceCommit")"
+node scripts/validate-editorial-media-decisions.js \
+  --bundle /tmp/garh-jaisal-editorial-media-review \
+  --source-root /path/to/garh-jaisal-website-at-pinned-commit \
+  --source-commit "$SOURCE_COMMIT"
+```
+
+`--strict-approvals` exits nonzero whenever the worksheet requests an approval. Even a complete evidence package remains `EVIDENCE_COMPLETE_AWAITING_SEPARATE_REVIEW`; only a separately reviewed repository change may alter editorial records.
+
 ## Current inventory outcome
 
 The target repository does not currently contain a ready-to-publish image inside each article's blog-specific asset directory. Candidate paths from shared site assets are unassessed search leads, not contextual matches, until an editor verifies the actual visible subject and records the evidence, reviewer and date. Gadisar Lake, Bada Bagh/Vyas Chhatri, and Kuldhara currently have no suitable context-supported local candidate and need a suitable, sourced image before media approval.
