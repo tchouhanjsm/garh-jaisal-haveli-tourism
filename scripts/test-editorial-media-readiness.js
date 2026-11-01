@@ -9,6 +9,7 @@ const path = require('node:path');
 const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, roleEligibilitySummary, verifyImageDecode } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
 const { buildEditorialMediaReview } = require('./build-editorial-media-review');
+const { validateEditorialMediaDecisions } = require('./validate-editorial-media-decisions');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
@@ -137,8 +138,77 @@ try {
   for (const row of missingRoleRows) {
     assert.equal(row.candidatePath, null);
     assert.equal(row.proposedCandidatePath, null, 'missing media must not receive an invented candidate path');
+    assert.equal(row.proposedCandidateSha256, null, 'missing media must not receive an invented candidate hash');
+    assert.equal(row.proposedCandidateGitBlobSha, null, 'missing media must not receive an invented candidate Git blob');
     assert.ok(row.requiredSubject, 'missing-role request must preserve the draft-stated subject requirement');
+    assert.match(row.articleRecordSha256, /^[0-9a-f]{64}$/, 'each missing-role request must pin its exact article record');
   }
+
+  assert.ok(reviewManifest.articles.every(article => /^[0-9a-f]{64}$/.test(article.recordSha256)),
+    'review manifest must pin exact draft article bytes');
+  const decisionValidation = validateEditorialMediaDecisions(ROOT, reviewOutput);
+  assert.equal(decisionValidation.state, 'PENDING_OWNER_REVIEW',
+    'a complete blank worksheet must validate structurally without implying approval');
+  assert.deepEqual(decisionValidation.errors, [], 'blank owner worksheet must have no structural errors');
+  assert.equal(decisionValidation.summary.pendingCount, 24);
+  assert.equal(decisionValidation.summary.requestedApprovals, 0);
+  assert.equal(decisionValidation.policy.publicationEligible, false);
+  assert.equal(decisionValidation.policy.contentRecordsChanged, false);
+  assert.equal(decisionValidation.policy.approvedMediaChanged, false);
+
+  const tamperedManifestOutput = path.join(reviewTemp, 'tampered-manifest');
+  fs.cpSync(reviewOutput, tamperedManifestOutput, { recursive: true });
+  fs.appendFileSync(path.join(tamperedManifestOutput, 'manifest.json'), '\n');
+  const tamperedManifestResult = validateEditorialMediaDecisions(ROOT, tamperedManifestOutput);
+  assert.ok(tamperedManifestResult.errors.some(message => /SHA-256 does not match/.test(message)),
+    'worksheet must be rejected when the exact manifest bytes change');
+
+  const tamperedWorksheetOutput = path.join(reviewTemp, 'tampered-worksheet');
+  fs.cpSync(reviewOutput, tamperedWorksheetOutput, { recursive: true });
+  const tamperedWorksheetPath = path.join(tamperedWorksheetOutput, 'review-decisions.template.json');
+  const tamperedWorksheet = JSON.parse(fs.readFileSync(tamperedWorksheetPath, 'utf8'));
+  tamperedWorksheet.decisions[0].candidateSha256 = '0'.repeat(64);
+  fs.writeFileSync(tamperedWorksheetPath, JSON.stringify(tamperedWorksheet, null, 2) + '\n');
+  const tamperedWorksheetResult = validateEditorialMediaDecisions(ROOT, tamperedWorksheetOutput);
+  assert.ok(tamperedWorksheetResult.errors.some(message => /candidate identity does not match/.test(message)),
+    'worksheet must reject a changed candidate identity');
+
+  const approvalRequestOutput = path.join(reviewTemp, 'approval-request');
+  fs.cpSync(reviewOutput, approvalRequestOutput, { recursive: true });
+  const approvalWorksheetPath = path.join(approvalRequestOutput, 'review-decisions.template.json');
+  const approvalWorksheet = JSON.parse(fs.readFileSync(approvalWorksheetPath, 'utf8'));
+  const approvalRow = approvalWorksheet.decisions.find(row => row.entryType === 'candidate-placement');
+  approvalRow.ownerDecision = 'approve';
+  approvalRow.visualReview = {
+    status: 'matched',
+    evidence: 'Fixture-only reviewer statement; not an actual editorial decision.',
+    reviewer: 'Fixture reviewer',
+    reviewedAt: '2026-10-28',
+  };
+  approvalRow.sourceEvidence = {
+    status: 'owner-created',
+    creator: 'Fixture creator',
+    sourceUrl: null,
+    licenseName: null,
+    evidenceReference: 'fixture-evidence:owner-created',
+    verifiedBy: 'Fixture reviewer',
+    verifiedAt: '2026-10-28',
+  };
+  approvalRow.rightsStatus = 'owner-confirmed';
+  approvalRow.altText = 'Fixture description of the visible subject for validator regression coverage.';
+  approvalRow.technicalValidation = { status: 'verified', evidenceReference: 'sha256:' + '0'.repeat(64) };
+  fs.writeFileSync(approvalWorksheetPath, JSON.stringify(approvalWorksheet, null, 2) + '\n');
+  const approvalValidation = validateEditorialMediaDecisions(ROOT, approvalRequestOutput);
+  assert.equal(approvalValidation.summary.requestedApprovals, 1);
+  assert.equal(approvalValidation.summary.blockedApprovalCount, 1,
+    'a requested approval must remain blocked when technical evidence is not independently verified');
+  assert.equal(approvalValidation.policy.publicationEligible, false,
+    'even evidence-complete worksheet decisions must never claim publication eligibility');
+  assert.equal(approvalValidation.policy.contentRecordsChanged, false,
+    'worksheet validation must never mutate article records');
+  assert.ok(approvalValidation.warnings.some(message => /technical evidence reference does not match/.test(message) ||
+    /technical role validation failed/.test(message)),
+  'technical validation must be recomputed from current image bytes and role policy');
 
   const mappedAssets = reviewManifest.assets.filter(asset => asset.migrationRecord.status === 'recorded-target-blob-verified');
   assert.equal(mappedAssets.length, 2);
