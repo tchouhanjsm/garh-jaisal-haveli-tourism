@@ -46,6 +46,10 @@ All eight core public routes declare one Google Fonts stylesheet using `display=
 
 The regression contract in `scripts/test-premium-guest-journey.js` checks all eight route heads for exactly one Google Fonts stylesheet, the optional display policy and both preconnect hints. Chromium layout and visual review remain separate acceptance steps.
 
+## Homepage planning-panel contrast correction — M29
+
+The 1 November main-branch visual baseline exposed a homepage-only contrast regression: the planning links used white foreground text while the legacy `.home-plan-paths` parent retained its limestone background and 1px padding. The M29 premium rule now explicitly removes that inherited parent surface and padding, allowing the four links to sit directly on the fort-green editorial panel. The route regression contract checks this override and the retained white title treatment. The automated screenshot is evidence for layout rendering only; manual owner visual review remains separate.
+
 ## Owner-gated SEO publication
 
 - Candidate origin: `https://hotelgarhjaisal.com`; `site.canonicalHostApproved` remains `false` until the owner separately authorizes canonical release. Do not infer approval from the PR merge.

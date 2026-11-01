@@ -159,6 +159,11 @@ for (const route of CORE_PUBLIC_ROUTES) {
   assert.match(html, /<link rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin>/,
     route + ': warm the cross-origin font-file connection');
 }
+assert.match(css, /#plan-stay \.home-plan-paths\s*\{[^}]*padding:\s*0;[^}]*background:\s*transparent;/,
+  'homepage planning links must not inherit the legacy pale parent surface beneath white text');
+assert.match(css, /#plan-stay \.home-plan-path>strong\s*\{[^}]*color:\s*var\(--white\)/,
+  'homepage planning link titles must retain the high-contrast white-on-fort-green treatment');
+
 const roomsHtml = fs.readFileSync(path.join(ROOT, 'rooms.html'), 'utf8');
 assert.match(roomsHtml, /class="page-hero page-hero--rooms"/,
   'Rooms hero must expose a route-specific class for responsive line-box reservation');
