@@ -178,6 +178,13 @@ try {
   assert.equal(decisionValidation.policy.contentRecordsChanged, false);
   assert.equal(decisionValidation.policy.approvedMediaChanged, false);
 
+  const missingSourceValidation = validateEditorialMediaDecisions(ROOT, reviewOutput);
+  assert.equal(missingSourceValidation.state, 'INVALID',
+    'decision validation must fail closed when the authoritative source checkout is omitted');
+  assert.equal(missingSourceValidation.sourceVerification.state, 'NOT_RUN');
+  assert.ok(missingSourceValidation.errors.some(message => /authoritative source checkout is required/i.test(message)),
+    'missing authoritative source evidence must be a hard validation error, not a warning');
+
   const tamperedSourceRoot = path.join(reviewTemp, 'tampered-source');
   fs.cpSync(sourceRoot, tamperedSourceRoot, { recursive: true });
   const sourceEntry = migrationManifest.entries[0];
