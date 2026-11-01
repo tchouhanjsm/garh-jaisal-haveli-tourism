@@ -155,7 +155,7 @@ try {
   assert.match(reviewHtml, /REVIEW ONLY/);
   assert.match(reviewHtml, /NOT APPROVED/);
   assert.match(reviewHtml, /noindex,nofollow/);
-  assert.match(reviewHtml, /review-decisions\\.template\\.json/);
+  assert.match(reviewHtml, /review-decisions\.template\.json/);
   assert.match(reviewHtml, /does not approve media or change repository records/);
   assert.doesNotMatch(reviewHtml, /<script\b/i, 'review artifact must not execute scripts');
   assert.ok(reviewHtml.includes('bada-bagh-vyas-chhatri-guide'),
