@@ -52,8 +52,9 @@ assert.doesNotMatch(gallery.slice(supplementalStart), /data-gallery-composition=
 for (const page of [rooms, gallery]) {
   assert.match(page, /<link rel="stylesheet" href="assets\/css\/room-catalogue-composition\.css">/,
     'both collection pages must load the shared composition layer');
-  assert.ok(page.indexOf('assets/css/premium-guest-journey.css') < page.indexOf('assets/css/room-catalogue-composition.css'),
-    'the collection composition layer must load after the shared premium layer');
+  assert.ok(page.indexOf('assets/site.css') < page.indexOf('assets/css/room-catalogue-composition.css')
+    && page.indexOf('assets/css/room-catalogue-composition.css') < page.indexOf('assets/css/premium-guest-journey.css'),
+    'the collection layer must follow route CSS and preserve the shared premium layer as the final cascade owner');
 }
 
 assert.ok(css.includes('.room-card-grid--catalog [data-room-card-composition="feature"] {'));
