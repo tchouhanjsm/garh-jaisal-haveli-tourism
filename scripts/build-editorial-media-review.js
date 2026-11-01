@@ -216,7 +216,7 @@ function buildHtml(manifest) {
     '</head>',
     '<body><main>',
     '<header class="hero">',
-    '<p class="eyebrow">LOCAL-ONLY ENGINEERING ARTIFACT</p>',
+    '<p class="eyebrow">LOCAL-ONLY ENGINEERING ARTIFACT · REVIEW ONLY</p>',
     '<h1>Editorial media review bundle — NOT APPROVED</h1>',
     '<p class="warning"><strong>Review-only.</strong> This bundle presents only candidate declarations already present in draft records. It does not assert visual relevance, creator identity, rights, factual context, or publication fitness. No candidate is approved, no derivative is created, and no public article or site route is changed. An authorized owner/editor must inspect the original image and record evidence in the content record before any approval.</p>',
     '<div class="summary">',
