@@ -5332,17 +5332,7 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(page.locator(".journal-masthead__image img[alt]").count() == 1,
           "Journal preview: masthead photo must keep descriptive alternative text")
     try:
-        try:
-        try:
         page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
-    except Exception as error:
-        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
-        check(False, f"Journal preview: return-to-archive route failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
-        return
-    except Exception as error:
-        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
-        check(False, f"Journal preview: filter refresh failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
-        return
     except Exception as error:
         check(False, f"Journal preview: all 12 draft cards should render from JSON ({error})")
         return
@@ -5456,7 +5446,12 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(filter_url == {"q":"Jaisalmer Fort Guide","topic":"fort-and-heritage"},
           f"Journal preview: search and topic state must be reflected in the URL ({filter_url})")
     page.reload(wait_until="domcontentloaded")
-    page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: filter refresh failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
     check(page.locator("[data-journal-search]").input_value()=="Jaisalmer Fort Guide"
           and page.locator("[data-journal-topic]").input_value()=="fort-and-heritage",
           "Journal preview: search and topic filters must survive refresh")
@@ -5510,7 +5505,12 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(page.evaluate("() => document.activeElement && document.activeElement.dataset.journalOpen === 'jaisalmer-fort-guide'"),
           "Journal preview: direct-entry Back must restore focus to the originating draft link")
     page.goto(base_url + "preview/journal.html", wait_until="domcontentloaded", timeout=15000)
-    page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: return-to-archive route failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
     check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear filters must restore all drafts")
 
     article_trigger=page.locator('[data-journal-open="jaisalmer-fort-guide"]').first
