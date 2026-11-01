@@ -4761,10 +4761,18 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
           const card = document.querySelector('[data-arrival-quick-card]');
           const bar = document.querySelector('.mobile-booking-bar');
           if (!card || !bar) return;
+          // The site intentionally uses smooth scrolling. Disable it for this
+          // deterministic geometry fixture so the overlap is measured after the
+          // requested position has been reached, not during an in-flight animation.
+          document.documentElement.style.scrollBehavior = 'auto';
           const bounds = card.getBoundingClientRect();
           const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
           const targetBottom = window.innerHeight - Math.max(8, Math.min(20, height / 4));
-          window.scrollTo(0, Math.max(0, window.scrollY + bounds.bottom - targetBottom));
+          window.scrollTo({
+            left: 0,
+            top: Math.max(0, window.scrollY + bounds.bottom - targetBottom),
+            behavior: 'auto',
+          });
         }""")
         page.wait_for_timeout(80)
 
