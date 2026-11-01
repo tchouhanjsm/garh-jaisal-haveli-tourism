@@ -350,6 +350,13 @@ def build_report(mode: str, base_url: str, operator: str | None,
             and isinstance(record.get("sha256"), str)
             and re.fullmatch(r"[0-9a-f]{64}", record.get("sha256", "")) is not None
             and record.get("fullPage") is True
+            and isinstance(record.get("deferredMediaExpectedCount"), int)
+            and record.get("deferredMediaExpectedCount", -1) >= 0
+            and record.get("deferredMediaActivatedCount") == record.get("deferredMediaExpectedCount")
+            and record.get("deferredMediaPendingCount") == 0
+            and record.get("deferredMediaFailedCount") == 0
+            and isinstance(record.get("decodedImageCount"), int)
+            and record.get("decodedImageCount", 0) > 0
             for record in screenshot_records
         )
     )
@@ -358,7 +365,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         evidence_failures.append(
             f"Incomplete visual evidence: expected {len(expected_screenshots)} full-page PNG screenshots "
             f"({len(PAGES)} routes at {', '.join(str(width) for width, _ in VIEWPORTS)} CSS pixels) "
-            f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
+            f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry, SHA-256 and complete deferred-media hydration."
         )
 
     performance_records = list(performance_evidence or [])
@@ -530,7 +537,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         },
         "visualEvidence": {
             "required": True,
-            "captureMode": "full-page PNG",
+            "captureMode": "full-page PNG after deferred-media hydration and image decoding",
             "expectedScreenshotCount": len(expected_screenshots),
             "capturedScreenshotCount": len(screenshot_records),
             "complete": screenshot_complete,
@@ -875,13 +882,57 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
 
 def capture_visual_evidence(page, page_name: str, width: int, height: int,
                             screenshots_dir: Path) -> None:
-    """Capture a full-page PNG after requesting image/font readiness and record its integrity."""
+    """Capture a media-complete full-page PNG and record its integrity."""
     filename = f"{Path(page_name).stem}-{width}px.png"
     destination = screenshots_dir / filename
     try:
-        page.evaluate(
+        media_readiness = page.evaluate(
             """async () => {
               await document.fonts.ready;
+              const rootStyle = document.documentElement.style;
+              const originalScrollBehavior = rootStyle.scrollBehavior;
+              rootStyle.scrollBehavior = 'auto';
+              const pendingAtCaptureStart = document.querySelectorAll('[data-deferred-media]').length;
+              const alreadyActivatedAtCaptureStart = document.querySelectorAll('[data-deferred-media-activated]').length;
+              const expectedDeferredMedia = pendingAtCaptureStart + alreadyActivatedAtCaptureStart;
+              const failedAtCaptureStart = document.querySelectorAll('[data-deferred-media-failed]').length;
+              if (failedAtCaptureStart) {
+                throw new Error('deferred media had already failed before visual capture: ' + failedAtCaptureStart);
+              }
+              const waitForPaint = () => new Promise(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve))
+              );
+              const step = Math.max(160, Math.floor(window.innerHeight * 0.68));
+              let cursor = 0;
+              let reachedDocumentEnd = false;
+              for (let index = 0; index < 500; index += 1) {
+                const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                const next = Math.min(cursor, maxScroll);
+                window.scrollTo(0, next);
+                await waitForPaint();
+                if (next >= maxScroll) {
+                  reachedDocumentEnd = true;
+                  break;
+                }
+                cursor = next + step;
+              }
+              if (!reachedDocumentEnd) {
+                throw new Error('bounded media-hydration scroll did not reach the document end');
+              }
+              window.scrollTo(0, document.documentElement.scrollHeight);
+              await waitForPaint();
+              await new Promise(resolve => setTimeout(resolve, 50));
+
+              const pendingDeferredMedia = document.querySelectorAll('[data-deferred-media]').length;
+              const failedDeferredMedia = document.querySelectorAll('[data-deferred-media-failed]').length;
+              const activatedDeferredMedia = document.querySelectorAll('[data-deferred-media-activated]').length;
+              if (pendingDeferredMedia || failedDeferredMedia
+                  || activatedDeferredMedia !== expectedDeferredMedia) {
+                throw new Error('deferred media hydration incomplete: expected=' + expectedDeferredMedia
+                  + ', activated=' + activatedDeferredMedia + ', pending=' + pendingDeferredMedia
+                  + ', failed=' + failedDeferredMedia);
+              }
+
               const images = Array.from(document.images);
               for (const image of images) image.loading = 'eager';
               const decodeResults = await Promise.all(images.map(async image => {
@@ -897,10 +948,23 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
                 throw new Error('image decode/intrinsic-size failure (' + failedImages.length + '/' + decodeResults.length + '): '
                   + failedImages.map(result => result.src.split('/').pop() + (result.reason ? ' [' + result.reason + ']' : '')).join(', '));
               }
+              if (!images.length) throw new Error('no rendered images were available for visual evidence');
+
+              const readiness = {
+                deferredMediaExpectedCount: expectedDeferredMedia,
+                deferredMediaActivatedCount: activatedDeferredMedia,
+                deferredMediaPendingCount: pendingDeferredMedia,
+                deferredMediaFailedCount: failedDeferredMedia,
+                decodedImageCount: images.length
+              };
               window.scrollTo(0, 0);
-              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              await waitForPaint();
+              rootStyle.scrollBehavior = originalScrollBehavior;
+              return readiness;
             }"""
         )
+        if not isinstance(media_readiness, dict):
+            raise ValueError("deferred-media readiness diagnostics were unavailable")
         page.screenshot(path=str(destination), full_page=True, animations="disabled", timeout=20000)
         payload = destination.read_bytes()
         image_width, image_height = read_png_dimensions(destination)
@@ -913,6 +977,11 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
             "imageWidthPixels": image_width,
             "imageHeightPixels": image_height,
             "fullPage": True,
+            "deferredMediaExpectedCount": media_readiness["deferredMediaExpectedCount"],
+            "deferredMediaActivatedCount": media_readiness["deferredMediaActivatedCount"],
+            "deferredMediaPendingCount": media_readiness["deferredMediaPendingCount"],
+            "deferredMediaFailedCount": media_readiness["deferredMediaFailedCount"],
+            "decodedImageCount": media_readiness["decodedImageCount"],
             "bytes": len(payload),
             "sha256": hashlib.sha256(payload).hexdigest(),
         })
@@ -3393,6 +3462,7 @@ def check_contact_hydration(page, base_url: str) -> None:
         ("Travel options", "#travel-options-title"),
         ("Walking & mobility", "#walking-access-title"),
         ("Map & navigation", "#arrival-map-title"),
+        ("Plan arrival", "#arrival-enquiry-title"),
         ("FAQs", "#arrival-faq-title"),
     ]
     for label, href in expected_sections:
@@ -3419,6 +3489,22 @@ def check_contact_hydration(page, base_url: str) -> None:
           "Map & navigation must update the in-page fragment")
     check(page.locator("#arrival-map-title").is_visible(),
           "Map & navigation must target a visible heading")
+    section_nav.get_by_role("link", name="Plan arrival", exact=True).click()
+    check(urlparse(page.url).fragment == "arrival-enquiry-title",
+          "Plan arrival navigation must target the dedicated arrival-enquiry heading")
+    try:
+        page.wait_for_function(
+            """() => {
+              const heading = document.querySelector("#arrival-enquiry-title");
+              const active = document.querySelector('.arrival-section-nav a[aria-current="location"]');
+              return heading && document.activeElement === heading
+                && active && active.getAttribute("href") === "#arrival-enquiry-title";
+            }""",
+            timeout=5000,
+        )
+        check(True, "Plan arrival navigation must focus its visible heading and expose its active state")
+    except Exception as error:
+        check(False, f"Plan arrival navigation must focus its visible heading ({error})")
 
     # This smoke test inspects the destination but never opens the external map.
 
@@ -3989,6 +4075,106 @@ def check_first_view_hierarchy(page, page_name: str, viewport_width: int) -> Non
               f"{page_name} at {viewport_width}px: hero image must preserve its cover crop")
 
 
+def check_collection_editorial_composition(page, page_name: str, viewport_width: int) -> None:
+    """Keep seven-item room and photo collections editorially balanced at every audit width."""
+    if page_name == "rooms.html":
+        state = page.evaluate("""() => {
+          const grid = document.querySelector('.room-card-grid--catalog');
+          const cards = grid ? [...grid.querySelectorAll('.room-card--named')] : [];
+          const feature = grid && grid.querySelector('[data-room-card-composition="feature"]');
+          const image = feature && feature.querySelector('.room-card__image');
+          const copy = feature && feature.querySelector('.room-card__body');
+          const rect = element => {
+            if (!element) return null;
+            const box = element.getBoundingClientRect();
+            return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height};
+          };
+          return {
+            count:cards.length,
+            featureIsLast:Boolean(feature && cards[cards.length - 1] === feature),
+            columns:grid ? getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+            spanStart:feature ? getComputedStyle(feature).gridColumnStart : null,
+            spanEnd:feature ? getComputedStyle(feature).gridColumnEnd : null,
+            image:rect(image), copy:rect(copy)
+          };
+        }""")
+        expected_columns = 3 if viewport_width > 1050 else 2 if viewport_width > 760 else 1
+        check(state is not None and state["count"] == 7 and state["featureIsLast"],
+              f"rooms.html at {viewport_width}px: the editorial closure must preserve seven records and feature the final room")
+        check(state is not None and state["columns"] == expected_columns,
+              f"rooms.html at {viewport_width}px: catalogue columns must match the responsive 3/2/1 grid ({state})")
+        check(state is not None and state["spanStart"] == "1" and state["spanEnd"] == "-1",
+              f"rooms.html at {viewport_width}px: the seventh room must own the full grid row")
+        if state and state["image"] and state["copy"] and viewport_width > 760:
+            check(state["image"]["right"] <= state["copy"]["left"] + 2 and state["image"]["height"] >= 340,
+                  f"rooms.html at {viewport_width}px: feature image and editorial copy must form a substantial horizontal composition ({state})")
+        elif state and state["image"] and state["copy"]:
+            check(state["image"]["bottom"] <= state["copy"]["top"] + 2,
+                  f"rooms.html at {viewport_width}px: feature image must stack above room copy on mobile ({state})")
+
+    elif page_name == "gallery.html":
+        state = page.evaluate("""() => {
+          const photoGrid = document.querySelector('.gallery-grid:not(.gallery-grid--source)');
+          const photoCards = photoGrid ? [...photoGrid.querySelectorAll('.gallery-card')] : [];
+          const photoFeature = photoGrid && photoGrid.querySelector('[data-gallery-composition="feature"]');
+          const photoMedia = photoFeature && photoFeature.querySelector('.gallery-card__media');
+          const photoCopy = photoFeature && photoFeature.querySelector('figcaption');
+          const roomGrid = document.querySelector('.room-gallery-grid');
+          const roomCards = roomGrid ? [...roomGrid.querySelectorAll('.room-gallery-card')] : [];
+          const roomFeature = roomGrid && roomGrid.querySelector('[data-room-card-composition="feature"]');
+          const roomImage = roomFeature && roomFeature.querySelector('.room-gallery-card__image');
+          const roomCopy = roomFeature && roomFeature.querySelector('.room-gallery-card__body');
+          const rect = element => {
+            if (!element) return null;
+            const box = element.getBoundingClientRect();
+            return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height};
+          };
+          return {
+            photoCount:photoCards.length,
+            photoFeatureIsLast:Boolean(photoFeature && photoCards[photoCards.length - 1] === photoFeature),
+            photoColumns:photoGrid ? getComputedStyle(photoGrid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+            photoSpanStart:photoFeature ? getComputedStyle(photoFeature).gridColumnStart : null,
+            photoSpanEnd:photoFeature ? getComputedStyle(photoFeature).gridColumnEnd : null,
+            photoMedia:rect(photoMedia), photoCopy:rect(photoCopy),
+            roomCount:roomCards.length,
+            roomFeatureIsLast:Boolean(roomFeature && roomCards[roomCards.length - 1] === roomFeature),
+            roomColumns:roomGrid ? getComputedStyle(roomGrid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+            roomSpanStart:roomFeature ? getComputedStyle(roomFeature).gridColumnStart : null,
+            roomSpanEnd:roomFeature ? getComputedStyle(roomFeature).gridColumnEnd : null,
+            roomImage:rect(roomImage), roomCopy:rect(roomCopy)
+          };
+        }""")
+        photo_columns = 2 if viewport_width > 760 else 1
+        room_columns = 3 if viewport_width > 900 else 2 if viewport_width > 600 else 1
+        check(state is not None and state["photoCount"] == 7 and state["photoFeatureIsLast"],
+              f"gallery.html at {viewport_width}px: primary photo collection must close on its seventh subject")
+        check(state is not None and state["photoColumns"] == photo_columns,
+              f"gallery.html at {viewport_width}px: primary photo collection must retain its responsive 2/1 grid ({state})")
+        check(state is not None and state["photoSpanStart"] == "1" and state["photoSpanEnd"] == "-1",
+              f"gallery.html at {viewport_width}px: seventh photo must own the full grid row")
+        if state and state["photoMedia"] and state["photoCopy"] and viewport_width > 760:
+            check(state["photoMedia"]["right"] <= state["photoCopy"]["left"] + 2
+                  and state["photoMedia"]["height"] >= 320,
+                  f"gallery.html at {viewport_width}px: final photo must form a substantial horizontal feature ({state})")
+        elif state and state["photoMedia"] and state["photoCopy"]:
+            check(state["photoMedia"]["bottom"] <= state["photoCopy"]["top"] + 2,
+                  f"gallery.html at {viewport_width}px: final photo must stack above its caption on mobile ({state})")
+
+        check(state is not None and state["roomCount"] == 7 and state["roomFeatureIsLast"],
+              f"gallery.html at {viewport_width}px: named-room gallery must retain seven rooms and feature BlueSky last")
+        check(state is not None and state["roomColumns"] == room_columns,
+              f"gallery.html at {viewport_width}px: named-room cards must retain their 3/2/1 grid ({state})")
+        check(state is not None and state["roomSpanStart"] == "1" and state["roomSpanEnd"] == "-1",
+              f"gallery.html at {viewport_width}px: final named room must own the full grid row")
+        if state and state["roomImage"] and state["roomCopy"] and viewport_width > 600:
+            check(state["roomImage"]["right"] <= state["roomCopy"]["left"] + 2
+                  and state["roomImage"]["height"] >= 320,
+                  f"gallery.html at {viewport_width}px: named-room feature must be a substantial horizontal composition ({state})")
+        elif state and state["roomImage"] and state["roomCopy"]:
+            check(state["roomImage"]["bottom"] <= state["roomCopy"]["top"] + 2,
+                  f"gallery.html at {viewport_width}px: named-room feature must stack above its copy on mobile ({state})")
+
+
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
     """Audit six responsive breakpoints and capture all eight routes at 390, 768 and 1280px."""
     screenshot_widths = {width for width, _height in VIEWPORTS}
@@ -4007,6 +4193,7 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 capture_route_performance(page, page_name, width, height)
             check_premium_guest_journey(page, page_name, width)
             check_first_view_hierarchy(page, page_name, width)
+            check_collection_editorial_composition(page, page_name, width)
             type_requirements = {
                 "index.html": [(".experience-card p", 13), (".proof-item span", 11),
                                (".room-feature__copy > p:not(.fine-print)", 13), (".faq-item > p", 13)],
@@ -4068,36 +4255,114 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 page.wait_for_timeout(80)
                 check(not dock.is_visible(),
                       f"{page_name} at {width}px: floating enquiry dock must yield to mobile booking bar")
-                page.evaluate("window.scrollTo(0, 0)")
+
+                # The shared guest-journey rail and Directions quick-arrival card are
+                # protected in-flow decisions. The fixed bar must not obscure either.
+                page.evaluate("""() => {
+                  document.documentElement.style.scrollBehavior = "auto";
+                  window.scrollTo(0, 0);
+                }""")
+                page.wait_for_timeout(80)
                 bar = page.locator(".mobile-booking-bar")
+                state = page.evaluate("""() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  const journey = document.querySelector('.guest-journey');
+                  const arrival = document.querySelector('[data-arrival-quick-card]');
+                  if (!bar) return null;
+                  const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                  const obstructionTop = Math.max(0, window.innerHeight - height);
+                  const overlaps = surface => {
+                    if (!surface) return false;
+                    const rect = surface.getBoundingClientRect();
+                    return rect.left < window.innerWidth && rect.right > 0
+                      && rect.top < window.innerHeight && rect.bottom > obstructionTop;
+                  };
+                  const focused = bar.contains(document.activeElement);
+                  const arrivalOverlap = overlaps(arrival);
+                  const journeyOverlap = overlaps(journey);
+                  return {
+                    journeyPresent: Boolean(journey),
+                    journeyOverlap,
+                    arrivalOverlap,
+                    expectedJourneySuppression: journeyOverlap && !focused,
+                    expectedArrivalSuppression: arrivalOverlap && !focused,
+                    journeySuppressed: bar.classList.contains('is-suppressed-by-guest-journey'),
+                    arrivalSuppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                    display: getComputedStyle(bar).display,
+                    ariaHidden: bar.getAttribute('aria-hidden'),
+                    inert: bar.hasAttribute('inert')
+                  };
+                }""")
+                check(state is not None and state["journeyPresent"] == (page_name != "index.html"),
+                      f"{page_name}: inner routes must expose one shared guest-journey obstruction surface")
+                # Gallery's compact 320px hero can leave the shared rail entirely
+                # above the fixed action zone. In that valid composition the CTA
+                # must remain visible; geometry parity below is authoritative.
+                if page_name not in ("index.html", "directions.html", "gallery.html"):
+                    check(state is not None and state["journeyOverlap"],
+                          f"{page_name} at {width}px: the initial guest-journey rail should intersect the fixed-bar zone")
                 if page_name == "directions.html":
-                    state = page.evaluate("""() => {
-                      const card = document.querySelector('[data-arrival-quick-card]');
-                      const bar = document.querySelector('.mobile-booking-bar');
-                      if (!card || !bar) return null;
-                      const bounds = card.getBoundingClientRect();
-                      const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
-                      const overlaps = bounds.left < window.innerWidth && bounds.right > 0
-                        && bounds.top < window.innerHeight
-                        && bounds.bottom > Math.max(0, window.innerHeight - height);
-                      const expected = overlaps && !bar.contains(document.activeElement);
-                      return {expected, suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
-                        display: getComputedStyle(bar).display, ariaHidden: bar.getAttribute('aria-hidden'),
-                        inert: bar.hasAttribute('inert')};
-                    }""")
-                    check(state is not None and state["suppressed"] == state["expected"],
-                          f"{page_name}: mobile booking bar should yield only when it overlaps arrival summary")
-                    if state and state["expected"]:
-                        check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
-                              f"{page_name}: hidden booking bar must leave visual and keyboard access")
+                    check(state is not None and state["arrivalOverlap"],
+                          f"{page_name} at {width}px: the quick-arrival card should intersect the fixed-bar zone")
+                check(state is not None
+                      and state["journeySuppressed"] == state["expectedJourneySuppression"]
+                      and state["arrivalSuppressed"] == state["expectedArrivalSuppression"],
+                      f"{page_name} at {width}px: each mobile CTA suppression state must match actual obstruction geometry ({state})")
+                should_be_hidden = bool(state and (
+                    state["expectedJourneySuppression"] or state["expectedArrivalSuppression"]
+                ))
+                if should_be_hidden:
+                    check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
+                          f"{page_name} at {width}px: obscuring mobile CTA must leave visual and keyboard access")
+                    check(bar.is_hidden(),
+                          f"{page_name} at {width}px: suppressed mobile booking bar must not remain visually rendered")
                 else:
-                    check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
+                    check(state is not None and state["display"] != "none"
+                          and state["ariaHidden"] is None and not state["inert"],
+                          f"{page_name} at {width}px: unblocked mobile booking bar must remain accessible")
+                    check(bar.is_visible(),
+                          f"{page_name}: mobile Book Now bar must be visible when no protected surface overlaps")
+
+                # Move the protected content wholly above the fixed-action zone.
+                page.evaluate("""() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  const surfaces = [
+                    document.querySelector('.guest-journey'),
+                    document.querySelector('[data-arrival-quick-card]')
+                  ].filter(Boolean);
+                  const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                  const bottom = surfaces.reduce((value, surface) =>
+                    Math.max(value, surface.getBoundingClientRect().bottom), 0);
+                  window.scrollTo(0, window.scrollY + Math.max(0, bottom) + height + 24);
+                }""")
+                page.wait_for_timeout(100)
+                cleared_state = page.evaluate("""() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  if (!bar) return null;
+                  return {
+                    journeySuppressed: bar.classList.contains('is-suppressed-by-guest-journey'),
+                    arrivalSuppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                    display: getComputedStyle(bar).display,
+                    ariaHidden: bar.getAttribute('aria-hidden'),
+                    inert: bar.hasAttribute('inert')
+                  };
+                }""")
+                check(cleared_state is not None
+                      and not cleared_state["journeySuppressed"]
+                      and not cleared_state["arrivalSuppressed"]
+                      and cleared_state["display"] != "none"
+                      and cleared_state["ariaHidden"] is None
+                      and not cleared_state["inert"]
+                      and bar.is_visible(),
+                      f"{page_name} at {width}px: mobile booking action must restore when all protected surfaces clear")
+
+                page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
                 box = bar.bounding_box()
                 if box:
                     check(box["x"] >= -1 and box["x"] + box["width"] <= width + 1,
                           f"{page_name}: mobile booking bar exceeds {width}px viewport")
                     check(box["y"] >= -1 and box["y"] + box["height"] <= height + 1,
-                          f"{page_name}: mobile booking bar is outside the {width}px viewport")
+                          f"{page_name}: mobile booking bar is outside the {height}px viewport")
             if width >= 1280:
                 check(page.locator("#primary-navigation").is_visible(),
                       f"{page_name}: desktop primary navigation must be visible at {width}px")
@@ -4500,6 +4765,7 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         ("Travel options", "#travel-options-title"),
         ("Walking & mobility", "#walking-access-title"),
         ("Map & navigation", "#arrival-map-title"),
+        ("Plan arrival", "#arrival-enquiry-title"),
         ("FAQs", "#arrival-faq-title"),
     ]:
         link = section_nav.get_by_role("link", name=label, exact=True)
@@ -4568,38 +4834,68 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
 
     original_viewport = page.viewport_size or {"width": 1440, "height": 900}
-    page.set_viewport_size({"width": 360, "height": 800})
-    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
-    page.evaluate(
-        """() => {
-          document.documentElement.style.scrollBehavior = 'auto';
-          document.querySelector('#arrival-map-title')?.scrollIntoView({ block: 'start', behavior: 'auto' });
-        }"""
-    )
-    try:
-        page.wait_for_function(
-            """() => {
-              const nav = document.querySelector('nav.arrival-section-nav');
-              const active = nav?.querySelector('a[aria-current="location"]');
-              if (!nav || !active || active.getAttribute('href') !== '#arrival-map-title') return false;
-              const navRect = nav.getBoundingClientRect();
-              const linkRect = active.getBoundingClientRect();
-              const contentLeft = navRect.left + nav.clientLeft;
-              const contentRight = contentLeft + nav.clientWidth;
-              return nav.scrollWidth > nav.clientWidth + 1
-                && nav.scrollLeft > 0
-                && linkRect.left >= contentLeft - 1
-                && linkRect.right <= contentRight + 1;
-            }""",
-            timeout=5000,
-        )
-        check(True, "Directions: mobile section rail must reveal the current off-screen section link")
-    except Exception as error:
-        check(False, f"Directions: mobile active section link must remain visible ({error})")
-    finally:
-        page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
-        page.set_viewport_size(original_viewport)
+    for width in (320, 390):
+        page.set_viewport_size({"width": width, "height": 800})
         page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+        page.evaluate(
+            """() => {
+              document.documentElement.style.scrollBehavior = 'auto';
+              document.querySelector('#arrival-map-title')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+            }"""
+        )
+        try:
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  if (!nav || !active || active.getAttribute('href') !== '#arrival-map-title') return false;
+                  const navRect = nav.getBoundingClientRect();
+                  const linkRect = active.getBoundingClientRect();
+                  const contentLeft = navRect.left + nav.clientLeft;
+                  const contentRight = contentLeft + nav.clientWidth;
+                  return nav.scrollWidth > nav.clientWidth + 1
+                    && nav.scrollLeft > 0
+                    && linkRect.left >= contentLeft - 1
+                    && linkRect.right <= contentRight + 1;
+                }""",
+                timeout=5000,
+            )
+            check(True, f"Directions at {width}px: mobile section rail must reveal the current off-screen section link")
+
+            page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  if (!nav || !active || active.getAttribute('href') !== '#arrival-faq-title') return false;
+                  const navRect = nav.getBoundingClientRect();
+                  const linkRect = active.getBoundingClientRect();
+                  const contentLeft = navRect.left + nav.clientLeft;
+                  const contentRight = contentLeft + nav.clientWidth;
+                  return nav.scrollLeft > 0
+                    && linkRect.left >= contentLeft - 1
+                    && linkRect.right <= contentRight + 1;
+                }""",
+                timeout=5000,
+            )
+            page.evaluate("window.scrollTo(0, 0)")
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  return nav && active
+                    && active.getAttribute('href') === '#arrival-overview-title'
+                    && nav.scrollLeft <= 1;
+                }""",
+                timeout=5000,
+            )
+            check(True, f"Directions at {width}px: returning to the top must restore Quick directions at the rail origin")
+        except Exception as error:
+            check(False, f"Directions at {width}px: section rail visibility and top restoration must remain deterministic ({error})")
+        finally:
+            page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+    page.set_viewport_size(original_viewport)
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
 
     check(page.locator(".arrival-visual__media img").count() == 1,
           "Directions: the accessible facade reference section must load its local building image")
@@ -4655,6 +4951,34 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
               f"Directions: arrival distance cards must not overflow horizontally at {width}px")
         check(page.locator("#arrival-walk-distances-title").is_visible(),
               f"Directions: arrival distance heading must remain available at {width}px")
+        comparison = page.evaluate("""() => {
+          const grid = document.querySelector('[data-arrival-distance-comparison]');
+          const items = Array.from(grid?.querySelectorAll('.arrival-distance-card') || []);
+          if (!grid || items.length !== 3) return null;
+          const rect = node => {
+            const box = node.getBoundingClientRect();
+            return {x: box.x, y: box.y, width: box.width};
+          };
+          return {grid: rect(grid), parking: rect(items[0]), entrance: rect(items[1]), access: rect(items[2])};
+        }""")
+        check(comparison is not None,
+              f"Directions: paired walking-distance comparison must render at {width}px")
+        if comparison:
+            if width > 620:
+                check(abs(comparison["parking"]["y"] - comparison["entrance"]["y"]) <= 2,
+                      f"Directions: 300m and 200m estimates must align as a paired comparison at {width}px")
+                check(all(comparison[item]["width"] >= comparison["grid"]["width"] * 0.40
+                          for item in ("parking", "entrance")),
+                      f"Directions: paired estimates must retain readable column widths at {width}px")
+            else:
+                check(comparison["entrance"]["y"] > comparison["parking"]["y"] + 2,
+                      f"Directions: walking estimates must stack vertically on narrow mobile at {width}px")
+                check(all(comparison[item]["width"] >= comparison["grid"]["width"] * 0.90
+                          for item in ("parking", "entrance")),
+                      f"Directions: stacked estimates must use the available mobile width at {width}px")
+            check(comparison["access"]["y"] > comparison["entrance"]["y"]
+                  and comparison["access"]["width"] >= comparison["grid"]["width"] * 0.90,
+                  f"Directions: vehicle-access clarification must occupy its own full-width row at {width}px")
         travel_layout = page.evaluate("""() => {
           const section = document.querySelector('#travel-options');
           const grid = document.querySelector('#travel-options .arrival-travel__grid');
@@ -4708,6 +5032,179 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
                 check(state["display"] != "none" and state["ariaHidden"] is None and not state["inert"],
                       f"Directions at {width}px: booking bar must return when the hero summary clears")
 
+
+
+    # Exercise the Directions-only mobile booking-bar state machine at short heights.
+    # Position the quick-arrival card in the fixed bar's obstruction area so the test
+    # cannot pass without actually exercising a true overlap.
+    def mobile_booking_state():
+        return page.evaluate("""() => {
+          const card = document.querySelector('[data-arrival-quick-card]');
+          const journey = document.querySelector('.guest-journey');
+          const bar = document.querySelector('.mobile-booking-bar');
+          if (!bar || (!card && !journey)) return null;
+          const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+          const obstructionTop = Math.max(0, window.innerHeight - height);
+          const overlaps = surface => {
+            if (!surface) return false;
+            const bounds = surface.getBoundingClientRect();
+            return bounds.left < window.innerWidth && bounds.right > 0
+              && bounds.top < window.innerHeight && bounds.bottom > obstructionTop;
+          };
+          const arrivalOverlap = overlaps(card);
+          const journeyOverlap = overlaps(journey);
+          const anyOverlap = arrivalOverlap || journeyOverlap;
+          const focused = bar.contains(document.activeElement);
+          return {
+            overlaps: anyOverlap, arrivalOverlap, journeyOverlap, focused,
+            cardBottom: card ? card.getBoundingClientRect().bottom : null,
+            journeyBottom: journey ? journey.getBoundingClientRect().bottom : null,
+            expected: anyOverlap && !focused,
+            suppressed: bar.classList.contains('is-suppressed-by-arrival-card')
+              || bar.classList.contains('is-suppressed-by-guest-journey'),
+            display: getComputedStyle(bar).display,
+            ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')
+          };
+        }""")
+
+    def position_quick_card_over_booking_bar():
+        page.evaluate("""() => {
+          const card = document.querySelector('[data-arrival-quick-card]');
+          const bar = document.querySelector('.mobile-booking-bar');
+          if (!card || !bar) return;
+          // The site intentionally uses smooth scrolling. Disable it for this
+          // deterministic geometry fixture so the overlap is measured after the
+          // requested position has been reached, not during an in-flight animation.
+          document.documentElement.style.scrollBehavior = 'auto';
+          const bounds = card.getBoundingClientRect();
+          const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+          const targetBottom = window.innerHeight - Math.max(8, Math.min(20, height / 4));
+          window.scrollTo({
+            left: 0,
+            top: Math.max(0, window.scrollY + bounds.bottom - targetBottom),
+            behavior: 'auto',
+          });
+        }""")
+        page.wait_for_timeout(80)
+
+    for width in (320, 360, 390):
+        for height in (568, 640):
+            page.set_viewport_size({"width": width, "height": height})
+            response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+            check(response is not None and response.status == 200,
+                  f"Directions: short-screen scenario must load at {width}×{height}")
+            page.wait_for_timeout(80)
+
+            initial = mobile_booking_state()
+            check(initial is not None and initial["suppressed"] == initial["expected"],
+                  f"Directions at {width}×{height}: initial booking-bar state must match real overlap geometry")
+            if initial:
+                check((initial["ariaHidden"] == "true" and initial["inert"])
+                      if initial["expected"] else (initial["ariaHidden"] is None and not initial["inert"]),
+                      f"Directions at {width}×{height}: initial visual and accessibility states must stay synchronized")
+
+            position_quick_card_over_booking_bar()
+            overlapped = mobile_booking_state()
+            check(overlapped is not None and overlapped["overlaps"] and overlapped["expected"]
+                  and overlapped["suppressed"],
+                  f"Directions at {width}×{height}: booking bar must yield when the quick-arrival card truly overlaps")
+            if overlapped:
+                check(overlapped["display"] == "none" and overlapped["ariaHidden"] == "true" and overlapped["inert"],
+                      f"Directions at {width}×{height}: an overlapping bar must leave visual and keyboard access")
+
+            # Put the bar in a clear viewport before focusing, then shrink it while
+            # focus is retained; the fixed action must not disappear under focus.
+            page.set_viewport_size({"width": width, "height": 1600})
+            page.evaluate("""() => {
+              const surfaces = [
+                document.querySelector('[data-arrival-quick-card]'),
+                document.querySelector('.guest-journey')
+              ].filter(Boolean);
+              document.documentElement.style.scrollBehavior = 'auto';
+              const lastSurfaceBottom = surfaces.reduce(
+                (bottom, surface) => Math.max(bottom, window.scrollY + surface.getBoundingClientRect().bottom),
+                0
+              );
+              window.scrollTo({left: 0, top: lastSurfaceBottom + 24, behavior: 'auto'});
+            }""")
+            page.wait_for_function(
+                """() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  return bar && getComputedStyle(bar).display !== 'none'
+                    && bar.getAttribute('aria-hidden') === null && !bar.hasAttribute('inert');
+                }""",
+                timeout=3000,
+            )
+            page.evaluate("""() => {
+              document.querySelector('.mobile-booking-bar [data-booking-link]')
+                ?.focus({preventScroll: true});
+            }""")
+            focused_before_scroll = page.evaluate(
+                "() => !!document.querySelector('.mobile-booking-bar')?.contains(document.activeElement)"
+            )
+            check(focused_before_scroll,
+                  f"Directions at {width}×{height}: the Book Now control must be keyboard-focusable")
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(80)
+            position_quick_card_over_booking_bar()
+            focused_overlap = mobile_booking_state()
+            check(focused_overlap is not None and focused_overlap["overlaps"] and focused_overlap["focused"]
+                  and not focused_overlap["suppressed"] and focused_overlap["display"] != "none"
+                  and focused_overlap["ariaHidden"] is None and not focused_overlap["inert"],
+                  f"Directions at {width}×{height}: a focused booking action must not be hidden or made inert")
+
+            page.evaluate("document.activeElement?.blur()")
+            page.wait_for_timeout(100)
+            blurred_overlap = mobile_booking_state()
+            check(blurred_overlap is not None and blurred_overlap["expected"] and blurred_overlap["suppressed"]
+                  and blurred_overlap["display"] == "none" and blurred_overlap["ariaHidden"] == "true"
+                  and blurred_overlap["inert"],
+                  f"Directions at {width}×{height}: suppression must resume only after focus leaves the booking bar")
+
+            page.evaluate("""() => {
+              const surfaces = [
+                document.querySelector('[data-arrival-quick-card]'),
+                document.querySelector('.guest-journey')
+              ].filter(Boolean);
+              if (!surfaces.length) return;
+              document.documentElement.style.scrollBehavior = 'auto';
+              const lastSurfaceBottom = surfaces.reduce(
+                (bottom, surface) => Math.max(bottom, window.scrollY + surface.getBoundingClientRect().bottom),
+                0
+              );
+              window.scrollTo({left: 0, top: lastSurfaceBottom + 24, behavior: 'auto'});
+            }""")
+            page.wait_for_timeout(120)
+            cleared = mobile_booking_state()
+            check(cleared is not None and cleared["cardBottom"] <= 0
+                  and (cleared["journeyBottom"] is None or cleared["journeyBottom"] <= 0)
+                  and not cleared["expected"] and not cleared["suppressed"]
+                  and cleared["display"] != "none" and cleared["ariaHidden"] is None and not cleared["inert"],
+                  f"Directions at {width}×{height}: booking bar must restore only after both protected surfaces leave the viewport (state={cleared})")
+
+    # Resizing to landscape/desktop must clear old suppression; returning to mobile
+    # must recalculate state after the orientation event.
+    page.set_viewport_size({"width": 390, "height": 568})
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+    position_quick_card_over_booking_bar()
+    state_before_orientation = mobile_booking_state()
+    check(state_before_orientation is not None and state_before_orientation["suppressed"],
+          "Directions: orientation scenario must begin with a genuine mobile overlap")
+    page.set_viewport_size({"width": 844, "height": 390})
+    page.evaluate("window.dispatchEvent(new Event('orientationchange'))")
+    page.wait_for_timeout(100)
+    landscape = mobile_booking_state()
+    check(landscape is not None and not landscape["suppressed"]
+          and landscape["ariaHidden"] is None and not landscape["inert"],
+          "Directions: resize/orientation beyond the mobile breakpoint must clear suppression and inert state")
+    page.set_viewport_size({"width": 390, "height": 568})
+    page.evaluate("window.dispatchEvent(new Event('orientationchange'))")
+    page.wait_for_timeout(100)
+    returned = mobile_booking_state()
+    check(returned is not None and returned["suppressed"] == returned["expected"]
+          and ((returned["ariaHidden"] == "true" and returned["inert"])
+               if returned["expected"] else (returned["ariaHidden"] is None and not returned["inert"])),
+          "Directions: returning to mobile must recalculate overlap after resize/orientation")
 
 
 def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:

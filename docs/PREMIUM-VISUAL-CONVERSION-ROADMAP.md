@@ -377,3 +377,54 @@ The 768px Chromium capture exposed a 34px overflow in the homepage introduction:
 Add executable WCAG AA contrast sentinels for primary saffron/white actions, deep brass/limestone text, muted/limestone copy, peacock/ivory focus, inverse fort-green text and antique brass on the dark editorial band. The checker documents that these are representative pairs; rendered colour combinations and screenshots still require review.
 
 **Next milestone (M23):** validate screenshot and layout quality at all six responsive widths for all eight routes, inspect the captured 320/360/390/768/1280/1440 composition, and calibrate hero text/photo crops, primary-action prominence, section rhythm, mobile fixed-action clearance and tablet navigation. Do not accept the design on CSS-only checks or a single desktop view.
+
+## M23 — full-width responsive visual acceptance and Directions arrival refinement
+
+**Implementation batch:** expand core-route screenshot and laboratory-performance evidence from three representative widths to the complete six-width responsive matrix (320, 360, 390, 768, 1280 and 1440 CSS pixels) for all eight routes. A complete run produces 48 full-page PNGs and 48 route/viewport performance samples.
+
+The Directions walking-distance section is composed as a paired 300m / 200m editorial comparison, with date-dependent vehicle access separated into a full-width clarification band. Source-qualified approximate times, current-access caveats, the exact-pin orientation, contact authorization and the enquiry-only boundary remain intact.
+
+Chromium coverage adds short-height mobile scenarios at 320/360/390px, deliberately positions the real quick-arrival card over the fixed booking-bar region, verifies synchronized display/aria-hidden/inert behavior, preserves a keyboard-focused booking action, checks restoration after blur and scroll-away, and exercises resize/orientation transitions. The seven other routes explicitly reject the Directions-only suppression state.
+
+At widths up to 620px the two walking estimates stack at full content width instead of being compressed into narrow side-by-side columns; tablet and desktop retain the editorial two-column comparison. Chromium now asserts the corresponding row geometry and usable widths for both responsive modes.
+
+**Browser-test RCA:** the 390×640 failure came from the test returning to scroll position zero, where the tall mobile hero still legitimately intersects the fixed booking bar. The clear-state scenario now scrolls the quick-arrival card fully above the viewport, asserts its bottom edge is at or above zero, and only then requires the booking action to restore. The product suppression condition remains overlap-based.
+
+**Acceptance state:** this implementation batch is not visually accepted until the exact PR head produces all 48 integrity-checked screenshots, all six viewport widths pass on all eight routes, updated arrival contracts pass, and the owner reviews the actual artifact. Automated checks do not replace STG-01–STG-18 manual UAT. Canonical host, robots, sitemap, editorial publication, staging deployment and production release remain unchanged and owner-controlled.
+
+
+## M24 — media-complete visual evidence and deferred-image acceptance
+
+**Evidence review finding:** the M23 full-page baseline exposed beige image panels in several image-led sections. The media files and source-backed manifest entries were present; the screenshot runner was the gap. It decoded only images already in the live DOM. Supporting images held in inert template elements are not part of the live image collection until the site's real IntersectionObserver activation runs after scrolling near them.
+
+**Implementation batch:** the browser evidence runner now walks each page from top to bottom in overlapping viewport steps before taking its full-page screenshot. This deliberately exercises the production deferred-media observer instead of bypassing it or cloning templates in the test. The runner verifies that every initially deferred target is activated, no target remains pending or reports activation failure, then eagerly decodes every rendered image and returns to the top before capture.
+
+Each of the 48 screenshot records now carries expected, activated, pending and failed deferred-media counts plus the decoded-image count. The report's screenshot-completeness contract rejects missing, unhydrated or failed media even when route coverage, PNG geometry and SHA-256 are otherwise valid. The preflight contract includes positive and negative fixtures for pending and mismatched activation counts.
+
+**Measurement boundary:** route performance samples are collected before the media-hydration scroll and remain explicitly laboratory diagnostics, not field Core Web Vitals. This M24 change is limited to QA evidence and regression contracts; it does not modify production lazy-loading behavior, source media, guest-facing copy, contact/booking actions, SEO publication settings or deployment configuration.
+
+**Acceptance:** all 48 full-page screenshots must carry valid geometry/hash metadata and complete deferred-media hydration; all 48 route/viewport performance samples and eight-route/six-width coverage must remain complete; every rendered image must decode. Owner screenshot review and STG-01–STG-18 staging UAT remain separate manual gates. No merge, staging deployment or production release is authorized by this milestone.
+
+
+## M25 — mobile guest-journey visibility and fixed-action obstruction control
+
+**Evidence review finding:** the M24 mobile full-page captures show the fixed mobile "Book Now" bar covering part of the four-step guest-journey rail immediately after inner-route heroes. This obscures the Stay / Explore / Dine / Arrive decision links at the moment a guest is choosing a route. Directions already had a dedicated overlap guard for its quick-arrival summary; the same obstruction model was not applied to the shared inner-route rail.
+
+**Implementation batch:** extend the existing fixed-action geometry check to the shared .guest-journey rail as well as the Directions [data-arrival-quick-card]. At widths up to 760px, the bar yields only while one of these protected surfaces actually intersects its bottom action zone. The corresponding class, aria-hidden and inert states stay synchronized; a keyboard-focused booking action is never hidden. Once both protected surfaces clear, the authorized provider action returns. The common premium stylesheet now owns both visual suppression states instead of leaving the Directions-only display rule in an arrival-specific stylesheet.
+
+**Regression coverage:** Chromium checks initial obstruction and state parity across every inner route at 320, 360 and 390px. It then scrolls both protected surfaces fully clear and requires the booking bar to restore, remain within the viewport and retain its provider destination. The home route remains unaffected because it uses its distinct full-width planning band rather than the shared inner-route rail. Existing Directions focus/blur, quick-arrival and orientation tests remain in place.
+
+**Guardrails:** no CTA destination, booking authorization, journey link target, route content, owner fact, pricing or live-availability claim changes. Desktop and tablet fixed-action behavior is unchanged. No SEO publication, canonical/robots/sitemap, staging deployment or production release change is included. Owner screenshot review and manual UAT remain separate.
+
+
+## M26 — editorial closure for seven-item collections
+
+**Screenshot finding:** the M25 visual baseline shows the seventh entry in the Rooms catalogue, the primary Gallery photo selection and Gallery's seven-room section stranded alone at the start of a new grid row. On wide screens the unused columns create large empty blocks and make complete collections look unfinished.
+
+**Implementation batch:** retain all seven records in their current order and preserve each source-backed photograph, alt text, room identifier, feature metadata and enquiry destination. Give only the final room/photo in each collection a full-row editorial composition: image-led split with a larger subject, more generous copy area and unchanged source details. The Gallery's supplemental source-photo strip remains a separate collection and does not inherit the feature style.
+
+**Responsive behavior:** the feature spans the final row in the existing desktop and tablet grid; on narrow mobile it returns to a vertical image-then-copy card. The existing catalogue column breakpoints remain authoritative: Rooms 3/2/1, primary Gallery 2/1 and Gallery room cards 3/2/1. No horizontal scrolling, hidden records or JavaScript-only presentation is introduced.
+
+**Regression coverage:** static contracts require one final feature marker for each seven-item collection and the original seven entries/identity links. Chromium checks final-record order, full-row grid placement, the expected responsive column count, image/copy geometry and mobile stacking at 320, 360, 390, 768, 1280 and 1440 CSS pixels. Existing filtering, shortlist comparison, gallery photo activation and screenshot hydration checks continue to run unchanged.
+
+**Guardrails:** this is layout-only. No room description, amenity, image mapping, price, occupancy, availability, booking/enquiry route, operational statement, public metadata, canonical host, robots, sitemap or publication status changes. Owner screenshot review and staging UAT remain separate acceptance gates; no merge or deployment is authorized by this milestone.

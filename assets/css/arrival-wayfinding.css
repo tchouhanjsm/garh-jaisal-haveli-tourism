@@ -1,17 +1,18 @@
-/* Source-backed arrival distances, scoped to the Directions page. */
+/* Source-backed arrival distances, composed as one paired comparison rather than three equal cards. */
 .arrival-distance-guide {
   padding-top: 0;
 }
 
 .arrival-distance-guide__intro {
   max-width: 780px;
-  margin-bottom: 26px;
+  margin-bottom: 28px;
 }
 
 .arrival-distance-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 clamp(18px, 3.6vw, 48px);
+  border-top: 1px solid var(--line);
 }
 
 .arrival-distance-card {
@@ -19,10 +20,10 @@
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: clamp(18px, 2.1vw, 28px);
-  border: 1px solid var(--line);
-  background: var(--white);
+  gap: 9px;
+  padding: 24px 0 26px;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
   color: var(--ink);
 }
 
@@ -36,8 +37,9 @@
 
 .arrival-distance-card__measure {
   font-family: var(--serif);
-  font-size: clamp(23px, 2.4vw, 31px);
-  line-height: 1.2;
+  font-size: clamp(25px, 2.5vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -.035em;
 }
 
 .arrival-distance-card__time {
@@ -53,8 +55,35 @@
   line-height: 1.8;
 }
 
+.arrival-distance-card:nth-child(2) {
+  padding-inline-start: clamp(18px, 2.6vw, 36px);
+  border-inline-start: 1px solid var(--line);
+}
+
 .arrival-distance-card--access {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr);
+  align-items: center;
+  gap: 12px clamp(18px, 3vw, 38px);
+  margin-block: 14px 2px;
+  padding: 19px clamp(16px, 2.2vw, 28px);
+  border: 0;
+  border-inline-start: 3px solid var(--gold, #9c762f);
   background: var(--paper);
+}
+
+.arrival-distance-card--access h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.arrival-distance-card--access > p:last-child {
+  color: var(--ink-soft);
 }
 
 .arrival-distance-guide__caveat {
@@ -65,15 +94,30 @@
   line-height: 1.8;
 }
 
-@media (max-width: 900px) {
-  .arrival-distance-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 620px) {
   .arrival-distance-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .arrival-distance-card {
+    gap: 7px;
+    padding-block: 18px 20px;
+  }
+
+  .arrival-distance-card__measure {
+    font-size: clamp(22px, 6vw, 26px);
+  }
+
+  .arrival-distance-card:nth-child(2) {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
+
+  .arrival-distance-card--access {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    padding: 16px;
   }
 }
 
@@ -335,8 +379,13 @@
 #travel-options-title,
 #walking-access-title,
 #arrival-map-title,
+#arrival-enquiry-title,
 #arrival-faq-title {
   scroll-margin-top: 50px;
+}
+#arrival-enquiry-title:focus-visible {
+  outline: 3px solid var(--focus-ring, #1d4ed8);
+  outline-offset: 6px;
 }
 .arrival-travel {
   display: grid;
@@ -692,13 +741,6 @@
 }
 
 
-/* Keep the fixed mobile booking action from covering Directions' hero essentials. */
-@media (max-width: 760px) {
-  .mobile-booking-bar.is-suppressed-by-arrival-card {
-    display: none;
-  }
-}
-
 
 /* PR #66 · M2 visual QA fix: the travel section has three direct children.
    It must own a single-column section shell; the old generic transport panel
@@ -1006,7 +1048,7 @@
 }
 @media (max-width: 760px) {
   #arrival-overview-title, #travel-options-title, #walking-access-title,
-  #arrival-map-title, #arrival-faq-title { scroll-margin-top: 78px; }
+  #arrival-map-title, #arrival-enquiry-title, #arrival-faq-title { scroll-margin-top: 78px; }
   .arrival-map__orientation {
     padding: 22px;
   }

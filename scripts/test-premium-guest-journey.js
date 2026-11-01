@@ -416,6 +416,14 @@ for (const route of ROUTES) {
     route.file + ': exactly one visually dominant hero action is required');
 }
 assert.match(siteJs, /mobilePrimaryActionVisible/);
+assert.match(siteJs, /const guestJourneyPanel = document\.querySelector\('\.guest-journey'\)/,
+  'the mobile fixed-action obstruction model must include the shared inner-page journey rail');
+assert.match(siteJs, /is-suppressed-by-guest-journey/,
+  'the fixed booking action must expose an explicit guest-journey suppression state');
+assert.match(css, /\.mobile-booking-bar\.is-suppressed-by-guest-journey\s*\{[\s\S]*?display:\s*none\s*!important/,
+  'the shared premium layer must visually remove the booking bar while it obstructs guest-journey navigation');
+assert.match(css, /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*,/,
+  'the shared premium layer must also own the existing Directions overlap state');
 assert.match(siteJs, /!mobilePrimaryActionVisible/);
 assert.match(siteJs, /addEventListener\('resize', updateDirectEnquiryDock/);
 assert.match(css, /\.proof-strip\s*\{[\s\S]*?grid-template-columns:/);

@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const directions = fs.readFileSync(path.join(ROOT, 'directions.html'), 'utf8');
 const about = fs.readFileSync(path.join(ROOT, 'about.html'), 'utf8');
 const stylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'arrival-wayfinding.css'), 'utf8');
+const premiumStylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'premium-guest-journey.css'), 'utf8');
 const siteRuntime = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
 
 const publicPages = [
@@ -33,10 +34,28 @@ assert.match(directions, /id="arrival-walk-distances-title"/,
   'Context links must target a real visible section heading');
 assert.equal(count(directions, /class="arrival-distance-card(?: arrival-distance-card--access)?"/g), 3,
   'Directions must show exactly three arrival fact cards');
+assert.match(directions, /data-arrival-distance-comparison[^>]*aria-label="Approximate walking distances"/,
+  'Walking estimates must be grouped as one named comparison');
+assert.match(directions, /data-arrival-distance-comparison[^>]*role="group"/,
+  'The named comparison must use a semantic group role for its accessible name');
+assert.match(directions, /data-arrival-distance="fort-parking"[\s\S]*?data-arrival-distance="fort-entrance"/,
+  'The two pedestrian estimates must appear in a deliberate, ordered comparison');
+assert.match(directions, /data-arrival-access/,
+  'Vehicle access caveats must remain distinct from the measured walking estimates');
+assert.match(stylesheet, /\.arrival-distance-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+  'The two walking estimates must share a paired responsive comparison layout');
+assert.match(stylesheet, /@media\s*\(max-width:\s*620px\)[\s\S]*?\.arrival-distance-grid\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/,
+  'The two walking estimates must stack at readable full width on narrow mobile screens');
+assert.match(stylesheet, /\.arrival-distance-card:nth-child\(2\)\s*\{\s*padding-inline-start:\s*0;\s*border-inline-start:\s*0;/,
+  'The stacked mobile estimate must not retain a desktop inset divider');
+assert.match(stylesheet, /\.arrival-distance-card--access\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
+  'Date-dependent vehicle access must occupy a separate full-width band');
 
-const parking = directions.match(/<article class="arrival-distance-card">[\s\S]*?<\/article>/)?.[0] || '';
-const entrance = directions.match(/<article class="arrival-distance-card">[\s\S]*?<\/article>/g)?.[1] || '';
-const rickshaw = directions.match(/<article class="arrival-distance-card arrival-distance-card--access">[\s\S]*?<\/article>/)?.[0] || '';
+const distanceArticles = [...directions.matchAll(/<article\b[^>]*class="arrival-distance-card"[^>]*>[\s\S]*?<\/article>/g)]
+  .map(([article]) => article);
+const parking = distanceArticles[0] || '';
+const entrance = distanceArticles[1] || '';
+const rickshaw = directions.match(/<article\b[^>]*class="arrival-distance-card arrival-distance-card--access"[^>]*>[\s\S]*?<\/article>/)?.[0] || '';
 
 assert.match(parking, /Fort Parking[\s\S]*?300 metres[\s\S]*?5–6 minutes/i,
   'Fort Parking estimate must match the source-listed approximate 300 m / 5–6 minute walk');
@@ -122,6 +141,7 @@ for (const [label, target] of [
   ['Travel options', 'travel-options-title'],
   ['Walking &amp; mobility', 'walking-access-title'],
   ['Map &amp; navigation', 'arrival-map-title'],
+  ['Plan arrival', 'arrival-enquiry-title'],
   ['FAQs', 'arrival-faq-title'],
 ]) {
   assert.ok(directions.includes('href="#' + target + '">' + label + '</a>'),
@@ -135,6 +155,16 @@ assert.match(siteRuntime, /setAttribute\('aria-current', 'location'\)/,
   'the active Directions section link must expose aria-current=location');
 assert.match(siteRuntime, /const revealCurrentLink = link =>/,
   'the active mobile section link must be revealed when it moves outside the horizontal rail');
+assert.match(siteRuntime, /items\[0\]\.link === link[\s\S]*?sectionNav\.scrollTo\(\{ left: 0, behavior: 'auto' \}\)/,
+  'returning to Quick directions must reset the mobile section rail without an in-flight animation');
+assert.match(directions, /<h2 class="display-title" id="arrival-enquiry-title" tabindex="-1">/,
+  'the arrival-enquiry heading must be programmatically focusable without entering the normal tab order');
+assert.match(siteRuntime, /const targetId = window\.location\.hash === '#arrival-enquiry-title'[\s\S]*?document\.getElementById\(targetId\)/,
+  'the Plan arrival fragment must focus its actual heading rather than the surrounding section');
+assert.match(siteRuntime, /item\.target\.id === 'arrival-enquiry-title'[\s\S]*?requestAnimationFrame\(focusArrivalPlannerFromFragment\)/,
+  'clicking Plan arrival must schedule focus after native fragment navigation updates the URL');
+assert.match(stylesheet, /#arrival-enquiry-title:focus-visible[\s\S]*?outline: 3px solid var\(--focus-ring/,
+  'the programmatically focused arrival heading must retain a visible keyboard focus indicator');
 assert.match(siteRuntime, /sectionNav\.scrollTo\(\{ left: nextLeft, behavior: reduceMotion \? 'auto' : 'smooth' \}\)/,
   'section-link auto-reveal must respect reduced-motion preferences');
 assert.match(siteRuntime, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)/,
@@ -149,11 +179,13 @@ assert.match(siteRuntime, /targetTop <= activationLine && targetTop > currentTop
   'active-section selection must use heading geometry rather than navigation link order');
 assert.match(siteRuntime, /Math\.max\(168, sectionNav\.getBoundingClientRect\(\)\.bottom \+ 32\)/,
   'the active-section reading line must remain below the sticky rail and align with heading scroll margins');
-assert.ok(stylesheet.includes('#arrival-overview-title,\n#travel-options-title,\n#walking-access-title,\n#arrival-map-title,\n#arrival-faq-title {\n  scroll-margin-top: 50px;\n}'),
+assert.ok(stylesheet.includes('#arrival-overview-title,\n#travel-options-title,\n#walking-access-title,\n#arrival-map-title,\n#arrival-enquiry-title,\n#arrival-faq-title {\n  scroll-margin-top: 50px;\n}'),
   'desktop and tablet headings must add only the clearance needed beyond global scroll padding');
 const mobileOffsetRule = stylesheet.indexOf('scroll-margin-top: 78px;');
 assert.ok(mobileOffsetRule > stylesheet.lastIndexOf('@media (max-width: 760px)'),
   'mobile headings must account for the smaller global scroll padding while clearing the sticky rail');
+assert.ok(stylesheet.slice(stylesheet.lastIndexOf('@media (max-width: 760px)')).includes('#arrival-enquiry-title'),
+  'the arrival-enquiry heading must clear the sticky rail at mobile widths');
 assert.match(siteRuntime, /addEventListener\('hashchange', scheduleUpdate\)/,
   'deep-link changes must refresh the active section state');
 assert.match(siteRuntime, /addEventListener\('pageshow', scheduleUpdate\)/,
@@ -218,7 +250,10 @@ assert.match(siteRuntime, /function updateMobileBookingBar\(\)/,
   'Shared runtime must suppress the fixed mobile booking action when it covers the arrival hero card');
 assert.match(siteRuntime, /is-suppressed-by-arrival-card/,
   'Mobile booking suppression must use an explicit, page-scoped state');
-assert.match(stylesheet, /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*\{\s*display:\s*none/s,
-  'Arrival-specific CSS must let the fixed booking bar yield while it overlaps the summary card');
+assert.match(premiumStylesheet,
+  /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*,\s*\.mobile-booking-bar\.is-suppressed-by-guest-journey\s*\{\s*display:\s*none\s*!important/s,
+  'Shared premium CSS must hide the fixed booking action while it overlaps either protected in-flow decision surface');
+assert.doesNotMatch(stylesheet, /\.mobile-booking-bar\.is-suppressed-by-arrival-card/,
+  'Directions-specific CSS must not own shared fixed-action suppression presentation');
 
 console.log('PASS: source-backed distances, accessible Directions navigation, qualified travel options, mobility safeguards and exact-pin orientation are present.');

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "purpose": "Single source of truth for core public routes, matching mobile/tablet/laptop visual-review screenshots and six responsive-audit breakpoints. This is a QA inventory, not a production sitemap.",
+  "purpose": "Single source of truth for the eight core public routes and all six responsive visual-evidence widths. Full-page screenshots and laboratory performance samples cover 320, 360, 390, 768, 1280 and 1440 CSS pixels. This is a QA inventory, not a production sitemap.",
   "routes": [
     {
       "file": "index.html",
@@ -37,9 +37,19 @@
   ],
   "viewports": [
     {
+      "width": 320,
+      "height": 800,
+      "label": "Narrow mobile"
+    },
+    {
+      "width": 360,
+      "height": 800,
+      "label": "Mobile"
+    },
+    {
       "width": 390,
       "height": 844,
-      "label": "Mobile"
+      "label": "Wide mobile"
     },
     {
       "width": 768,
@@ -50,6 +60,11 @@
       "width": 1280,
       "height": 900,
       "label": "Laptop"
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "label": "Desktop"
     }
   ],
   "responsiveAuditViewports": [

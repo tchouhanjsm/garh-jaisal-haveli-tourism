@@ -7,6 +7,7 @@
   const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
   const mobileBookingBar = document.querySelector('.mobile-booking-bar');
   const arrivalQuickCard = document.querySelector('[data-arrival-quick-card]');
+  const guestJourneyPanel = document.querySelector('.guest-journey');
   const directEnquiryDismiss = directEnquiryDock ? directEnquiryDock.querySelector('[data-direct-enquiry-dismiss]') : null;
   const enquiryLinks = Array.from(document.querySelectorAll('[data-enquiry-link]'));
   const phoneLinks = Array.from(document.querySelectorAll('[data-contact-phone]'));
@@ -21,15 +22,20 @@
   let activeWhatsAppBaseUrl = '';
 
   function focusArrivalPlannerFromFragment() {
-    if (!window.location || window.location.hash !== '#arrival-planning') return;
-    const target = document.getElementById('arrival-planning');
+    if (!window.location || !['#arrival-planning', '#arrival-enquiry-title'].includes(window.location.hash)) return;
+    const targetId = window.location.hash === '#arrival-enquiry-title'
+      ? 'arrival-enquiry-title'
+      : 'arrival-planning';
+    const target = document.getElementById(targetId);
     if (!target) return;
 
     window.requestAnimationFrame(() => {
-      try {
-        target.focus({ preventScroll: true });
-      } catch (_) {
-        target.focus();
+      if (document.activeElement !== target) {
+        try {
+          target.focus({ preventScroll: true });
+        } catch (_) {
+          target.focus();
+        }
       }
       target.scrollIntoView({ block: 'start', behavior: 'auto' });
     });
@@ -144,6 +150,17 @@
     let framePending = false;
     let activeItem = null;
     const revealCurrentLink = link => {
+      // Returning to the first section must restore the rail immediately. The
+      // full-page evidence runner scrolls through deferred media and back to
+      // the top; a smooth horizontal reset can otherwise be captured mid-flight.
+      if (items[0].link === link) {
+        if (typeof sectionNav.scrollTo === 'function') {
+          sectionNav.scrollTo({ left: 0, behavior: 'auto' });
+        } else {
+          sectionNav.scrollLeft = 0;
+        }
+        return;
+      }
       if (sectionNav.scrollWidth <= sectionNav.clientWidth) return;
       const navRect = sectionNav.getBoundingClientRect();
       const contentLeft = navRect.left + sectionNav.clientLeft;
@@ -208,7 +225,13 @@
     sectionNav.addEventListener('click', event => {
       const link = event.target.closest('a[href^="#"]');
       const item = items.find(candidate => candidate.link === link);
-      if (item) setCurrent(item);
+      if (!item) return;
+      setCurrent(item);
+      // Anchor default navigation updates the fragment after this handler;
+      // schedule the focus enhancement for the next frame so it sees the new hash.
+      if (item.target.id === 'arrival-enquiry-title') {
+        window.requestAnimationFrame(focusArrivalPlannerFromFragment);
+      }
     });
     window.addEventListener('scroll', scheduleUpdate, { passive: true });
     window.addEventListener('resize', () => {
@@ -891,23 +914,37 @@
     if (!mobileBookingBar) return;
     const compact = typeof window.matchMedia === 'function'
       && window.matchMedia('(max-width: 760px)').matches;
-    if (!compact || !arrivalQuickCard) {
-      mobileBookingBar.classList.remove('is-suppressed-by-arrival-card');
+    if (!compact || (!arrivalQuickCard && !guestJourneyPanel)) {
+      mobileBookingBar.classList.remove(
+        'is-suppressed-by-arrival-card',
+        'is-suppressed-by-guest-journey'
+      );
       mobileBookingBar.removeAttribute('aria-hidden');
       mobileBookingBar.removeAttribute('inert');
       return;
     }
 
-    const bounds = arrivalQuickCard.getBoundingClientRect();
     const measuredHeight = Number.parseFloat(window.getComputedStyle(mobileBookingBar).height) || 0;
     if (measuredHeight > 0) knownMobileBookingBarHeight = measuredHeight;
     const barHeight = Math.max(64, measuredHeight, knownMobileBookingBarHeight);
-    const overlaps = bounds.left < window.innerWidth
-      && bounds.right > 0
-      && bounds.top < window.innerHeight
-      && bounds.bottom > Math.max(0, window.innerHeight - barHeight);
-    const shouldSuppress = overlaps && !mobileBookingBar.contains(document.activeElement);
-    mobileBookingBar.classList.toggle('is-suppressed-by-arrival-card', shouldSuppress);
+    const obstructionTop = Math.max(0, window.innerHeight - barHeight);
+    const overlapsBookingActionZone = surface => {
+      if (!surface) return false;
+      const bounds = surface.getBoundingClientRect();
+      return bounds.left < window.innerWidth
+        && bounds.right > 0
+        && bounds.top < window.innerHeight
+        && bounds.bottom > obstructionTop;
+    };
+    const arrivalOverlaps = overlapsBookingActionZone(arrivalQuickCard);
+    const journeyOverlaps = overlapsBookingActionZone(guestJourneyPanel);
+    const focused = mobileBookingBar.contains(document.activeElement);
+    const suppressForArrival = arrivalOverlaps && !focused;
+    const suppressForJourney = journeyOverlaps && !focused;
+    const shouldSuppress = suppressForArrival || suppressForJourney;
+
+    mobileBookingBar.classList.toggle('is-suppressed-by-arrival-card', suppressForArrival);
+    mobileBookingBar.classList.toggle('is-suppressed-by-guest-journey', suppressForJourney);
     if (shouldSuppress) {
       mobileBookingBar.setAttribute('aria-hidden', 'true');
       mobileBookingBar.setAttribute('inert', '');

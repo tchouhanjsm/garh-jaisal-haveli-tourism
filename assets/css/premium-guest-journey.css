@@ -1229,3 +1229,12 @@ body {
     border-inline-end: 1px solid rgba(234, 220, 197, .2);
   }
 }
+
+
+/* M25 — fixed booking actions yield instead of covering in-flow guest decisions. */
+@media (max-width: 760px) {
+  .mobile-booking-bar.is-suppressed-by-arrival-card,
+  .mobile-booking-bar.is-suppressed-by-guest-journey {
+    display: none !important;
+  }
+}
