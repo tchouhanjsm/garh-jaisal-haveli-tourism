@@ -206,6 +206,11 @@ def valid_screenshot_records() -> list[dict]:
                 "imageWidthPixels": width,
                 "imageHeightPixels": 1200,
                 "fullPage": True,
+                "deferredMediaExpectedCount": 2,
+                "deferredMediaActivatedCount": 2,
+                "deferredMediaPendingCount": 0,
+                "deferredMediaFailedCount": 0,
+                "decodedImageCount": 3,
                 "bytes": 12345,
                 "sha256": "a" * 64,
             })
@@ -410,6 +415,44 @@ report = browser_smoke.build_report(
     unknown_route_evidence=valid_unknown_route_evidence(),
     performance_evidence=performance_evidence,
 )
+# A complete route/viewport matrix is not sufficient when deferred photographs
+# are still represented by inert templates in the captured full-page evidence.
+incomplete_media_screenshots = [dict(record) for record in complete_screenshots]
+incomplete_media_screenshots[0]["deferredMediaPendingCount"] = 1
+incomplete_media_report = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=incomplete_media_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
+)
+assert incomplete_media_report["visualEvidence"]["complete"] is False
+assert incomplete_media_report["automatedResult"] == "FAIL"
+assert any(
+    "complete deferred-media hydration" in failure
+    for failure in incomplete_media_report["automatedFailures"]
+)
+
+incorrect_activation_screenshots = [dict(record) for record in complete_screenshots]
+incorrect_activation_screenshots[0]["deferredMediaActivatedCount"] = 1
+incorrect_activation_report = browser_smoke.build_report(
+    "staging-read-only",
+    valid,
+    "QA operator",
+    "Chromium test version",
+    [],
+    *complete_evidence,
+    screenshot_evidence=incorrect_activation_screenshots,
+    unknown_route_evidence=valid_unknown_route_evidence(),
+    performance_evidence=performance_evidence,
+)
+assert incorrect_activation_report["visualEvidence"]["complete"] is False
+assert incorrect_activation_report["automatedResult"] == "FAIL"
+
 assert report["automatedResult"] == "PASS"
 assert report["automatedFailureCount"] == 0
 assert report["evidenceCoverage"] == {
