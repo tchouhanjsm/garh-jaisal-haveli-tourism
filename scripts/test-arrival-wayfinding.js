@@ -141,6 +141,7 @@ for (const [label, target] of [
   ['Travel options', 'travel-options-title'],
   ['Walking &amp; mobility', 'walking-access-title'],
   ['Map &amp; navigation', 'arrival-map-title'],
+  ['Plan arrival', 'arrival-enquiry-title'],
   ['FAQs', 'arrival-faq-title'],
 ]) {
   assert.ok(directions.includes('href="#' + target + '">' + label + '</a>'),
@@ -154,6 +155,10 @@ assert.match(siteRuntime, /setAttribute\('aria-current', 'location'\)/,
   'the active Directions section link must expose aria-current=location');
 assert.match(siteRuntime, /const revealCurrentLink = link =>/,
   'the active mobile section link must be revealed when it moves outside the horizontal rail');
+assert.match(siteRuntime, /items\[0\]\.link === link[\s\S]*?sectionNav\.scrollTo\(\{ left: 0, behavior: 'auto' \}\)/,
+  'returning to Quick directions must reset the mobile section rail without an in-flight animation');
+assert.match(siteRuntime, /#arrival-enquiry-title/,
+  'the Plan arrival deep link must focus the dedicated arrival planner');
 assert.match(siteRuntime, /sectionNav\.scrollTo\(\{ left: nextLeft, behavior: reduceMotion \? 'auto' : 'smooth' \}\)/,
   'section-link auto-reveal must respect reduced-motion preferences');
 assert.match(siteRuntime, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)/,
@@ -168,11 +173,13 @@ assert.match(siteRuntime, /targetTop <= activationLine && targetTop > currentTop
   'active-section selection must use heading geometry rather than navigation link order');
 assert.match(siteRuntime, /Math\.max\(168, sectionNav\.getBoundingClientRect\(\)\.bottom \+ 32\)/,
   'the active-section reading line must remain below the sticky rail and align with heading scroll margins');
-assert.ok(stylesheet.includes('#arrival-overview-title,\n#travel-options-title,\n#walking-access-title,\n#arrival-map-title,\n#arrival-faq-title {\n  scroll-margin-top: 50px;\n}'),
+assert.ok(stylesheet.includes('#arrival-overview-title,\n#travel-options-title,\n#walking-access-title,\n#arrival-map-title,\n#arrival-enquiry-title,\n#arrival-faq-title {\n  scroll-margin-top: 50px;\n}'),
   'desktop and tablet headings must add only the clearance needed beyond global scroll padding');
 const mobileOffsetRule = stylesheet.indexOf('scroll-margin-top: 78px;');
 assert.ok(mobileOffsetRule > stylesheet.lastIndexOf('@media (max-width: 760px)'),
   'mobile headings must account for the smaller global scroll padding while clearing the sticky rail');
+assert.ok(stylesheet.slice(stylesheet.lastIndexOf('@media (max-width: 760px)')).includes('#arrival-enquiry-title'),
+  'the arrival-enquiry heading must clear the sticky rail at mobile widths');
 assert.match(siteRuntime, /addEventListener\('hashchange', scheduleUpdate\)/,
   'deep-link changes must refresh the active section state');
 assert.match(siteRuntime, /addEventListener\('pageshow', scheduleUpdate\)/,

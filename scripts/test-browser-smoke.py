@@ -3462,6 +3462,7 @@ def check_contact_hydration(page, base_url: str) -> None:
         ("Travel options", "#travel-options-title"),
         ("Walking & mobility", "#walking-access-title"),
         ("Map & navigation", "#arrival-map-title"),
+        ("Plan arrival", "#arrival-enquiry-title"),
         ("FAQs", "#arrival-faq-title"),
     ]
     for label, href in expected_sections:
@@ -3488,6 +3489,22 @@ def check_contact_hydration(page, base_url: str) -> None:
           "Map & navigation must update the in-page fragment")
     check(page.locator("#arrival-map-title").is_visible(),
           "Map & navigation must target a visible heading")
+    section_nav.get_by_role("link", name="Plan arrival", exact=True).click()
+    check(urlparse(page.url).fragment == "arrival-enquiry-title",
+          "Plan arrival navigation must target the dedicated arrival-enquiry heading")
+    try:
+        page.wait_for_function(
+            """() => {
+              const section = document.querySelector("#arrival-planning");
+              const active = document.querySelector(".arrival-section-nav a[aria-current=\"location\"]");
+              return section && document.activeElement === section
+                && active && active.getAttribute("href") === "#arrival-enquiry-title";
+            }""",
+            timeout=5000,
+        )
+        check(True, "Plan arrival navigation must focus the dedicated arrival planner and expose its active state")
+    except Exception as error:
+        check(False, f"Plan arrival navigation must focus the dedicated arrival planner ({error})")
 
     # This smoke test inspects the destination but never opens the external map.
 
@@ -4748,6 +4765,7 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
         ("Travel options", "#travel-options-title"),
         ("Walking & mobility", "#walking-access-title"),
         ("Map & navigation", "#arrival-map-title"),
+        ("Plan arrival", "#arrival-enquiry-title"),
         ("FAQs", "#arrival-faq-title"),
     ]:
         link = section_nav.get_by_role("link", name=label, exact=True)
@@ -4816,38 +4834,68 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
 
     original_viewport = page.viewport_size or {"width": 1440, "height": 900}
-    page.set_viewport_size({"width": 360, "height": 800})
-    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
-    page.evaluate(
-        """() => {
-          document.documentElement.style.scrollBehavior = 'auto';
-          document.querySelector('#arrival-map-title')?.scrollIntoView({ block: 'start', behavior: 'auto' });
-        }"""
-    )
-    try:
-        page.wait_for_function(
-            """() => {
-              const nav = document.querySelector('nav.arrival-section-nav');
-              const active = nav?.querySelector('a[aria-current="location"]');
-              if (!nav || !active || active.getAttribute('href') !== '#arrival-map-title') return false;
-              const navRect = nav.getBoundingClientRect();
-              const linkRect = active.getBoundingClientRect();
-              const contentLeft = navRect.left + nav.clientLeft;
-              const contentRight = contentLeft + nav.clientWidth;
-              return nav.scrollWidth > nav.clientWidth + 1
-                && nav.scrollLeft > 0
-                && linkRect.left >= contentLeft - 1
-                && linkRect.right <= contentRight + 1;
-            }""",
-            timeout=5000,
-        )
-        check(True, "Directions: mobile section rail must reveal the current off-screen section link")
-    except Exception as error:
-        check(False, f"Directions: mobile active section link must remain visible ({error})")
-    finally:
-        page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
-        page.set_viewport_size(original_viewport)
+    for width in (320, 390):
+        page.set_viewport_size({"width": width, "height": 800})
         page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+        page.evaluate(
+            """() => {
+              document.documentElement.style.scrollBehavior = 'auto';
+              document.querySelector('#arrival-map-title')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+            }"""
+        )
+        try:
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  if (!nav || !active || active.getAttribute('href') !== '#arrival-map-title') return false;
+                  const navRect = nav.getBoundingClientRect();
+                  const linkRect = active.getBoundingClientRect();
+                  const contentLeft = navRect.left + nav.clientLeft;
+                  const contentRight = contentLeft + nav.clientWidth;
+                  return nav.scrollWidth > nav.clientWidth + 1
+                    && nav.scrollLeft > 0
+                    && linkRect.left >= contentLeft - 1
+                    && linkRect.right <= contentRight + 1;
+                }""",
+                timeout=5000,
+            )
+            check(True, f"Directions at {width}px: mobile section rail must reveal the current off-screen section link")
+
+            page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  if (!nav || !active || active.getAttribute('href') !== '#arrival-faq-title') return false;
+                  const navRect = nav.getBoundingClientRect();
+                  const linkRect = active.getBoundingClientRect();
+                  const contentLeft = navRect.left + nav.clientLeft;
+                  const contentRight = contentLeft + nav.clientWidth;
+                  return nav.scrollLeft > 0
+                    && linkRect.left >= contentLeft - 1
+                    && linkRect.right <= contentRight + 1;
+                }""",
+                timeout=5000,
+            )
+            page.evaluate("window.scrollTo(0, 0)")
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  return nav && active
+                    && active.getAttribute('href') === '#arrival-overview-title'
+                    && nav.scrollLeft <= 1;
+                }""",
+                timeout=5000,
+            )
+            check(True, f"Directions at {width}px: returning to the top must restore Quick directions at the rail origin")
+        except Exception as error:
+            check(False, f"Directions at {width}px: section rail visibility and top restoration must remain deterministic ({error})")
+        finally:
+            page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
+    page.set_viewport_size(original_viewport)
+    page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
 
     check(page.locator(".arrival-visual__media img").count() == 1,
           "Directions: the accessible facade reference section must load its local building image")

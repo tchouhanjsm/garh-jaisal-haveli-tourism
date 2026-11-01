@@ -22,7 +22,7 @@
   let activeWhatsAppBaseUrl = '';
 
   function focusArrivalPlannerFromFragment() {
-    if (!window.location || window.location.hash !== '#arrival-planning') return;
+    if (!window.location || !['#arrival-planning', '#arrival-enquiry-title'].includes(window.location.hash)) return;
     const target = document.getElementById('arrival-planning');
     if (!target) return;
 
@@ -145,6 +145,17 @@
     let framePending = false;
     let activeItem = null;
     const revealCurrentLink = link => {
+      // Returning to the first section must restore the rail immediately. The
+      // full-page evidence runner scrolls through deferred media and back to
+      // the top; a smooth horizontal reset can otherwise be captured mid-flight.
+      if (items[0].link === link) {
+        if (typeof sectionNav.scrollTo === 'function') {
+          sectionNav.scrollTo({ left: 0, behavior: 'auto' });
+        } else {
+          sectionNav.scrollLeft = 0;
+        }
+        return;
+      }
       if (sectionNav.scrollWidth <= sectionNav.clientWidth) return;
       const navRect = sectionNav.getBoundingClientRect();
       const contentLeft = navRect.left + sectionNav.clientLeft;

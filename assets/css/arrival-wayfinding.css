@@ -379,6 +379,7 @@
 #travel-options-title,
 #walking-access-title,
 #arrival-map-title,
+#arrival-enquiry-title,
 #arrival-faq-title {
   scroll-margin-top: 50px;
 }
@@ -1043,7 +1044,7 @@
 }
 @media (max-width: 760px) {
   #arrival-overview-title, #travel-options-title, #walking-access-title,
-  #arrival-map-title, #arrival-faq-title { scroll-margin-top: 78px; }
+  #arrival-map-title, #arrival-enquiry-title, #arrival-faq-title { scroll-margin-top: 78px; }
   .arrival-map__orientation {
     padding: 22px;
   }
