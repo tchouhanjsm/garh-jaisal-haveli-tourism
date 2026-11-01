@@ -5,7 +5,7 @@ const slugs=['jaisalmer-fort-guide','staying-inside-jaisalmer-fort','jaisalmer-f
 const labels={'fort-and-heritage':'Fort & heritage','trip-planning':'Trip planning','itineraries':'Itineraries','desert-planning':'Desert planning','beyond-the-fort':'Beyond the Fort'};
 const search=root.querySelector('[data-journal-search]'),topic=root.querySelector('[data-journal-topic]'),clear=root.querySelector('[data-journal-clear]');
 const results=root.querySelector('[data-journal-results]'),error=root.querySelector('[data-journal-error]'),featured=root.querySelector('[data-journal-featured]'),grid=root.querySelector('[data-journal-grid]'),empty=root.querySelector('[data-journal-empty]');
-const archive=root.querySelector('.journal-archive'),panel=root.querySelector('[data-journal-article]'),title=root.querySelector('[data-journal-article-title]'),topicNode=root.querySelector('[data-journal-article-topic]'),lede=root.querySelector('[data-journal-article-lede]');
+const masthead=root.querySelector('.journal-masthead'),archive=root.querySelector('.journal-archive'),panel=root.querySelector('[data-journal-article]'),title=root.querySelector('[data-journal-article-title]'),topicNode=root.querySelector('[data-journal-article-topic]'),lede=root.querySelector('[data-journal-article-lede]');
 const descriptionMeta=document.querySelector('meta[name="description"]'),basePageTitle=document.title,baseDescription=descriptionMeta?descriptionMeta.content:'';
 const toc=root.querySelector('[data-journal-toc]'),body=root.querySelector('[data-journal-article-body]'),sources=root.querySelector('[data-journal-sources]'),related=root.querySelector('[data-journal-related]');
 const backs=Array.from(root.querySelectorAll('[data-journal-back]'));let records=[];
@@ -279,11 +279,11 @@ if(mediaEmpty)mediaEmpty.hidden=visible>0;
 function safeUrl(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u:null;}catch(_){return null;}}
 let activeArticleSlug=null;
 function showArticle(r){
-activeArticleSlug=r.slug;archive.hidden=true;panel.hidden=false;renderReadiness(r);title.textContent=r.title;topicNode.textContent=topicText(r.topic)+' · Draft preview';lede.textContent=r.lede;
+activeArticleSlug=r.slug;if(masthead)masthead.hidden=true;archive.hidden=true;panel.hidden=false;renderReadiness(r);title.textContent=r.title;topicNode.textContent=topicText(r.topic)+' · Draft preview';lede.textContent=r.lede;
 document.title=r.title+' | Journal preview | Garh Jaisal Haveli';
 if(descriptionMeta)descriptionMeta.content=(r.seo&&typeof r.seo.description==='string'&&r.seo.description.trim()?r.seo.description:r.lede).slice(0,300);
 toc.replaceChildren();body.replaceChildren();sources.replaceChildren();related.replaceChildren();const ids=new Map();
-(r.sections||[]).forEach((s,i)=>{const sid=/^[a-z0-9-]+$/.test(s.id)?s.id:'section-'+(i+1),id='journal-section-'+sid;ids.set(s.id,id);const section=el('section','journal-preview-section');section.id=id;section.append(el('h3','',s.heading));(s.body||[]).forEach(p=>section.append(el('p','',p)));body.append(section);});
+(r.sections||[]).forEach((s,i)=>{const sid=/^[a-z0-9-]+$/.test(s.id)?s.id:'section-'+(i+1),id='journal-section-'+sid;ids.set(s.id,id);const section=el('section','journal-preview-section');section.id=id;section.setAttribute('tabindex','-1');section.append(el('h3','',s.heading));(s.body||[]).forEach(p=>section.append(el('p','',p)));body.append(section);});
 const contents=Array.isArray(r.tableOfContents)?r.tableOfContents:[];contents.forEach(item=>{const id=ids.get(item.id);if(!id)return;const li=el('li'),a=el('a','',item.label);a.href='#'+id;li.append(a);toc.append(li);});
 if(!toc.children.length)(r.sections||[]).forEach(s=>{const id=ids.get(s.id);if(!id)return;const li=el('li'),a=el('a','',s.heading);a.href='#'+id;li.append(a);toc.append(li);});
 (r.sources||[]).forEach(s=>{const u=safeUrl(s.url);if(!u)return;const li=el('li'),a=el('a','',s.label);a.href=u.toString();a.target='_blank';a.rel='noopener noreferrer';li.append(a);sources.append(li);});
@@ -293,7 +293,7 @@ if(!related.children.length)related.append(el('p','','No related draft notes are
 panel.focus({preventScroll:true});panel.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
 }
 function showArchive(options){
-panel.hidden=true;archive.hidden=false;activeArticleSlug=null;document.title=basePageTitle;if(descriptionMeta)descriptionMeta.content=baseDescription;
+panel.hidden=true;if(masthead)masthead.hidden=false;archive.hidden=false;activeArticleSlug=null;document.title=basePageTitle;if(descriptionMeta)descriptionMeta.content=baseDescription;
 if(options&&options.focusSlug)focusArchiveCard(options.focusSlug);
 }
 function navigateToArticle(record,source){
@@ -304,6 +304,17 @@ history.replaceState(navigationState(null,false,record.slug),'',archiveUrl);
 const url=new URL(articleHref(record.slug),window.location.href);
 history.pushState(navigationState(record.slug,true,history.state&&history.state.returnFocusSlug),'',url);
 showArticle(record);
+}
+function handleTocNavigation(event){
+const link=event.target&&typeof event.target.closest==='function'?event.target.closest('a[href^="#journal-section-"]'):null;
+if(!link||!toc.contains(link))return;
+const target=document.getElementById(link.getAttribute('href').slice(1));
+if(!target)return;
+event.preventDefault();
+const url=currentUrl();url.hash=target.id;
+history.replaceState(history.state,'',url);
+target.focus({preventScroll:true});
+target.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
 }
 function handleArticleLink(event){
 if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
@@ -343,7 +354,7 @@ search.addEventListener('input',()=>{writeFilterUrl();renderArchive();});
 topic.addEventListener('change',()=>{writeFilterUrl();renderArchive();});
 clear.addEventListener('click',()=>{search.value='';topic.value='all';writeFilterUrl();renderArchive();search.focus();});
 if(mediaSearch)mediaSearch.addEventListener('input',renderMediaWorkbench);if(mediaRole)mediaRole.addEventListener('change',renderMediaWorkbench);if(mediaSource)mediaSource.addEventListener('change',renderMediaWorkbench);if(mediaClear)mediaClear.addEventListener('click',()=>{mediaSearch.value='';mediaRole.value='all';mediaSource.value='all';renderMediaWorkbench();mediaSearch.focus();});
-root.addEventListener('click',handleArticleLink);window.addEventListener('popstate',restoreNavigationFromUrl);backs.forEach(b=>b.addEventListener('click',back));
+root.addEventListener('click',handleArticleLink);toc.addEventListener('click',handleTocNavigation);window.addEventListener('popstate',restoreNavigationFromUrl);backs.forEach(b=>b.addEventListener('click',back));
 const recordRequest=Promise.all(slugs.map(slug=>fetch('../content/blogs/'+slug+'.json',{credentials:'omit',cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Missing draft '+slug);return response.json();}).then(record=>{if(record.slug!==slug||record.status!=='draft'||!labels[record.topic])throw new Error('Ineligible draft '+slug);return record;})));
 const manifestRequest=fetch('../docs/MEDIA-MIGRATION-MANIFEST.json',{credentials:'omit',cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Media migration manifest unavailable');return response.json();}).catch(()=>null);
 recordRequest.then(data=>{records=data;buildTopics();initializeNavigation();buildMediaWorkbench();manifestRequest.then(manifest=>{mediaManifest=manifest;buildMediaWorkbench();});}).catch(()=>{results.textContent='The draft preview could not load its records.';error.hidden=false;featured.replaceChildren();grid.replaceChildren();if(mediaSummary)mediaSummary.textContent='Candidate media evidence could not be loaded because the draft records are unavailable.';if(mediaWorkbench)mediaWorkbench.setAttribute('aria-busy','false');});

@@ -5467,6 +5467,8 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         check(False, f"Journal preview: direct article entry must resolve the requested draft ({error})")
     check(page.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
           "Journal preview: article query parameter must resolve the matching draft")
+    check(page.locator("h1:visible").count()==1,
+          "Journal preview: article mode must expose exactly one visible H1")
     check(page.locator("[data-journal-search]").input_value()=="Fort"
           and page.locator("[data-journal-topic]").input_value()=="fort-and-heritage",
           "Journal preview: direct article URL must restore its search and topic context")
@@ -5508,6 +5510,8 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(article.is_visible(),"Journal preview: keyboard activation must open an article")
     check(article.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
           "Journal preview: heading must come from the article record")
+    check(page.locator("h1:visible").count()==1,
+          "Journal preview: only the active article H1 may remain visible")
     check("draft — not published" in article.locator("[data-review-record-status]").inner_text().lower(),
           "Journal preview: article must expose draft-only status")
     check("not approved" in article.locator("[data-review-owner-facts]").inner_text().lower(),
@@ -5532,12 +5536,15 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         target=toc.first.get_attribute("href") or ""
         check(bool(target) and article.locator(target).count()==1,"Journal preview: contents must target a real section")
         if target:
+            history_length_before_toc = page.evaluate("() => history.length")
             toc.first.click()
             try:
                 page.wait_for_function("(hash) => window.location.hash === hash", arg=target, timeout=5000)
             except Exception as error:
                 check(False,f"Journal preview: contents navigation must reach the selected section ({error})")
             check(article.locator(target).is_visible(),"Journal preview: selected contents target must remain visible")
+            check(page.evaluate("() => history.length") == history_length_before_toc,
+                  "Journal preview: TOC navigation must not add an extra browser-history step")
 
     related=article.locator("[data-journal-related] a").first
     check(related.count()>0,"Journal preview: related drafts must be discoverable")
