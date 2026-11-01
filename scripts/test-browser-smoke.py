@@ -5447,16 +5447,45 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
           f"Journal preview: search and topic state must be reflected in the URL ({filter_url})")
     page.reload(wait_until="domcontentloaded")
     try:
-        page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+        page.wait_for_function(
+            """() => {
+                const search = document.querySelector('[data-journal-search]');
+                const topic = document.querySelector('[data-journal-topic]');
+                const cards = document.querySelectorAll('[data-journal-card]');
+                const error = document.querySelector('[data-journal-error]');
+                const results = document.querySelector('[data-journal-results]');
+                return search?.value === 'Jaisalmer Fort Guide'
+                    && topic?.value === 'fort-and-heritage'
+                    && cards.length === 1
+                    && results?.textContent.toLowerCase().includes('1 draft guide')
+                    && error?.hidden === true;
+            }""",
+            timeout=7000,
+        )
     except Exception as error:
-        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
-        check(False, f"Journal preview: filter refresh failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        state = page.evaluate("""() => {
+            const error = document.querySelector('[data-journal-error]');
+            const cards = Array.from(document.querySelectorAll('[data-journal-card]'));
+            return {
+                url: location.href,
+                cards: cards.length,
+                visibleCards: cards.filter(node => !node.hidden).length,
+                search: document.querySelector('[data-journal-search]')?.value,
+                topic: document.querySelector('[data-journal-topic]')?.value,
+                archiveHidden: document.querySelector('.journal-archive')?.hidden,
+                articleHidden: document.querySelector('[data-journal-article]')?.hidden,
+                errorVisible: error ? !error.hidden : null,
+                error: error?.textContent,
+                results: document.querySelector('[data-journal-results]')?.textContent
+            };
+        }""")
+        check(False, f"Journal preview: filter refresh must restore the URL-selected result set; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
         return
     check(page.locator("[data-journal-search]").input_value()=="Jaisalmer Fort Guide"
           and page.locator("[data-journal-topic]").input_value()=="fort-and-heritage",
           "Journal preview: search and topic filters must survive refresh")
     check(page.locator("[data-journal-card]:visible").count()==1,
-          "Journal preview: restored URL filters must still intersect after refresh")
+          "Journal preview: restored URL filters must return exactly one matching draft")
     clear = page.locator("[data-journal-clear]")
     clear.click()
     cleared_url = page.evaluate("() => new URL(location.href).searchParams")
