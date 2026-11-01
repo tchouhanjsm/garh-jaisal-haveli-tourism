@@ -20,11 +20,6 @@ EXPECTED_ROUTES = [
     ("gallery.html", "Gallery"),
 ]
 EXPECTED_VIEWPORTS = [
-    {"width": 390, "height": 844, "label": "Mobile"},
-    {"width": 768, "height": 1024, "label": "Tablet"},
-    {"width": 1280, "height": 900, "label": "Laptop"},
-]
-EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS = [
     {"width": 320, "height": 800, "label": "Narrow mobile"},
     {"width": 360, "height": 800, "label": "Mobile"},
     {"width": 390, "height": 844, "label": "Wide mobile"},
@@ -32,6 +27,7 @@ EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS = [
     {"width": 1280, "height": 900, "label": "Laptop"},
     {"width": 1440, "height": 900, "label": "Desktop"},
 ]
+EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS = EXPECTED_VIEWPORTS
 
 assert contract.get("schemaVersion") == 1, "Unsupported staging route contract version"
 assert "not a production sitemap" in contract.get("purpose", ""), (
@@ -54,15 +50,15 @@ for item in routes:
 
 viewports = contract.get("viewports")
 assert viewports == EXPECTED_VIEWPORTS, (
-    "Full-page screenshot evidence must cover Mobile 390x844, Tablet 768x1024 and Laptop 1280x900"
+    "Full-page screenshot evidence must cover all six approved responsive widths from 320 to 1440 CSS pixels"
 )
 responsive_audit_viewports = contract.get("responsiveAuditViewports")
 assert responsive_audit_viewports == EXPECTED_RESPONSIVE_AUDIT_VIEWPORTS, (
     "Responsive layout audits must cover 320, 360, 390, 768, 1280 and 1440 CSS pixels"
 )
 expected_screenshot_count = len(routes) * len(viewports)
-assert expected_screenshot_count == 24, (
-    "The current eight-route, three-viewport evidence contract must contain 24 screenshots"
+assert expected_screenshot_count == 48, (
+    "The eight-route, six-viewport evidence contract must contain 48 screenshots"
 )
 
 browser = (ROOT / "scripts" / "test-browser-smoke.py").read_text(encoding="utf-8")
@@ -105,10 +101,10 @@ assert "all eight page routes" in launch_doc
 assert "eight core HTML pages" in launch_doc
 assert "eight route/HTTP records" in readme
 assert "Experience details" in readme
-assert "24 full-page PNG" in readme and "24 full-page PNG" in launch_doc
+assert "48 full-page PNG" in readme and "48 full-page PNG" in launch_doc
 assert "experience-details.html" in readme and "experience-details.html" in launch_doc
 
 print(
     "PASS: one shared eight-route contract drives six responsive-audit breakpoints, "
-    "390px mobile, 768px tablet and 1280px laptop screenshots with a 24-image evidence bundle; media checks and release docs agree."
+    "320/360/390/768/1280/1440px full-page screenshots across the eight core routes with a 48-image evidence bundle; media checks and release docs agree."
 )
