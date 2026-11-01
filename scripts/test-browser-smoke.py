@@ -4058,6 +4058,106 @@ def check_first_view_hierarchy(page, page_name: str, viewport_width: int) -> Non
               f"{page_name} at {viewport_width}px: hero image must preserve its cover crop")
 
 
+def check_collection_editorial_composition(page, page_name: str, viewport_width: int) -> None:
+    """Keep seven-item room and photo collections editorially balanced at every audit width."""
+    if page_name == "rooms.html":
+        state = page.evaluate("""() => {
+          const grid = document.querySelector('.room-card-grid--catalog');
+          const cards = grid ? [...grid.querySelectorAll('.room-card--named')] : [];
+          const feature = grid && grid.querySelector('[data-room-card-composition="feature"]');
+          const image = feature && feature.querySelector('.room-card__image');
+          const copy = feature && feature.querySelector('.room-card__body');
+          const rect = element => {
+            if (!element) return null;
+            const box = element.getBoundingClientRect();
+            return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height};
+          };
+          return {
+            count:cards.length,
+            featureIsLast:Boolean(feature && cards[cards.length - 1] === feature),
+            columns:grid ? getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+            spanStart:feature ? getComputedStyle(feature).gridColumnStart : null,
+            spanEnd:feature ? getComputedStyle(feature).gridColumnEnd : null,
+            image:rect(image), copy:rect(copy)
+          };
+        }""")
+        expected_columns = 3 if viewport_width > 1050 else 2 if viewport_width > 760 else 1
+        check(state is not None and state["count"] == 7 and state["featureIsLast"],
+              f"rooms.html at {viewport_width}px: the editorial closure must preserve seven records and feature the final room")
+        check(state is not None and state["columns"] == expected_columns,
+              f"rooms.html at {viewport_width}px: catalogue columns must match the responsive 3/2/1 grid ({state})")
+        check(state is not None and state["spanStart"] == "1" and state["spanEnd"] == "-1",
+              f"rooms.html at {viewport_width}px: the seventh room must own the full grid row")
+        if state and state["image"] and state["copy"] and viewport_width > 760:
+            check(state["image"]["right"] <= state["copy"]["left"] + 2 and state["image"]["height"] >= 340,
+                  f"rooms.html at {viewport_width}px: feature image and editorial copy must form a substantial horizontal composition ({state})")
+        elif state and state["image"] and state["copy"]:
+            check(state["image"]["bottom"] <= state["copy"]["top"] + 2,
+                  f"rooms.html at {viewport_width}px: feature image must stack above room copy on mobile ({state})")
+
+    elif page_name == "gallery.html":
+        state = page.evaluate("""() => {
+          const photoGrid = document.querySelector('.gallery-grid:not(.gallery-grid--source)');
+          const photoCards = photoGrid ? [...photoGrid.querySelectorAll('.gallery-card')] : [];
+          const photoFeature = photoGrid && photoGrid.querySelector('[data-gallery-composition="feature"]');
+          const photoMedia = photoFeature && photoFeature.querySelector('.gallery-card__media');
+          const photoCopy = photoFeature && photoFeature.querySelector('figcaption');
+          const roomGrid = document.querySelector('.room-gallery-grid');
+          const roomCards = roomGrid ? [...roomGrid.querySelectorAll('.room-gallery-card')] : [];
+          const roomFeature = roomGrid && roomGrid.querySelector('[data-room-card-composition="feature"]');
+          const roomImage = roomFeature && roomFeature.querySelector('.room-gallery-card__image');
+          const roomCopy = roomFeature && roomFeature.querySelector('.room-gallery-card__body');
+          const rect = element => {
+            if (!element) return null;
+            const box = element.getBoundingClientRect();
+            return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height};
+          };
+          return {
+            photoCount:photoCards.length,
+            photoFeatureIsLast:Boolean(photoFeature && photoCards[photoCards.length - 1] === photoFeature),
+            photoColumns:photoGrid ? getComputedStyle(photoGrid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+            photoSpanStart:photoFeature ? getComputedStyle(photoFeature).gridColumnStart : null,
+            photoSpanEnd:photoFeature ? getComputedStyle(photoFeature).gridColumnEnd : null,
+            photoMedia:rect(photoMedia), photoCopy:rect(photoCopy),
+            roomCount:roomCards.length,
+            roomFeatureIsLast:Boolean(roomFeature && roomCards[roomCards.length - 1] === roomFeature),
+            roomColumns:roomGrid ? getComputedStyle(roomGrid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+            roomSpanStart:roomFeature ? getComputedStyle(roomFeature).gridColumnStart : null,
+            roomSpanEnd:roomFeature ? getComputedStyle(roomFeature).gridColumnEnd : null,
+            roomImage:rect(roomImage), roomCopy:rect(roomCopy)
+          };
+        }""")
+        photo_columns = 2 if viewport_width > 760 else 1
+        room_columns = 3 if viewport_width > 900 else 2 if viewport_width > 600 else 1
+        check(state is not None and state["photoCount"] == 7 and state["photoFeatureIsLast"],
+              f"gallery.html at {viewport_width}px: primary photo collection must close on its seventh subject")
+        check(state is not None and state["photoColumns"] == photo_columns,
+              f"gallery.html at {viewport_width}px: primary photo collection must retain its responsive 2/1 grid ({state})")
+        check(state is not None and state["photoSpanStart"] == "1" and state["photoSpanEnd"] == "-1",
+              f"gallery.html at {viewport_width}px: seventh photo must own the full grid row")
+        if state and state["photoMedia"] and state["photoCopy"] and viewport_width > 760:
+            check(state["photoMedia"]["right"] <= state["photoCopy"]["left"] + 2
+                  and state["photoMedia"]["height"] >= 320,
+                  f"gallery.html at {viewport_width}px: final photo must form a substantial horizontal feature ({state})")
+        elif state and state["photoMedia"] and state["photoCopy"]:
+            check(state["photoMedia"]["bottom"] <= state["photoCopy"]["top"] + 2,
+                  f"gallery.html at {viewport_width}px: final photo must stack above its caption on mobile ({state})")
+
+        check(state is not None and state["roomCount"] == 7 and state["roomFeatureIsLast"],
+              f"gallery.html at {viewport_width}px: named-room gallery must retain seven rooms and feature BlueSky last")
+        check(state is not None and state["roomColumns"] == room_columns,
+              f"gallery.html at {viewport_width}px: named-room cards must retain their 3/2/1 grid ({state})")
+        check(state is not None and state["roomSpanStart"] == "1" and state["roomSpanEnd"] == "-1",
+              f"gallery.html at {viewport_width}px: final named room must own the full grid row")
+        if state and state["roomImage"] and state["roomCopy"] and viewport_width > 600:
+            check(state["roomImage"]["right"] <= state["roomCopy"]["left"] + 2
+                  and state["roomImage"]["height"] >= 320,
+                  f"gallery.html at {viewport_width}px: named-room feature must be a substantial horizontal composition ({state})")
+        elif state and state["roomImage"] and state["roomCopy"]:
+            check(state["roomImage"]["bottom"] <= state["roomCopy"]["top"] + 2,
+                  f"gallery.html at {viewport_width}px: named-room feature must stack above its copy on mobile ({state})")
+
+
 def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = None) -> None:
     """Audit six responsive breakpoints and capture all eight routes at 390, 768 and 1280px."""
     screenshot_widths = {width for width, _height in VIEWPORTS}
@@ -4076,6 +4176,7 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 capture_route_performance(page, page_name, width, height)
             check_premium_guest_journey(page, page_name, width)
             check_first_view_hierarchy(page, page_name, width)
+            check_collection_editorial_composition(page, page_name, width)
             type_requirements = {
                 "index.html": [(".experience-card p", 13), (".proof-item span", 11),
                                (".room-feature__copy > p:not(.fine-print)", 13), (".faq-item > p", 13)],

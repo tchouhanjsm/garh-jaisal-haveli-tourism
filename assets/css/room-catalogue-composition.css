@@ -1,0 +1,165 @@
+/* M26 — editorial closure for seven-item collections.
+   The final catalogue entry becomes a deliberate image-and-story feature rather
+   than leaving a lone card at the start of a new grid row. */
+
+.room-card-grid--catalog [data-room-card-composition="feature"] {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, .98fr) minmax(0, 1.02fr);
+  align-items: stretch;
+}
+
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-card__image {
+  height: 100%;
+  min-height: 360px;
+}
+
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-card__image picture,
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-card__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(28px, 4.2vw, 58px);
+}
+
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-card__body h3 {
+  font-size: clamp(28px, 3.2vw, 40px);
+  line-height: 1.14;
+}
+
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-card__body p {
+  max-width: 560px;
+  min-height: 0;
+}
+
+.room-card-grid--catalog [data-room-card-composition="feature"] .room-feature-list {
+  max-width: 560px;
+}
+
+.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, .96fr) minmax(0, 1.04fr);
+  align-items: stretch;
+}
+
+.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] .gallery-card__media {
+  height: 100%;
+  min-height: 340px;
+  aspect-ratio: auto;
+}
+
+.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] .gallery-card__media picture,
+.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] .gallery-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] figcaption {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: clamp(28px, 4.2vw, 58px);
+}
+
+.gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] h2 {
+  font-size: clamp(28px, 3.2vw, 40px);
+}
+
+.room-gallery-grid [data-room-card-composition="feature"] {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, .96fr) minmax(0, 1.04fr);
+  align-items: stretch;
+}
+
+.room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__image {
+  height: 100%;
+  min-height: 340px;
+  aspect-ratio: auto;
+}
+
+.room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__image picture,
+.room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__body {
+  justify-content: center;
+  padding: clamp(28px, 4.2vw, 58px);
+}
+
+.room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__body h3 {
+  font-size: clamp(28px, 3.1vw, 38px);
+  line-height: 1.14;
+}
+
+.room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__body p:not(.eyebrow) {
+  max-width: 560px;
+}
+
+@media (max-width: 760px) {
+  .room-card-grid--catalog [data-room-card-composition="feature"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .room-card-grid--catalog [data-room-card-composition="feature"] .room-card__image {
+    height: 300px;
+    min-height: 0;
+  }
+
+  .room-card-grid--catalog [data-room-card-composition="feature"] .room-card__body {
+    padding: 22px 20px 26px;
+  }
+
+  .gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] .gallery-card__media {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
+
+  .gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] figcaption {
+    padding: clamp(20px, 3vw, 30px);
+  }
+}
+
+@media (max-width: 600px) {
+  .room-gallery-grid [data-room-card-composition="feature"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__image {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 3 / 2;
+  }
+
+  .room-gallery-grid [data-room-card-composition="feature"] .room-gallery-card__body {
+    padding: 21px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-card-grid--catalog [data-room-card-composition="feature"] img,
+  .gallery-grid:not(.gallery-grid--source) [data-gallery-composition="feature"] img,
+  .room-gallery-grid [data-room-card-composition="feature"] img {
+    transition: none;
+  }
+}

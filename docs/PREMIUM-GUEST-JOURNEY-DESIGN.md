@@ -129,3 +129,8 @@ Automated full-page screenshots must scroll through the page using the site's re
 ## M25 — mobile journey rail and fixed booking action
 
 The persistent mobile booking bar must yield while it physically overlaps either the shared four-step inner-route guest-journey rail or Directions' quick-arrival summary. The page may show one fixed conversion surface at a time: hidden states synchronize display:none, aria-hidden=true and inert; a keyboard-focused booking action is preserved; the provider handoff reappears after the protected surface leaves the bottom action zone. Chromium covers 320/360/390px across all eight routes and verifies the home route's distinct planner remains unaffected. This is geometric obstruction control, not time- or scroll-position-only hiding.
+
+
+## M26 — seven-item collection composition
+
+The last item in the Rooms catalogue, the primary Gallery photo set and the seven-room Gallery section receives an intentional full-row editorial layout. The larger image and copy column close the seven-item sequence without inserting an eighth card, duplicating a room or changing source content. The supplemental Gallery source-photo strip remains independent. Desktop/tablet use the horizontal feature; narrow mobile returns to the normal image-above-copy card. Chromium checks 3/2/1 room layouts, 2/1 primary Gallery layouts, last-item ordering, full-row span and the actual image/copy rectangles at all six responsive widths. Existing room filtering, three-room comparison, links, image alt text and reduced-motion behavior remain in place.

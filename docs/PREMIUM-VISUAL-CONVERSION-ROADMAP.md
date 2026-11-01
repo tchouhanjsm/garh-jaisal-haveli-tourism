@@ -415,3 +415,16 @@ Each of the 48 screenshot records now carries expected, activated, pending and f
 **Regression coverage:** Chromium checks initial obstruction and state parity across every inner route at 320, 360 and 390px. It then scrolls both protected surfaces fully clear and requires the booking bar to restore, remain within the viewport and retain its provider destination. The home route remains unaffected because it uses its distinct full-width planning band rather than the shared inner-route rail. Existing Directions focus/blur, quick-arrival and orientation tests remain in place.
 
 **Guardrails:** no CTA destination, booking authorization, journey link target, route content, owner fact, pricing or live-availability claim changes. Desktop and tablet fixed-action behavior is unchanged. No SEO publication, canonical/robots/sitemap, staging deployment or production release change is included. Owner screenshot review and manual UAT remain separate.
+
+
+## M26 — editorial closure for seven-item collections
+
+**Screenshot finding:** the M25 visual baseline shows the seventh entry in the Rooms catalogue, the primary Gallery photo selection and Gallery's seven-room section stranded alone at the start of a new grid row. On wide screens the unused columns create large empty blocks and make complete collections look unfinished.
+
+**Implementation batch:** retain all seven records in their current order and preserve each source-backed photograph, alt text, room identifier, feature metadata and enquiry destination. Give only the final room/photo in each collection a full-row editorial composition: image-led split with a larger subject, more generous copy area and unchanged source details. The Gallery's supplemental source-photo strip remains a separate collection and does not inherit the feature style.
+
+**Responsive behavior:** the feature spans the final row in the existing desktop and tablet grid; on narrow mobile it returns to a vertical image-then-copy card. The existing catalogue column breakpoints remain authoritative: Rooms 3/2/1, primary Gallery 2/1 and Gallery room cards 3/2/1. No horizontal scrolling, hidden records or JavaScript-only presentation is introduced.
+
+**Regression coverage:** static contracts require one final feature marker for each seven-item collection and the original seven entries/identity links. Chromium checks final-record order, full-row grid placement, the expected responsive column count, image/copy geometry and mobile stacking at 320, 360, 390, 768, 1280 and 1440 CSS pixels. Existing filtering, shortlist comparison, gallery photo activation and screenshot hydration checks continue to run unchanged.
+
+**Guardrails:** this is layout-only. No room description, amenity, image mapping, price, occupancy, availability, booking/enquiry route, operational statement, public metadata, canonical host, robots, sitemap or publication status changes. Owner screenshot review and staging UAT remain separate acceptance gates; no merge or deployment is authorized by this milestone.
