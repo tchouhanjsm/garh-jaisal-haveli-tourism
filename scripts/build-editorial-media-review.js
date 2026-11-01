@@ -317,6 +317,7 @@ function buildDecisionWorksheet(manifest, manifestText) {
         articleSlug: placement.articleSlug,
         articleTitle: placement.articleTitle,
         articleStatus: placement.articleStatus,
+        articleRecordSha256: manifest.articles.find(article => article.slug === placement.articleSlug).recordSha256,
         role: placement.role,
         requiredSubject: placement.requirement,
         candidatePath: asset.path,
@@ -352,12 +353,15 @@ function buildDecisionWorksheet(manifest, manifestText) {
         articleSlug: article.slug,
         articleTitle: article.title,
         articleStatus: article.status,
+        articleRecordSha256: article.recordSha256,
         role,
         requiredSubject: requirement && requirement.subject ? requirement.subject : null,
         candidatePath: null,
         candidateSha256: null,
         candidateGitBlobSha: null,
         proposedCandidatePath: null,
+        proposedCandidateSha256: null,
+        proposedCandidateGitBlobSha: null,
         migrationStatus: 'not-applicable-no-candidate',
         ownerDecision: 'pending',
         visualReview: { status: 'not_assessed', evidence: null, reviewer: null, reviewedAt: null },
@@ -510,17 +514,26 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
     });
   }
 
-  const articles = [...audit.articles].sort((left, right) => left.slug.localeCompare(right.slug)).map((article) => ({
-    slug: article.slug,
-    title: article.title,
-    status: article.status,
-    mediaStatus: article.mediaStatus,
-    requirements: article.requirements || null,
-    candidatePaths: (article.candidates || []).map((candidate) => ({ path: candidate.path, role: candidate.role })),
-    missingRoles: article.missingRoles || [],
-    blockers: article.blockers || [],
-    approvedAssetCount: (article.approvedAssets || []).length,
-  }));
+  const articles = [...audit.articles].sort((left, right) => left.slug.localeCompare(right.slug)).map((article) => {
+    const recordPath = path.join(resolvedRoot, 'content/blogs', article.slug + '.json');
+    const recordStat = fs.lstatSync(recordPath);
+    if (!recordStat.isFile() || recordStat.isSymbolicLink()) {
+      throw new Error('Review article record must be a regular file: ' + article.slug);
+    }
+    const recordBytes = fs.readFileSync(recordPath);
+    return {
+      slug: article.slug,
+      title: article.title,
+      status: article.status,
+      recordSha256: crypto.createHash('sha256').update(recordBytes).digest('hex'),
+      mediaStatus: article.mediaStatus,
+      requirements: article.requirements || null,
+      candidatePaths: (article.candidates || []).map((candidate) => ({ path: candidate.path, role: candidate.role })),
+      missingRoles: article.missingRoles || [],
+      blockers: article.blockers || [],
+      approvedAssetCount: (article.approvedAssets || []).length,
+    };
+  });
 
   const candidatePlacementCount = assets.reduce((total, asset) => total + asset.placements.length, 0);
   const approvedPlacementCount = assets.reduce((total, asset) =>
