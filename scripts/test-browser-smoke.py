@@ -889,6 +889,9 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
         media_readiness = page.evaluate(
             """async () => {
               await document.fonts.ready;
+              const rootStyle = document.documentElement.style;
+              const originalScrollBehavior = rootStyle.scrollBehavior;
+              rootStyle.scrollBehavior = 'auto';
               const pendingAtCaptureStart = document.querySelectorAll('[data-deferred-media]').length;
               const alreadyActivatedAtCaptureStart = document.querySelectorAll('[data-deferred-media-activated]').length;
               const expectedDeferredMedia = pendingAtCaptureStart + alreadyActivatedAtCaptureStart;
@@ -956,6 +959,7 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
               };
               window.scrollTo(0, 0);
               await waitForPaint();
+              rootStyle.scrollBehavior = originalScrollBehavior;
               return readiness;
             }"""
         )
