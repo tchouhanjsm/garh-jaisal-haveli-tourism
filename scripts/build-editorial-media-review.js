@@ -32,10 +32,13 @@ function isWithin(parent, candidate) {
 function prepareOutputDirectory(root, outputDirectory) {
   const rootReal = fs.realpathSync(root);
   const output = path.resolve(outputDirectory);
+  if (isWithin(rootReal, output)) {
+    throw new Error('Review bundle output must be outside the repository root.');
+  }
+
   const parent = path.dirname(output);
   const parentReal = fs.realpathSync(parent);
   const resolvedOutput = path.join(parentReal, path.basename(output));
-
   if (isWithin(rootReal, resolvedOutput)) {
     throw new Error('Review bundle output must be outside the repository root.');
   }
