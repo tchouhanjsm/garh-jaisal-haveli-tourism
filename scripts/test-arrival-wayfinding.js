@@ -157,8 +157,14 @@ assert.match(siteRuntime, /const revealCurrentLink = link =>/,
   'the active mobile section link must be revealed when it moves outside the horizontal rail');
 assert.match(siteRuntime, /items\[0\]\.link === link[\s\S]*?sectionNav\.scrollTo\(\{ left: 0, behavior: 'auto' \}\)/,
   'returning to Quick directions must reset the mobile section rail without an in-flight animation');
-assert.match(siteRuntime, /#arrival-enquiry-title/,
-  'the Plan arrival deep link must focus the dedicated arrival planner');
+assert.match(directions, /<h2 class="display-title" id="arrival-enquiry-title" tabindex="-1">/,
+  'the arrival-enquiry heading must be programmatically focusable without entering the normal tab order');
+assert.match(siteRuntime, /const targetId = window\.location\.hash === '#arrival-enquiry-title'[\s\S]*?document\.getElementById\(targetId\)/,
+  'the Plan arrival fragment must focus its actual heading rather than the surrounding section');
+assert.match(siteRuntime, /item\.target\.id === 'arrival-enquiry-title'[\s\S]*?requestAnimationFrame\(focusArrivalPlannerFromFragment\)/,
+  'clicking Plan arrival must schedule focus after native fragment navigation updates the URL');
+assert.match(stylesheet, /#arrival-enquiry-title:focus-visible[\s\S]*?outline: 3px solid var\(--focus-ring/,
+  'the programmatically focused arrival heading must retain a visible keyboard focus indicator');
 assert.match(siteRuntime, /sectionNav\.scrollTo\(\{ left: nextLeft, behavior: reduceMotion \? 'auto' : 'smooth' \}\)/,
   'section-link auto-reveal must respect reduced-motion preferences');
 assert.match(siteRuntime, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)/,

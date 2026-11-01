@@ -23,14 +23,19 @@
 
   function focusArrivalPlannerFromFragment() {
     if (!window.location || !['#arrival-planning', '#arrival-enquiry-title'].includes(window.location.hash)) return;
-    const target = document.getElementById('arrival-planning');
+    const targetId = window.location.hash === '#arrival-enquiry-title'
+      ? 'arrival-enquiry-title'
+      : 'arrival-planning';
+    const target = document.getElementById(targetId);
     if (!target) return;
 
     window.requestAnimationFrame(() => {
-      try {
-        target.focus({ preventScroll: true });
-      } catch (_) {
-        target.focus();
+      if (document.activeElement !== target) {
+        try {
+          target.focus({ preventScroll: true });
+        } catch (_) {
+          target.focus();
+        }
       }
       target.scrollIntoView({ block: 'start', behavior: 'auto' });
     });
@@ -220,7 +225,13 @@
     sectionNav.addEventListener('click', event => {
       const link = event.target.closest('a[href^="#"]');
       const item = items.find(candidate => candidate.link === link);
-      if (item) setCurrent(item);
+      if (!item) return;
+      setCurrent(item);
+      // Anchor default navigation updates the fragment after this handler;
+      // schedule the focus enhancement for the next frame so it sees the new hash.
+      if (item.target.id === 'arrival-enquiry-title') {
+        window.requestAnimationFrame(focusArrivalPlannerFromFragment);
+      }
     });
     window.addEventListener('scroll', scheduleUpdate, { passive: true });
     window.addEventListener('resize', () => {

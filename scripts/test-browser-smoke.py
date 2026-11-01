@@ -3495,16 +3495,16 @@ def check_contact_hydration(page, base_url: str) -> None:
     try:
         page.wait_for_function(
             """() => {
-              const section = document.querySelector("#arrival-planning");
+              const heading = document.querySelector("#arrival-enquiry-title");
               const active = document.querySelector('.arrival-section-nav a[aria-current="location"]');
-              return section && document.activeElement === section
+              return heading && document.activeElement === heading
                 && active && active.getAttribute("href") === "#arrival-enquiry-title";
             }""",
             timeout=5000,
         )
-        check(True, "Plan arrival navigation must focus the dedicated arrival planner and expose its active state")
+        check(True, "Plan arrival navigation must focus its visible heading and expose its active state")
     except Exception as error:
-        check(False, f"Plan arrival navigation must focus the dedicated arrival planner ({error})")
+        check(False, f"Plan arrival navigation must focus its visible heading ({error})")
 
     # This smoke test inspects the destination but never opens the external map.
 

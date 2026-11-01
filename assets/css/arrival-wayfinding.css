@@ -383,6 +383,10 @@
 #arrival-faq-title {
   scroll-margin-top: 50px;
 }
+#arrival-enquiry-title:focus-visible {
+  outline: 3px solid var(--focus-ring, #1d4ed8);
+  outline-offset: 6px;
+}
 .arrival-travel {
   display: grid;
   gap: 22px;
