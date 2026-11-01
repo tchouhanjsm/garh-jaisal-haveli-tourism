@@ -4137,44 +4137,108 @@ def check_responsive_layout(page, base_url: str, screenshots_dir: Path | None = 
                 page.wait_for_timeout(80)
                 check(not dock.is_visible(),
                       f"{page_name} at {width}px: floating enquiry dock must yield to mobile booking bar")
-                page.evaluate("window.scrollTo(0, 0)")
+
+                # The shared guest-journey rail and Directions quick-arrival card are
+                # protected in-flow decisions. The fixed bar must not obscure either.
+                page.evaluate("""() => {
+                  document.documentElement.style.scrollBehavior = "auto";
+                  window.scrollTo(0, 0);
+                }""")
+                page.wait_for_timeout(80)
                 bar = page.locator(".mobile-booking-bar")
-                if page_name == "directions.html":
-                    state = page.evaluate("""() => {
-                      const card = document.querySelector('[data-arrival-quick-card]');
-                      const bar = document.querySelector('.mobile-booking-bar');
-                      if (!card || !bar) return null;
-                      const bounds = card.getBoundingClientRect();
-                      const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
-                      const overlaps = bounds.left < window.innerWidth && bounds.right > 0
-                        && bounds.top < window.innerHeight
-                        && bounds.bottom > Math.max(0, window.innerHeight - height);
-                      const expected = overlaps && !bar.contains(document.activeElement);
-                      return {expected, suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
-                        display: getComputedStyle(bar).display, ariaHidden: bar.getAttribute('aria-hidden'),
-                        inert: bar.hasAttribute('inert')};
-                    }""")
-                    check(state is not None and state["suppressed"] == state["expected"],
-                          f"{page_name}: mobile booking bar should yield only when it overlaps arrival summary")
-                    if state and state["expected"]:
-                        check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
-                              f"{page_name}: hidden booking bar must leave visual and keyboard access")
+                state = page.evaluate("""() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  const journey = document.querySelector('.guest-journey');
+                  const arrival = document.querySelector('[data-arrival-quick-card]');
+                  if (!bar) return null;
+                  const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                  const obstructionTop = Math.max(0, window.innerHeight - height);
+                  const overlaps = surface => {
+                    if (!surface) return false;
+                    const rect = surface.getBoundingClientRect();
+                    return rect.left < window.innerWidth && rect.right > 0
+                      && rect.top < window.innerHeight && rect.bottom > obstructionTop;
+                  };
+                  const focused = bar.contains(document.activeElement);
+                  const arrivalOverlap = overlaps(arrival);
+                  const journeyOverlap = overlaps(journey);
+                  return {
+                    journeyPresent: Boolean(journey),
+                    journeyOverlap,
+                    arrivalOverlap,
+                    expectedJourneySuppression: journeyOverlap && !focused,
+                    expectedArrivalSuppression: arrivalOverlap && !focused,
+                    journeySuppressed: bar.classList.contains('is-suppressed-by-guest-journey'),
+                    arrivalSuppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                    display: getComputedStyle(bar).display,
+                    ariaHidden: bar.getAttribute('aria-hidden'),
+                    inert: bar.hasAttribute('inert')
+                  };
+                }""")
+                check(state is not None and state["journeyPresent"] == (page_name != "index.html"),
+                      f"{page_name}: inner routes must expose one shared guest-journey obstruction surface")
+                if page_name != "index.html":
+                    check(state is not None and state["journeyOverlap"],
+                          f"{page_name} at {width}px: the initial guest-journey rail should intersect the fixed-bar zone")
+                check(state is not None
+                      and state["journeySuppressed"] == state["expectedJourneySuppression"]
+                      and state["arrivalSuppressed"] == state["expectedArrivalSuppression"],
+                      f"{page_name} at {width}px: each mobile CTA suppression state must match actual obstruction geometry ({state})")
+                should_be_hidden = bool(state and (
+                    state["expectedJourneySuppression"] or state["expectedArrivalSuppression"]
+                ))
+                if should_be_hidden:
+                    check(state["display"] == "none" and state["ariaHidden"] == "true" and state["inert"],
+                          f"{page_name} at {width}px: obscuring mobile CTA must leave visual and keyboard access")
+                    check(bar.is_hidden(),
+                          f"{page_name} at {width}px: suppressed mobile booking bar must not remain visually rendered")
                 else:
-                    check(bar.is_visible(), f"{page_name}: mobile Book Now bar must be visible at {width}px")
-                    state = page.evaluate("""() => {
-                      const bar = document.querySelector('.mobile-booking-bar');
-                      return bar ? {suppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
-                        ariaHidden: bar.getAttribute('aria-hidden'), inert: bar.hasAttribute('inert')} : null;
-                    }""")
-                    check(state is not None and not state["suppressed"]
+                    check(state is not None and state["display"] != "none"
                           and state["ariaHidden"] is None and not state["inert"],
-                          f"{page_name}: Directions-only suppression state must never leak to another route")
+                          f"{page_name} at {width}px: unblocked mobile booking bar must remain accessible")
+                    check(bar.is_visible(),
+                          f"{page_name}: mobile Book Now bar must be visible when no protected surface overlaps")
+
+                # Move the protected content wholly above the fixed-action zone.
+                page.evaluate("""() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  const surfaces = [
+                    document.querySelector('.guest-journey'),
+                    document.querySelector('[data-arrival-quick-card]')
+                  ].filter(Boolean);
+                  const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                  const bottom = surfaces.reduce((value, surface) =>
+                    Math.max(value, surface.getBoundingClientRect().bottom), 0);
+                  window.scrollTo(0, window.scrollY + Math.max(0, bottom) + height + 24);
+                }""")
+                page.wait_for_timeout(100)
+                cleared_state = page.evaluate("""() => {
+                  const bar = document.querySelector('.mobile-booking-bar');
+                  if (!bar) return null;
+                  return {
+                    journeySuppressed: bar.classList.contains('is-suppressed-by-guest-journey'),
+                    arrivalSuppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                    display: getComputedStyle(bar).display,
+                    ariaHidden: bar.getAttribute('aria-hidden'),
+                    inert: bar.hasAttribute('inert')
+                  };
+                }""")
+                check(cleared_state is not None
+                      and not cleared_state["journeySuppressed"]
+                      and not cleared_state["arrivalSuppressed"]
+                      and cleared_state["display"] != "none"
+                      and cleared_state["ariaHidden"] is None
+                      and not cleared_state["inert"]
+                      and bar.is_visible(),
+                      f"{page_name} at {width}px: mobile booking action must restore when all protected surfaces clear")
+
+                page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
                 box = bar.bounding_box()
                 if box:
                     check(box["x"] >= -1 and box["x"] + box["width"] <= width + 1,
                           f"{page_name}: mobile booking bar exceeds {width}px viewport")
                     check(box["y"] >= -1 and box["y"] + box["height"] <= height + 1,
-                          f"{page_name}: mobile booking bar is outside the {width}px viewport")
+                          f"{page_name}: mobile booking bar is outside the {height}px viewport")
             if width >= 1280:
                 check(page.locator("#primary-navigation").is_visible(),
                       f"{page_name}: desktop primary navigation must be visible at {width}px")

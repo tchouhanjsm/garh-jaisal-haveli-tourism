@@ -7,6 +7,7 @@
   const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
   const mobileBookingBar = document.querySelector('.mobile-booking-bar');
   const arrivalQuickCard = document.querySelector('[data-arrival-quick-card]');
+  const guestJourneyPanel = document.querySelector('.guest-journey');
   const directEnquiryDismiss = directEnquiryDock ? directEnquiryDock.querySelector('[data-direct-enquiry-dismiss]') : null;
   const enquiryLinks = Array.from(document.querySelectorAll('[data-enquiry-link]'));
   const phoneLinks = Array.from(document.querySelectorAll('[data-contact-phone]'));
@@ -891,23 +892,37 @@
     if (!mobileBookingBar) return;
     const compact = typeof window.matchMedia === 'function'
       && window.matchMedia('(max-width: 760px)').matches;
-    if (!compact || !arrivalQuickCard) {
-      mobileBookingBar.classList.remove('is-suppressed-by-arrival-card');
+    if (!compact || (!arrivalQuickCard && !guestJourneyPanel)) {
+      mobileBookingBar.classList.remove(
+        'is-suppressed-by-arrival-card',
+        'is-suppressed-by-guest-journey'
+      );
       mobileBookingBar.removeAttribute('aria-hidden');
       mobileBookingBar.removeAttribute('inert');
       return;
     }
 
-    const bounds = arrivalQuickCard.getBoundingClientRect();
     const measuredHeight = Number.parseFloat(window.getComputedStyle(mobileBookingBar).height) || 0;
     if (measuredHeight > 0) knownMobileBookingBarHeight = measuredHeight;
     const barHeight = Math.max(64, measuredHeight, knownMobileBookingBarHeight);
-    const overlaps = bounds.left < window.innerWidth
-      && bounds.right > 0
-      && bounds.top < window.innerHeight
-      && bounds.bottom > Math.max(0, window.innerHeight - barHeight);
-    const shouldSuppress = overlaps && !mobileBookingBar.contains(document.activeElement);
-    mobileBookingBar.classList.toggle('is-suppressed-by-arrival-card', shouldSuppress);
+    const obstructionTop = Math.max(0, window.innerHeight - barHeight);
+    const overlapsBookingActionZone = surface => {
+      if (!surface) return false;
+      const bounds = surface.getBoundingClientRect();
+      return bounds.left < window.innerWidth
+        && bounds.right > 0
+        && bounds.top < window.innerHeight
+        && bounds.bottom > obstructionTop;
+    };
+    const arrivalOverlaps = overlapsBookingActionZone(arrivalQuickCard);
+    const journeyOverlaps = overlapsBookingActionZone(guestJourneyPanel);
+    const focused = mobileBookingBar.contains(document.activeElement);
+    const suppressForArrival = arrivalOverlaps && !focused;
+    const suppressForJourney = journeyOverlaps && !focused;
+    const shouldSuppress = suppressForArrival || suppressForJourney;
+
+    mobileBookingBar.classList.toggle('is-suppressed-by-arrival-card', suppressForArrival);
+    mobileBookingBar.classList.toggle('is-suppressed-by-guest-journey', suppressForJourney);
     if (shouldSuppress) {
       mobileBookingBar.setAttribute('aria-hidden', 'true');
       mobileBookingBar.setAttribute('inert', '');

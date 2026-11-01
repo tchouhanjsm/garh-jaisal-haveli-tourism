@@ -404,3 +404,14 @@ Each of the 48 screenshot records now carries expected, activated, pending and f
 **Measurement boundary:** route performance samples are collected before the media-hydration scroll and remain explicitly laboratory diagnostics, not field Core Web Vitals. This M24 change is limited to QA evidence and regression contracts; it does not modify production lazy-loading behavior, source media, guest-facing copy, contact/booking actions, SEO publication settings or deployment configuration.
 
 **Acceptance:** all 48 full-page screenshots must carry valid geometry/hash metadata and complete deferred-media hydration; all 48 route/viewport performance samples and eight-route/six-width coverage must remain complete; every rendered image must decode. Owner screenshot review and STG-01–STG-18 staging UAT remain separate manual gates. No merge, staging deployment or production release is authorized by this milestone.
+
+
+## M25 — mobile guest-journey visibility and fixed-action obstruction control
+
+**Evidence review finding:** the M24 mobile full-page captures show the fixed mobile "Book Now" bar covering part of the four-step guest-journey rail immediately after inner-route heroes. This obscures the Stay / Explore / Dine / Arrive decision links at the moment a guest is choosing a route. Directions already had a dedicated overlap guard for its quick-arrival summary; the same obstruction model was not applied to the shared inner-route rail.
+
+**Implementation batch:** extend the existing fixed-action geometry check to the shared .guest-journey rail as well as the Directions [data-arrival-quick-card]. At widths up to 760px, the bar yields only while one of these protected surfaces actually intersects its bottom action zone. The corresponding class, aria-hidden and inert states stay synchronized; a keyboard-focused booking action is never hidden. Once both protected surfaces clear, the authorized provider action returns. The common premium stylesheet now owns both visual suppression states instead of leaving the Directions-only display rule in an arrival-specific stylesheet.
+
+**Regression coverage:** Chromium checks initial obstruction and state parity across every inner route at 320, 360 and 390px. It then scrolls both protected surfaces fully clear and requires the booking bar to restore, remain within the viewport and retain its provider destination. The home route remains unaffected because it uses its distinct full-width planning band rather than the shared inner-route rail. Existing Directions focus/blur, quick-arrival and orientation tests remain in place.
+
+**Guardrails:** no CTA destination, booking authorization, journey link target, route content, owner fact, pricing or live-availability claim changes. Desktop and tablet fixed-action behavior is unchanged. No SEO publication, canonical/robots/sitemap, staging deployment or production release change is included. Owner screenshot review and manual UAT remain separate.

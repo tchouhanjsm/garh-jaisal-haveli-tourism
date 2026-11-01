@@ -736,13 +736,6 @@
 }
 
 
-/* Keep the fixed mobile booking action from covering Directions' hero essentials. */
-@media (max-width: 760px) {
-  .mobile-booking-bar.is-suppressed-by-arrival-card {
-    display: none;
-  }
-}
-
 
 /* PR #66 · M2 visual QA fix: the travel section has three direct children.
    It must own a single-column section shell; the old generic transport panel
