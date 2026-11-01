@@ -155,8 +155,10 @@ assert.match(siteRuntime, /setAttribute\('aria-current', 'location'\)/,
   'the active Directions section link must expose aria-current=location');
 assert.match(siteRuntime, /const revealCurrentLink = link =>/,
   'the active mobile section link must be revealed when it moves outside the horizontal rail');
-assert.match(siteRuntime, /items\[0\]\.link === link[\s\S]*?sectionNav\.scrollTo\(\{ left: 0, behavior: 'auto' \}\)/,
-  'returning to Quick directions must reset the mobile section rail without an in-flight animation');
+assert.match(siteRuntime, /items\[0\]\.link === link[\s\S]*?if \(sectionNav\.scrollLeft > 1\) \{\s*sectionNav\.scrollLeft = 0;/,
+  'returning to Quick directions must synchronously reset a displaced mobile section rail');
+assert.match(siteRuntime, /changed \|\| \(currentItem === items\[0\] && window\.scrollY <= 1\)/,
+  'the document-start state must reconcile a displaced rail even when Quick directions remains active');
 assert.match(directions, /<h2 class="display-title" id="arrival-enquiry-title" tabindex="-1">/,
   'the arrival-enquiry heading must be programmatically focusable without entering the normal tab order');
 assert.match(siteRuntime, /const targetId = window\.location\.hash === '#arrival-enquiry-title'[\s\S]*?document\.getElementById\(targetId\)/,

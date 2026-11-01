@@ -965,6 +965,30 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
         )
         if not isinstance(media_readiness, dict):
             raise ValueError("deferred-media readiness diagnostics were unavailable")
+        if page_name == "directions.html":
+            # Do not accept a complete PNG if the horizontally scrollable rail
+            # is still displaced after the full-page hydration/restore sequence.
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const first = nav?.querySelector('a[href="#arrival-overview-title"]');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  if (!nav || !first || active !== first || window.scrollY > 1 || nav.scrollLeft > 1) return false;
+                  const style = getComputedStyle(nav);
+                  const navRect = nav.getBoundingClientRect();
+                  const firstRect = first.getBoundingClientRect();
+                  const contentLeft = navRect.left + nav.clientLeft;
+                  const contentRight = contentLeft + nav.clientWidth;
+                  return style.display !== 'none'
+                    && style.visibility === 'visible'
+                    && Number.parseFloat(style.opacity) > 0
+                    && navRect.height >= 44
+                    && firstRect.height >= 44
+                    && firstRect.left >= contentLeft - 1
+                    && firstRect.right <= contentRight + 1;
+                }""",
+                timeout=5000,
+            )
         page.screenshot(path=str(destination), full_page=True, animations="disabled", timeout=20000)
         payload = destination.read_bytes()
         image_width, image_height = read_png_dimensions(destination)
@@ -4834,9 +4858,47 @@ def check_arrival_wayfinding_journey(page, base_url: str) -> None:
             page.evaluate("document.documentElement.style.removeProperty('scroll-behavior')")
 
     original_viewport = page.viewport_size or {"width": 1440, "height": 900}
-    for width in (320, 390):
+    for width in (320, 360, 390):
         page.set_viewport_size({"width": width, "height": 800})
         page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+        try:
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  return nav && active
+                    && active.getAttribute('href') === '#arrival-overview-title'
+                    && nav.scrollWidth > nav.clientWidth + 1;
+                }""",
+                timeout=5000,
+            )
+            page.evaluate(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  if (!nav) return;
+                  nav.scrollLeft = nav.scrollWidth;
+                  window.dispatchEvent(new Event('scroll'));
+                }"""
+            )
+            page.wait_for_function(
+                """() => {
+                  const nav = document.querySelector('nav.arrival-section-nav');
+                  const first = nav?.querySelector('a[href="#arrival-overview-title"]');
+                  const active = nav?.querySelector('a[aria-current="location"]');
+                  if (!nav || !first || active !== first || nav.scrollLeft > 1) return false;
+                  const navRect = nav.getBoundingClientRect();
+                  const firstRect = first.getBoundingClientRect();
+                  const contentLeft = navRect.left + nav.clientLeft;
+                  const contentRight = contentLeft + nav.clientWidth;
+                  return firstRect.height >= 44
+                    && firstRect.left >= contentLeft - 1
+                    && firstRect.right <= contentRight + 1;
+                }""",
+                timeout=5000,
+            )
+            check(True, f"Directions at {width}px: a top-state scroll update must restore an offset rail even when Quick directions remains active")
+        except Exception as error:
+            check(False, f"Directions at {width}px: top-state rail restoration must be deterministic ({error})")
         page.evaluate(
             """() => {
               document.documentElement.style.scrollBehavior = 'auto';
