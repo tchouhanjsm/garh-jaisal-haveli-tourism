@@ -82,7 +82,17 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/rooms/haveli-interior-1200.webp": 180_000,
     "assets/images/responsive/rooms/haveli-interior-1280.webp": 190_000,
     "assets/images/responsive/rooms/haveli-interior-1600.webp": 240_000,
-    "assets/images/responsive/rooms/sweet-purple-1200.webp": 250_000,
+    "assets/images/responsive/rooms/sweet-purple-320.webp": 30_000,
+    "assets/images/responsive/rooms/sweet-purple-480.webp": 50_000,
+    "assets/images/responsive/rooms/sweet-purple-768.webp": 100_000,
+    "assets/images/responsive/rooms/sweet-purple-1200.webp": 180_000,
+    "assets/images/responsive/rooms/sweet-purple-1600.webp": 240_000,
+    "assets/images/responsive/rooms/rising-sun-320.webp": 30_000,
+    "assets/images/responsive/rooms/rising-sun-480.webp": 50_000,
+    "assets/images/responsive/rooms/rising-sun-768.webp": 95_000,
+    "assets/images/responsive/rooms/red-maharani-320.webp": 30_000,
+    "assets/images/responsive/rooms/red-maharani-480.webp": 55_000,
+    "assets/images/responsive/rooms/red-maharani-768.webp": 110_000,
     "assets/images/responsive/directions/haveli-facade-320.webp": 50_000,
     "assets/images/responsive/directions/haveli-facade-480.webp": 90_000,
     "assets/images/responsive/directions/haveli-facade-768.webp": 200_000,
@@ -656,6 +666,18 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         or bool(ancestors & {"page-hero", "page-hero__picture"})
     ):
         return "100vw"
+
+    if "home-room-grid" in ancestors:
+        desktop = "calc((min(100vw - 64px, 1280px) - clamp(36px, 5vw, 68px)) / 3)"
+        if "home-room-card--wide" in ancestors:
+            return (
+                "(max-width: 640px) calc(100vw - 28px), "
+                "(max-width: 980px) calc(100vw - 64px), " + desktop
+            )
+        return (
+            "(max-width: 640px) calc(100vw - 28px), "
+            "(max-width: 980px) calc((100vw - 64px - clamp(18px, 2.5vw, 34px)) / 2), " + desktop
+        )
 
     if "experience-option-grid" in ancestors:
         return (
