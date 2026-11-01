@@ -350,6 +350,13 @@ def build_report(mode: str, base_url: str, operator: str | None,
             and isinstance(record.get("sha256"), str)
             and re.fullmatch(r"[0-9a-f]{64}", record.get("sha256", "")) is not None
             and record.get("fullPage") is True
+            and isinstance(record.get("deferredMediaExpectedCount"), int)
+            and record.get("deferredMediaExpectedCount", -1) >= 0
+            and record.get("deferredMediaActivatedCount") == record.get("deferredMediaExpectedCount")
+            and record.get("deferredMediaPendingCount") == 0
+            and record.get("deferredMediaFailedCount") == 0
+            and isinstance(record.get("decodedImageCount"), int)
+            and record.get("decodedImageCount", 0) > 0
             for record in screenshot_records
         )
     )
@@ -358,7 +365,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         evidence_failures.append(
             f"Incomplete visual evidence: expected {len(expected_screenshots)} full-page PNG screenshots "
             f"({len(PAGES)} routes at {', '.join(str(width) for width, _ in VIEWPORTS)} CSS pixels) "
-            f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry and SHA-256."
+            f"in the planned order; captured {len(screenshot_records)}/{len(expected_screenshots)} with valid geometry, SHA-256 and complete deferred-media hydration."
         )
 
     performance_records = list(performance_evidence or [])
@@ -530,7 +537,7 @@ def build_report(mode: str, base_url: str, operator: str | None,
         },
         "visualEvidence": {
             "required": True,
-            "captureMode": "full-page PNG",
+            "captureMode": "full-page PNG after deferred-media hydration and image decoding",
             "expectedScreenshotCount": len(expected_screenshots),
             "capturedScreenshotCount": len(screenshot_records),
             "complete": screenshot_complete,
@@ -875,13 +882,48 @@ def capture_route_performance(page, page_name: str, width: int, height: int) -> 
 
 def capture_visual_evidence(page, page_name: str, width: int, height: int,
                             screenshots_dir: Path) -> None:
-    """Capture a full-page PNG after requesting image/font readiness and record its integrity."""
+    """Capture a media-complete full-page PNG and record its integrity."""
     filename = f"{Path(page_name).stem}-{width}px.png"
     destination = screenshots_dir / filename
     try:
-        page.evaluate(
+        media_readiness = page.evaluate(
             """async () => {
               await document.fonts.ready;
+              const expectedDeferredMedia = document.querySelectorAll('[data-deferred-media]').length;
+              const waitForPaint = () => new Promise(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve))
+              );
+              const step = Math.max(160, Math.floor(window.innerHeight * 0.68));
+              let cursor = 0;
+              let reachedDocumentEnd = false;
+              for (let index = 0; index < 500; index += 1) {
+                const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                const next = Math.min(cursor, maxScroll);
+                window.scrollTo(0, next);
+                await waitForPaint();
+                if (next >= maxScroll) {
+                  reachedDocumentEnd = true;
+                  break;
+                }
+                cursor = next + step;
+              }
+              if (!reachedDocumentEnd) {
+                throw new Error('bounded media-hydration scroll did not reach the document end');
+              }
+              window.scrollTo(0, document.documentElement.scrollHeight);
+              await waitForPaint();
+              await new Promise(resolve => setTimeout(resolve, 50));
+
+              const pendingDeferredMedia = document.querySelectorAll('[data-deferred-media]').length;
+              const failedDeferredMedia = document.querySelectorAll('[data-deferred-media-failed]').length;
+              const activatedDeferredMedia = document.querySelectorAll('[data-deferred-media-activated]').length;
+              if (pendingDeferredMedia || failedDeferredMedia
+                  || activatedDeferredMedia !== expectedDeferredMedia) {
+                throw new Error('deferred media hydration incomplete: expected=' + expectedDeferredMedia
+                  + ', activated=' + activatedDeferredMedia + ', pending=' + pendingDeferredMedia
+                  + ', failed=' + failedDeferredMedia);
+              }
+
               const images = Array.from(document.images);
               for (const image of images) image.loading = 'eager';
               const decodeResults = await Promise.all(images.map(async image => {
@@ -897,10 +939,22 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
                 throw new Error('image decode/intrinsic-size failure (' + failedImages.length + '/' + decodeResults.length + '): '
                   + failedImages.map(result => result.src.split('/').pop() + (result.reason ? ' [' + result.reason + ']' : '')).join(', '));
               }
+              if (!images.length) throw new Error('no rendered images were available for visual evidence');
+
+              const readiness = {
+                deferredMediaExpectedCount: expectedDeferredMedia,
+                deferredMediaActivatedCount: activatedDeferredMedia,
+                deferredMediaPendingCount: pendingDeferredMedia,
+                deferredMediaFailedCount: failedDeferredMedia,
+                decodedImageCount: images.length
+              };
               window.scrollTo(0, 0);
-              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              await waitForPaint();
+              return readiness;
             }"""
         )
+        if not isinstance(media_readiness, dict):
+            raise ValueError("deferred-media readiness diagnostics were unavailable")
         page.screenshot(path=str(destination), full_page=True, animations="disabled", timeout=20000)
         payload = destination.read_bytes()
         image_width, image_height = read_png_dimensions(destination)
@@ -913,6 +967,11 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
             "imageWidthPixels": image_width,
             "imageHeightPixels": image_height,
             "fullPage": True,
+            "deferredMediaExpectedCount": media_readiness["deferredMediaExpectedCount"],
+            "deferredMediaActivatedCount": media_readiness["deferredMediaActivatedCount"],
+            "deferredMediaPendingCount": media_readiness["deferredMediaPendingCount"],
+            "deferredMediaFailedCount": media_readiness["deferredMediaFailedCount"],
+            "decodedImageCount": media_readiness["decodedImageCount"],
             "bytes": len(payload),
             "sha256": hashlib.sha256(payload).hexdigest(),
         })
