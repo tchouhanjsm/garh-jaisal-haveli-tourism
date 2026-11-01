@@ -13,6 +13,7 @@ node scripts/test-about-story.js
 node scripts/test-arrival-wayfinding.js
 node scripts/test-arrival-planning-enquiry.js
 node scripts/test-room-finder.js
+node scripts/test-homepage-room-discovery.js
 node scripts/test-room-compare.js
 node scripts/test-collection-composition.js
 node scripts/test-dining-journey.js

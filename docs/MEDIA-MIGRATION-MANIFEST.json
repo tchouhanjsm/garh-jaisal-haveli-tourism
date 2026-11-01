@@ -125,7 +125,10 @@
       "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
       "approvalStatus": "source-verified-existing-asset",
       "publicationCaveat": "This photo does not promise room availability, assignment, current amenities, occupancy or rates; confirm the exact room and terms for the requested dates.",
-      "targetBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d"
+      "targetBlobSha": "3bdb299d50c3f3b49e3071c01302ade8d185e65d",
+      "additionalVerificationPages": [
+        "index.html"
+      ]
     },
     {
       "sourcePath": "img/scarlet.jpg",
@@ -182,7 +185,10 @@
       "provenance": "Existing target asset verified byte-identical to the source room catalogue image; source and target Git blob SHAs match.",
       "approvalStatus": "source-verified-existing-asset",
       "publicationCaveat": "This photo does not promise room availability, assignment, current amenities, occupancy or rates; confirm the exact room and terms for the requested dates.",
-      "targetBlobSha": "4e6816bea352515e3aa98a8828c092e10a6b21ee"
+      "targetBlobSha": "4e6816bea352515e3aa98a8828c092e10a6b21ee",
+      "additionalVerificationPages": [
+        "index.html"
+      ]
     },
     {
       "sourcePath": "img/green-room.jpg",
@@ -272,7 +278,8 @@
       "intendedRole": "Room gallery — WebP alternate",
       "verificationPage": "gallery.html",
       "additionalVerificationPages": [
-        "rooms.html"
+        "rooms.html",
+        "index.html"
       ],
       "dimensions": {
         "width": 2000,

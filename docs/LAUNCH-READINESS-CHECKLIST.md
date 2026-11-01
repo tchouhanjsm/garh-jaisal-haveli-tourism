@@ -40,6 +40,16 @@ The test also requires a single high-priority non-lazy image in pages with a vis
 
 
 
+## Typography loading consistency — M29
+
+All eight core public routes declare one Google Fonts stylesheet using `display=optional` and preconnect to both the stylesheet and font-file origins. This removes the previous mixed `swap` / `optional` policy and avoids a late webfont replacement changing first-view text geometry. This delivery-policy improvement is not proof of better field LCP/CLS and does not replace slow-font testing or staging review.
+
+The regression contract in `scripts/test-premium-guest-journey.js` checks all eight route heads for exactly one Google Fonts stylesheet, the optional display policy and both preconnect hints. Chromium layout and visual review remain separate acceptance steps.
+
+## Homepage planning-panel contrast correction — M29
+
+The 1 November main-branch visual baseline exposed a homepage-only contrast regression: the planning links used white foreground text while the legacy `.home-plan-paths` parent retained its limestone background and 1px padding. The M29 premium rule now explicitly removes that inherited parent surface and padding, allowing the four links to sit directly on the fort-green editorial panel. The route regression contract checks this override and the retained white title treatment. The automated screenshot is evidence for layout rendering only; manual owner visual review remains separate.
+
 ## Owner-gated SEO publication
 
 - Candidate origin: `https://hotelgarhjaisal.com`; `site.canonicalHostApproved` remains `false` until the owner separately authorizes canonical release. Do not infer approval from the PR merge.
@@ -423,3 +433,14 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Record a named editorial reviewer and review date, then obtain explicit owner fact approval before moving a record to `approved_for_release`.
 - [ ] Verify the renderer/validator rejects incomplete review fields and that draft records produce no public HTML pages.
 - [ ] Keep canonical approval false, `robots.txt` blocking and the sitemap URL-empty until the separate owner-authorized SEO release decision is complete.
+
+
+## 1 November 2026 — M30 homepage room discovery
+
+- [x] Replace the single-room homepage feature with three visual previews drawn from the owner-maintained seven-room catalogue: Sweet Purple, Rising Sun and Red Maharani.
+- [x] Link each preview to the matching room-card anchor on `rooms.html`; retain the full seven-room catalogue as the source for comparison.
+- [x] Keep room imagery lazy/deferred, retain explicit dimensions and no-JavaScript image fallbacks, and verify every referenced source asset exists in the repository.
+- [x] Keep availability, exact assignment, amenities, occupancy and rates explicitly subject to confirmation; the new previews do not imply live inventory.
+- [x] Point the Rooms hero's primary action to the visible catalogue heading so the destination works even when the optional JavaScript filter remains hidden.
+- [ ] Review the new room selection and image crops with the property owner on the staging preview. The three previews are a navigation aid, not a ranking or availability statement.
+- [ ] Run visual review at 320, 360, 390, 768, 1280 and 1440 CSS pixels after the M30 change; automated screenshots do not replace owner UAT or real-device review.

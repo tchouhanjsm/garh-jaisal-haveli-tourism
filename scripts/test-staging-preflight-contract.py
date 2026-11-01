@@ -17,6 +17,30 @@ browser_smoke = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(browser_smoke)
 EXPECTED_SCREENSHOT_COUNT = len(browser_smoke.PAGES) * len(browser_smoke.VIEWPORTS)
 
+IMAGE_REWRITE_SPEC = importlib.util.spec_from_file_location(
+    "rewrite_image_refs", ROOT / "scripts" / "rewrite_image_refs.py"
+)
+if IMAGE_REWRITE_SPEC is None or IMAGE_REWRITE_SPEC.loader is None:
+    raise RuntimeError("Could not load the responsive image sizing contract")
+rewrite_image_refs = importlib.util.module_from_spec(IMAGE_REWRITE_SPEC)
+IMAGE_REWRITE_SPEC.loader.exec_module(rewrite_image_refs)
+standard_room_sizes = rewrite_image_refs._responsive_sizes(
+    "<img>", {"home-room-grid", "home-room-card", "home-room-card__media"}
+)
+wide_room_sizes = rewrite_image_refs._responsive_sizes(
+    "<img>", {"home-room-grid", "home-room-card", "home-room-card__media", "home-room-card--wide"}
+)
+assert standard_room_sizes == (
+    "(max-width: 640px) calc(100vw - 28px), "
+    "(max-width: 980px) calc((100vw - 64px - clamp(18px, 2.5vw, 34px)) / 2), "
+    "calc((min(100vw - 64px, 1280px) - clamp(36px, 5vw, 68px)) / 3)"
+)
+assert wide_room_sizes == (
+    "(max-width: 640px) calc(100vw - 28px), "
+    "(max-width: 980px) calc(100vw - 64px), "
+    "calc((min(100vw - 64px, 1280px) - clamp(36px, 5vw, 68px)) / 3)"
+)
+
 SERVER_SPEC = importlib.util.spec_from_file_location(
     "static_404_test_server", ROOT / "scripts" / "test-static-server.py"
 )
@@ -1007,7 +1031,7 @@ home_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
     if item["route"] == "index.html"
 )
-assert home_fixture_first_view["deferredTemplateCount"] == 5
+assert home_fixture_first_view["deferredTemplateCount"] == 7
 assert home_fixture_first_view["deferredActivatedCount"] == 0
 rooms_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
@@ -1140,7 +1164,7 @@ invalid_home_deferred_counts = [dict(item) for item in fixture_page_resource_evi
 invalid_home_index = next(index for index, item in enumerate(invalid_home_deferred_counts) if item["route"] == "index.html")
 invalid_home_deferred_counts[invalid_home_index] = dict(invalid_home_deferred_counts[invalid_home_index])
 invalid_home_deferred_counts[invalid_home_index]["firstView"] = dict(invalid_home_deferred_counts[invalid_home_index]["firstView"])
-invalid_home_deferred_counts[invalid_home_index]["firstView"]["deferredTemplateCount"] = 4
+invalid_home_deferred_counts[invalid_home_index]["firstView"]["deferredTemplateCount"] = 6
 invalid_home_deferred_report = browser_smoke.build_responsive_image_evidence_report(
     route_picture_counts=fixture_picture_counts,
     checked_picture_count=len(fixture_observations),

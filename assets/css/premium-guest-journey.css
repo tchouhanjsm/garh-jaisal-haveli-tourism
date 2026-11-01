@@ -933,7 +933,7 @@ body {
 #plan-stay .booking-panel__intro .kicker { color:#e5c99b; }
 #plan-stay .booking-panel__intro h2 { max-width:18ch; color:var(--white); font-size:clamp(2rem,3.5vw,3.25rem); line-height:1.04; letter-spacing:-.045em; }
 #plan-stay .booking-panel__intro>p { max-width:54ch; color:rgba(255,253,248,.76); font-size:1rem; }
-#plan-stay .home-plan-paths { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; margin-block-start:clamp(28px,4vw,48px); border-block:1px solid rgba(234,220,197,.24); }
+#plan-stay .home-plan-paths { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; padding:0; background:transparent; margin-block-start:clamp(28px,4vw,48px); border-block:1px solid rgba(234,220,197,.24); }
 #plan-stay .home-plan-path {
   display:flex; min-width:0; min-height:176px; flex-direction:column; gap:11px;
   padding:24px clamp(14px,2vw,26px); border:0; border-inline-start:1px solid rgba(234,220,197,.22);
