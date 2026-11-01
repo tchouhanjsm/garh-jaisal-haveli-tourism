@@ -154,9 +154,10 @@
       // full-page evidence runner scrolls through deferred media and back to
       // the top; a smooth horizontal reset can otherwise be captured mid-flight.
       if (items[0].link === link) {
-        if (typeof sectionNav.scrollTo === 'function') {
-          sectionNav.scrollTo({ left: 0, behavior: 'auto' });
-        } else {
+        // At the document start, the first section owns the rail origin. Use a
+        // synchronous offset reset only when needed so capture/restore cycles
+        // cannot leave the first link clipped or trigger redundant scroll work.
+        if (sectionNav.scrollLeft > 1) {
           sectionNav.scrollLeft = 0;
         }
         return;
@@ -191,7 +192,12 @@
         if (item === currentItem) item.link.setAttribute('aria-current', 'location');
         else item.link.removeAttribute('aria-current');
       });
-      if (changed) revealCurrentLink(currentItem.link);
+      // A restored page can already have Quick directions active while the
+      // horizontal rail still carries an older offset. Reconcile that state at
+      // the document start even when the active section itself did not change.
+      if (changed || (currentItem === items[0] && window.scrollY <= 1)) {
+        revealCurrentLink(currentItem.link);
+      }
     };
 
     const updateCurrent = () => {
