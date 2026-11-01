@@ -889,7 +889,13 @@ def capture_visual_evidence(page, page_name: str, width: int, height: int,
         media_readiness = page.evaluate(
             """async () => {
               await document.fonts.ready;
-              const expectedDeferredMedia = document.querySelectorAll('[data-deferred-media]').length;
+              const pendingAtCaptureStart = document.querySelectorAll('[data-deferred-media]').length;
+              const alreadyActivatedAtCaptureStart = document.querySelectorAll('[data-deferred-media-activated]').length;
+              const expectedDeferredMedia = pendingAtCaptureStart + alreadyActivatedAtCaptureStart;
+              const failedAtCaptureStart = document.querySelectorAll('[data-deferred-media-failed]').length;
+              if (failedAtCaptureStart) {
+                throw new Error('deferred media had already failed before visual capture: ' + failedAtCaptureStart);
+              }
               const waitForPaint = () => new Promise(resolve =>
                 requestAnimationFrame(() => requestAnimationFrame(resolve))
               );
