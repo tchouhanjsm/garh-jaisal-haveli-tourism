@@ -2,11 +2,13 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, roleEligibilitySummary, verifyImageDecode } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
+const { buildEditorialMediaReview } = require('./build-editorial-media-review');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
@@ -56,6 +58,59 @@ for (const article of report.articles) {
 for (const rel of ['sitemap.xml', 'content/site-config.json', 'robots.txt']) before.set(rel, fs.readFileSync(path.join(ROOT, rel)));
 const publicBlogDir = path.join(ROOT, 'blogs');
 const publicBlogFilesBefore = fs.readdirSync(publicBlogDir).sort();
+
+const reviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-editorial-media-review-'));
+try {
+  const reviewOutput = path.join(reviewTemp, 'bundle');
+  const reviewManifest = buildEditorialMediaReview(ROOT, reviewOutput, report);
+  assert.equal(reviewManifest.reviewOnly, true, 'review bundle must remain explicitly local-only');
+  assert.equal(reviewManifest.publicationEligible, false, 'review bundle must never claim publication eligibility');
+  assert.equal(reviewManifest.summary.articleCount, 12);
+  assert.equal(reviewManifest.summary.candidatePlacementCount, 13);
+  assert.equal(reviewManifest.summary.uniqueCandidateAssetCount, 5);
+  assert.equal(reviewManifest.summary.approvedPlacementCount, 0);
+  assert.equal(reviewManifest.summary.approvedArticleCount, 0);
+  assert.equal(reviewManifest.assets.length, 5);
+  assert.equal(fs.readdirSync(path.join(reviewOutput, 'images')).length, 5);
+
+  for (const asset of reviewManifest.assets) {
+    assert.equal(asset.copyStatus, 'copied-verified', 'each current candidate must be copied byte-for-byte for review');
+    const copied = fs.readFileSync(path.join(reviewOutput, asset.copyPath));
+    assert.equal(copied.length, asset.bytes, 'review copy byte count must match the source');
+    assert.equal(crypto.createHash('sha256').update(copied).digest('hex'), asset.sha256,
+      'review copy SHA-256 must match the original candidate');
+    assert.ok(asset.placements.every(placement =>
+      placement.approvalState === 'not-approved' &&
+      placement.fit === 'not-assessed' &&
+      placement.visualReviewStatus === 'not_assessed' &&
+      placement.rightsStatus === 'unverified' &&
+      placement.sourceEvidenceStatus === 'unverified'
+    ), 'candidate review bundle must preserve all current unapproved states');
+  }
+
+  const reviewHtml = fs.readFileSync(path.join(reviewOutput, 'index.html'), 'utf8');
+  assert.match(reviewHtml, /REVIEW ONLY/);
+  assert.match(reviewHtml, /NOT APPROVED/);
+  assert.match(reviewHtml, /noindex,nofollow/);
+  assert.doesNotMatch(reviewHtml, /<script\b/i, 'review artifact must not execute scripts');
+  assert.ok(reviewHtml.includes('bada-bagh-vyas-chhatri-guide'),
+    'article candidate gaps must remain visible to the reviewer');
+  assert.throws(() => buildEditorialMediaReview(ROOT, path.join(ROOT, 'artifacts', 'editorial-media-review'), report),
+    /outside the repository root/, 'review artifact must never be written into the website repository');
+
+  const escapedReport = JSON.parse(JSON.stringify(report));
+  escapedReport.articles.find(article => article.candidates.length > 0).candidates[0].rationale = '<script>alert(1)</script>';
+  const escapedOutput = path.join(reviewTemp, 'escaped');
+  buildEditorialMediaReview(ROOT, escapedOutput, escapedReport);
+  const escapedHtml = fs.readFileSync(path.join(escapedOutput, 'index.html'), 'utf8');
+  assert.ok(escapedHtml.includes('&lt;script&gt;alert(1)&lt;/script&gt;'),
+    'candidate text must be escaped before inclusion in review HTML');
+  assert.ok(!escapedHtml.includes('<script>alert(1)</script>'),
+    'review artifact must not permit candidate text to inject markup');
+} finally {
+  fs.rmSync(reviewTemp, { recursive: true, force: true });
+}
+
 assert.ok(!publicBlogFilesBefore.some(name => name.endsWith('.html')), 'there must be no generated public blog pages for drafts');
 const second = auditMedia(ROOT);
 assert.deepEqual(second, report, 'repeated audit calls must return deterministic data');
