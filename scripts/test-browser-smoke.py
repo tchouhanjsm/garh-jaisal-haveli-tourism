@@ -5332,7 +5332,17 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(page.locator(".journal-masthead__image img[alt]").count() == 1,
           "Journal preview: masthead photo must keep descriptive alternative text")
     try:
+        try:
+        try:
         page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: return-to-archive route failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: filter refresh failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
     except Exception as error:
         check(False, f"Journal preview: all 12 draft cards should render from JSON ({error})")
         return
@@ -5464,7 +5474,9 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     try:
         page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=7000)
     except Exception as error:
-        check(False, f"Journal preview: direct article entry must resolve the requested draft ({error})")
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: direct article entry failed; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
     check(page.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
           "Journal preview: article query parameter must resolve the matching draft")
     check(page.locator("h1:visible").count()==1,
@@ -5480,14 +5492,18 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     try:
         page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=7000)
     except Exception as error:
-        check(False, f"Journal preview: refreshing a direct article URL must retain the selected draft ({error})")
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: direct article refresh failed; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
     check(page.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
           "Journal preview: direct article selection must survive refresh")
     page.locator("[data-journal-back]").first.click()
     try:
         page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && panel.hidden); }", timeout=5000)
     except Exception as error:
-        check(False, f"Journal preview: direct-entry Back must return to the filtered archive ({error})")
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden})")
+        check(False, f"Journal preview: direct-entry Back did not restore archive; DOM={state}; {type(error).__name__}: {error}")
+        return
     direct_back_url = page.evaluate("() => ({article:new URL(location.href).searchParams.get('article'),q:new URL(location.href).searchParams.get('q'),topic:new URL(location.href).searchParams.get('topic')})")
     check(direct_back_url == {"article":None,"q":"Fort","topic":"fort-and-heritage"},
           f"Journal preview: direct-entry Back must clear article state but preserve archive filters ({direct_back_url})")
