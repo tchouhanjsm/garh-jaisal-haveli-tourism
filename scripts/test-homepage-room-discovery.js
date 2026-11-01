@@ -94,9 +94,9 @@ assert.match(css, /@media\s*\(max-width:\s*980px\)[\s\S]*?\.home-room-grid\s*\{[
   'tablet layout must rebalance the room previews into two columns');
 assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.home-room-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/,
   'phone layout must keep each room preview readable in a single column');
-assert.match(css, /\\.home-room-card--wide\\s*\\{[\\s\\S]*?grid-column:\\s*1\\s*\\/\\s*-1/,
+assert.match(css, /\.home-room-card--wide\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
   'the tablet-wide preview must span the two-column grid explicitly');
-assert.match(css, /@media\\s*\\(max-width:\\s*640px\\)[\\s\\S]*?\\.home-room-card--wide\\s*\\{[\\s\\S]*?grid-column:\\s*auto/,
+assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.home-room-card--wide\s*\{[\s\S]*?grid-column:\s*auto/,
   'the tablet-wide preview must return to a single normal card on phones');
 assert.match(css, /\.home-room-card:focus-visible\s*\{[\s\S]*?outline:\s*var\(--focus-ring\)/,
   'room cards must remain keyboard-visible');
