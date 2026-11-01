@@ -231,7 +231,7 @@ function readMigrationManifest(root, reviewManifest, options, errors, warnings) 
       sourceError('Checked-out authoritative source commit does not match the pinned migration-manifest commit.');
     }
   } else {
-    warnings.push('Authoritative source checkout was not supplied; source Git blob verification was not run.');
+    sourceError('Authoritative source checkout is required; source Git blob verification was not run.');
   }
 
   const entriesByTargetPath = new Map();
