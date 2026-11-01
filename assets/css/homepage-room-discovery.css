@@ -1,0 +1,239 @@
+/* M30 — a photo-led, catalogue-backed room preview for the homepage. */
+.home-room-discovery.section--rooms {
+  padding-block: clamp(68px, 7.5vw, 112px);
+}
+
+.home-room-discovery__heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(280px, .72fr);
+  align-items: end;
+  gap: clamp(28px, 5vw, 76px);
+}
+
+.home-room-discovery__heading .eyebrow {
+  margin-bottom: 16px;
+}
+
+.home-room-discovery__heading .display-title {
+  max-width: 13ch;
+  margin: 0;
+}
+
+.home-room-discovery__intro {
+  max-width: 480px;
+  justify-self: end;
+}
+
+.home-room-discovery__intro p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: var(--type-body);
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+
+.home-room-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(18px, 2.5vw, 34px);
+  margin-top: clamp(34px, 4.2vw, 54px);
+}
+
+.home-room-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.home-room-card__media {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1.22;
+  background: #e7dfd1;
+}
+
+.home-room-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .7s var(--premium-ease);
+}
+
+.home-room-card__floor {
+  position: absolute;
+  inset-inline-start: 14px;
+  inset-block-end: 14px;
+  padding: 8px 11px;
+  background: rgba(23, 37, 30, .94);
+  color: var(--white);
+  font-size: var(--type-meta);
+  font-weight: 700;
+  letter-spacing: .13em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.home-room-card__body {
+  display: flex;
+  min-height: 194px;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 21px 0 0;
+}
+
+.home-room-card__meta {
+  color: var(--gold-dark);
+  font-size: var(--type-meta);
+  font-weight: 700;
+  letter-spacing: .15em;
+  line-height: 1.4;
+}
+
+.home-room-card h3 {
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: clamp(25px, 2.4vw, 34px);
+  font-weight: 400;
+  letter-spacing: -.025em;
+  line-height: 1.13;
+  text-wrap: balance;
+}
+
+.home-room-card__body p {
+  max-width: 42ch;
+  margin: 11px 0 20px;
+  color: var(--muted);
+  font-size: var(--type-support);
+  line-height: 1.75;
+}
+
+.home-room-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-block: 8px 5px;
+  border-bottom: 1px solid rgba(118, 87, 53, .42);
+  color: var(--gold-dark);
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: .055em;
+}
+
+.home-room-card__link span {
+  transition: transform .2s var(--premium-ease);
+}
+
+.home-room-card:hover .home-room-card__media img,
+.home-room-card:focus-visible .home-room-card__media img {
+  transform: scale(1.035);
+}
+
+.home-room-card:hover .home-room-card__link span,
+.home-room-card:focus-visible .home-room-card__link span {
+  transform: translate(3px, -2px);
+}
+
+.home-room-card:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 7px;
+}
+
+.home-room-discovery__note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: clamp(30px, 4vw, 48px);
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.home-room-discovery__note p {
+  max-width: 75ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--type-support);
+  line-height: 1.7;
+}
+
+.home-room-discovery__note .text-link {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 980px) {
+  .home-room-discovery__heading {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, .82fr);
+    gap: 28px;
+  }
+
+  .home-room-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 34px;
+  }
+
+  .home-room-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .home-room-card:last-child .home-room-card__media {
+    aspect-ratio: 1.85;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-room-discovery.section--rooms {
+    padding-block: 64px;
+  }
+
+  .home-room-discovery__heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .home-room-discovery__intro {
+    justify-self: start;
+  }
+
+  .home-room-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    margin-top: 30px;
+  }
+
+  .home-room-card:last-child {
+    grid-column: auto;
+  }
+
+  .home-room-card__media,
+  .home-room-card:last-child .home-room-card__media {
+    aspect-ratio: 1.48;
+  }
+
+  .home-room-card__body {
+    min-height: 0;
+    padding-top: 15px;
+  }
+
+  .home-room-card__body p {
+    margin-bottom: 12px;
+  }
+
+  .home-room-discovery__note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-room-card__media img,
+  .home-room-card__link span {
+    transition: none;
+  }
+}

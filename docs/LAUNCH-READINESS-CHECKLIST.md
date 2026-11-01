@@ -433,3 +433,14 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Record a named editorial reviewer and review date, then obtain explicit owner fact approval before moving a record to `approved_for_release`.
 - [ ] Verify the renderer/validator rejects incomplete review fields and that draft records produce no public HTML pages.
 - [ ] Keep canonical approval false, `robots.txt` blocking and the sitemap URL-empty until the separate owner-authorized SEO release decision is complete.
+
+
+## 1 November 2026 — M30 homepage room discovery
+
+- [x] Replace the single-room homepage feature with three visual previews drawn from the owner-maintained seven-room catalogue: Sweet Purple, Rising Sun and Red Maharani.
+- [x] Link each preview to the matching room-card anchor on `rooms.html`; retain the full seven-room catalogue as the source for comparison.
+- [x] Keep room imagery lazy/deferred, retain explicit dimensions and no-JavaScript image fallbacks, and verify every referenced source asset exists in the repository.
+- [x] Keep availability, exact assignment, amenities, occupancy and rates explicitly subject to confirmation; the new previews do not imply live inventory.
+- [x] Point the Rooms hero's primary action to the visible catalogue heading so the destination works even when the optional JavaScript filter remains hidden.
+- [ ] Review the new room selection and image crops with the property owner on the staging preview. The three previews are a navigation aid, not a ranking or availability statement.
+- [ ] Run visual review at 320, 360, 390, 768, 1280 and 1440 CSS pixels after the M30 change; automated screenshots do not replace owner UAT or real-device review.

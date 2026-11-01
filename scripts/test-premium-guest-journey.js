@@ -208,11 +208,11 @@ assert.ok(galleryHeroHtml.includes('href="assets/images/directions/haveli-facade
   'gallery.html: hero preload must retain the original source-backed WebP');
 assert.doesNotMatch(galleryHeroHtml, /imagesrcset=/,
   'gallery.html: generated preload candidates must not reference files before the staging pipeline creates them');
-assert.equal((homeHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 5,
-  'index.html: all five supporting home-page images must defer their image payload');
-assert.equal((homeHtml.match(/<template data-deferred-picture-template>/g) || []).length, 5,
+assert.equal((homeHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 7,
+  'index.html: all seven supporting home-page images must defer their image payload');
+assert.equal((homeHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
   'index.html: every deferred home-page image must retain an inert responsive-image template');
-assert.equal((homeHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 5,
+assert.equal((homeHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
   'index.html: every deferred home-page image must retain a no-JavaScript fallback');
 const homeHeroSection = homeHtml.match(/<section class="hero"[\s\S]*?<\/section>/)?.[0] || '';
 assert.ok(homeHeroSection, 'index.html: the primary hero section must remain present');

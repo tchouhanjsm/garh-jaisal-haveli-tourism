@@ -145,6 +145,10 @@ function slugifyFeature(label) {
 function testStaticCatalogueContract() {
   assert.match(html, /<section class="room-finder" data-room-finder hidden/i,
     'filter controls must start hidden so they do not imply functionality when JavaScript is unavailable');
+  assert.match(html, /href="#rooms-heading">Find your room <span aria-hidden="true">↓<\/span><\/a>/,
+    'the primary room discovery link must target the visible catalogue heading, not an optionally hidden filter');
+  assert.match(html, /<h2 class="display-title" id="rooms-heading">Find the room/,
+    'the no-JavaScript catalogue destination must remain visible and addressable');
   assert.match(html, /<script src="assets\/room-finder\.js" defer><\/script>/,
     'the progressive room finder script must be loaded on the room page');
   assert.match(html, /<link rel="stylesheet" href="assets\/room-finder\.css">/,
