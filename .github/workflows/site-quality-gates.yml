@@ -59,6 +59,11 @@ jobs:
           node scripts/build-editorial-media-review.js \
             --output "${RUNNER_TEMP}/garh-jaisal-editorial-media-review"
 
+      - name: Validate local-only editorial decision worksheet integrity
+        run: |
+          node scripts/validate-editorial-media-decisions.js \
+            --bundle "${RUNNER_TEMP}/garh-jaisal-editorial-media-review"
+
       - name: Upload responsive visual baseline evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
