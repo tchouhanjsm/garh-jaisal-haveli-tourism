@@ -238,9 +238,10 @@ try {
     'even evidence-complete worksheet decisions must never claim publication eligibility');
   assert.equal(approvalValidation.policy.contentRecordsChanged, false,
     'worksheet validation must never mutate article records');
-  assert.ok(approvalValidation.warnings.some(message => /technical evidence reference does not match/.test(message) ||
-    /technical role validation failed/.test(message)),
-  'technical validation must be recomputed from current image bytes and role policy');
+  assert.ok(approvalValidation.decisions.some(decision => decision.blockers.some(message =>
+    /technical evidence reference does not match/.test(message) ||
+    /technical role validation failed/.test(message))),
+  'technical validation blockers must be attached to the decision row after recomputing current image bytes and role policy');
 
   const incompleteInventoryOutput = path.join(reviewTemp, 'incomplete-inventory');
   fs.cpSync(reviewOutput, incompleteInventoryOutput, { recursive: true });
