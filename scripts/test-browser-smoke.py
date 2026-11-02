@@ -49,6 +49,13 @@ RESPONSIVE_AUDIT_VIEWPORTS = [
     (viewport["width"], viewport["height"])
     for viewport in ROUTE_CONTRACT["responsiveAuditViewports"]
 ]
+
+EDGE_GUEST_VIEWPORTS = [
+    (375, 812, "common mobile"),
+    (430, 932, "large mobile"),
+    (1366, 768, "laptop"),
+    (1920, 1080, "large desktop"),
+]
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
 NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
@@ -3433,6 +3440,94 @@ def check_stay_planner(page, base_url: str) -> None:
           "Stay planner handoff must not submit guest details using a non-GET request")
 
 
+
+def check_extended_guest_viewports(page, page_name: str) -> None:
+    """Stress the guest layout at four additional requested screen sizes without adding screenshots."""
+    original_viewport = page.evaluate(
+        "() => ({ width: window.innerWidth, height: window.innerHeight })"
+    )
+    try:
+        for width, height, label in EDGE_GUEST_VIEWPORTS:
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(35)
+            geometry = page.evaluate(
+                """() => {
+                  const bounds = element => {
+                    if (!element) return null;
+                    const rect = element.getBoundingClientRect();
+                    return {
+                      x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+                      right: rect.right, bottom: rect.bottom
+                    };
+                  };
+                  const visible = element => {
+                    if (!element) return false;
+                    const style = getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.display !== "none" && style.visibility !== "hidden"
+                      && rect.width > 0 && rect.height > 0;
+                  };
+                  const heading = document.querySelector("main#main h1");
+                  const main = document.querySelector("main#main");
+                  const toggle = document.querySelector(".menu-toggle");
+                  const navigation = document.querySelector("#primary-navigation");
+                  const heroActions = Array.from(document.querySelectorAll(
+                    "main .page-hero__actions a, main .arrival-hero__actions a"
+                  )).filter(visible);
+                  return {
+                    viewportWidth: window.innerWidth,
+                    documentWidth: document.documentElement.scrollWidth,
+                    bodyWidth: document.body.scrollWidth,
+                    heading: bounds(heading),
+                    main: bounds(main),
+                    visibleHeroActions: heroActions.map(bounds),
+                    menuToggleVisible: visible(toggle),
+                    primaryNavigationVisible: visible(navigation)
+                  };
+                }"""
+            )
+            check(geometry["viewportWidth"] == width,
+                  f"{page_name} at {label} ({width}px): browser did not adopt the requested viewport")
+            check(geometry["documentWidth"] <= width + 2 and geometry["bodyWidth"] <= width + 2,
+                  f"{page_name} at {label} ({width}px): horizontal overflow ({geometry})")
+            heading = geometry["heading"]
+            main = geometry["main"]
+            check(bool(heading and heading["width"] > 0 and heading["height"] > 0
+                       and heading["x"] >= -1 and heading["right"] <= width + 1),
+                  f"{page_name} at {label} ({width}px): page heading must remain in the content rail ({heading})")
+            check(bool(main and main["width"] > 0 and main["x"] >= -1
+                       and main["right"] <= width + 1),
+                  f"{page_name} at {label} ({width}px): main content must remain inside the viewport ({main})")
+            for action in geometry["visibleHeroActions"]:
+                check(action["width"] >= 40 and action["x"] >= -1 and action["right"] <= width + 1,
+                      f"{page_name} at {label} ({width}px): visible hero action is clipped ({action})")
+
+            toggle = page.locator(".menu-toggle")
+            navigation = page.locator("#primary-navigation")
+            if width <= 760:
+                check(toggle.is_visible(),
+                      f"{page_name} at {label} ({width}px): compact navigation control must be visible")
+                check(not navigation.is_visible(),
+                      f"{page_name} at {label} ({width}px): navigation must start closed")
+                if toggle.is_visible():
+                    toggle.click()
+                    check(navigation.is_visible() and toggle.get_attribute("aria-expanded") == "true",
+                          f"{page_name} at {label} ({width}px): navigation must open on explicit activation")
+                    page.keyboard.press("Escape")
+                    check(not navigation.is_visible() and toggle.get_attribute("aria-expanded") == "false",
+                          f"{page_name} at {label} ({width}px): Escape must close navigation")
+                    check(page.evaluate("document.activeElement === document.querySelector('.menu-toggle')"),
+                          f"{page_name} at {label} ({width}px): Escape must restore focus to the navigation control")
+            elif width >= 1000:
+                check(not toggle.is_visible(),
+                      f"{page_name} at {label} ({width}px): desktop must not expose the compact menu toggle")
+                check(navigation.is_visible(),
+                      f"{page_name} at {label} ({width}px): primary navigation must remain visible")
+    finally:
+        page.set_viewport_size(original_viewport)
+        page.wait_for_timeout(35)
+
+
 def check_booking_handoff_on_route(page, page_name: str) -> None:
     """Verify that every public route exposes the same safe external booking handoff."""
     links = page.locator("a[data-booking-link]")
@@ -6724,6 +6819,7 @@ def main(argv: list[str] | None = None) -> int:
                 page.wait_for_selector("main#main", timeout=5000)
                 check_page_contract(page, page_name, titles)
                 check_booking_handoff_on_route(page, page_name)
+                check_extended_guest_viewports(page, page_name)
                 load_visible_images(page, page_name, base_url)
                 page.evaluate("window.scrollTo(0, 0)")
                 check(len(RUNTIME_ERRORS) == before_errors,

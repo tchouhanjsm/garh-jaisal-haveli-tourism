@@ -8,6 +8,7 @@ echo "== Static website integrity =="
 bash scripts/check-site.sh
 node scripts/test-content-ux.js
 node scripts/test-guest-journey-acceptance.js
+node scripts/test-extended-responsive-acceptance.js
 node scripts/test-premium-guest-journey.js
 node scripts/test-conversion-hierarchy.js
 node scripts/test-about-story.js

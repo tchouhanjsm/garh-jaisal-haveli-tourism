@@ -47,7 +47,7 @@
       details.dataset.mapConfigAllowlistMatch = String(
         detail.hotelMapEmbedUrl === EXPECTED_HOTEL_MAP_EMBED_URL
       );
-      var iframe = details.querySelector('iframe[data-map-src]');
+      var iframe = details.querySelector('iframe');
       if (!iframe) return;
       if (!hotelMapEmbedUrl) {
         details.dataset.mapConfigState = 'unavailable';
@@ -81,7 +81,7 @@
     document.querySelectorAll('[data-map-preview]').forEach(function (details) {
       if (details.dataset.mapPreviewInitialised === 'true') return;
 
-      var iframe = details.querySelector('iframe[data-map-src]');
+      var iframe = details.querySelector('iframe');
       var label = details.querySelector('[data-map-preview-label]');
       if (!iframe) return;
 

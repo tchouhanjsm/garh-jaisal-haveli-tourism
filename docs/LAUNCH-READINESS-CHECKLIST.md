@@ -479,3 +479,10 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Owner must complete real booking-provider UAT on an approved HTTPS staging origin, including a mobile browser.
 - [ ] Human visual review and STG-01–STG-18 remain NOT RUN; CI is not staging UAT.
 - [ ] No merge, deployment, canonical publication, sitemap/robots release or editorial approval is implied.
+
+## 2 November 2026 — M36: extended guest viewport stress coverage
+
+- [x] Exercise every core route at 375×812, 430×932, 1366×768 and 1920×1080 without increasing the screenshot artifact count.
+- [x] Verify horizontal overflow, H1/main bounds, visible hero-action fit, compact navigation, Escape closure and focus return.
+- [x] Restore the caller viewport after each route to avoid contaminating the existing six-width screenshot and performance matrix.
+- [ ] Owner visual review and real-device checks remain pending; no staging UAT is implied.

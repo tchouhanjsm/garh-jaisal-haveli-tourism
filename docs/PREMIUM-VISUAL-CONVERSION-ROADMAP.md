@@ -478,3 +478,11 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Keep the booking handoff external; no availability, payment, reservation confirmation or guest-data collection is implied.
 - [ ] Owner must complete real booking-engine UAT on the approved staging origin and verify the provider response on desktop and mobile.
 - [ ] Human visual review, owner confirmation and STG-01–STG-18 remain separate release gates.
+
+## M36 — extended guest viewport stress coverage
+
+- [x] Add a lightweight Chromium geometry and navigation pass at 375×812, 430×932, 1366×768 and 1920×1080 for every core route.
+- [x] Check document/body overflow, main-content and H1 bounds, visible hero-action clipping, compact-menu opening, Escape closure and focus restoration.
+- [x] Restore the prior viewport after each route and keep this supplementary pass outside screenshot/performance evidence generation.
+- [x] Preserve the existing 8-route × 6-width = 48 full-page PNG contract at 320/360/390/768/1280/1440px.
+- [ ] Human visual review and real-device checks at the requested widths remain owner/staging tasks; automated geometry is not visual sign-off.

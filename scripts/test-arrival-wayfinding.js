@@ -291,6 +291,13 @@ assert.ok(directions.indexOf('assets/js/arrival-enhancements.js') < directions.i
 
 const mapPreview = map.match(/<details class="arrival-map-preview__details" data-map-preview>[\s\S]*?<\/details>/)?.[0] || '';
 assert.ok(mapPreview, 'Directions must expose an opt-in native map disclosure');
+
+assert.equal((mapPreview.match(/<iframe\b/g) || []).length, 1,
+  'The opt-in map disclosure must retain one iframe node while its source remains dormant');
+assert.match(arrivalEnhancements, /details\.querySelector\('iframe'\)/,
+  'Map configuration must rediscover the persistent iframe even after an invalid config removes data-map-src');
+assert.doesNotMatch(arrivalEnhancements, /details\.querySelector\('iframe\[data-map-src\]'\)/,
+  'Map recovery must not depend on the mutable data-map-src attribute');
 assert.match(mapPreview, /data-map-preview-label>Load interactive map/,
   'Map disclosure must expose a clear activation label');
 assert.match(mapPreview, /data-map-src=""/,
