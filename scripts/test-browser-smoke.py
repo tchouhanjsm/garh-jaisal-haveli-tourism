@@ -3586,7 +3586,33 @@ def check_extended_guest_viewports(page, page_name: str) -> None:
                     toggle.click()
                     check(navigation.is_visible() and toggle.get_attribute("aria-expanded") == "true",
                           f"{page_name} at {label} ({width}px): menu must reopen before breakpoint-transition coverage")
+                    # The tablet masthead (761–820px) intentionally retains compact navigation.
                     page.set_viewport_size({"width": 768, "height": height})
+                    page.wait_for_timeout(45)
+                    tablet_transition = page.evaluate("""() => {
+                      const toggle = document.querySelector('.menu-toggle');
+                      const nav = document.querySelector('#primary-navigation');
+                      return {
+                        width: window.innerWidth,
+                        toggleDisplay: getComputedStyle(toggle).display,
+                        expanded: toggle.getAttribute('aria-expanded'),
+                        openClass: nav.classList.contains('is-open'),
+                        bodyMenuOpen: document.body.classList.contains('menu-open'),
+                        navVisible: Boolean(nav && getComputedStyle(nav).display !== 'none'),
+                        focusOnToggle: document.activeElement === toggle,
+                      };
+                    }""")
+                    check(tablet_transition["width"] == 768
+                          and tablet_transition["toggleDisplay"] != "none"
+                          and tablet_transition["expanded"] == "true"
+                          and tablet_transition["openClass"]
+                          and tablet_transition["bodyMenuOpen"]
+                          and tablet_transition["navVisible"]
+                          and tablet_transition["focusOnToggle"],
+                          f"{page_name} at {label} ({width}px): tablet resize must retain the open compact menu and its focus ({tablet_transition})")
+
+                    # 821px is the first width where the CSS exposes full desktop navigation.
+                    page.set_viewport_size({"width": 821, "height": height})
                     page.wait_for_timeout(45)
                     desktop_transition = page.evaluate("""() => {
                       const toggle = document.querySelector('.menu-toggle');
@@ -3602,7 +3628,7 @@ def check_extended_guest_viewports(page, page_name: str) -> None:
                         focusOnFirstLink: Boolean(firstLink && document.activeElement === firstLink),
                       };
                     }""")
-                    check(desktop_transition["width"] == 768
+                    check(desktop_transition["width"] == 821
                           and desktop_transition["toggleDisplay"] == "none"
                           and desktop_transition["expanded"] == "false"
                           and not desktop_transition["openClass"]

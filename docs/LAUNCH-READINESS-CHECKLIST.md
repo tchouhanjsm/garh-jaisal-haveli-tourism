@@ -582,7 +582,7 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 
 ## 2 November 2026 — M46: cross-route responsive navigation state
 
-- [x] Reset compact navigation state when the viewport moves above the 760px menu breakpoint.
+- [x] Keep compact navigation available through the 761–820px tablet range; reset state and transfer focus only when crossing above 820px into full desktop navigation.
 - [x] Synchronize `aria-expanded`, the accessible toggle label, navigation open class and body menu state when the compact control becomes hidden.
 - [x] Move focus to the first visible desktop navigation link when the hidden compact toggle owned focus; return focus to the compact toggle when moving back to mobile with focus in the navigation.
 - [x] Add dependency-free runtime state coverage and real Chromium resize/orientation-transition assertions on all eight routes at 375px and 430px.

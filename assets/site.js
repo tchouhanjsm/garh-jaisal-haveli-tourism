@@ -1065,10 +1065,10 @@
       }
     });
     // A viewport change can hide the compact toggle while it owns an open menu.
-    // Normalize that state at the desktop breakpoint and keep keyboard focus visible
-    // when the active navigation control changes between compact and full navigation.
+    // The premium masthead keeps the compact menu through the 761–820px tablet range.
+    // Match that CSS breakpoint so the runtime only transfers focus when full navigation appears.
     window.addEventListener('resize', () => {
-      const compactNavigation = window.innerWidth <= 760;
+      const compactNavigation = window.innerWidth <= 820;
       const menuExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
       if (compactNavigation) {
         if (!menuExpanded && nav.contains(document.activeElement)) {

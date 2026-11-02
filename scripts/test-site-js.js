@@ -116,12 +116,19 @@ document.activeElement = navLink;
 document.dispatch('keydown', { key: 'Escape' });
 assert.equal(document.activeElement, navLink, 'Escape on a closed menu should not steal focus');
 
-// Opening the compact menu and crossing into desktop width must close it,
-// restore the full-navigation state and move focus off the now-hidden toggle.
+// The 761–820px tablet layout still uses the compact menu; do not reset an open menu there.
 menuToggle.dispatch('click');
 assert.equal(menuToggle.getAttribute('aria-expanded'), 'true');
 document.activeElement = menuToggle;
 window.innerWidth = 768;
+window.dispatch('resize');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'true', 'tablet resize must preserve the available compact menu');
+assert.equal(nav.classList.contains('is-open'), true);
+assert.equal(body.classList.contains('menu-open'), true);
+assert.equal(document.activeElement, menuToggle, 'tablet resize must not move focus from the visible toggle');
+
+// Crossing the actual 820px CSS boundary into full navigation closes the compact menu.
+window.innerWidth = 821;
 window.dispatch('resize');
 assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
 assert.equal(menuToggle.getAttribute('aria-label'), 'Open navigation');
@@ -129,11 +136,18 @@ assert.equal(nav.classList.contains('is-open'), false);
 assert.equal(body.classList.contains('menu-open'), false);
 assert.equal(document.activeElement, navLink, 'desktop resize must move focus from the hidden toggle to the visible navigation');
 
-// Returning to compact width while focus is in the full navigation must focus
-// the visible toggle rather than leave focus inside the hidden, closed panel.
+// Returning to tablet width restores focus to the visible compact toggle, with the menu closed.
+window.innerWidth = 768;
+window.dispatch('resize');
+assert.equal(document.activeElement, menuToggle, 'tablet resize must restore focus to the visible menu toggle');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
+assert.equal(nav.classList.contains('is-open'), false);
+assert.equal(body.classList.contains('menu-open'), false);
+
+// Returning to phone width keeps the same closed, focus-safe compact state.
 window.innerWidth = 390;
 window.dispatch('resize');
-assert.equal(document.activeElement, menuToggle, 'compact resize must restore focus to the visible menu toggle');
+assert.equal(document.activeElement, menuToggle, 'phone resize must retain focus on the visible menu toggle');
 assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
 assert.equal(nav.classList.contains('is-open'), false);
 assert.equal(body.classList.contains('menu-open'), false);
