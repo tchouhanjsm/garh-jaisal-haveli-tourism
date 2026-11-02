@@ -4,6 +4,25 @@
   const menuToggle = document.querySelector('.menu-toggle');
   const nav = document.querySelector('#primary-navigation');
   const contactStatus = document.querySelector('#contact-status');
+  const contactRetryButton = contactStatus ? document.createElement('button') : null;
+  if (contactRetryButton) {
+    contactRetryButton.type = 'button';
+    contactRetryButton.className = 'contact-status-banner__retry';
+    contactRetryButton.setAttribute('data-contact-config-retry', '');
+    contactRetryButton.textContent = 'Retry contact options';
+    contactRetryButton.hidden = true;
+    contactStatus.appendChild(contactRetryButton);
+    contactRetryButton.addEventListener('click', async () => {
+      if (contactRetryButton.disabled) return;
+      contactRetryButton.disabled = true;
+      contactRetryButton.textContent = 'Retrying…';
+      await configureContactChannels();
+      if (!contactRetryButton.hidden) {
+        contactRetryButton.disabled = false;
+        contactRetryButton.textContent = 'Try again';
+      }
+    });
+  }
   const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
   const mobileBookingBar = document.querySelector('.mobile-booking-bar');
   const arrivalQuickCard = document.querySelector('[data-arrival-quick-card]');
@@ -828,12 +847,22 @@
         || (propertyMapLinks.length > 0 && !hotelMapUrl)
         || (bookingForms.length > 0 && !whatsappBaseUrl)
         || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
+      if (contactRetryButton) {
+        contactRetryButton.hidden = true;
+        contactRetryButton.disabled = false;
+        contactRetryButton.textContent = 'Retry contact options';
+      }
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
       if (!mapConfigurationPublished && typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
           detail: { whatsappBaseUrl: '', hotelMapUrl: '', hotelMapEmbedUrl: '' }
         }));
+      }
+      if (contactRetryButton) {
+        contactRetryButton.hidden = false;
+        contactRetryButton.disabled = false;
+        contactRetryButton.textContent = 'Try again';
       }
       if (contactStatus) contactStatus.hidden = false;
       enquiryLinks.forEach(link => disableContactLink(link, 'WhatsApp unavailable'));

@@ -10,13 +10,24 @@ const smoke = fs.readFileSync(path.join(root, 'scripts', 'test-browser-smoke.py'
 const quality = fs.readFileSync(path.join(root, 'scripts', 'check-pr-quality.sh'), 'utf8');
 const runtime = fs.readFileSync(path.join(root, 'assets', 'site.js'), 'utf8');
 const arrival = fs.readFileSync(path.join(root, 'assets', 'js', 'arrival-enhancements.js'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'assets', 'site.css'), 'utf8');
 
 assert.match(smoke, /def check_contact_configuration_failure_recovery\(browser, base_url: str\)/,
   'The Chromium suite must exercise temporary central-config failure and recovery.');
 assert.match(smoke, /route\.fulfill\(\s*status=503/,
   'The resilience scenario must simulate an HTTP 503, not only an absent response.');
-assert.match(smoke, /page\.reload\(wait_until="domcontentloaded"/,
-  'The same Directions page must be tested again after the temporary failure.');
+assert.match(smoke, /data-contact-config-retry/,
+  'The Chromium scenario must expose the in-page retry control after the temporary failure.');
+assert.match(smoke, /retry_button\.click\(\)/,
+  'Recovery must happen through explicit user activation, not a full-page reload.');
+assert.match(runtime, /data-contact-config-retry/,
+  'The runtime must expose a retry action when central config loading fails.');
+assert.match(runtime, /contactRetryButton\.addEventListener\('click'/,
+  'Retry activation must be handled by the shared runtime.');
+assert.match(runtime, /await configureContactChannels\(\)/,
+  'Retry must re-run the same centralized configuration loader.');
+assert.match(css, /\.contact-status-banner__retry[\s\S]*?min-height:\s*44px/,
+  'The in-page retry control must have a usable touch target.');
 assert.match(smoke, /Contact-config recovery: exact approved map source must be restored but remain dormant/,
   'Recovery must restore the exact approved map destination without activating an iframe request.');
 assert.match(smoke, /check_contact_configuration_failure_recovery\(browser, base_url\)/,

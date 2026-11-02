@@ -501,3 +501,10 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Verify all affected links and forms fail closed and retain accessible recovery text.
 - [x] Verify map iframe remains dormant during failure and valid config retry restores the approved destination without auto-loading it.
 - [ ] Owner must verify real contact-channel responsiveness and booking-provider availability on staging.
+
+## 2 November 2026 — M39: in-page contact configuration retry
+
+- [x] Show a retry action only after central configuration fails to load.
+- [x] Disable it while retrying and hide it after a successful configuration response.
+- [x] Restore authorized actions in place while keeping the map iframe dormant until explicit visitor activation.
+- [ ] Owner must still verify live contact-channel/provider availability on approved staging.

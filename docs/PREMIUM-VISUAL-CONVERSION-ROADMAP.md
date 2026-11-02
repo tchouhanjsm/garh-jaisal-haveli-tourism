@@ -505,3 +505,11 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Confirm the map iframe has no active \`src\` and cannot issue an external map request while configuration is unavailable.
 - [x] Retry the same Directions page after the one-time failure and verify the authorized booking, arrival form, and exact dormant map destination recover.
 - [ ] Live availability of the hotel/provider channels remains an owner/staging UAT item; this test verifies local failure/retry behavior only.
+
+## M39 — in-page contact configuration retry
+
+- [x] Add a visitor-triggered retry control to the accessible contact-status banner when the central configuration request fails.
+- [x] Disable the retry control while a request is in flight and hide/reset it after a successful configuration load.
+- [x] Keep normal channel-level validation fail-closed; retry is for request/parse failures and cannot bypass source authorization.
+- [x] Extend Chromium failure/recovery coverage to activate retry and restore the arrival form, booking destination and dormant map source without reloading the page.
+- [x] Keep retry keyboard-operable with a visible focus style and a minimum 44px target.

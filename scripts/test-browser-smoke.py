@@ -3712,11 +3712,12 @@ def check_contact_configuration_failure_recovery(browser, base_url: str) -> None
                   and link.get_attribute("href") == "#contact-status",
                   f"Contact-config recovery: {label} action must point to the accessible fallback, not a stale destination")
 
-        # The same page is retried after the one-time 503. No external channel
-        # or map iframe is activated; only the central same-origin JSON is fetched.
-        response = page.reload(wait_until="domcontentloaded", timeout=15000)
-        check(response is not None and response.status == 200,
-              "Contact-config recovery: retry must reload the same Directions page")
+        # Retry in place after the one-time 503. No document reload,
+        # external channel or map iframe activation is permitted.
+        retry_button = page.locator("[data-contact-config-retry]")
+        check(retry_button.is_visible() and not retry_button.is_disabled(),
+              "Contact-config recovery: an accessible in-page retry control must appear after failure")
+        retry_button.click()
         try:
             page.wait_for_function(
                 """() => {
@@ -3725,16 +3726,18 @@ def check_contact_configuration_failure_recovery(browser, base_url: str) -> None
                   const frame = map && map.querySelector('iframe[data-map-src]');
                   const form = document.querySelector('[data-arrival-planning-form]');
                   const fallback = document.querySelector('[data-arrival-enquiry-fallback]');
+                  const retry = document.querySelector('[data-contact-config-retry]');
                   return Boolean(status && status.hidden && map && !map.hidden
                     && map.dataset.mapConfigState === 'ready'
                     && frame && frame.getAttribute('data-map-src')
-                    && form && !form.hidden && fallback && fallback.hidden);
+                    && form && !form.hidden && fallback && fallback.hidden
+                    && retry && retry.hidden);
                 }""",
                 timeout=7000,
             )
         except Exception as error:
             check(False,
-                  f"Contact-config recovery: valid retry did not restore approved controls ({type(error).__name__})")
+                  f"Contact-config recovery: in-page retry did not restore approved controls ({type(error).__name__})")
 
         check(config_requests == 2,
               "Contact-config recovery: retry must make exactly one additional central-config request")
