@@ -34,6 +34,11 @@ assert.ok(smoke.includes('tablet_transition') && smoke.includes('desktop_transit
   'Every route must verify focus-safe tablet, desktop and compact navigation transitions in real Chromium.');
 assert.match(runtime, /const compactNavigation = window\.innerWidth <= 820;/,
   'The runtime compact-navigation threshold must match the tablet masthead CSS breakpoint.');
+assert.ok(runtime.includes('let lastFocusedNavigationControl = null;')
+  && runtime.includes("document.addEventListener('focusin'")
+  && runtime.includes('lastFocusedNavigationControl === menuToggle')
+  && runtime.includes('nav.contains(lastFocusedNavigationControl)'),
+  'The runtime must preserve focus when CSS hides the previously focused navigation control.');
 assert.match(premiumCss, /@media\s*\(min-width:\s*761px\)\s*and\s*\(max-width:\s*820px\)/,
   'The tablet compact-navigation CSS boundary must remain explicit and covered.');
 assert.match(smoke, /finally:\s+page\.set_viewport_size\(original_viewport\)/,

@@ -1039,6 +1039,24 @@
   window.addEventListener('load', updateMobileBookingBar, { once: true });
 
   if (menuToggle && nav) {
+    // Browsers may blur a control as CSS hides it during resize, before the resize
+    // handler runs. Retain the last meaningful navigation focus target so focus
+    // can move to the newly visible control instead of being stranded on <body>.
+    let lastFocusedNavigationControl = null;
+    document.addEventListener('focusin', event => {
+      const target = event.target;
+      if (target === menuToggle || nav.contains(target)) {
+        lastFocusedNavigationControl = target;
+      } else if (target && target !== document.body && target !== document.documentElement) {
+        lastFocusedNavigationControl = null;
+      }
+    });
+    document.addEventListener('pointerdown', event => {
+      if (!nav.contains(event.target) && event.target !== menuToggle) {
+        lastFocusedNavigationControl = null;
+      }
+    });
+
     menuToggle.addEventListener('click', () => {
       const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
       menuToggle.setAttribute('aria-expanded', String(!expanded));
@@ -1071,13 +1089,16 @@
       const compactNavigation = window.innerWidth <= 820;
       const menuExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
       if (compactNavigation) {
-        if (!menuExpanded && nav.contains(document.activeElement)) {
+        const navigationHadFocus = nav.contains(document.activeElement)
+          || (lastFocusedNavigationControl && nav.contains(lastFocusedNavigationControl));
+        if (!menuExpanded && navigationHadFocus) {
           menuToggle.focus();
         }
         return;
       }
 
-      const toggleHadFocus = document.activeElement === menuToggle;
+      const toggleHadFocus = document.activeElement === menuToggle
+        || lastFocusedNavigationControl === menuToggle;
       const needsReset = menuExpanded
         || nav.classList.contains('is-open')
         || document.body.classList.contains('menu-open');

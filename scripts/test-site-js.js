@@ -41,7 +41,10 @@ function createElement(name) {
       }
     },
     querySelectorAll() { return []; },
-    focus() { document.activeElement = this; }
+    focus() {
+      document.activeElement = this;
+      document.dispatch('focusin', { target: this });
+    }
   };
 }
 
@@ -59,6 +62,7 @@ const body = { classList: createClassList(), appendChild() {} };
 
 document = {
   body,
+  documentElement: createElement('html'),
   activeElement: null,
   querySelector(selector) {
     return ({
@@ -112,14 +116,14 @@ assert.equal(nav.classList.contains('is-open'), false);
 assert.equal(body.classList.contains('menu-open'), false);
 assert.equal(document.activeElement, menuToggle);
 
-document.activeElement = navLink;
+navLink.focus();
 document.dispatch('keydown', { key: 'Escape' });
 assert.equal(document.activeElement, navLink, 'Escape on a closed menu should not steal focus');
 
 // The 761–820px tablet layout still uses the compact menu; do not reset an open menu there.
 menuToggle.dispatch('click');
 assert.equal(menuToggle.getAttribute('aria-expanded'), 'true');
-document.activeElement = menuToggle;
+menuToggle.focus();
 window.innerWidth = 768;
 window.dispatch('resize');
 assert.equal(menuToggle.getAttribute('aria-expanded'), 'true', 'tablet resize must preserve the available compact menu');
@@ -128,6 +132,8 @@ assert.equal(body.classList.contains('menu-open'), true);
 assert.equal(document.activeElement, menuToggle, 'tablet resize must not move focus from the visible toggle');
 
 // Crossing the actual 820px CSS boundary into full navigation closes the compact menu.
+document.activeElement = body;
+document.dispatch('focusin', { target: body }); // CSS may blur the hidden toggle before resize runs.
 window.innerWidth = 821;
 window.dispatch('resize');
 assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
@@ -137,6 +143,8 @@ assert.equal(body.classList.contains('menu-open'), false);
 assert.equal(document.activeElement, navLink, 'desktop resize must move focus from the hidden toggle to the visible navigation');
 
 // Returning to tablet width restores focus to the visible compact toggle, with the menu closed.
+document.activeElement = body;
+document.dispatch('focusin', { target: body }); // CSS may blur the hidden navigation link before resize runs.
 window.innerWidth = 768;
 window.dispatch('resize');
 assert.equal(document.activeElement, menuToggle, 'tablet resize must restore focus to the visible menu toggle');
