@@ -71,16 +71,48 @@ function normalizeReview(review, expectedHead) {
   if (submittedAt !== null && !Number.isFinite(Date.parse(submittedAt))) {
     throw new Error('GitHub returned an invalid submission timestamp for review ' + review.id + '.');
   }
-  const login = review.user && typeof review.user.login === 'string'
+  const login = review.user && typeof review.user.login === 'string' && review.user.login.trim()
     ? review.user.login : null;
+  const userId = review.user && Number.isSafeInteger(review.user.id) && review.user.id > 0
+    ? review.user.id : null;
+  if (!login || userId === null) {
+    throw new Error('GitHub returned a review without a stable authenticated reviewer identity for review ' + review.id + '.');
+  }
   return {
     id: review.id,
     login,
+    userId,
     state,
     commitSha,
     submittedAt,
     submitted: submittedAt !== null && state !== 'PENDING',
     onExpectedHead: commitSha === expectedHead,
+  };
+}
+
+function validatePullRequestSnapshot(pullRequest, input) {
+  if (!pullRequest || pullRequest.number !== input.pullRequestNumber ||
+      pullRequest.state !== 'open' ||
+      !pullRequest.base || !pullRequest.base.repo ||
+      pullRequest.base.repo.full_name !== input.repository ||
+      typeof pullRequest.base.ref !== 'string' || !pullRequest.base.ref ||
+      !SHA_PATTERN.test(String(pullRequest.base.sha || '')) ||
+      !pullRequest.head || !SHA_PATTERN.test(String(pullRequest.head.sha || '')) ||
+      !pullRequest.head.repo || typeof pullRequest.head.repo.full_name !== 'string' ||
+      !pullRequest.head.repo.full_name) {
+    throw new Error('GitHub pull-request metadata is incomplete, closed, or belongs to a different base repository.');
+  }
+  const headSha = String(pullRequest.head.sha).toLowerCase();
+  const baseSha = String(pullRequest.base.sha).toLowerCase();
+  if (headSha !== input.expectedHead) {
+    throw new Error('Pull-request head changed during review audit; expected ' +
+      input.expectedHead + ' but GitHub reports ' + headSha + '.');
+  }
+  return {
+    headSha,
+    baseSha,
+    baseBranch: pullRequest.base.ref,
+    headRepository: pullRequest.head.repo.full_name,
   };
 }
 
@@ -90,18 +122,7 @@ async function auditEditorialReviewAuthority(options) {
   const repositoryPath = '/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repositoryName);
   const pullRequestUrl = API_ROOT + repositoryPath + '/pulls/' + input.pullRequestNumber;
   const pullRequest = await getJson(options.fetchImpl || globalThis.fetch, pullRequestUrl, input.token);
-
-  if (!pullRequest || pullRequest.number !== input.pullRequestNumber ||
-      !pullRequest.base || !pullRequest.base.repo ||
-      pullRequest.base.repo.full_name !== input.repository ||
-      !pullRequest.head || !SHA_PATTERN.test(String(pullRequest.head.sha || ''))) {
-    throw new Error('GitHub pull-request metadata is incomplete or belongs to a different base repository.');
-  }
-  const actualHead = String(pullRequest.head.sha).toLowerCase();
-  if (actualHead !== input.expectedHead) {
-    throw new Error('Pull-request head changed during review audit; expected ' +
-      input.expectedHead + ' but GitHub reports ' + actualHead + '.');
-  }
+  const initialSnapshot = validatePullRequestSnapshot(pullRequest, input);
 
   const reviews = [];
   for (let page = 1; page <= MAX_REVIEW_PAGES; page += 1) {
@@ -118,6 +139,15 @@ async function auditEditorialReviewAuthority(options) {
     }
   }
 
+  // Re-read PR metadata after review pagination to close the head/base time-of-check race.
+  const finalPullRequest = await getJson(options.fetchImpl || globalThis.fetch, pullRequestUrl, input.token);
+  const finalSnapshot = validatePullRequestSnapshot(finalPullRequest, input);
+  if (finalSnapshot.baseSha !== initialSnapshot.baseSha ||
+      finalSnapshot.baseBranch !== initialSnapshot.baseBranch ||
+      finalSnapshot.headRepository !== initialSnapshot.headRepository) {
+    throw new Error('Pull-request base changed during review audit or head repository changed; evidence snapshot is incomplete.');
+  }
+
   const currentHeadReviews = reviews.filter(review => review.onExpectedHead && review.submitted);
   const currentHeadStateCounts = {};
   for (const review of currentHeadReviews) {
@@ -132,19 +162,22 @@ async function auditEditorialReviewAuthority(options) {
     pullRequest: {
       number: input.pullRequestNumber,
       state: typeof pullRequest.state === 'string' ? pullRequest.state : 'unknown',
-      baseBranch: pullRequest.base.ref || null,
-      headRepository: pullRequest.head.repo && pullRequest.head.repo.full_name
-        ? pullRequest.head.repo.full_name : null,
+      baseBranch: initialSnapshot.baseBranch,
+      baseSha: initialSnapshot.baseSha,
+      headRepository: initialSnapshot.headRepository,
       expectedHead: input.expectedHead,
-      observedHead: actualHead,
+      observedHead: initialSnapshot.headSha,
       exactHeadMatch: true,
+      metadataRevalidatedAfterReviewRead: true,
     },
     reviewEvidence: {
       source: 'authenticated-github-rest-api',
       snapshotComplete: true,
+      reviewerIdentityEvidenceComplete: true,
       reviewCount: reviews.length,
       submittedReviewCount: reviews.filter(review => review.submitted).length,
       currentHeadReviewCount: currentHeadReviews.length,
+      currentHeadReviewerIds: [...new Set(currentHeadReviews.map(review => review.userId))].sort((left, right) => left - right),
       currentHeadStateCounts,
       reviews,
     },
