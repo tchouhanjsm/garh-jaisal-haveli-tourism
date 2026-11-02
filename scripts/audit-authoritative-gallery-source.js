@@ -120,7 +120,14 @@ function parseNamedFieldBlocks(source, indentation) {
     }
   }
   if (active) blocks.push(active);
-  return new Map(blocks.map(block => [block.name, block.lines.join('\n')]));
+
+  const byName = new Map();
+  const duplicates = [];
+  for (const block of blocks) {
+    if (byName.has(block.name)) duplicates.push(block.name);
+    byName.set(block.name, block.lines.join('\n'));
+  }
+  return { blocks: byName, duplicates };
 }
 
 function fieldProperty(block, indentation, property) {
@@ -129,18 +136,24 @@ function fieldProperty(block, indentation, property) {
   return match ? match[1] : null;
 }
 
-function parseSchemaField(block, indentation) {
-  const children = parseNamedFieldBlocks(block, indentation + 4);
+function parseSchemaField(block, indentation, fieldPath) {
+  const parsedChildren = parseNamedFieldBlocks(block, indentation + 4);
+  const children = new Map();
+  const duplicatePaths = parsedChildren.duplicates.map(name => fieldPath + '.' + name);
+  for (const [name, childBlock] of parsedChildren.blocks) {
+    const childPath = fieldPath + '.' + name;
+    const child = parseSchemaField(childBlock, indentation + 4, childPath);
+    children.set(name, child);
+    duplicatePaths.push(...child.duplicatePaths);
+  }
   return {
     block,
     widget: fieldProperty(block, indentation, 'widget'),
     required: fieldProperty(block, indentation, 'required'),
     defaultValue: fieldProperty(block, indentation, 'default'),
     options: [...block.matchAll(/^\s+value:\s*([A-Za-z0-9_-]+)\s*$/gm)].map(match => match[1]),
-    children: new Map([...children].map(([name, childBlock]) => [
-      name,
-      parseSchemaField(childBlock, indentation + 4),
-    ])),
+    children,
+    duplicatePaths,
   };
 }
 
@@ -151,7 +164,12 @@ function gallerySchemaFields(root, errors) {
     fields: [],
     missing: REQUIRED_EVIDENCE_SCHEMA_PATHS.slice(),
     safeDefaults: false,
-    defaultViolations: [reason],
+    defaultViolations: [],
+    schemaViolations: [reason],
+    collectionValid: false,
+    collectionContractViolations: [reason],
+    duplicateFieldPaths: [],
+    supportsRequiredEvidence: false,
   });
   if (!fs.existsSync(configPath)) return unavailable('admin/config.yml is missing');
   const stat = fs.lstatSync(configPath);
@@ -161,16 +179,51 @@ function gallerySchemaFields(root, errors) {
   }
 
   const config = fs.readFileSync(configPath, 'utf8');
-  const start = config.indexOf('  - name: gallery');
-  if (start < 0) return unavailable('Gallery collection is missing');
-  const tail = config.slice(start);
-  const nextCollection = tail.indexOf('\n  - name:', 1);
-  const collectionBlock = nextCollection < 0 ? tail : tail.slice(0, nextCollection);
-  const topLevelBlocks = parseNamedFieldBlocks(collectionBlock, 6);
-  const topLevel = new Map([...topLevelBlocks].map(([name, block]) => [
-    name,
-    parseSchemaField(block, 6),
-  ]));
+  const collectionMarkers = [...config.matchAll(/^collections:\s*$/gm)];
+  if (collectionMarkers.length !== 1) {
+    return unavailable('admin/config.yml must contain exactly one root collections section');
+  }
+  const collectionsSection = config.slice(collectionMarkers[0].index + collectionMarkers[0][0].length);
+  const parsedCollections = parseNamedFieldBlocks(collectionsSection, 2);
+  const collectionBlock = parsedCollections.blocks.get('gallery');
+  if (!collectionBlock) return unavailable('Gallery collection is missing');
+
+  const collectionContractViolations = [];
+  const expectedCollectionProperties = [
+    ['folder', '/content/gallery'],
+    ['format', 'json'],
+    ['create', 'true'],
+    ['delete', 'false'],
+    ['identifier_field', 'id'],
+  ];
+  for (const [property, expected] of expectedCollectionProperties) {
+    const actual = fieldProperty(collectionBlock, 2, property);
+    if (actual !== expected) {
+      collectionContractViolations.push(
+        'Gallery collection ' + property + ' must be ' + expected + '.'
+      );
+    }
+  }
+
+  const parsedFields = parseNamedFieldBlocks(collectionBlock, 6);
+  const topLevel = new Map();
+  const duplicateFieldPaths = parsedFields.duplicates.slice();
+  for (const [name, block] of parsedFields.blocks) {
+    const field = parseSchemaField(block, 6, name);
+    topLevel.set(name, field);
+    duplicateFieldPaths.push(...field.duplicatePaths);
+  }
+
+  const schemaViolations = [];
+  if (parsedCollections.duplicates.length) {
+    for (const name of parsedCollections.duplicates) {
+      schemaViolations.push('CMS collection is declared more than once: ' + name + '.');
+    }
+  }
+  for (const name of duplicateFieldPaths) {
+    schemaViolations.push('Gallery schema field is declared more than once: ' + name + '.');
+  }
+  schemaViolations.push(...collectionContractViolations);
 
   const fields = new Set();
   const collectFields = fieldMap => {
@@ -278,20 +331,29 @@ function gallerySchemaFields(root, errors) {
     technicalChildren && technicalChildren.get('evidenceReference'), 'string');
 
   const sourceUrlField = sourceChildren && sourceChildren.get('sourceUrl');
-  if (sourceUrlField && !sourceUrlField.block.includes("'^https://'")) {
+  if (sourceUrlField && !/^\s+-\s+['"]?\^https:\/\/['"]?\s*$/m.test(sourceUrlField.block)) {
     defaultViolations.push('sourceEvidence.sourceUrl must constrain values to HTTPS.');
   }
 
   const uniqueMissing = [...new Set(missing)].sort();
   const uniqueViolations = [...new Set(defaultViolations)].sort();
+  const uniqueSchemaViolations = [...new Set(schemaViolations)].sort();
+  const uniqueCollectionContractViolations = [...new Set(collectionContractViolations)].sort();
+  const uniqueDuplicateFieldPaths = [...new Set(duplicateFieldPaths)].sort();
+  const collectionValid = uniqueCollectionContractViolations.length === 0 &&
+    !parsedCollections.duplicates.includes('gallery');
+  const safeDefaults = uniqueViolations.length === 0 && uniqueSchemaViolations.length === 0;
   const uniqueFields = [...fields].sort();
-  const safeDefaults = uniqueViolations.length === 0;
   return {
     available: true,
     fields: uniqueFields,
     missing: uniqueMissing,
     safeDefaults,
     defaultViolations: uniqueViolations,
+    schemaViolations: uniqueSchemaViolations,
+    collectionValid,
+    collectionContractViolations: uniqueCollectionContractViolations,
+    duplicateFieldPaths: uniqueDuplicateFieldPaths,
     supportsRequiredEvidence: uniqueMissing.length === 0 && safeDefaults,
   };
 }
@@ -362,6 +424,8 @@ function readGallerySnapshot(directory, label) {
       if (record.status !== 'live') blockers.push('source-record-not-live');
       if (record.review_status !== 'approved') blockers.push('owner-editor-review-not-approved');
       if (!schema.available || schema.missing.length) blockers.push('cms-schema-does-not-capture-required-evidence');
+      if (!schema.collectionValid) blockers.push('cms-gallery-collection-contract-invalid');
+      if (schema.duplicateFieldPaths.length) blockers.push('cms-schema-contains-duplicate-fields');
       if (!schema.safeDefaults) blockers.push('cms-schema-does-not-enforce-fail-closed-defaults');
       if (!rightsEvidenceComplete) blockers.push('creator-source-rights-evidence-incomplete');
       if (!visualReviewComplete) blockers.push('documented-visual-match-missing');
@@ -493,6 +557,10 @@ function auditAuthoritativeGallerySource(options) {
       missingEvidenceFields: current.schema.missing,
       safeDefaults: current.schema.safeDefaults,
       defaultViolations: current.schema.defaultViolations,
+      schemaViolations: current.schema.schemaViolations,
+      collectionValid: current.schema.collectionValid,
+      collectionContractViolations: current.schema.collectionContractViolations,
+      duplicateFieldPaths: current.schema.duplicateFieldPaths,
       supportsRequiredEvidence: current.schema.supportsRequiredEvidence,
     },
     summary,
