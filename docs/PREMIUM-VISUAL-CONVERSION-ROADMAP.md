@@ -513,3 +513,29 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Keep normal channel-level validation fail-closed; retry is for request/parse failures and cannot bypass source authorization.
 - [x] Extend Chromium failure/recovery coverage to activate retry and restore the arrival form, booking destination and dormant map source without reloading the page.
 - [x] Keep retry keyboard-operable with a visible focus style and a minimum 44px target.
+
+## M40 — route-wide contact configuration outage and recovery
+
+- [x] Run the central-config HTTP 503 → explicit retry → valid recovery journey on every route in the shared public-route contract.
+- [x] Verify WhatsApp, telephone, alternate telephone, email, booking and property-map actions fail closed to the accessible contact status during the outage.
+- [x] Verify each channel recovers to its validated endpoint, with safe new-tab isolation on external links.
+- [x] Verify the arrival form/static fallback and map preview recover correctly; the map iframe remains dormant until visitor activation.
+- [x] Assert the retry does not reload the current route or navigate the visitor away.
+- [ ] Live endpoint responsiveness and provider availability still require owner/staging UAT.
+
+## M41 — independent contact-channel validation
+
+- [x] Add a table-driven runtime matrix for malformed WhatsApp, primary phone, phone display, alternate phone, email, booking URL and hotel map values.
+- [x] Require only the invalid channel to be disabled; all other source-authorized channels must remain enabled and retain their own destination.
+- [x] Keep a visible shared contact-status warning whenever any rendered channel is unavailable.
+- [x] Retain strict HTTPS host/path/port, telephone, email and source-authorization validation; do not introduce a permissive fallback.
+- [ ] Owner verification of current contact endpoints remains separate from source-validation and browser tests.
+
+## M42 — repeated retry failure and recovery
+
+- [x] Simulate two consecutive HTTP 503 responses followed by a valid configuration response.
+- [x] Verify retry returns to an enabled “Try again” state after the second failure, while all affected actions remain fail-closed.
+- [x] Verify the next explicit retry restores the approved destinations and clears the unavailable banner.
+- [x] Assert the restored booking-form note explains that WhatsApp opens for an enquiry only and that no payment is taken on this website.
+- [ ] Do not interpret successful local recovery as live channel, booking-provider or staging verification.
+

@@ -3657,7 +3657,7 @@ def check_contact_configuration_failure_recovery(browser, base_url: str) -> None
     def intercept_config(route) -> None:
         nonlocal config_requests
         config_requests += 1
-        if config_requests == 1:
+        if config_requests <= 2:
             route.fulfill(
                 status=503,
                 content_type="application/json",
@@ -3722,6 +3722,30 @@ def check_contact_configuration_failure_recovery(browser, base_url: str) -> None
             page.wait_for_function(
                 """() => {
                   const status = document.querySelector('#contact-status');
+                  const retry = document.querySelector('[data-contact-config-retry]');
+                  const map = document.querySelector('[data-map-preview]');
+                  const form = document.querySelector('[data-arrival-planning-form]');
+                  const frame = map && map.querySelector('iframe');
+                  return Boolean(status && !status.hidden && retry && !retry.hidden
+                    && !retry.disabled && retry.textContent === 'Try again'
+                    && map && map.dataset.mapConfigState === 'unavailable'
+                    && form && form.hidden && frame && !frame.hasAttribute('src'));
+                }""",
+                timeout=7000,
+            )
+        except Exception as error:
+            check(False,
+                  f"Contact-config recovery: retry failure did not preserve the safe state ({type(error).__name__})")
+        check(config_requests == 2,
+              "Contact-config recovery: a failed retry must issue exactly one additional request")
+        check(page.locator('[data-enquiry-link]').first.get_attribute('aria-disabled') == 'true'
+              and page.locator('[data-booking-link]').first.get_attribute('aria-disabled') == 'true',
+              "Contact-config recovery: channels must remain fail-closed after the retry also fails")
+        retry_button.click()
+        try:
+            page.wait_for_function(
+                """() => {
+                  const status = document.querySelector('#contact-status');
                   const map = document.querySelector('[data-map-preview]');
                   const frame = map && map.querySelector('iframe[data-map-src]');
                   const form = document.querySelector('[data-arrival-planning-form]');
@@ -3739,8 +3763,8 @@ def check_contact_configuration_failure_recovery(browser, base_url: str) -> None
             check(False,
                   f"Contact-config recovery: in-page retry did not restore approved controls ({type(error).__name__})")
 
-        check(config_requests == 2,
-              "Contact-config recovery: retry must make exactly one additional central-config request")
+        check(config_requests == 3,
+              "Contact-config recovery: two explicit retries must each make one config request after the initial outage")
         check(page.locator("#contact-status").is_hidden(),
               "Contact-config recovery: accessible unavailable status must clear after a valid retry")
         check(page.locator("[data-arrival-planning-form]").is_visible()
@@ -3762,6 +3786,154 @@ def check_contact_configuration_failure_recovery(browser, base_url: str) -> None
               "Contact-config recovery: booking action must regain its protected destination after retry")
     finally:
         context.close()
+
+
+def check_contact_configuration_recovery_all_routes(browser, base_url: str) -> None:
+    """Prove a transient config outage and explicit in-place recovery on every core route."""
+    recovered_routes = 0
+    channel_contracts = (
+        ("[data-enquiry-link]", "whatsapp"),
+        ("[data-contact-phone]", "phone"),
+        ("[data-contact-alt-phone]", "phone"),
+        ("[data-contact-email]", "email"),
+        ("[data-booking-link]", "booking"),
+        ("[data-property-map-link]", "map"),
+    )
+    expected_booking_path = "/booking_engine/index3"
+
+    for page_name in PAGES:
+        context = browser.new_context(viewport={"width": 390, "height": 844})
+        page = context.new_page()
+        config_requests = 0
+        main_document_navigations = 0
+
+        def intercept_config(route) -> None:
+            nonlocal config_requests
+            config_requests += 1
+            if config_requests == 1:
+                route.fulfill(
+                    status=503,
+                    content_type="application/json",
+                    body='{"error":"temporary route-wide contact outage"}',
+                )
+            else:
+                route.continue_()
+
+        def count_main_navigation(frame) -> None:
+            nonlocal main_document_navigations
+            if frame == page.main_frame:
+                main_document_navigations += 1
+
+        page.route("**/content/site-config.json", intercept_config)
+        page.on("framenavigated", count_main_navigation)
+        try:
+            response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
+            check(response is not None and response.status == 200,
+                  f"{page_name}: contact recovery route must load while the central config is unavailable")
+            try:
+                page.wait_for_function(
+                    """() => {
+                      const status = document.querySelector('#contact-status');
+                      const retry = document.querySelector('[data-contact-config-retry]');
+                      return Boolean(status && !status.hidden && retry && !retry.hidden
+                        && !retry.disabled && retry.getAttribute('type') === 'button');
+                    }""",
+                    timeout=7000,
+                )
+            except Exception as error:
+                check(False,
+                      f"{page_name}: contact outage state did not expose its retry action ({type(error).__name__})")
+
+            check(config_requests == 1,
+                  f"{page_name}: initial outage must make exactly one central-config request")
+            status = page.locator("#contact-status")
+            retry_button = page.locator("[data-contact-config-retry]")
+            check(status.is_visible(),
+                  f"{page_name}: the accessible contact fallback must be visible during outage")
+
+            for selector, label in channel_contracts:
+                links = page.locator(selector)
+                for index in range(links.count()):
+                    link = links.nth(index)
+                    check(link.get_attribute("aria-disabled") == "true"
+                          and link.get_attribute("href") == "#contact-status",
+                          f"{page_name}: {label} action {index + 1} must fail closed to the contact fallback")
+
+            if retry_button.is_visible():
+                retry_button.click()
+            try:
+                page.wait_for_function(
+                    """() => {
+                      const status = document.querySelector('#contact-status');
+                      const retry = document.querySelector('[data-contact-config-retry]');
+                      return Boolean(status && status.hidden && retry && retry.hidden);
+                    }""",
+                    timeout=7000,
+                )
+            except Exception as error:
+                check(False,
+                      f"{page_name}: explicit retry did not restore the contact channels ({type(error).__name__})")
+
+            check(config_requests == 2,
+                  f"{page_name}: recovery must issue exactly one additional config request")
+            check(status.is_hidden(),
+                  f"{page_name}: unavailable status must clear after a valid config response")
+
+            for selector, label in channel_contracts:
+                links = page.locator(selector)
+                for index in range(links.count()):
+                    link = links.nth(index)
+                    href = link.get_attribute("href") or ""
+                    valid = False
+                    if label == "whatsapp":
+                        parsed = urlsplit(href)
+                        valid = parsed.scheme == "https" and parsed.hostname == "wa.me" and bool(parsed.path)
+                    elif label == "phone":
+                        valid = href.startswith("tel:+")
+                    elif label == "email":
+                        valid = href.startswith("mailto:") and bool(href[7:])
+                    elif label == "booking":
+                        parsed = urlsplit(href)
+                        from urllib.parse import parse_qs
+                        valid = (parsed.scheme == "https" and parsed.hostname == "asiatech.in"
+                                 and parsed.path == expected_booking_path and bool(parse_qs(parsed.query).get("token")))
+                    elif label == "map":
+                        parsed = urlsplit(href)
+                        valid = parsed.scheme == "https" and parsed.hostname == "maps.app.goo.gl" and bool(parsed.path)
+                    check(valid and link.get_attribute("aria-disabled") is None,
+                          f"{page_name}: recovered {label} action {index + 1} must use its validated destination")
+                    if label in {"whatsapp", "booking", "map"}:
+                        rel = set((link.get_attribute("rel") or "").lower().split())
+                        check(link.get_attribute("target") == "_blank"
+                              and {"noopener", "noreferrer"}.issubset(rel),
+                              f"{page_name}: recovered {label} link must retain safe new-tab isolation")
+
+            arrival_form = page.locator("[data-arrival-planning-form]")
+            if arrival_form.count():
+                check(arrival_form.is_visible()
+                      and page.locator("[data-arrival-enquiry-fallback]").is_hidden(),
+                      f"{page_name}: arrival form must replace its static fallback after recovery")
+            map_preview = page.locator("[data-map-preview]")
+            if map_preview.count():
+                frame = map_preview.locator("iframe")
+                expected_embed = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+                check(map_preview.is_visible()
+                      and map_preview.get_attribute("data-map-config-state") == "ready"
+                      and frame.get_attribute("data-map-src") == expected_embed
+                      and frame.get_attribute("src") is None,
+                      f"{page_name}: map config must recover but remain dormant until visitor activation")
+
+            check(main_document_navigations == 1,
+                  f"{page_name}: contact retry must not reload or navigate the guest away from the current route")
+            recovered_routes += 1
+        except Exception as error:
+            check(False,
+                  f"{page_name}: route-wide contact recovery raised {type(error).__name__}: {error}")
+        finally:
+            context.close()
+
+    check(recovered_routes == len(PAGES),
+          f"Contact recovery must pass on all {len(PAGES)} public routes ({recovered_routes} recovered)")
 
 
 def check_contact_hydration(page, base_url: str) -> None:
@@ -7035,6 +7207,7 @@ def main(argv: list[str] | None = None) -> int:
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
             check_contact_configuration_failure_recovery(browser, base_url)
+            check_contact_configuration_recovery_all_routes(browser, base_url)
             check_stay_planner(page, base_url)
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)

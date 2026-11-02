@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..');
 const smoke = fs.readFileSync(path.join(root, 'scripts', 'test-browser-smoke.py'), 'utf8');
 const quality = fs.readFileSync(path.join(root, 'scripts', 'check-pr-quality.sh'), 'utf8');
 const runtime = fs.readFileSync(path.join(root, 'assets', 'site.js'), 'utf8');
+const enquiryTest = fs.readFileSync(path.join(root, 'scripts', 'test-enquiry-flow.js'), 'utf8');
 const arrival = fs.readFileSync(path.join(root, 'assets', 'js', 'arrival-enhancements.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'assets', 'site.css'), 'utf8');
 
@@ -42,3 +43,26 @@ assert.match(arrival, /if \(!hotelMapEmbedUrl\) \{[\s\S]*?iframe\.removeAttribut
   'The map iframe must remain dormant and unconfigured on invalid/missing destinations.');
 
 console.log('PASS: central contact-config failure/retry acceptance is wired into real Chromium and the required quality gate.');
+
+assert.match(smoke, /def check_contact_configuration_recovery_all_routes\(browser, base_url: str\) -> None:/,
+  'Contact outage and recovery must run across the complete public route set.');
+assert.match(smoke, /for page_name in PAGES:/,
+  'The route-wide recovery gate must derive scope from the shared public route contract.');
+assert.match(smoke, /check_contact_configuration_recovery_all_routes\(browser, base_url\)/,
+  'The route-wide recovery matrix must be part of the consolidated Chromium run.');
+assert.match(smoke, /if config_requests <= 2:/,
+  'The Directions recovery scenario must include a second consecutive temporary failure.');
+assert.match(smoke, /check\(config_requests == 3,/,
+  'Two explicit retries must be verified before recovery is accepted.');
+assert.match(enquiryTest, /const channelIsolationCases = \[/,
+  'Runtime contracts must exercise isolated malformed-channel cases.');
+assert.match(enquiryTest, /opens WhatsApp to ask about availability/i,
+  'Successful recovery must assert the current WhatsApp enquiry copy, not the outage fallback.');
+assert.match(enquiryTest, /this is an enquiry, not a reservation/i,
+  'Successful recovery must retain the non-reservation boundary.');
+assert.match(enquiryTest, /no payment is taken here/i,
+  'Successful recovery must retain the no-payment boundary.');
+assert.match(enquiryTest, /fetchFailure\.fetchCalls\(\), 3/,
+  'The unit contract must verify recovery after two failed config responses.');
+
+console.log('PASS: contact outage recovery covers every public route, channel isolation and repeated retry failure without weakening fail-closed controls.');

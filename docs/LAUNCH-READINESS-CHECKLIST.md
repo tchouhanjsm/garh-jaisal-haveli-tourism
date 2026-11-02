@@ -508,3 +508,25 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Disable it while retrying and hide it after a successful configuration response.
 - [x] Restore authorized actions in place while keeping the map iframe dormant until explicit visitor activation.
 - [ ] Owner must still verify live contact-channel/provider availability on approved staging.
+
+## 2 November 2026 — M40: route-wide contact recovery
+
+- [x] Exercise central contact-config outage and explicit recovery on all eight shared public routes.
+- [x] Check contact/booking/map actions fail closed during outage and recover to source-authorized destinations.
+- [x] Verify safe external-link isolation, no reload, no automatic map request and arrival-form fallback restoration.
+- [ ] Owner must verify real endpoint responsiveness on approved staging.
+
+## 2 November 2026 — M41: independent contact-channel validation
+
+- [x] Validate malformed WhatsApp, telephone, alternate telephone, phone display, email, booking and property-map values independently.
+- [x] Confirm an invalid channel cannot disable unrelated authorized actions or replace their destinations.
+- [x] Keep the shared contact status visible while any rendered channel is unavailable.
+- [ ] Source authorization does not replace owner verification that the contact values are current.
+
+## 2 November 2026 — M42: repeated retry failure and recovery
+
+- [x] Simulate two consecutive HTTP 503 config responses and verify retry remains actionable after each failure.
+- [x] Keep every affected action disabled until a later valid response is received.
+- [x] Recover the same page without reload; preserve the enquiry-only/no-payment copy and dormant map.
+- [ ] Live channel responsiveness, provider availability and staging UAT remain pending.
+

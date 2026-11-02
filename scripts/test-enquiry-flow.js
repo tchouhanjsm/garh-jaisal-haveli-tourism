@@ -390,6 +390,48 @@ async function main() {
   invalidPort.form.dispatch('submit');
   assert.equal(invalidPort.window.location.href, 'https://example.test/rooms.html');
 
+  const authorizedChannelValues = {
+    verified: true,
+    whatsapp: 'https://wa.me/15551234567',
+    phone: '+15551234567',
+    display: '+1 555 123 4567',
+    alternatePhone: '+15551234568',
+    alternateDisplay: '+1 555 123 4568',
+    email: 'hotel@example.com',
+    bookingUrl: 'https://asiatech.in/booking_engine/index3?token=test-token'
+  };
+  const channelIsolationCases = [
+    { name: 'WhatsApp', override: { whatsapp: 'https://evil.example/15551234567' }, disabled: 'enquiryLink' },
+    { name: 'primary phone', override: { phone: 'not-a-phone' }, disabled: 'phoneLink' },
+    { name: 'primary phone display', override: { display: '<script>alert(1)</script>' }, disabled: 'phoneLink' },
+    { name: 'alternate phone', override: { alternatePhone: '+0123' }, disabled: 'alternatePhoneLink' },
+    { name: 'email', override: { email: 'not-an-email' }, disabled: 'emailLink' },
+    { name: 'booking', override: { bookingUrl: 'http://asiatech.in/booking_engine/index3?token=test-token' }, disabled: 'bookingLink' },
+    { name: 'hotel map', override: { mapUrl: 'https://maps.app.goo.gl.evil.example/fakePin123' }, disabled: 'mapLink' }
+  ];
+  for (const testCase of channelIsolationCases) {
+    const isolated = await boot(makeConfig({ ...authorizedChannelValues, ...testCase.override }));
+    const links = {
+      enquiryLink: isolated.enquiryLink,
+      phoneLink: isolated.phoneLink,
+      alternatePhoneLink: isolated.alternatePhoneLink,
+      emailLink: isolated.emailLink,
+      bookingLink: isolated.bookingLink,
+      mapLink: isolated.mapLink
+    };
+    for (const [name, link] of Object.entries(links)) {
+      const disabled = link.getAttribute('aria-disabled') === 'true';
+      assert.equal(disabled, name === testCase.disabled,
+        testCase.name + ' validation must disable only its own action; unrelated authorized channels stay usable');
+      if (name !== testCase.disabled) {
+        assert.notEqual(link.getAttribute('href'), '#contact-status',
+          testCase.name + ' failure must not replace an unrelated authorized destination');
+      }
+    }
+    assert.equal(isolated.status.hidden, false,
+      testCase.name + ' failure must remain visible in the shared accessible contact status');
+  }
+
   const fetchFailure = await boot(makeConfig({
     verified: true,
     whatsapp: 'https://wa.me/15551234567',
@@ -399,7 +441,7 @@ async function main() {
     alternateDisplay: '+1 555 123 4568',
     email: 'hotel@example.com',
     bookingUrl: 'https://asiatech.in/booking_engine/index3?token=test-token'
-  }), 1);
+  }), 2);
   assert.equal(fetchFailure.enquiryLink.getAttribute('aria-disabled'), 'true');
   assert.equal(fetchFailure.submit.disabled, true);
   assert.equal(fetchFailure.status.hidden, false);
@@ -411,7 +453,15 @@ async function main() {
   assert.equal(fetchFailure.retryButton.disabled, false);
   assert.equal(fetchFailure.fetchCalls(), 1);
   await fetchFailure.retryButton.dispatchAsync('click');
-  assert.equal(fetchFailure.fetchCalls(), 2, 'explicit retry must re-run the central config loader once');
+  assert.equal(fetchFailure.fetchCalls(), 2, 'the first explicit retry must make exactly one additional config request');
+  assert.equal(fetchFailure.retryButton.hidden, false, 'a second temporary outage must leave retry available');
+  assert.equal(fetchFailure.retryButton.disabled, false, 'retry must re-enable after the second outage');
+  assert.equal(fetchFailure.retryButton.textContent, 'Try again', 'repeat failure must announce the recovery action');
+  assert.equal(fetchFailure.status.hidden, false, 'the outage banner must remain visible until a successful response');
+  assert.equal(fetchFailure.enquiryLink.getAttribute('aria-disabled'), 'true', 'WhatsApp must remain fail-closed after a repeated outage');
+  assert.equal(fetchFailure.submit.disabled, true, 'booking enquiry must remain disabled after a repeated outage');
+  assert.match(fetchFailure.note.textContent, /travel details have not been sent/i);
+  await fetchFailure.retryButton.dispatchAsync('click');
   assert.equal(fetchFailure.retryButton.hidden, true,
     'retry action must hide after the authorized configuration is restored');
   assert.equal(fetchFailure.retryButton.disabled, false);
