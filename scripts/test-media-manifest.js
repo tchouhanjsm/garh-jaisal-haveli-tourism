@@ -112,4 +112,123 @@ for (const entry of manifest.entries) {
   else assert.fail('Media target is outside the curated image taxonomy: ' + entry.targetPath);
 }
 
+
+const { auditAuthoritativeGallerySource } = require('./audit-authoritative-gallery-source');
+
+function makeGalleryFixture(root, schemaFields, record) {
+  fs.mkdirSync(path.join(root, 'admin'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'content', 'gallery'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'img', 'gallery'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'admin', 'config.yml'),
+    'collections:\n  - name: gallery\n    fields:\n' +
+      schemaFields.map(field => '      - name: ' + field + '\n').join(''),
+    'utf8'
+  );
+  fs.writeFileSync(path.join(root, 'img', 'gallery', 'fixture.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  fs.writeFileSync(path.join(root, 'content', 'gallery', record.id + '.json'), JSON.stringify(record, null, 2));
+}
+
+const sourceAuditDirectory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'garh-source-gallery-audit-'));
+try {
+  const pinnedRoot = path.join(sourceAuditDirectory, 'pinned');
+  const currentRoot = path.join(sourceAuditDirectory, 'current');
+  const manifestPath = path.join(sourceAuditDirectory, 'manifest.json');
+  fs.mkdirSync(pinnedRoot, { recursive: true });
+  const pinnedCommit = 'a'.repeat(40);
+  const currentCommit = 'b'.repeat(40);
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    schemaVersion: 1,
+    sourceRepository: 'https://github.com/tchouhanjsm/garh-jaisal-website',
+    sourceBranch: 'main',
+    sourceCommit: pinnedCommit,
+    entries: [],
+  }));
+
+  const unreviewedRecord = {
+    id: 'hotel-01-facade',
+    category: 'hotel',
+    status: 'live',
+    order: 1,
+    image: {
+      src: 'img/gallery/fixture.jpg',
+      alt: 'Carved sandstone facade inside the historic Jaisalmer Fort',
+      crop: 'landscape',
+    },
+  };
+  makeGalleryFixture(currentRoot, ['id', 'category', 'status', 'order', 'review_status', 'src', 'alt', 'crop'], unreviewedRecord);
+  const unreviewed = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unreviewed.status, 'REVIEW_REQUIRED');
+  assert.equal(unreviewed.sourcePinDrift, true);
+  assert.equal(unreviewed.sourceDiff.addedCount, 1);
+  assert.equal(unreviewed.summary.liveRecords, 1);
+  assert.equal(unreviewed.summary.missingReviewStatusCount, 1);
+  assert.equal(unreviewed.summary.missingRightsEvidenceCount, 1);
+  assert.equal(unreviewed.summary.approvalEligibleCount, 0);
+  assert.equal(unreviewed.controls.automaticImportPerformed, false);
+  assert.equal(unreviewed.controls.approvalAuthorized, false);
+
+  const completeSchema = [
+    'id', 'category', 'status', 'order', 'review_status', 'src', 'alt', 'crop',
+    'sourceEvidence', 'creator', 'sourceUrl', 'licenseName', 'evidenceReference',
+    'verifiedBy', 'verifiedAt', 'visualReview', 'reviewer', 'reviewedAt', 'technicalValidation',
+  ];
+  const reviewedRecord = {
+    ...unreviewedRecord,
+    review_status: 'approved',
+    sourceEvidence: {
+      status: 'owner-confirmed',
+      creator: 'Garh Jaisal Haveli owner',
+      evidenceReference: 'owner-rights-record-2026-11-02',
+      verifiedBy: 'Hotel owner',
+      verifiedAt: '2026-11-02',
+    },
+    visualReview: {
+      status: 'matched',
+      evidence: 'Reviewed against the original source image and intended gallery subject',
+      reviewer: 'Editorial reviewer',
+      reviewedAt: '2026-11-02',
+    },
+    technicalValidation: {
+      status: 'verified',
+      evidenceReference: 'image-integrity-report-2026-11-02',
+    },
+  };
+  makeGalleryFixture(currentRoot, completeSchema, reviewedRecord);
+  const complete = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(complete.status, 'EVIDENCE_COMPLETE_AWAITING_HUMAN_REVIEW');
+  assert.equal(complete.summary.approvalEligibleCount, 1);
+  assert.equal(complete.controls.approvalAuthorized, false);
+  assert.equal(complete.controls.automaticImportPerformed, false);
+
+  const unsafeRecord = {
+    ...unreviewedRecord,
+    image: { ...unreviewedRecord.image, src: 'img/../../outside.jpg' },
+  };
+  makeGalleryFixture(currentRoot, ['id', 'category', 'status', 'order', 'review_status'], unsafeRecord);
+  const unsafe = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unsafe.status, 'INVALID');
+  assert.equal(unsafe.summary.recordCount, 0);
+} finally {
+  fs.rmSync(sourceAuditDirectory, { recursive: true, force: true });
+}
+
 console.log('PASS: curated media manifest, exact Git blob SHA/bytes, dimensions, role-based image budgets, picture/JPEG references, and page-specific image/alt contracts.');
