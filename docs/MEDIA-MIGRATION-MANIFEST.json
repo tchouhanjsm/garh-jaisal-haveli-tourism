@@ -349,5 +349,6 @@
       "approvalStatus": "migrated-source-backed-asset",
       "publicationCaveat": "This photo does not promise a particular tent assignment, current availability, facilities, package inclusions or price; confirm for the requested dates."
     }
-  ]
+  ],
+  "sourceCommit": "7f803e8c27082ddbd155db1d5c2aa81126792330"
 }

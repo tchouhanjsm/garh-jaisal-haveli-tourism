@@ -42,30 +42,49 @@ function readMigrationManifest(root) {
   if (!stat.isFile() || stat.isSymbolicLink()) {
     throw new Error('Media migration manifest must be a regular file.');
   }
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const manifestBytes = fs.readFileSync(manifestPath);
+  const manifest = JSON.parse(manifestBytes.toString('utf8'));
   if (!Array.isArray(manifest.entries)) {
     throw new Error('Media migration manifest entries are missing.');
   }
 
+  if (manifest.sourceRepository !== 'https://github.com/tchouhanjsm/garh-jaisal-website' ||
+      manifest.sourceBranch !== 'main' || !/^[0-9a-f]{40}$/i.test(manifest.sourceCommit || '')) {
+    throw new Error('Media migration manifest must pin the authoritative source repository, main branch and exact commit.');
+  }
+
   const entriesByTargetPath = new Map();
+  const sourcePaths = new Set();
   for (const entry of manifest.entries) {
     if (!entry || typeof entry.targetPath !== 'string' || !safeImagePath(root, entry.targetPath)) {
       throw new Error('Migration manifest contains an unsafe or missing target path.');
     }
-    if (entriesByTargetPath.has(entry.targetPath)) {
-      throw new Error('Migration manifest contains a duplicate target path: ' + entry.targetPath);
+    if (entriesByTargetPath.has(entry.targetPath) || sourcePaths.has(entry.sourcePath)) {
+      throw new Error('Migration manifest contains a duplicate source or target path: ' + entry.targetPath);
+    }
+    if (typeof entry.sourcePath !== 'string' || entry.sourcePath.includes('\\') ||
+        path.isAbsolute(entry.sourcePath) ||
+        entry.sourcePath.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+      throw new Error('Migration manifest contains an unsafe source path: ' + entry.targetPath);
     }
     if (!/^[0-9a-f]{40}$/i.test(entry.sourceBlobSha || '') ||
         !/^[0-9a-f]{40}$/i.test(entry.targetBlobSha || '')) {
       throw new Error('Migration manifest contains an invalid source/target Git blob SHA: ' + entry.targetPath);
     }
+    if (entry.sourceBlobSha.toLowerCase() !== entry.targetBlobSha.toLowerCase()) {
+      throw new Error('Migration manifest source and target Git blob identities differ: ' + entry.targetPath);
+    }
+    sourcePaths.add(entry.sourcePath);
     entriesByTargetPath.set(entry.targetPath, entry);
   }
 
   return {
-    sourceRepository: typeof manifest.sourceRepository === 'string' ? manifest.sourceRepository : null,
-    sourceBranch: typeof manifest.sourceBranch === 'string' ? manifest.sourceBranch : null,
+    sourceRepository: manifest.sourceRepository,
+    sourceBranch: manifest.sourceBranch,
+    sourceCommit: manifest.sourceCommit.toLowerCase(),
     updatedAt: typeof manifest.updatedAt === 'string' ? manifest.updatedAt : null,
+    sha256: crypto.createHash('sha256').update(manifestBytes).digest('hex'),
+    entryCount: entriesByTargetPath.size,
     entriesByTargetPath,
   };
 }
@@ -317,6 +336,7 @@ function buildDecisionWorksheet(manifest, manifestText) {
         articleSlug: placement.articleSlug,
         articleTitle: placement.articleTitle,
         articleStatus: placement.articleStatus,
+        articleRecordSha256: manifest.articles.find(article => article.slug === placement.articleSlug).recordSha256,
         role: placement.role,
         requiredSubject: placement.requirement,
         candidatePath: asset.path,
@@ -352,12 +372,15 @@ function buildDecisionWorksheet(manifest, manifestText) {
         articleSlug: article.slug,
         articleTitle: article.title,
         articleStatus: article.status,
+        articleRecordSha256: article.recordSha256,
         role,
         requiredSubject: requirement && requirement.subject ? requirement.subject : null,
         candidatePath: null,
         candidateSha256: null,
         candidateGitBlobSha: null,
         proposedCandidatePath: null,
+        proposedCandidateSha256: null,
+        proposedCandidateGitBlobSha: null,
         migrationStatus: 'not-applicable-no-candidate',
         ownerDecision: 'pending',
         visualReview: { status: 'not_assessed', evidence: null, reviewer: null, reviewedAt: null },
@@ -510,17 +533,26 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
     });
   }
 
-  const articles = [...audit.articles].sort((left, right) => left.slug.localeCompare(right.slug)).map((article) => ({
-    slug: article.slug,
-    title: article.title,
-    status: article.status,
-    mediaStatus: article.mediaStatus,
-    requirements: article.requirements || null,
-    candidatePaths: (article.candidates || []).map((candidate) => ({ path: candidate.path, role: candidate.role })),
-    missingRoles: article.missingRoles || [],
-    blockers: article.blockers || [],
-    approvedAssetCount: (article.approvedAssets || []).length,
-  }));
+  const articles = [...audit.articles].sort((left, right) => left.slug.localeCompare(right.slug)).map((article) => {
+    const recordPath = path.join(resolvedRoot, 'content/blogs', article.slug + '.json');
+    const recordStat = fs.lstatSync(recordPath);
+    if (!recordStat.isFile() || recordStat.isSymbolicLink()) {
+      throw new Error('Review article record must be a regular file: ' + article.slug);
+    }
+    const recordBytes = fs.readFileSync(recordPath);
+    return {
+      slug: article.slug,
+      title: article.title,
+      status: article.status,
+      recordSha256: crypto.createHash('sha256').update(recordBytes).digest('hex'),
+      mediaStatus: article.mediaStatus,
+      requirements: article.requirements || null,
+      candidatePaths: (article.candidates || []).map((candidate) => ({ path: candidate.path, role: candidate.role })),
+      missingRoles: article.missingRoles || [],
+      blockers: article.blockers || [],
+      approvedAssetCount: (article.approvedAssets || []).length,
+    };
+  });
 
   const candidatePlacementCount = assets.reduce((total, asset) => total + asset.placements.length, 0);
   const approvedPlacementCount = assets.reduce((total, asset) =>
@@ -533,6 +565,11 @@ function buildEditorialMediaReview(root, outputDirectory, report) {
     publicationEligible: false,
     approvalStatus: 'not-approved',
     source: 'existing draft candidate declarations plus read-only editorial media audit',
+    migrationManifestSha256: migration.sha256,
+    sourceRepository: migration.sourceRepository,
+    sourceBranch: migration.sourceBranch,
+    sourceCommit: migration.sourceCommit,
+    migrationEntryCount: migration.entryCount,
     summary: {
       articleCount: audit.summary.articleCount,
       blockedArticleCount: audit.summary.blockedArticleCount,

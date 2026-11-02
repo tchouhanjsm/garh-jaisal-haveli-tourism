@@ -4102,7 +4102,7 @@ def check_first_view_hierarchy(page, page_name: str, viewport_width: int) -> Non
 def check_collection_editorial_composition(page, page_name: str, viewport_width: int) -> None:
     """Keep seven-item room and photo collections editorially balanced at every audit width."""
     if page_name == "rooms.html":
-        state = page.evaluate("""() => {
+        state = page.evaluate(r"""() => {
           const grid = document.querySelector('.room-card-grid--catalog');
           const cards = grid ? [...grid.querySelectorAll('.room-card--named')] : [];
           const feature = grid && grid.querySelector('[data-room-card-composition="feature"]');
@@ -4137,7 +4137,7 @@ def check_collection_editorial_composition(page, page_name: str, viewport_width:
                   f"rooms.html at {viewport_width}px: feature image must stack above room copy on mobile ({state})")
 
     elif page_name == "gallery.html":
-        state = page.evaluate("""() => {
+        state = page.evaluate(r"""() => {
           const photoGrid = document.querySelector('.gallery-grid:not(.gallery-grid--source)');
           const photoCards = photoGrid ? [...photoGrid.querySelectorAll('.gallery-card')] : [];
           const photoFeature = photoGrid && photoGrid.querySelector('[data-gallery-composition="feature"]');
@@ -5280,10 +5280,12 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         "draft record loading and count",
         "search no-match state and clear recovery",
         "topic and text filters intersect",
-        "keyboard open and keyboard back with focus restoration",
+        "native article links and bookmarkable URL state",
+        "direct article entry and refresh",
+        "browser Back/Forward and focus restoration",
         "table-of-contents target and navigation",
         "safe source-link attributes",
-        "related draft navigation without route change",
+        "related draft navigation with browser history",
         "hero-caption and caption-review readiness",
         "read-only candidate media evidence workbench",
         "source manifest and role filters",
@@ -5440,7 +5442,104 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(page.locator("[data-journal-card]:visible").count()==3,"Journal preview: Fort & heritage must show its three assigned drafts")
     search.fill("Jaisalmer Fort Guide")
     check(page.locator("[data-journal-card]:visible").count()==1,"Journal preview: text search must intersect with the selected topic")
+    filter_url = page.evaluate("() => ({q:new URL(location.href).searchParams.get('q'),topic:new URL(location.href).searchParams.get('topic')})")
+    check(filter_url == {"q":"Jaisalmer Fort Guide","topic":"fort-and-heritage"},
+          f"Journal preview: search and topic state must be reflected in the URL ({filter_url})")
+    page.reload(wait_until="domcontentloaded")
+    try:
+        page.wait_for_function(
+            """() => {
+                const search = document.querySelector('[data-journal-search]');
+                const topic = document.querySelector('[data-journal-topic]');
+                const cards = document.querySelectorAll('[data-journal-card]');
+                const error = document.querySelector('[data-journal-error]');
+                const results = document.querySelector('[data-journal-results]');
+                return search?.value === 'Jaisalmer Fort Guide'
+                    && topic?.value === 'fort-and-heritage'
+                    && cards.length === 1
+                    && results?.textContent.toLowerCase().includes('1 draft guide')
+                    && error?.hidden === true;
+            }""",
+            timeout=7000,
+        )
+    except Exception as error:
+        state = page.evaluate("""() => {
+            const error = document.querySelector('[data-journal-error]');
+            const cards = Array.from(document.querySelectorAll('[data-journal-card]'));
+            return {
+                url: location.href,
+                cards: cards.length,
+                visibleCards: cards.filter(node => !node.hidden).length,
+                search: document.querySelector('[data-journal-search]')?.value,
+                topic: document.querySelector('[data-journal-topic]')?.value,
+                archiveHidden: document.querySelector('.journal-archive')?.hidden,
+                articleHidden: document.querySelector('[data-journal-article]')?.hidden,
+                errorVisible: error ? !error.hidden : null,
+                error: error?.textContent,
+                results: document.querySelector('[data-journal-results]')?.textContent
+            };
+        }""")
+        check(False, f"Journal preview: filter refresh must restore the URL-selected result set; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
+    check(page.locator("[data-journal-search]").input_value()=="Jaisalmer Fort Guide"
+          and page.locator("[data-journal-topic]").input_value()=="fort-and-heritage",
+          "Journal preview: search and topic filters must survive refresh")
+    check(page.locator("[data-journal-card]:visible").count()==1,
+          "Journal preview: restored URL filters must return exactly one matching draft")
+    clear = page.locator("[data-journal-clear]")
     clear.click()
+    cleared_url = page.evaluate("() => new URL(location.href).searchParams")
+    check(cleared_url.get("q") is None and cleared_url.get("topic") is None,
+          "Journal preview: clearing filters must remove stale query state from the URL")
+    deep_url = base_url + "preview/journal.html?article=jaisalmer-fort-guide&q=Fort&topic=fort-and-heritage"
+    direct_response = page.goto(deep_url, wait_until="domcontentloaded", timeout=15000)
+    check(direct_response is not None and direct_response.status == 200,
+          "Journal preview: direct article preview URL must return HTTP 200")
+    try:
+        page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=7000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: direct article entry failed; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
+    check(page.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
+          "Journal preview: article query parameter must resolve the matching draft")
+    check(page.locator("h1:visible").count()==1,
+          "Journal preview: article mode must expose exactly one visible H1")
+    check(page.locator("[data-journal-search]").input_value()=="Fort"
+          and page.locator("[data-journal-topic]").input_value()=="fort-and-heritage",
+          "Journal preview: direct article URL must restore its search and topic context")
+    check("Jaisalmer Fort Guide: Plan a Better Visit" in page.title(),
+          "Journal preview: article mode must expose a record-specific document title")
+    check(not page.locator('meta[name="description"]').get_attribute("content").startswith("Local editorial design preview"),
+          "Journal preview: article mode must expose record-specific description metadata")
+    page.reload(wait_until="domcontentloaded")
+    try:
+        page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=7000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: direct article refresh failed; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
+    check(page.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
+          "Journal preview: direct article selection must survive refresh")
+    page.locator("[data-journal-back]").first.click()
+    try:
+        page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && panel.hidden); }", timeout=5000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden})")
+        check(False, f"Journal preview: direct-entry Back did not restore archive; DOM={state}; {type(error).__name__}: {error}")
+        return
+    direct_back_url = page.evaluate("() => ({article:new URL(location.href).searchParams.get('article'),q:new URL(location.href).searchParams.get('q'),topic:new URL(location.href).searchParams.get('topic')})")
+    check(direct_back_url == {"article":None,"q":"Fort","topic":"fort-and-heritage"},
+          f"Journal preview: direct-entry Back must clear article state but preserve archive filters ({direct_back_url})")
+    check(page.evaluate("() => document.activeElement && document.activeElement.dataset.journalOpen === 'jaisalmer-fort-guide'"),
+          "Journal preview: direct-entry Back must restore focus to the originating draft link")
+    page.goto(base_url + "preview/journal.html", wait_until="domcontentloaded", timeout=15000)
+    try:
+        page.wait_for_function("document.querySelectorAll('[data-journal-card]').length === 12", timeout=7000)
+    except Exception as error:
+        state = page.evaluate("() => ({url:location.href, cards:document.querySelectorAll('[data-journal-card]').length, archiveHidden:document.querySelector('.journal-archive')?.hidden, articleHidden:document.querySelector('[data-journal-article]')?.hidden, error:document.querySelector('[data-journal-error]')?.textContent})")
+        check(False, f"Journal preview: return-to-archive route failed to render all 12 drafts; DOM={state}; runtimeErrors={RUNTIME_ERRORS[-8:]}; {type(error).__name__}: {error}")
+        return
     check(page.locator("[data-journal-card]:visible").count()==12,"Journal preview: clear filters must restore all drafts")
 
     article_trigger=page.locator('[data-journal-open="jaisalmer-fort-guide"]').first
@@ -5456,6 +5555,8 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     check(article.is_visible(),"Journal preview: keyboard activation must open an article")
     check(article.locator("#journal-article-title").inner_text()=="Jaisalmer Fort Guide: Plan a Better Visit",
           "Journal preview: heading must come from the article record")
+    check(page.locator("h1:visible").count()==1,
+          "Journal preview: only the active article H1 may remain visible")
     check("draft — not published" in article.locator("[data-review-record-status]").inner_text().lower(),
           "Journal preview: article must expose draft-only status")
     check("not approved" in article.locator("[data-review-owner-facts]").inner_text().lower(),
@@ -5480,22 +5581,39 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
         target=toc.first.get_attribute("href") or ""
         check(bool(target) and article.locator(target).count()==1,"Journal preview: contents must target a real section")
         if target:
+            history_length_before_toc = page.evaluate("() => history.length")
             toc.first.click()
             try:
                 page.wait_for_function("(hash) => window.location.hash === hash", arg=target, timeout=5000)
             except Exception as error:
                 check(False,f"Journal preview: contents navigation must reach the selected section ({error})")
             check(article.locator(target).is_visible(),"Journal preview: selected contents target must remain visible")
+            check(page.evaluate("() => history.length") == history_length_before_toc,
+                  "Journal preview: TOC navigation must not add an extra browser-history step")
 
-    related=article.locator("[data-journal-related] button").first
+    related=article.locator("[data-journal-related] a").first
     check(related.count()>0,"Journal preview: related drafts must be discoverable")
     if related.count():
+        # Capture attributes before navigation: the click replaces the related-link DOM.
+        related_slug = related.get_attribute("data-journal-related")
         related_title=related.inner_text()
         related.click()
         check(article.locator("#journal-article-title").inner_text()==related_title,
               "Journal preview: related-draft navigation must open the selected record")
-        check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
-              "Journal preview: related navigation must not create a public article route")
+        check(page.evaluate("() => new URL(location.href).searchParams.get('article')") == related_slug,
+              "Journal preview: related navigation must update the bookmarkable article query parameter")
+        page.go_back()
+        try:
+            page.wait_for_function("(title) => document.querySelector('#journal-article-title')?.textContent === title",
+                                   arg="Jaisalmer Fort Guide: Plan a Better Visit", timeout=5000)
+        except Exception as error:
+            check(False, f"Journal preview: browser Back must restore the previous article ({error})")
+        page.go_forward()
+        try:
+            page.wait_for_function("(title) => document.querySelector('#journal-article-title')?.textContent === title",
+                                   arg=related_title, timeout=5000)
+        except Exception as error:
+            check(False, f"Journal preview: browser Forward must restore the related article ({error})")
 
     for width,height in [(320,740),(360,780),(390,844),(768,900),(1280,900),(1440,900)]:
         page.set_viewport_size({"width":width,"height":height})
@@ -5509,31 +5627,25 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
     back=article.locator("[data-journal-back]").first
     back.focus()
     page.keyboard.press("Enter")
-    check(article.is_hidden(),"Journal preview: keyboard Back must return to the archive")
-    check(page.locator(".journal-archive").is_visible(),"Journal preview: archive must be visible after Back")
-    check(page.evaluate("() => document.activeElement && document.activeElement.id === 'journal-query'"),
-          "Journal preview: Back must restore focus to the search field")
-    check(page.evaluate("() => window.location.pathname.endsWith('/preview/journal.html')"),
-          "Journal preview: interactions must remain on the local preview route")
-
-    # Verify Space activation on a separate draft card as well as Enter activation above.
-    space_trigger=page.locator('[data-journal-open="staying-inside-jaisalmer-fort"]').first
-    space_trigger.focus()
-    page.keyboard.press("Space")
     try:
-        page.wait_for_function("() => { const panel = document.querySelector('[data-journal-article]'); return Boolean(panel && !panel.hidden); }", timeout=5000)
+        page.wait_for_function("() => document.querySelector('#journal-article-title')?.textContent === 'Jaisalmer Fort Guide: Plan a Better Visit'",
+                               timeout=5000)
     except Exception as error:
-        check(False,f"Journal preview: Space activation must reveal the article panel ({error})")
-    check(article.is_visible(),"Journal preview: Space activation must open an article")
-    check(article.locator("#journal-article-title").inner_text()=="Staying Inside Jaisalmer Fort: What to Know",
-          "Journal preview: Space activation must open the focused draft card")
-    space_back=article.locator("[data-journal-back]").first
-    space_back.focus()
-    page.keyboard.press("Enter")
-    check(article.is_hidden(),"Journal preview: keyboard Back must close the Space-opened article")
+        check(False, f"Journal preview: Back from a related article must restore the previous article ({error})")
+    page.locator("[data-journal-back]").first.click()
+    try:
+        page.wait_for_function("() => { const panel=document.querySelector('[data-journal-article]'); return Boolean(panel && panel.hidden); }",
+                               timeout=5000)
+    except Exception as error:
+        check(False, f"Journal preview: Back must return to the archive ({error})")
+    check(page.locator(".journal-archive").is_visible(),"Journal preview: archive must be visible after Back")
+    check(page.evaluate("() => document.activeElement && document.activeElement.dataset.journalOpen === 'jaisalmer-fort-guide'"),
+          "Journal preview: browser Back must restore focus to the originating archive link")
+    check(page.evaluate("() => new URL(location.href).searchParams.get('article') === null"),
+          "Journal preview: archive history must not retain an article parameter")
 
     evidence={
-        "schemaVersion":2,"scope":"local-only-editorial-preview","route":"preview/journal.html",
+        "schemaVersion":3,"scope":"local-only-editorial-preview","route":"preview/journal.html",
         "indexability":"noindex,nofollow","articleRecordsLoaded":page.locator("[data-journal-card]").count(),
         "publicArticleRoutesGenerated":0,"publicSitemapChanged":False,"canonicalHostApproved":False,
         "archiveViewportWidthsCssPixels":archive_widths,"articleViewportWidthsCssPixels":article_widths,"mediaWorkbenchViewportWidthsCssPixels":media_workbench_widths,

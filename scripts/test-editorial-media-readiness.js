@@ -9,6 +9,8 @@ const path = require('node:path');
 const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validateForRole, roleEligibilitySummary, verifyImageDecode } = require('./audit-editorial-media-readiness');
 const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
 const { buildEditorialMediaReview } = require('./build-editorial-media-review');
+const { validateEditorialMediaDecisions } = require('./validate-editorial-media-decisions');
+const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
@@ -73,6 +75,16 @@ try {
   assert.equal(reviewManifest.summary.sourceMappedCandidateCount, 2);
   assert.equal(reviewManifest.summary.unmappedCandidateCount, 3);
   assert.equal(reviewManifest.summary.verifiedTargetBlobCount, 2);
+  assert.equal(reviewManifest.sourceRepository, 'https://github.com/tchouhanjsm/garh-jaisal-website');
+  assert.equal(reviewManifest.sourceBranch, 'main');
+  assert.match(reviewManifest.sourceCommit, /^[0-9a-f]{40}$/);
+  const migrationManifestBytes = fs.readFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'));
+  const migrationManifest = JSON.parse(migrationManifestBytes.toString('utf8'));
+  assert.equal(reviewManifest.sourceCommit, migrationManifest.sourceCommit);
+  assert.equal(reviewManifest.migrationManifestSha256,
+    crypto.createHash('sha256').update(migrationManifestBytes).digest('hex'),
+    'review manifest must pin exact migration-manifest bytes');
+  assert.equal(reviewManifest.migrationEntryCount, migrationManifest.entries.length);
   assert.equal(reviewManifest.assets.length, 5);
   assert.equal(fs.readdirSync(path.join(reviewOutput, 'images')).length, 5);
 
@@ -137,8 +149,165 @@ try {
   for (const row of missingRoleRows) {
     assert.equal(row.candidatePath, null);
     assert.equal(row.proposedCandidatePath, null, 'missing media must not receive an invented candidate path');
+    assert.equal(row.proposedCandidateSha256, null, 'missing media must not receive an invented candidate hash');
+    assert.equal(row.proposedCandidateGitBlobSha, null, 'missing media must not receive an invented candidate Git blob');
     assert.ok(row.requiredSubject, 'missing-role request must preserve the draft-stated subject requirement');
+    assert.match(row.articleRecordSha256, /^[0-9a-f]{64}$/, 'each missing-role request must pin its exact article record');
   }
+
+  assert.ok(reviewManifest.articles.every(article => /^[0-9a-f]{64}$/.test(article.recordSha256)),
+    'review manifest must pin exact draft article bytes');
+  const sourceRoot = path.join(reviewTemp, 'authoritative-source');
+  for (const entry of migrationManifest.entries) {
+    const sourceFile = path.join(sourceRoot, ...entry.sourcePath.split('/'));
+    const targetFile = path.join(ROOT, ...entry.targetPath.split('/'));
+    fs.mkdirSync(path.dirname(sourceFile), { recursive: true });
+    fs.copyFileSync(targetFile, sourceFile);
+  }
+  const sourceOptions = { sourceRoot, sourceCommit: migrationManifest.sourceCommit };
+  const decisionValidation = validateEditorialMediaDecisions(ROOT, reviewOutput, sourceOptions);
+  assert.equal(decisionValidation.sourceVerification.state, 'VERIFIED',
+    'all pinned source migration entries must match the checked-out authoritative source bytes');
+  assert.equal(decisionValidation.sourceVerification.entryCount, migrationManifest.entries.length);
+  assert.equal(decisionValidation.sourceVerification.verifiedEntryCount, migrationManifest.entries.length);
+  assert.equal(decisionValidation.state, 'PENDING_OWNER_REVIEW',
+    'a complete blank worksheet must validate structurally without implying approval');
+  assert.deepEqual(decisionValidation.errors, [], 'blank owner worksheet must have no structural errors');
+  assert.equal(decisionValidation.summary.pendingCount, 24);
+  assert.equal(decisionValidation.summary.requestedApprovals, 0);
+  assert.equal(decisionValidation.policy.publicationEligible, false);
+  assert.equal(decisionValidation.policy.contentRecordsChanged, false);
+  assert.equal(decisionValidation.policy.approvedMediaChanged, false);
+
+  const returnedWorksheetPath = path.join(reviewTemp, 'returned-review-decisions.json');
+  const returnedWorksheet = JSON.parse(JSON.stringify(decisionWorksheet));
+  returnedWorksheet.decisions[0].notes = 'Returned worksheet fixture; no approval is asserted.';
+  const returnedWorksheetBytes = Buffer.from(JSON.stringify(returnedWorksheet, null, 2) + '\n');
+  fs.writeFileSync(returnedWorksheetPath, returnedWorksheetBytes);
+  const returnedValidation = validateEditorialMediaDecisions(ROOT, reviewOutput, {
+    ...sourceOptions,
+    decisionsPath: returnedWorksheetPath,
+  });
+  assert.equal(returnedValidation.state, 'PENDING_OWNER_REVIEW',
+    'a returned worksheet with pending decisions must remain pending');
+  assert.equal(returnedValidation.decisionWorksheet.source, 'returned-file',
+    'the validator must consume the explicitly returned worksheet instead of silently reading the generated template');
+  assert.equal(returnedValidation.decisionWorksheet.sha256,
+    crypto.createHash('sha256').update(returnedWorksheetBytes).digest('hex'),
+    'the report must bind the exact returned worksheet bytes');
+  assert.equal(returnedValidation.reviewerAuthorization.state, 'NOT_CONFIGURED',
+    'returned reviewer fields must not imply authenticated owner/editor authority');
+  assert.equal(returnedValidation.reviewerAuthorization.approvalAuthorized, false);
+  assert.equal(returnedValidation.policy.publicationEligible, false);
+  assert.deepEqual(returnedValidation.errors, []);
+
+  assert.throws(
+    () => validateEditorialMediaDecisions(ROOT, reviewOutput, {
+      ...sourceOptions,
+      decisionsPath: path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'),
+    }),
+    /outside the repository root/,
+    'returned decision input must not be read from inside the target repository'
+  );
+  const returnedWorksheetLink = path.join(reviewTemp, 'returned-review-decisions-link.json');
+  fs.symlinkSync(returnedWorksheetPath, returnedWorksheetLink);
+  assert.throws(
+    () => validateEditorialMediaDecisions(ROOT, reviewOutput, {
+      ...sourceOptions,
+      decisionsPath: returnedWorksheetLink,
+    }),
+    /must not traverse a symlink/,
+    'returned decision input must reject symlink paths'
+  );
+
+  const missingSourceValidation = validateEditorialMediaDecisions(ROOT, reviewOutput);
+  assert.equal(missingSourceValidation.state, 'INVALID',
+    'decision validation must fail closed when the authoritative source checkout is omitted');
+  assert.equal(missingSourceValidation.sourceVerification.state, 'NOT_RUN');
+  assert.ok(missingSourceValidation.errors.some(message => /authoritative source checkout is required/i.test(message)),
+    'missing authoritative source evidence must be a hard validation error, not a warning');
+
+  const tamperedSourceRoot = path.join(reviewTemp, 'tampered-source');
+  fs.cpSync(sourceRoot, tamperedSourceRoot, { recursive: true });
+  const sourceEntry = migrationManifest.entries[0];
+  fs.appendFileSync(path.join(tamperedSourceRoot, ...sourceEntry.sourcePath.split('/')), 'tampered');
+  const tamperedSourceValidation = validateEditorialMediaDecisions(ROOT, reviewOutput, {
+    sourceRoot: tamperedSourceRoot, sourceCommit: migrationManifest.sourceCommit,
+  });
+  assert.ok(tamperedSourceValidation.errors.some(message => /Source Git blob mismatch/.test(message)),
+    'source bytes must be independently checked against the pinned source Git blob');
+
+  const tamperedManifestOutput = path.join(reviewTemp, 'tampered-manifest');
+  fs.cpSync(reviewOutput, tamperedManifestOutput, { recursive: true });
+  fs.appendFileSync(path.join(tamperedManifestOutput, 'manifest.json'), '\n');
+  const tamperedManifestResult = validateEditorialMediaDecisions(ROOT, tamperedManifestOutput, sourceOptions);
+  assert.ok(tamperedManifestResult.errors.some(message => /SHA-256 does not match/.test(message)),
+    'worksheet must be rejected when the exact manifest bytes change');
+
+  const tamperedWorksheetOutput = path.join(reviewTemp, 'tampered-worksheet');
+  fs.cpSync(reviewOutput, tamperedWorksheetOutput, { recursive: true });
+  const tamperedWorksheetPath = path.join(tamperedWorksheetOutput, 'review-decisions.template.json');
+  const tamperedWorksheet = JSON.parse(fs.readFileSync(tamperedWorksheetPath, 'utf8'));
+  tamperedWorksheet.decisions[0].candidateSha256 = '0'.repeat(64);
+  fs.writeFileSync(tamperedWorksheetPath, JSON.stringify(tamperedWorksheet, null, 2) + '\n');
+  const tamperedWorksheetResult = validateEditorialMediaDecisions(ROOT, tamperedWorksheetOutput, sourceOptions);
+  assert.ok(tamperedWorksheetResult.errors.some(message => /candidate identity does not match/.test(message)),
+    'worksheet must reject a changed candidate identity');
+
+  const approvalRequestOutput = path.join(reviewTemp, 'approval-request');
+  fs.cpSync(reviewOutput, approvalRequestOutput, { recursive: true });
+  const approvalWorksheetPath = path.join(approvalRequestOutput, 'review-decisions.template.json');
+  const approvalWorksheet = JSON.parse(fs.readFileSync(approvalWorksheetPath, 'utf8'));
+  const approvalRow = approvalWorksheet.decisions.find(row => row.entryType === 'candidate-placement');
+  approvalRow.ownerDecision = 'approve';
+  approvalRow.visualReview = {
+    status: 'matched',
+    evidence: 'Fixture-only reviewer statement; not an actual editorial decision.',
+    reviewer: 'Fixture reviewer',
+    reviewedAt: '2026-10-28',
+  };
+  approvalRow.sourceEvidence = {
+    status: 'owner-created',
+    creator: 'Fixture creator',
+    sourceUrl: null,
+    licenseName: null,
+    evidenceReference: 'fixture-evidence:owner-created',
+    verifiedBy: 'Fixture reviewer',
+    verifiedAt: '2026-10-28',
+  };
+  approvalRow.rightsStatus = 'owner-confirmed';
+  approvalRow.altText = 'Fixture description of the visible subject for validator regression coverage.';
+  approvalRow.technicalValidation = { status: 'verified', evidenceReference: 'sha256:' + '0'.repeat(64) };
+  fs.writeFileSync(approvalWorksheetPath, JSON.stringify(approvalWorksheet, null, 2) + '\n');
+  const approvalValidation = validateEditorialMediaDecisions(ROOT, approvalRequestOutput, sourceOptions);
+  assert.equal(approvalValidation.summary.requestedApprovals, 1);
+  assert.equal(approvalValidation.summary.blockedApprovalCount, 1,
+    'a requested approval must remain blocked when technical evidence is not independently verified');
+  assert.equal(approvalValidation.policy.publicationEligible, false,
+    'even evidence-complete worksheet decisions must never claim publication eligibility');
+  assert.equal(approvalValidation.policy.contentRecordsChanged, false,
+    'worksheet validation must never mutate article records');
+  assert.ok(approvalValidation.decisions.some(decision => decision.blockers.some(message =>
+    /technical evidence reference does not match/.test(message) ||
+    /technical role validation failed/.test(message))),
+  'technical validation blockers must be attached to the decision row after recomputing current image bytes and role policy');
+
+  const incompleteInventoryOutput = path.join(reviewTemp, 'incomplete-inventory');
+  fs.cpSync(reviewOutput, incompleteInventoryOutput, { recursive: true });
+  const incompleteManifestPath = path.join(incompleteInventoryOutput, 'manifest.json');
+  const incompleteManifest = JSON.parse(fs.readFileSync(incompleteManifestPath, 'utf8'));
+  const incompleteArticle = incompleteManifest.articles.find(article => article.candidatePaths.length > 0);
+  incompleteArticle.candidatePaths.pop();
+  const incompleteManifestBytes = Buffer.from(JSON.stringify(incompleteManifest, null, 2) + '\n');
+  fs.writeFileSync(incompleteManifestPath, incompleteManifestBytes);
+  const incompleteWorksheetPath = path.join(incompleteInventoryOutput, 'review-decisions.template.json');
+  const incompleteWorksheet = JSON.parse(fs.readFileSync(incompleteWorksheetPath, 'utf8'));
+  incompleteWorksheet.reviewManifestSha256 = crypto.createHash('sha256').update(incompleteManifestBytes).digest('hex');
+  fs.writeFileSync(incompleteWorksheetPath, JSON.stringify(incompleteWorksheet, null, 2) + '\n');
+  const incompleteInventoryValidation = validateEditorialMediaDecisions(ROOT, incompleteInventoryOutput, sourceOptions);
+  assert.ok(incompleteInventoryValidation.errors.some(message => /candidate declarations do not exactly match/.test(message) ||
+    /article declarations and asset placements do not form the same exact inventory/.test(message)),
+  'the worksheet manifest must not omit a candidate declared in the current draft record');
 
   const mappedAssets = reviewManifest.assets.filter(asset => asset.migrationRecord.status === 'recorded-target-blob-verified');
   assert.equal(mappedAssets.length, 2);
@@ -192,8 +361,8 @@ try {
   fs.cpSync(path.join(ROOT, 'assets/images'), path.join(temp, 'assets/images'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'content/paths.json'), path.join(temp, 'content/paths.json'));
   fs.mkdirSync(path.join(temp, 'docs'), { recursive: true });
-  fs.copyFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'),
-    path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json'));
+  const tempMigrationManifestPath = path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json');
+  fs.copyFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'), tempMigrationManifestPath);
   const fakePath = path.join(temp, 'assets/images/corrupt.png');
   fs.writeFileSync(fakePath, Buffer.from('not a png'));
   fs.copyFileSync(fakePath, path.join(temp, 'assets/images/corrupt-copy.png'));
@@ -312,19 +481,37 @@ const completeLicensedSource = {
 assert.deepEqual(mediaSourceEvidenceIssues(completeLicensedSource), [],
   'structured licensed-source evidence must pass when each required field is present');
 
-const migrationManifestPath = path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json');
-const tamperedMigration = JSON.parse(fs.readFileSync(migrationManifestPath, 'utf8'));
-const fortMapping = tamperedMigration.entries.find(entry =>
-  entry.targetPath === 'assets/images/gallery/hotel/fort-from-roof.webp');
-assert.ok(fortMapping, 'negative migration fixture must include the known mapped candidate');
-fortMapping.targetBlobSha = '0'.repeat(40);
-fs.writeFileSync(migrationManifestPath, JSON.stringify(tamperedMigration, null, 2) + '\n');
-const migrationMismatchReport = auditMedia(temp);
 const migrationReviewTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-migration-media-review-'));
 try {
+  const migrationRoot = path.join(migrationReviewTemp, 'repo');
+  fs.mkdirSync(migrationRoot, { recursive: true });
+  fs.cpSync(path.join(ROOT, 'content'), path.join(migrationRoot, 'content'), { recursive: true });
+  fs.cpSync(path.join(ROOT, 'assets/images'), path.join(migrationRoot, 'assets/images'), { recursive: true });
+  fs.mkdirSync(path.join(migrationRoot, 'docs'), { recursive: true });
+  const migrationManifestPath = path.join(migrationRoot, 'docs/MEDIA-MIGRATION-MANIFEST.json');
+  fs.copyFileSync(path.join(ROOT, 'docs/MEDIA-MIGRATION-MANIFEST.json'), migrationManifestPath);
+  const migrationReviewBundle = path.join(migrationReviewTemp, 'review-bundle');
+  buildEditorialMediaReview(migrationRoot, migrationReviewBundle, report);
+
+  const originalMigrationBytes = fs.readFileSync(migrationManifestPath);
+  const migrationDrift = JSON.parse(originalMigrationBytes.toString('utf8'));
+  migrationDrift.updatedAt = '2026-11-01';
+  fs.writeFileSync(migrationManifestPath, JSON.stringify(migrationDrift, null, 2) + '\n');
+  const staleMigrationValidation = validateEditorialMediaDecisions(migrationRoot, migrationReviewBundle);
+  assert.ok(staleMigrationValidation.errors.some(message => /migration manifest changed after review bundle creation/.test(message)),
+    'a review bundle must be rejected when the migration manifest changes after bundle creation');
+  fs.writeFileSync(migrationManifestPath, originalMigrationBytes);
+
+  const tempMigrationManifestPath = path.join(temp, 'docs/MEDIA-MIGRATION-MANIFEST.json');
+  const tamperedMigration = JSON.parse(fs.readFileSync(tempMigrationManifestPath, 'utf8'));
+  const fortMapping = tamperedMigration.entries.find(entry =>
+    entry.targetPath === 'assets/images/gallery/hotel/fort-from-roof.webp');
+  assert.ok(fortMapping, 'negative migration fixture must include the known mapped candidate');
+  fortMapping.targetBlobSha = '0'.repeat(40);
+  fs.writeFileSync(tempMigrationManifestPath, JSON.stringify(tamperedMigration, null, 2) + '\n');
   assert.throws(
-    () => buildEditorialMediaReview(temp, path.join(migrationReviewTemp, 'migration-mismatch'), migrationMismatchReport),
-    /Recorded migration target blob does not match candidate bytes/,
+    () => buildEditorialMediaReview(temp, path.join(migrationReviewTemp, 'migration-mismatch'), mismatchReport),
+    /Migration manifest source and target Git blob identities differ|Recorded migration target blob does not match candidate bytes/,
     'review bundle must fail closed when a recorded target blob does not match current candidate bytes'
   );
 } finally {
@@ -353,3 +540,151 @@ const tooLargeForSocial = validateForRole(sourceCandidate, 'socialPreview', sour
 assert.equal(tooLargeForSocial.valid, false, 'oversized source file must not be approved as a production social image');
 assert.ok(tooLargeForSocial.errors.some(message => /file exceeds 81920-byte policy/.test(message)), 'supporting budget failure must be explicit');
 console.log('PASS: editorial media readiness — 12-article coverage, contextual gaps, deterministic read-only reporting, invalid/missing candidates, unsafe paths, and approval/rights separation.');
+
+(async () => {
+  const expectedHead = 'a'.repeat(40);
+  const previousHead = 'b'.repeat(40);
+  const baseSha = 'c'.repeat(40);
+  const changedBaseSha = 'd'.repeat(40);
+  const repository = 'tchouhanjsm/garh-jaisal-haveli-tourism';
+  const calls = [];
+  const pullRequestSnapshot = (headSha = expectedHead, baseCommit = baseSha, state = 'open') => ({
+    number: 74,
+    state,
+    head: { sha: headSha, repo: { full_name: repository } },
+    base: { ref: 'main', sha: baseCommit, repo: { full_name: repository } },
+  });
+  const mockFetch = async (url, init) => {
+    calls.push({ url, init });
+    if (url.endsWith('/pulls/74')) {
+      return { ok: true, status: 200, json: async () => pullRequestSnapshot() };
+    }
+    if (url.endsWith('/pulls/74/reviews?per_page=100&page=1')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          { id: 101, user: { id: 1001, login: 'example-reviewer' }, state: 'APPROVED',
+            commit_id: expectedHead, submitted_at: '2026-11-02T00:00:00Z' },
+          { id: 102, user: { id: 1002, login: 'another-reviewer' }, state: 'COMMENTED',
+            commit_id: previousHead, submitted_at: '2026-11-01T23:00:00Z' },
+        ],
+      };
+    }
+    throw new Error('Unexpected GitHub API request: ' + url);
+  };
+  const reviewAudit = await auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: mockFetch,
+    observedAt: '2026-11-02T00:00:00.000Z',
+  });
+  assert.equal(reviewAudit.pullRequest.exactHeadMatch, true,
+    'review evidence must be bound to the exact live pull-request head');
+  assert.equal(reviewAudit.pullRequest.baseSha, baseSha,
+    'the audit must record the exact base commit used during review collection');
+  assert.equal(reviewAudit.pullRequest.metadataRevalidatedAfterReviewRead, true,
+    'the PR metadata must be re-read after review pagination');
+  assert.equal(reviewAudit.reviewEvidence.reviewCount, 2);
+  assert.equal(reviewAudit.reviewEvidence.currentHeadReviewCount, 1,
+    'reviews on earlier commits must not be counted as current-head evidence');
+  assert.equal(reviewAudit.reviewEvidence.currentHeadStateCounts.APPROVED, 1,
+    'current-head GitHub review state should be reported without granting editorial authority');
+  assert.deepEqual(reviewAudit.reviewEvidence.currentHeadReviewerIds, [1001],
+    'review evidence must expose immutable GitHub account IDs, not only mutable logins');
+  assert.equal(reviewAudit.reviewEvidence.reviewerIdentityEvidenceComplete, true);
+  assert.equal(reviewAudit.reviewEvidence.reviews[0].userId, 1001);
+  assert.equal(reviewAudit.reviewerAuthorization.state, 'NOT_CONFIGURED',
+    'a GitHub review must not configure owner/editor authority by itself');
+  assert.equal(reviewAudit.reviewerAuthorization.approvalAuthorized, false);
+  assert.equal(reviewAudit.reviewerAuthorization.trustedReviewerCount, 0);
+  assert.equal(reviewAudit.reviewerAuthorization.decisionReturnMechanism, null);
+  assert.equal(reviewAudit.releaseInvariants.publicationEligible, false);
+  assert.equal(reviewAudit.releaseInvariants.approvedMediaChanged, false);
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer test-token-not-a-secret',
+    'the evidence snapshot must use the authenticated GitHub API');
+  assert.equal(calls.length, 3,
+    'the audit must read PR metadata, paginate reviews, and revalidate PR metadata');
+  assert.ok(calls.every(call => call.init.headers.Authorization === 'Bearer test-token-not-a-secret'),
+    'every API request must remain authenticated');
+
+  let mismatchCalls = 0;
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead: previousHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: async () => {
+      mismatchCalls += 1;
+      return { ok: true, status: 200, json: async () => pullRequestSnapshot() };
+    },
+  }), /head changed during review audit/,
+  'a stale workflow event must be rejected before review evidence is read');
+  assert.equal(mismatchCalls, 1, 'stale-head rejection must stop before reading reviews');
+
+  let headReads = 0;
+  let reviewReads = 0;
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: async url => {
+      if (url.endsWith('/pulls/74')) {
+        headReads += 1;
+        const sha = headReads === 1 ? expectedHead : previousHead;
+        return { ok: true, status: 200, json: async () => pullRequestSnapshot(sha) };
+      }
+      if (url.endsWith('/pulls/74/reviews?per_page=100&page=1')) {
+        reviewReads += 1;
+        return { ok: true, status: 200, json: async () => [] };
+      }
+      throw new Error('Unexpected GitHub API request: ' + url);
+    },
+  }), /head changed during review audit/,
+  'a head update during review pagination must invalidate the entire evidence snapshot');
+  assert.equal(headReads, 2);
+  assert.equal(reviewReads, 1);
+
+  let baseReads = 0;
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: async url => {
+      if (url.endsWith('/pulls/74')) {
+        baseReads += 1;
+        return { ok: true, status: 200, json: async () =>
+          pullRequestSnapshot(expectedHead, baseReads === 1 ? baseSha : changedBaseSha) };
+      }
+      if (url.endsWith('/pulls/74/reviews?per_page=100&page=1')) {
+        return { ok: true, status: 200, json: async () => [] };
+      }
+      throw new Error('Unexpected GitHub API request: ' + url);
+    },
+  }), /base changed during review audit/,
+  'a base-branch update during review pagination must invalidate the evidence snapshot');
+
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository, pullRequestNumber: 74, expectedHead, token: '',
+    fetchImpl: mockFetch,
+  }), /GITHUB_TOKEN is required/,
+  'the audit must not silently fall back to unauthenticated identity data');
+
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({}) }),
+  }), error => error.message.includes('GitHub API request failed (403)'),
+  'API permission/rate-limit failures must not be reported as a successful empty review audit');
+
+  console.log('PASS: authenticated GitHub review evidence is exact-head/base-bound, revalidated after pagination, and never grants editorial approval without owner policy.');
+})().catch(error => {
+  console.error('FAIL: authenticated editorial review audit regression:', error);
+  process.exitCode = 1;
+});

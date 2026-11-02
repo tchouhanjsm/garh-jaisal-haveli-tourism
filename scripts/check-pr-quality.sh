@@ -77,7 +77,7 @@ if [[ -f scripts/test_localize_images.py ]] && ! grep -Fq "test_localize_images.
 fi
 
 echo "== Python source compilation =="
-python3 -m py_compile scripts/*.py
+python3 -W error::SyntaxWarning -m py_compile scripts/*.py
 
 echo "== Shell syntax =="
 for script in scripts/*.sh; do

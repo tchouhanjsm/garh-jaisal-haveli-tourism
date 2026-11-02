@@ -444,3 +444,15 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Point the Rooms hero's primary action to the visible catalogue heading so the destination works even when the optional JavaScript filter remains hidden.
 - [ ] Review the new room selection and image crops with the property owner on the staging preview. The three previews are a navigation aid, not a ranking or availability statement.
 - [ ] Run visual review at 320, 360, 390, 768, 1280 and 1440 CSS pixels after the M30 change; automated screenshots do not replace owner UAT or real-device review.
+
+
+## 1 November 2026 — M31 companion: bookmarkable Journal preview
+
+- [x] Article preview links use stable local `?article={slug}` query URLs.
+- [x] Search and topic filters survive direct entry and refresh through `q` and `topic` query parameters.
+- [x] Related draft links participate in browser history; Back/Forward restores the selected draft and focus returns to the originating archive link.
+- [x] Preview title, description and article H1 update with the selected record and restore when returning to the archive.
+- [x] Static contracts and Chromium coverage exercise direct entry, refresh, filter restoration, browser history and the six viewport widths.
+- [ ] Owner/editor content, factual, source, visual-subject, rights and alt-text review remains pending for all 12 drafts.
+- [ ] Human visual review and STG-01–STG-18 remain NOT RUN; CI artifacts are local-only evidence, not staging UAT.
+- [ ] Public routes, indexing, canonical approval, sitemap publication and deployment remain disabled.

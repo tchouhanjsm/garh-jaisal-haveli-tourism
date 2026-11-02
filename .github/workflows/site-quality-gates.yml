@@ -3,16 +3,14 @@ name: Site quality gates
 on:
   pull_request:
     branches: [main]
+  # Feature branches are validated by pull_request; avoid duplicating the full suite on every branch push.
   push:
-    branches:
-      - main
-      - 'feat/**'
-      - 'fix/**'
-      - 'chore/**'
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: site-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -59,6 +57,51 @@ jobs:
           node scripts/build-editorial-media-review.js \
             --output "${RUNNER_TEMP}/garh-jaisal-editorial-media-review"
 
+      - name: Resolve pinned authoritative source commit
+        id: media-source-pin
+        run: |
+          SOURCE_COMMIT="$(node -p "require('./docs/MEDIA-MIGRATION-MANIFEST.json').sourceCommit || ''")"
+          if [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Media migration manifest does not contain a valid source commit." >&2
+            exit 1
+          fi
+          echo "source_commit=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch authoritative media source at pinned commit
+        env:
+          SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
+        run: |
+          SOURCE_ROOT="${RUNNER_TEMP}/garh-jaisal-source"
+          mkdir -p "$SOURCE_ROOT"
+          git -C "$SOURCE_ROOT" init
+          git -C "$SOURCE_ROOT" remote add origin https://github.com/tchouhanjsm/garh-jaisal-website.git
+          git -C "$SOURCE_ROOT" fetch --no-tags --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$SOURCE_ROOT" checkout --detach FETCH_HEAD
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_COMMIT"
+
+      - name: Validate local-only editorial decision worksheet integrity
+        env:
+          SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
+        run: |
+          node scripts/validate-editorial-media-decisions.js \
+            --bundle "${RUNNER_TEMP}/garh-jaisal-editorial-media-review" \
+            --source-root "${RUNNER_TEMP}/garh-jaisal-source" \
+            --source-commit "$SOURCE_COMMIT"
+
+      - name: Audit authenticated GitHub editorial review evidence (informational only)
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/audit-editorial-review-authority.js \
+            --repo "$GITHUB_REPOSITORY" \
+            --pull-request "$REVIEW_PR_NUMBER" \
+            --expected-head "$REVIEW_EXPECTED_HEAD" \
+            > "${RUNNER_TEMP}/garh-jaisal-editorial-review-authority.json"
+          cat "${RUNNER_TEMP}/garh-jaisal-editorial-review-authority.json"
+
       - name: Upload responsive visual baseline evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -86,6 +129,16 @@ jobs:
           name: garh-jaisal-editorial-media-review-${{ github.run_id }}
           path: ${{ runner.temp }}/garh-jaisal-editorial-media-review/
           if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload authenticated GitHub editorial review evidence
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-editorial-review-authority-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-editorial-review-authority.json
+          if-no-files-found: warn
           retention-days: 7
           compression-level: 0
 

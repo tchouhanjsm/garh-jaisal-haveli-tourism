@@ -428,3 +428,19 @@ Each of the 48 screenshot records now carries expected, activated, pending and f
 **Regression coverage:** static contracts require one final feature marker for each seven-item collection and the original seven entries/identity links. Chromium checks final-record order, full-row grid placement, the expected responsive column count, image/copy geometry and mobile stacking at 320, 360, 390, 768, 1280 and 1440 CSS pixels. Existing filtering, shortlist comparison, gallery photo activation and screenshot hydration checks continue to run unchanged.
 
 **Guardrails:** this is layout-only. No room description, amenity, image mapping, price, occupancy, availability, booking/enquiry route, operational statement, public metadata, canonical host, robots, sitemap or publication status changes. Owner screenshot review and staging UAT remain separate acceptance gates; no merge or deployment is authorized by this milestone.
+
+
+## M31 companion — bookmarkable local Journal preview navigation
+
+- [x] Replace action-only draft controls with native same-page article links using `?article={slug}`; links resolve only against the fixed twelve-record draft catalogue.
+- [x] Preserve archive search and topic filters in `q` and `topic` query parameters, including refresh and direct-entry restoration.
+- [x] Use browser history for article selection, related-draft navigation, Back/Forward and direct-entry recovery; return focus to the originating archive link.
+- [x] Update the document title and description for the selected preview record and restore archive metadata on return; use an H1 for the active article.
+- [x] Extend static and Chromium contracts for direct article URLs, refresh, filter persistence, related navigation, Back/Forward and focus restoration at the existing six-width matrix.
+- [ ] Human owner/editor review of article content, source claims, media subject/rights and alt text remains separate from this local preview enhancement.
+- [ ] STG-01–STG-18 remain operator-run and NOT RUN until an owner-approved staging origin and real browser/device evidence are supplied.
+- [ ] Keep all twelve records in draft status; no public article route, canonical, JSON-LD, sitemap, robots or deployment policy is enabled.
+
+## M32 — authenticated editorial approval authority (blocked on owner policy)
+
+The technical implementation must consume an explicit owner-defined policy identifying authorized editorial reviewers and the required approval threshold. No GitHub identity or team is inferred from commit authors, worksheet text, repository ownership or an unverified reviewer field. Until that policy and trusted review binding are configured and independently tested, reviewer authorization remains `NOT_CONFIGURED`, `approvalAuthorized=false`, and publication eligibility remains false.
