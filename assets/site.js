@@ -20,6 +20,10 @@
   const arrivalPlanningForms = Array.from(document.querySelectorAll('[data-arrival-planning-form]'));
   const roomCompareEnquiryButtons = Array.from(document.querySelectorAll('[data-room-compare-enquiry]'));
   let activeWhatsAppBaseUrl = '';
+  // Capture the shared runtime URL synchronously; document.currentScript is null after async work begins.
+  const sharedRuntimeUrl = document.currentScript && document.currentScript.src
+    ? document.currentScript.src
+    : new URL('assets/site.js', window.location.href).toString();
 
   function focusArrivalPlannerFromFragment() {
     if (!window.location || !['#arrival-planning', '#arrival-enquiry-title'].includes(window.location.hash)) return;
@@ -660,8 +664,7 @@
         && !roomCompareEnquiryButtons.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
-      const scriptUrl = document.currentScript && document.currentScript.src;
-      const configUrl = new URL('../content/site-config.json', scriptUrl || window.location.href);
+      const configUrl = new URL('../content/site-config.json', sharedRuntimeUrl);
       const response = await fetch(configUrl.toString(), { cache: 'no-store' });
       if (!response.ok) throw new Error('Contact configuration could not be loaded');
       const config = await response.json();
