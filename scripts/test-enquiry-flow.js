@@ -224,6 +224,7 @@ async function main() {
   const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
   const exactHotelMapUrl = publicConfig.propertyNavigation.hotelMapUrl;
   const exactRestaurantMapUrl = publicConfig.restaurant.googleMapsUrl;
+  const arrivalRuntime = fs.readFileSync(path.join(root, 'assets', 'js', 'arrival-enhancements.js'), 'utf8');
   const authoredMessages = new Set();
   for (const page of publicPages) {
     const html = fs.readFileSync(path.join(root, page), 'utf8');
@@ -242,8 +243,7 @@ async function main() {
         && !driverBase[1].includes(exactHotelMapUrl)
         && driverPayload && driverPayload[1] === '',
         'the static driver note must contain only operational copy and leave the exact pin for validated runtime hydration');
-      assert.ok(fs.readFileSync(path.join(root, 'assets', 'site.js'), 'utf8')
-        .includes("button.setAttribute('data-arrival-copy', baseNote + '\\nExact hotel map pin: ' + hotelMapUrl);"),
+      assert.ok(arrivalRuntime.includes("button.setAttribute('data-arrival-copy', baseNote + '\\nExact hotel map pin: ' + hotelMapUrl);"),
         'the driver payload must receive the exact central hotel pin only after runtime validation');
       const noScriptStart = html.indexOf('<noscript>');
       const noScriptEnd = noScriptStart < 0 ? -1 : html.indexOf('</noscript>', noScriptStart);
