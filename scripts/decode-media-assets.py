@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import pathlib
 import sys
 from urllib.parse import urlsplit
 
 MAX_FILE_BYTES = 25 * 1024 * 1024
+MAX_TOTAL_BYTES = 100 * 1024 * 1024
 MAX_PIXELS = 64_000_000
 MIME_TYPES = {
     ".avif": "image/avif",
@@ -27,17 +29,26 @@ MIME_TYPES = {
 
 def safe_asset_path(root: pathlib.Path, relative: str) -> pathlib.Path:
     parsed = pathlib.PurePosixPath(relative)
-    if parsed.is_absolute() or ".." in parsed.parts or not relative.startswith("assets/images/"):
-        raise ValueError("path must stay within assets/images")
-    if any(part in ("", ".") for part in parsed.parts):
-        raise ValueError("path has unsafe components")
+    raw_parts = relative.split("/")
+    allowed_prefix = relative.startswith("assets/images/") or relative.startswith("img/")
+    if (
+        not relative
+        or "\\" in relative
+        or parsed.is_absolute()
+        or ".." in parsed.parts
+        or not allowed_prefix
+        or any(part in ("", ".", "..") for part in raw_parts)
+    ):
+        raise ValueError("path must stay within assets/images or img/")
     current = root
     for part in parsed.parts:
         current = current / part
         if current.is_symlink():
             raise ValueError("symlinks are not permitted")
     target = current.resolve(strict=True)
-    assets_root = (root / "assets" / "images").resolve(strict=True)
+    assets_root = (
+        root / ("assets" / pathlib.Path("images") if relative.startswith("assets/images/") else "img")
+    ).resolve(strict=True)
     if not target.is_relative_to(assets_root) or not target.is_file():
         raise ValueError("path is not a regular local image")
     return target
@@ -53,13 +64,20 @@ async def decode_one(page, root: pathlib.Path, item: dict) -> dict:
         size = target.stat().st_size
         if size <= 0 or size > MAX_FILE_BYTES:
             raise ValueError("file is empty or exceeds the decoder read limit")
-        expected_width = int(item.get("width") or 0)
-        expected_height = int(item.get("height") or 0)
-        if expected_width <= 0 or expected_height <= 0:
-            raise ValueError("header dimensions are unavailable")
-        if expected_width * expected_height > MAX_PIXELS:
-            raise ValueError("declared image area exceeds the decoder pixel safety limit")
-        encoded = base64.b64encode(target.read_bytes()).decode("ascii")
+        expected_width_value = item.get("width")
+        expected_height_value = item.get("height")
+        if (expected_width_value is None) != (expected_height_value is None):
+            raise ValueError("expected width and height must be supplied together")
+        expected_width = int(expected_width_value) if expected_width_value is not None else None
+        expected_height = int(expected_height_value) if expected_height_value is not None else None
+        if expected_width is not None and (
+            expected_width <= 0
+            or expected_height <= 0
+            or expected_width * expected_height > MAX_PIXELS
+        ):
+            raise ValueError("declared image dimensions exceed the decoder safety limit")
+        image_bytes = target.read_bytes()
+        encoded = base64.b64encode(image_bytes).decode("ascii")
         decoded = await asyncio.wait_for(
             page.evaluate(
                 """async ({ encoded, mime }) => {
@@ -77,12 +95,20 @@ async def decode_one(page, root: pathlib.Path, item: dict) -> dict:
             timeout=15,
         )
         width, height = int(decoded["width"]), int(decoded["height"])
-        if width != expected_width or height != expected_height:
+        if width <= 0 or height <= 0 or width * height > MAX_PIXELS:
+            raise ValueError("decoded image dimensions exceed the decoder safety limit")
+        if expected_width is not None and (width != expected_width or height != expected_height):
             raise ValueError(
-                f"decoded dimensions {width}x{height} differ from header "
+                f"decoded dimensions {width}x{height} differ from expected "
                 f"{expected_width}x{expected_height}"
             )
-        return {"path": relative, "status": "verified", "width": width, "height": height}
+        return {
+            "path": relative,
+            "status": "verified",
+            "width": width,
+            "height": height,
+            "sha256": hashlib.sha256(image_bytes).hexdigest(),
+        }
     except Exception as error:  # A single bad asset must be reported, not abort the inventory.
         return {"path": relative, "status": "failed", "error": str(error)[:300]}
 
@@ -99,6 +125,7 @@ async def main() -> int:
         return 2
 
     results = []
+    total_bytes = 0
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         try:
@@ -114,7 +141,21 @@ async def main() -> int:
                 if not isinstance(item, dict):
                     results.append({"path": "", "status": "failed", "error": "invalid item record"})
                     continue
+                relative = str(item.get("path", ""))
+            try:
+                target = safe_asset_path(root, relative)
+                size = target.stat().st_size
+                if total_bytes + size > MAX_TOTAL_BYTES:
+                    results.append({
+                        "path": relative,
+                        "status": "failed",
+                        "error": "aggregate image decode budget exceeded",
+                    })
+                    continue
+                total_bytes += size
                 results.append(await decode_one(page, root, item))
+            except Exception as error:
+                results.append({"path": relative, "status": "failed", "error": str(error)[:300]})
         finally:
             await browser.close()
     print(json.dumps({"ok": True, "results": results}, separators=(",", ":")))
