@@ -115,16 +115,141 @@ for (const entry of manifest.entries) {
 
 const { auditAuthoritativeGallerySource } = require('./audit-authoritative-gallery-source');
 
-function makeGalleryFixture(root, schemaFields, record) {
+function galleryField(name, spec, indentation = 6) {
+  const spaces = ' '.repeat(indentation);
+  const lines = [
+    spaces + '- name: ' + name,
+    spaces + '  widget: ' + spec.widget,
+    spaces + '  required: ' + (spec.required ? 'true' : 'false'),
+  ];
+  if (spec.defaultValue !== undefined) lines.push(spaces + '  default: ' + spec.defaultValue);
+  if (spec.options && spec.options.length) {
+    lines.push(spaces + '  options:');
+    for (const option of spec.options) {
+      lines.push(spaces + '    - label: ' + option, spaces + '      value: ' + option);
+    }
+  }
+  if (spec.patterns && spec.patterns.length) {
+    lines.push(spaces + '  pattern:');
+    for (const pattern of spec.patterns) lines.push(spaces + '    - ' + pattern);
+  }
+  if (spec.children && spec.children.length) {
+    lines.push(spaces + '  fields:');
+    for (const child of spec.children) lines.push(galleryField(child.name, child.spec, indentation + 4));
+  }
+  return lines.join('\n');
+}
+
+function makeGalleryFixture(root, options, record) {
+  const schemaOptions = options || {};
+  const safeDefaults = schemaOptions.safeDefaults !== false;
+  const fields = [
+    {
+      name: 'status',
+      spec: {
+        widget: 'select',
+        required: true,
+        defaultValue: safeDefaults ? 'draft' : 'live',
+        options: ['draft', 'live', 'hidden'],
+      },
+    },
+    {
+      name: 'review_status',
+      spec: {
+        widget: 'select',
+        required: true,
+        defaultValue: safeDefaults ? 'draft' : 'approved',
+        options: ['draft', 'review_required', 'approved', 'rejected'],
+      },
+    },
+  ];
+
+  if (schemaOptions.includeEvidence !== false) {
+    fields.push(
+      {
+        name: 'sourceEvidence',
+        spec: {
+          widget: 'object',
+          required: true,
+          children: [
+            {
+              name: 'status',
+              spec: {
+                widget: 'select',
+                required: true,
+                defaultValue: safeDefaults ? 'unverified' : 'owner-confirmed',
+                options: ['unverified', 'owner-confirmed', 'licensed'],
+              },
+            },
+            { name: 'creator', spec: { widget: 'string', required: false } },
+            {
+              name: 'sourceUrl',
+              spec: { widget: 'string', required: false, patterns: ["'^https://'"] },
+            },
+            { name: 'licenseName', spec: { widget: 'string', required: false } },
+            { name: 'evidenceReference', spec: { widget: 'string', required: false } },
+            { name: 'verifiedBy', spec: { widget: 'string', required: false } },
+            { name: 'verifiedAt', spec: { widget: 'string', required: false } },
+          ],
+        },
+      },
+      {
+        name: 'visualReview',
+        spec: {
+          widget: 'object',
+          required: true,
+          children: [
+            {
+              name: 'status',
+              spec: {
+                widget: 'select',
+                required: true,
+                defaultValue: safeDefaults ? 'not_assessed' : 'matched',
+                options: ['not_assessed', 'matched', 'mismatch'],
+              },
+            },
+            { name: 'evidence', spec: { widget: 'text', required: false } },
+            { name: 'reviewer', spec: { widget: 'string', required: false } },
+            { name: 'reviewedAt', spec: { widget: 'string', required: false } },
+          ],
+        },
+      },
+      {
+        name: 'technicalValidation',
+        spec: {
+          widget: 'object',
+          required: true,
+          children: [
+            {
+              name: 'status',
+              spec: {
+                widget: 'select',
+                required: true,
+                defaultValue: safeDefaults ? 'pending' : 'verified',
+                options: ['pending', 'verified', 'failed'],
+              },
+            },
+            { name: 'evidenceReference', spec: { widget: 'string', required: false } },
+          ],
+        },
+      }
+    );
+  }
+
   fs.mkdirSync(path.join(root, 'admin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'content', 'gallery'), { recursive: true });
   fs.mkdirSync(path.join(root, 'img', 'gallery'), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, 'admin', 'config.yml'),
-    'collections:\n  - name: gallery\n    fields:\n' +
-      schemaFields.map(field => '      - name: ' + field + '\n').join(''),
-    'utf8'
-  );
+  const config = [
+    'collections:',
+    '  - name: gallery',
+    '    fields:',
+    ...fields.map(field => galleryField(field.name, field.spec)),
+    '  - name: page_media_slots',
+    '    fields:',
+    '      - name: id',
+    '        widget: string',
+  ].join('\n') + '\n';
+  fs.writeFileSync(path.join(root, 'admin', 'config.yml'), config, 'utf8');
   fs.writeFileSync(path.join(root, 'img', 'gallery', 'fixture.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
   fs.writeFileSync(path.join(root, 'content', 'gallery', record.id + '.json'), JSON.stringify(record, null, 2));
 }
@@ -156,7 +281,7 @@ try {
       crop: 'landscape',
     },
   };
-  makeGalleryFixture(currentRoot, ['id', 'category', 'status', 'order', 'review_status', 'src', 'alt', 'crop'], unreviewedRecord);
+  makeGalleryFixture(currentRoot, { includeEvidence: false }, unreviewedRecord);
   const unreviewed = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
@@ -174,11 +299,6 @@ try {
   assert.equal(unreviewed.controls.automaticImportPerformed, false);
   assert.equal(unreviewed.controls.approvalAuthorized, false);
 
-  const completeSchema = [
-    'id', 'category', 'status', 'order', 'review_status', 'src', 'alt', 'crop',
-    'sourceEvidence', 'creator', 'sourceUrl', 'licenseName', 'evidenceReference',
-    'verifiedBy', 'verifiedAt', 'visualReview', 'reviewer', 'reviewedAt', 'technicalValidation',
-  ];
   const reviewedRecord = {
     ...unreviewedRecord,
     review_status: 'approved',
@@ -200,7 +320,7 @@ try {
       evidenceReference: 'image-integrity-report-2026-11-02',
     },
   };
-  makeGalleryFixture(currentRoot, completeSchema, reviewedRecord);
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
   const complete = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
@@ -212,12 +332,29 @@ try {
   assert.equal(complete.summary.approvalEligibleCount, 1);
   assert.equal(complete.controls.approvalAuthorized, false);
   assert.equal(complete.controls.automaticImportPerformed, false);
+  assert.equal(complete.cmsSchema.safeDefaults, true);
+  assert.equal(complete.cmsSchema.supportsRequiredEvidence, true);
+  assert.deepEqual(complete.cmsSchema.defaultViolations, []);
+
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: false }, reviewedRecord);
+  const unsafeSchema = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unsafeSchema.status, 'REVIEW_REQUIRED');
+  assert.equal(unsafeSchema.cmsSchema.safeDefaults, false);
+  assert.equal(unsafeSchema.summary.approvalEligibleCount, 0);
+  assert.ok(unsafeSchema.cmsSchema.defaultViolations.some(item => item.includes('review_status must default to draft')));
+  assert.ok(unsafeSchema.records[0].blockers.includes('cms-schema-does-not-enforce-fail-closed-defaults'));
 
   const unsafeRecord = {
     ...unreviewedRecord,
     image: { ...unreviewedRecord.image, src: 'img/../../outside.jpg' },
   };
-  makeGalleryFixture(currentRoot, ['id', 'category', 'status', 'order', 'review_status'], unsafeRecord);
+  makeGalleryFixture(currentRoot, { includeEvidence: false, safeDefaults: true }, unsafeRecord);
   const unsafe = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
