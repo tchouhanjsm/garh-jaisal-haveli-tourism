@@ -373,3 +373,9 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 /* Keep fallback panel headings consistent when nested below an existing h3. */
 .guest-enquiry-recovery h4{margin:0;font-family:var(--serif);font-size:clamp(20px,2.4vw,26px);font-weight:400;line-height:1.2}
 picture.responsive-image{display:contents}
+
+
+/* M45: readable secondary action on the photographic Experience Details hero. */
+.experience-detail-hero .experience-detail-hero__actions .text-link--light{color:#fffdf8;border-bottom-color:var(--gold);text-shadow:0 1px 2px rgba(0,0,0,.55)}
+.experience-detail-hero .experience-detail-hero__actions .text-link--light:hover{color:#fff;border-bottom-color:#f0d5a5}
+.experience-detail-hero .experience-detail-hero__actions .text-link--light:focus-visible{outline:3px solid #f0d5a5;outline-offset:5px;border-radius:2px}
