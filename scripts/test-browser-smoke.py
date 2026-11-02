@@ -3505,6 +3505,68 @@ def check_extended_guest_viewports(page, page_name: str) -> None:
             toggle = page.locator(".menu-toggle")
             navigation = page.locator("#primary-navigation")
             if width <= 760:
+                # Verify the fixed booking CTA yields whenever it would cover a
+                # guest decision surface; it must return as soon as the surface clears.
+                conversion_state = page.evaluate(
+                    """() => {
+                      const bar = document.querySelector('.mobile-booking-bar');
+                      const journey = document.querySelector('.guest-journey');
+                      const arrival = document.querySelector('[data-arrival-quick-card]');
+                      if (!bar) return null;
+                      const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                      const obstructionTop = Math.max(0, window.innerHeight - height);
+                      const overlaps = surface => {
+                        if (!surface) return false;
+                        const rect = surface.getBoundingClientRect();
+                        return rect.left < window.innerWidth && rect.right > 0
+                          && rect.top < window.innerHeight && rect.bottom > obstructionTop;
+                      };
+                      const journeyOverlap = overlaps(journey);
+                      const arrivalOverlap = overlaps(arrival);
+                      const focused = bar.contains(document.activeElement);
+                      return {
+                        journeyPresent: Boolean(journey),
+                        journeyOverlap,
+                        arrivalOverlap,
+                        journeySuppressed: bar.classList.contains('is-suppressed-by-guest-journey'),
+                        arrivalSuppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                        expectedJourneySuppression: journeyOverlap && !focused,
+                        expectedArrivalSuppression: arrivalOverlap && !focused,
+                        display: getComputedStyle(bar).display,
+                        ariaHidden: bar.getAttribute('aria-hidden'),
+                        inert: bar.hasAttribute('inert'),
+                        bounds: (() => {
+                          const rect = bar.getBoundingClientRect();
+                          return { x: rect.x, right: rect.right, top: rect.top, bottom: rect.bottom };
+                        })()
+                      };
+                    }"""
+                )
+                check(conversion_state is not None
+                      and conversion_state["journeyPresent"] == (page_name != "index.html"),
+                      f"{page_name} at {label} ({width}px): mobile conversion bar must expose the expected protected journey surface")
+                check(conversion_state is not None
+                      and conversion_state["journeySuppressed"] == conversion_state["expectedJourneySuppression"]
+                      and conversion_state["arrivalSuppressed"] == conversion_state["expectedArrivalSuppression"],
+                      f"{page_name} at {label} ({width}px): booking CTA suppression must match real obstruction geometry ({conversion_state})")
+                should_suppress_bar = bool(conversion_state and (
+                    conversion_state["expectedJourneySuppression"]
+                    or conversion_state["expectedArrivalSuppression"]
+                ))
+                if should_suppress_bar:
+                    check(conversion_state["display"] == "none"
+                          and conversion_state["ariaHidden"] == "true"
+                          and conversion_state["inert"],
+                          f"{page_name} at {label} ({width}px): obscured booking CTA must be removed from visual and keyboard access")
+                else:
+                    check(conversion_state["display"] != "none"
+                          and conversion_state["ariaHidden"] is None
+                          and not conversion_state["inert"],
+                          f"{page_name} at {label} ({width}px): unobstructed booking CTA must remain accessible")
+                dock = page.locator("[data-direct-enquiry-dock]")
+                check(not dock.is_visible(),
+                      f"{page_name} at {label} ({width}px): redundant floating enquiry dock must yield to the fixed booking bar")
+
                 check(toggle.is_visible(),
                       f"{page_name} at {label} ({width}px): compact navigation control must be visible")
                 check(not navigation.is_visible(),
@@ -6259,7 +6321,7 @@ def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
     check("copied" in (form.locator('[data-arrival-enquiry-status]').inner_text() or "").lower(),
           "Arrival enquiry: copy result must be announced")
 
-    for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
+    for width, height in [(320, 740), (375, 812), (390, 844), (430, 932), (768, 900), (1280, 800), (1440, 900)]:
         page.set_viewport_size({"width": width, "height": height})
         dimensions = page.evaluate(
             "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"

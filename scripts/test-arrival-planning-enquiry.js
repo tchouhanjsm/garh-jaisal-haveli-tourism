@@ -117,8 +117,13 @@ assert.ok(browserSmoke.includes('matrix = [(390, 844), (1280, 900)]'),
   'arrival deep links must be exercised at mobile and desktop viewport sizes');
 assert.ok(browserSmoke.includes('for page_name in PAGES:'),
   'arrival deep-link coverage must iterate every route in the shared core-page contract');
-assert.ok(browserSmoke.includes('heading_bounds = heading.bounding_box()'),
-  'arrival deep-link coverage must measure the date-specific planner heading in the viewport');
+assert.ok(browserSmoke.includes('headingRect = heading.getBoundingClientRect()')
+  && browserSmoke.includes('"headingTop": headingRect.top')
+  && browserSmoke.includes('"headingBottom": headingRect.bottom')
+  && browserSmoke.includes('"headerBottom": header ? header.getBoundingClientRect().bottom : 0')
+  && browserSmoke.includes('viewport_geometry["headingTop"] >= max(0, viewport_geometry["headerBottom"])')
+  && browserSmoke.includes('viewport_geometry["headingBottom"] <= viewport_height'),
+  'arrival deep-link coverage must prove the date-specific planner heading is fully visible below the sticky header');
 assert.ok(browserSmoke.includes('completed_cases.append((page_name, width, height))'),
   'arrival deep-link coverage must record every route/viewport case');
 assert.ok(browserSmoke.includes('check_arrival_planning_deep_links(page, base_url)'),

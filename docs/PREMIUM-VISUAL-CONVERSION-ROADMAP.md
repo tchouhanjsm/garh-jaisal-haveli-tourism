@@ -486,3 +486,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Restore the prior viewport after each route and keep this supplementary pass outside screenshot/performance evidence generation.
 - [x] Preserve the existing 8-route × 6-width = 48 full-page PNG contract at 320/360/390/768/1280/1440px.
 - [ ] Human visual review and real-device checks at the requested widths remain owner/staging tasks; automated geometry is not visual sign-off.
+
+## M37 — mobile conversion obstruction and arrival-form acceptance
+
+- [x] At 375×812 and 430×932, verify the fixed mobile booking action is suppressed whenever the guest-journey rail or Directions quick-arrival card would be obscured by it.
+- [x] Require visual suppression, \`aria-hidden\` and \`inert\` state to agree with measured overlap; restore the action when the protected surface no longer overlaps.
+- [x] Keep the floating enquiry dock out of the mobile interaction layer where the persistent booking action is available.
+- [x] Exercise the actual arrival enquiry form at 320, 375, 390, 430, 768, 1280 and 1440px, including no-overflow and 44px submit-target checks.
+- [x] Update the deep-link static contract to require the planner heading to be fully visible below the sticky header, not merely inside the viewport.
+- [ ] Human validation of the booking CTA position on real iOS/Android devices remains pending.
+- [ ] The visitor still prepares and reviews an enquiry-only draft; no message submission, transfer booking, guest-data persistence or production release is introduced.

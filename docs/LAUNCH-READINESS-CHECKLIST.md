@@ -486,3 +486,11 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Verify horizontal overflow, H1/main bounds, visible hero-action fit, compact navigation, Escape closure and focus return.
 - [x] Restore the caller viewport after each route to avoid contaminating the existing six-width screenshot and performance matrix.
 - [ ] Owner visual review and real-device checks remain pending; no staging UAT is implied.
+
+## 2 November 2026 — M37: mobile conversion obstruction and arrival-form acceptance
+
+- [x] Verify the fixed booking action never covers the guest-journey rail or Directions quick-arrival card at 375px and 430px.
+- [x] Verify visual, accessibility-tree and keyboard suppression states match measured overlap and restore when clear.
+- [x] Exercise arrival enquiry form geometry at 320, 375, 390, 430, 768, 1280 and 1440px.
+- [x] Require planner heading visibility below the sticky header in the deep-link route matrix.
+- [ ] Owner must complete real-device iOS/Android review; browser emulation is not device UAT.

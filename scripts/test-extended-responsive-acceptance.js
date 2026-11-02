@@ -28,6 +28,16 @@ assert.match(smoke, /check_extended_guest_viewports\(page, page_name\)/,
   'The extended viewport pass must run on every core route.');
 assert.match(smoke, /finally:\s+page\.set_viewport_size\(original_viewport\)/,
   'The supplementary viewport pass must restore the original viewport even after an assertion.');
+assert.ok(smoke.includes('journeyOverlap')
+  && smoke.includes('arrivalOverlap')
+  && smoke.includes('expectedJourneySuppression')
+  && smoke.includes('is-suppressed-by-guest-journey')
+  && smoke.includes('is-suppressed-by-arrival-card')
+  && smoke.includes('ariaHidden')
+  && smoke.includes('inert'),
+  'Supplemental mobile viewports must verify fixed booking CTA obstruction and keyboard-access parity.');
+assert.ok(smoke.includes('(375, 812), (390, 844), (430, 932)'),
+  'Arrival enquiry form geometry must include both supplemental mobile widths.');
 assert.ok(quality.includes('node scripts/test-extended-responsive-acceptance.js'),
   'The extended responsive acceptance contract must run in the required quality suite.');
 assert.match(roadmap, /## M36 — extended guest viewport stress coverage/,
