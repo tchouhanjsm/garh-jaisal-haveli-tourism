@@ -609,3 +609,11 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Extend the consolidated route contracts and packaged Chromium first-view gates: at 768px, Dining and About may request only their eager hero image and must make zero offscreen image requests at DPR 1× and 2×.
 - [ ] Exact-head quality workflow, package-budget validation and packaged Chromium evidence remain required before M48 automated acceptance.
 - [ ] Owner media review, human staging UAT and production release approvals remain separate gates; no indexing or deployment is authorized.
+
+
+## 2 November 2026 — M49: route-wide first-view delivery and no-JavaScript fallbacks
+
+- [x] Apply the one-hero / zero-offscreen image request gate to all eight routes at every supported viewport/DPR context.
+- [x] Add a failing fixture for a speculative offscreen image at 320px / DPR 1×.
+- [x] Verify Dining and About no-JavaScript image fallbacks in Chromium, including local source decoding, dimensions and alternative text.
+- [ ] Exact-head CI and packaged evidence remain required before M49 automated acceptance.

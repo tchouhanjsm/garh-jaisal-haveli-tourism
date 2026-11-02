@@ -44,9 +44,14 @@ EXPECTED_DEFERRED_MEDIA_COUNTS = {
     "about.html": 1,
 }
 FIRST_VIEW_IMAGE_GATES = {
-    "gallery.html": {"max_requested": 2, "max_offscreen": 1, "label": "Gallery"},
+    "index.html": {"max_requested": 1, "max_offscreen": 0, "label": "Home"},
+    "rooms.html": {"max_requested": 1, "max_offscreen": 0, "label": "Rooms"},
+    "experiences.html": {"max_requested": 1, "max_offscreen": 0, "label": "Experiences"},
+    "experience-details.html": {"max_requested": 1, "max_offscreen": 0, "label": "Experience details"},
     "dining.html": {"max_requested": 1, "max_offscreen": 0, "label": "Dining"},
     "about.html": {"max_requested": 1, "max_offscreen": 0, "label": "About"},
+    "directions.html": {"max_requested": 1, "max_offscreen": 0, "label": "Directions"},
+    "gallery.html": {"max_requested": 1, "max_offscreen": 0, "label": "Gallery"},
 }
 VIEWPORTS = [
     (viewport["width"], viewport["height"])
@@ -1478,16 +1483,17 @@ def build_responsive_image_evidence_report(
                 "requestedImageCount": requested_count,
                 "requestedOutsideViewportCount": requested_outside_viewport_count,
             }
-            # M47–M48 first-view gates protect Gallery, Dining and About from speculative image fetches.
+            # M49 protects every core route at all six widths and both DPRs:
+            # only the eager hero may be requested before audit activation; offscreen requests stay at zero.
             gate = FIRST_VIEW_IMAGE_GATES.get(route)
-            if gate and viewport_width == 768:
+            if gate:
                 if requested_count > gate["max_requested"]:
                     page_resource_validation_failures.append(
-                        f"{gate['label']} at 768px @{dpr}x requested {requested_count} first-view images; maximum is {gate['max_requested']}"
+                        f"{gate['label']} at {viewport_width}px @{dpr}x requested {requested_count} first-view images; maximum is {gate['max_requested']}"
                     )
                 if requested_outside_viewport_count > gate["max_offscreen"]:
                     page_resource_validation_failures.append(
-                        f"{gate['label']} at 768px @{dpr}x requested {requested_outside_viewport_count} offscreen images; maximum is {gate['max_offscreen']}"
+                        f"{gate['label']} at {viewport_width}px @{dpr}x requested {requested_outside_viewport_count} offscreen images; maximum is {gate['max_offscreen']}"
                     )
             for field, expected_value in expected_first_view_counts.items():
                 declared_value = first_view.get(field)
@@ -3304,7 +3310,15 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            for fallback_route, expected_fallback_count in (("index.html", 7), ("rooms.html", 7), ("gallery.html", 17), ("experiences.html", 6), ("experience-details.html", 7)):
+            for fallback_route, expected_fallback_count in (
+                ("index.html", 7),
+                ("rooms.html", 7),
+                ("gallery.html", 17),
+                ("experiences.html", 6),
+                ("experience-details.html", 7),
+                ("dining.html", 1),
+                ("about.html", 1),
+            ):
                 fallback_media_page = fallback_context.new_page()
                 fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
                 fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")

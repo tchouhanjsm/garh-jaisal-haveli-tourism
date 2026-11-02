@@ -53,6 +53,28 @@ assert.ok(smoke.includes('journeyOverlap')
   'Supplemental mobile viewports must verify fixed booking CTA obstruction and keyboard-access parity.');
 assert.ok(smoke.includes('(375, 812), (390, 844), (430, 932)'),
   'Arrival enquiry form geometry must include both supplemental mobile widths.');
+
+const firstViewRouteLabels = [
+  ['index.html', 'Home'],
+  ['rooms.html', 'Rooms'],
+  ['experiences.html', 'Experiences'],
+  ['experience-details.html', 'Experience details'],
+  ['dining.html', 'Dining'],
+  ['about.html', 'About'],
+  ['directions.html', 'Directions'],
+  ['gallery.html', 'Gallery'],
+];
+for (const [route, label] of firstViewRouteLabels) {
+  const gate = '"' + route + '": {"max_requested": 1, "max_offscreen": 0, "label": "' + label + '"}';
+  assert.ok(smoke.includes(gate),
+    route + ': packaged first-view audit must allow only its hero and zero offscreen requests.');
+}
+assert.match(smoke, /if gate:\s+if requested_count > gate\["max_requested"\]/,
+  'The one-hero/zero-offscreen contract must apply to every route and viewport, not only 768px.');
+assert.doesNotMatch(smoke, /if gate and viewport_width == 768/,
+  'First-view image budgets must not be restricted to a single breakpoint.');
+assert.match(smoke, /\("dining\.html", 1\)[\s\S]*\("about\.html", 1\)/,
+  'Dining and About no-JavaScript media fallbacks must be decoded by Chromium.');
 assert.ok(quality.includes('node scripts/test-extended-responsive-acceptance.js'),
   'The extended responsive acceptance contract must run in the required quality suite.');
 assert.match(roadmap, /## M36 — extended guest viewport stress coverage/,

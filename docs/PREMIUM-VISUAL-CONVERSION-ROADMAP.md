@@ -623,3 +623,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Add packaged Chromium first-view gates at 768px for DPR 1×/2×: one requested image maximum (the eager hero) and zero offscreen image requests on Dining and About.
 - [ ] Exact-head Actions and packaged Chromium acceptance must pass before M48 is considered automated-complete.
 - [ ] These laboratory resource measurements are not field Core Web Vitals or human visual approval.
+
+
+## M49 — all-route first-view image budget and no-JavaScript media fallback
+
+- [x] Promote the one-hero / zero-offscreen first-view contract from selected routes to all eight public routes.
+- [x] Enforce the budget at all six responsive widths (320, 360, 390, 768, 1280 and 1440px) and DPR 1×/2×, not only at the 768px tablet breakpoint.
+- [x] Add a negative fixture proving that a second offscreen image request fails even at 320px / DPR 1×.
+- [x] Extend real Chromium no-JavaScript fallback decoding to Dining and About, completing the seven deferred-media routes.
+- [ ] Exact-head workflow, package-budget validation and packaged Chromium evidence must pass before M49 is automated-complete.
+- [ ] The invariant is a packaged browser-laboratory check, not field Core Web Vitals or live traffic measurement.
