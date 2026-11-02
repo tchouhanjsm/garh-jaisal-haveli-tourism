@@ -410,7 +410,7 @@ function readGallerySnapshot(directory, label) {
     }
   }
 
-  return { root, records, errors, schema: gallerySchemaFields(root, errors) };
+  return { root, records, errors, schema };
 }
 
 function countBy(records, selector) {
@@ -566,7 +566,10 @@ function main() {
     '; missing rights evidence: ' + report.summary.missingRightsEvidenceCount +
     '; missing visual review: ' + report.summary.missingVisualReviewCount +
     '; approval eligible: ' + report.summary.approvalEligibleCount + '.');
-  console.log('CMS evidence schema: ' + (report.cmsSchema.supportsRequiredEvidence ? 'complete' : 'missing ' + report.cmsSchema.missingEvidenceFields.join(', ')) + '.');
+  console.log('CMS evidence schema: ' + (report.cmsSchema.supportsRequiredEvidence
+    ? 'complete with fail-closed defaults'
+    : 'blocked; missing fields: ' + report.cmsSchema.missingEvidenceFields.join(', ') +
+      '; default violations: ' + report.cmsSchema.defaultViolations.join(', ')) + '.');
   console.log('PASS: read-only source drift and media-evidence audit; no records imported or approved. Status: ' + report.status + '.');
   if (report.status === 'INVALID') {
     console.error(report.structuralErrors.join('\n'));
