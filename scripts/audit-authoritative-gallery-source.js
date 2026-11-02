@@ -18,22 +18,6 @@ const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
 const CATEGORIES = new Set(['hotel', 'rooms', 'desert', 'restaurant']);
 const PUBLICATION_STATES = new Set(['draft', 'live', 'hidden']);
 const CROPS = new Set(['standard', 'arch', 'landscape', 'portrait']);
-const REQUIRED_EVIDENCE_SCHEMA_FIELDS = [
-  'status',
-  'review_status',
-  'sourceEvidence',
-  'creator',
-  'sourceUrl',
-  'licenseName',
-  'evidenceReference',
-  'verifiedBy',
-  'verifiedAt',
-  'visualReview',
-  'evidence',
-  'reviewer',
-  'reviewedAt',
-  'technicalValidation',
-];
 const REQUIRED_EVIDENCE_SCHEMA_PATHS = [
   'status',
   'review_status',
