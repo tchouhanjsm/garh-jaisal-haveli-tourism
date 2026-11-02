@@ -498,15 +498,7 @@ function readGallerySnapshot(directory, label) {
         technicalValidation.status === 'verified' &&
         nonEmpty(technicalValidation.evidenceReference, 5)
       );
-      const decodedImage = decodedImages.get(record.image.src);
-      const imageDecodeComplete = Boolean(
-        decodedImage &&
-        decodedImage.status === 'verified' &&
-        decodedImage.sha256 === asset.sha256 &&
-        Number.isInteger(decodedImage.width) && decodedImage.width > 0 &&
-        Number.isInteger(decodedImage.height) && decodedImage.height > 0
-      );
-      const technicalValidationComplete = technicalValidationMetadataComplete && imageDecodeComplete;
+      const technicalValidationComplete = technicalValidationMetadataComplete;
       const blockers = [];
       if (record.status !== 'live') blockers.push('source-record-not-live');
       if (record.review_status !== 'approved') blockers.push('owner-editor-review-not-approved');
@@ -519,7 +511,6 @@ function readGallerySnapshot(directory, label) {
       if (!visualReviewComplete) blockers.push('documented-visual-match-missing');
       if (!meaningfulAlt) blockers.push('descriptive-alt-text-incomplete');
       if (!technicalValidationMetadataComplete) blockers.push('technical-validation-evidence-missing');
-      if (!imageDecodeComplete) blockers.push('gallery-image-decode-validation-failed');
 
       const signature = crypto.createHash('sha256')
         .update(stableStringify(record) + '\0' + asset.sha256)
@@ -537,11 +528,12 @@ function readGallerySnapshot(directory, label) {
         rightsEvidenceComplete,
         visualReviewComplete,
         technicalValidationComplete,
-        imageDecodeComplete,
-        imageDecodeStatus: decodedImage ? decodedImage.status : 'missing',
-        imageWidth: imageDecodeComplete ? decodedImage.width : null,
-        imageHeight: imageDecodeComplete ? decodedImage.height : null,
-        imageDecodeError: decodedImage && decodedImage.status === 'failed' ? decodedImage.error : null,
+        technicalValidationMetadataComplete,
+        imageDecodeComplete: false,
+        imageDecodeStatus: 'pending',
+        imageWidth: null,
+        imageHeight: null,
+        imageDecodeError: null,
         manifestMatchCandidate: false,
         approvalEligible: blockers.length === 0,
         blockers,
@@ -553,6 +545,29 @@ function readGallerySnapshot(directory, label) {
   }
 
   return { root, records, errors, schema };
+}
+
+function applyImageDecodeResults(snapshot, decodedImages) {
+  for (const record of snapshot.records.values()) {
+    const decodedImage = decodedImages.get(record.imagePath);
+    const imageDecodeComplete = Boolean(
+      decodedImage &&
+      decodedImage.status === 'verified' &&
+      decodedImage.sha256 === record.imageSha256 &&
+      Number.isInteger(decodedImage.width) && decodedImage.width > 0 &&
+      Number.isInteger(decodedImage.height) && decodedImage.height > 0
+    );
+    record.imageDecodeComplete = imageDecodeComplete;
+    record.imageDecodeStatus = decodedImage ? decodedImage.status : 'missing';
+    record.imageWidth = imageDecodeComplete ? decodedImage.width : null;
+    record.imageHeight = imageDecodeComplete ? decodedImage.height : null;
+    record.imageDecodeError = decodedImage && decodedImage.status === 'failed' ? decodedImage.error : null;
+    record.technicalValidationComplete = record.technicalValidationMetadataComplete && imageDecodeComplete;
+    if (!imageDecodeComplete && !record.blockers.includes('gallery-image-decode-validation-failed')) {
+      record.blockers.push('gallery-image-decode-validation-failed');
+    }
+    record.approvalEligible = record.blockers.length === 0;
+  }
 }
 
 function countBy(records, selector) {
@@ -611,6 +626,7 @@ function auditAuthoritativeGallerySource(options) {
   const decodedImages = options.decodedImages instanceof Map
     ? options.decodedImages
     : decodeGalleryImages(options.currentSourceRoot, [...current.records.values()]);
+  applyImageDecodeResults(current, decodedImages);
   const errors = [...pinned.errors, ...current.errors];
   const diff = compareSnapshots(pinned, current);
   const records = [...current.records.values()].sort((left, right) => left.id.localeCompare(right.id));
