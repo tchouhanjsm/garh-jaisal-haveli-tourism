@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Decode local image candidates with pinned Playwright/Chromium.
+"""Decode bounded local image candidates with pinned Playwright/Chromium.
 
-This helper accepts only repository-relative assets/images paths on stdin,
+This helper accepts only repository-relative assets/images or img paths on stdin,
 loads bytes as data URLs in a blank page, and never performs network requests
 or writes into the repository.
 """
@@ -142,20 +142,20 @@ async def main() -> int:
                     results.append({"path": "", "status": "failed", "error": "invalid item record"})
                     continue
                 relative = str(item.get("path", ""))
-            try:
-                target = safe_asset_path(root, relative)
-                size = target.stat().st_size
-                if total_bytes + size > MAX_TOTAL_BYTES:
-                    results.append({
-                        "path": relative,
-                        "status": "failed",
-                        "error": "aggregate image decode budget exceeded",
-                    })
-                    continue
-                total_bytes += size
-                results.append(await decode_one(page, root, item))
-            except Exception as error:
-                results.append({"path": relative, "status": "failed", "error": str(error)[:300]})
+                try:
+                    target = safe_asset_path(root, relative)
+                    size = target.stat().st_size
+                    if total_bytes + size > MAX_TOTAL_BYTES:
+                        results.append({
+                            "path": relative,
+                            "status": "failed",
+                            "error": "aggregate image decode budget exceeded",
+                        })
+                        continue
+                    total_bytes += size
+                    results.append(await decode_one(page, root, item))
+                except Exception as error:
+                    results.append({"path": relative, "status": "failed", "error": str(error)[:300]})
         finally:
             await browser.close()
     print(json.dumps({"ok": True, "results": results}, separators=(",", ":")))
