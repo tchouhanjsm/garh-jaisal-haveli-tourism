@@ -3458,11 +3458,30 @@ def check_contact_hydration(page, base_url: str) -> None:
     # independent of the current route and the asynchronous document.currentScript lifecycle.
     page.add_init_script(
         """window.__siteConfigRequestUrls = [];
+        window.__siteConfigResponses = [];
+        window.__contactReadyEvents = [];
+        document.addEventListener("garh-jaisal:contact-ready", event => {
+          const detail = event && event.detail ? event.detail : {};
+          const embed = typeof detail.hotelMapEmbedUrl === "string" ? detail.hotelMapEmbedUrl : "";
+          window.__contactReadyEvents.push({
+            hasHotelMapUrl: Boolean(detail.hotelMapUrl),
+            hasEmbedUrl: Boolean(embed),
+            embedLength: embed.length,
+            embedMatchesExpected: embed === "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+          });
+        });
         const originalFetch = window.fetch.bind(window);
-        window.fetch = (input, init) => {
+        window.fetch = async (input, init) => {
           const url = typeof input === "string" ? input : input.url;
           window.__siteConfigRequestUrls.push(url);
-          return originalFetch(input, init);
+          try {
+            const response = await originalFetch(input, init);
+            window.__siteConfigResponses.push({ url, status: response.status, ok: response.ok });
+            return response;
+          } catch (error) {
+            window.__siteConfigResponses.push({ url, error: String(error) });
+            throw error;
+          }
         };"""
     )
     # Inspect the exact source-authorized hotel pin without opening the external map.
@@ -3586,8 +3605,20 @@ def check_contact_hydration(page, base_url: str) -> None:
     map_config_state = page.evaluate(
         "() => document.querySelector('[data-map-preview]')?.dataset.mapConfigState || 'not-configured'"
     )
+    map_diagnostics = page.evaluate(
+        """() => ({
+          events: window.__contactReadyEvents || [],
+          responses: (window.__siteConfigResponses || []).map(item => ({
+            path: new URL(item.url).pathname,
+            status: item.status || null,
+            ok: item.ok === true,
+            error: item.error || null
+          }))
+        })"""
+    )
     check(map_config_state == "ready",
-          "Directions: map configuration must be validated before the preview is shown (state: " + map_config_state + ")")
+          "Directions: map configuration must be validated before the preview is shown (state: "
+          + map_config_state + "; diagnostics: " + json.dumps(map_diagnostics, sort_keys=True) + ")")
     map_frame = map_preview.locator("iframe[data-map-src]")
     expected_embed_url = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
     check(map_preview.count() == 1 and map_preview.is_visible(),
