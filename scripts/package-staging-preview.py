@@ -2299,7 +2299,12 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         fail("Could not load the guarded JPEG fallback optimizer.")
     optimizer = importlib.util.module_from_spec(optimizer_spec)
     optimizer_spec.loader.exec_module(optimizer)
-    jpeg_fallback_optimization = optimizer.optimize_jpeg_fallbacks(output, image_sources)
+    optimizer_sources = [
+        {**record, "preserveSourceIdentity": record["sourceJpeg"] in retained_duplicate_paths}
+        for record in image_sources
+    ]
+    jpeg_fallback_optimization = optimizer.optimize_jpeg_fallbacks(output, optimizer_sources)
+    image_sources = optimizer_sources
     # Re-run responsive checks against the optimized fallback bytes. Hero and
     # AVIF-provenance-bound fallbacks are left byte-identical by the optimizer.
     markup_validation = validate_responsive_markup(
@@ -2518,6 +2523,18 @@ def validate_retained_duplicate_package_payload(
             or record.get("savedBytes") != original_bytes - len(retained_bytes)
         ):
             fail(f"Retained duplicate does not match its quality-gated JPEG optimization evidence: {duplicate_path}")
+        return
+
+    if status == "SKIPPED_PROTECTED_DUPLICATE_IDENTITY":
+        if (
+            record.get("reason") != "retained-duplicate-source-identity"
+            or record.get("optimizedBytes") != original_bytes
+            or record.get("savedBytes") != 0
+            or len(retained_bytes) != original_bytes
+            or digest_bytes(retained_bytes) != expected_identity.get("sha256")
+            or git_blob_sha(retained_bytes) != expected_identity.get("gitBlobSha")
+        ):
+            fail(f"Protected retained duplicate no longer matches its exact Git source identity: {duplicate_path}")
         return
 
     if status in {"SKIPPED_NO_QUALIFYING_CANDIDATE", "SKIPPED_UNSUPPORTED_COLOR_MODE", "SKIPPED_PROTECTED_SOURCE"}:
@@ -2839,6 +2856,7 @@ def main() -> int:
     output.mkdir(parents=True)
 
     runtime_asset_pruning_report = validate_runtime_duplicate_image_exclusions()
+    retained_duplicate_paths = {entry["duplicateOf"] for entry in runtime_asset_pruning_report["files"]}
     excluded_runtime_assets = {entry["path"] for entry in runtime_asset_pruning_report["files"]}
     files = checked_paths(excluded_runtime_assets)
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
