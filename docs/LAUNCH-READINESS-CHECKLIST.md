@@ -469,3 +469,13 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Verify actual native share-sheet behaviour and clipboard permissions on iOS, Android and desktop on an owner-approved staging origin.
 - [ ] STG-01–STG-18 and human visual review remain NOT RUN; CI screenshots are not staging UAT.
 - [ ] No public publishing, SEO indexing, canonical approval or deployment policy has changed.
+
+## 2 November 2026 — M35: sitewide guest-journey acceptance
+
+- [x] Exercise booking CTA hydration on all eight public routes using the same source-authorized AsiaTech destination.
+- [x] Verify HTTPS, provider hostname/path, token presence, new-tab target and noopener/noreferrer on every booking CTA.
+- [x] Verify same-page CTA fragments resolve to real elements and reject inert # / javascript: anchor destinations.
+- [x] Add a static route contract for H1 count, main landmark, primary navigation and contact fallback.
+- [ ] Owner must complete real booking-provider UAT on an approved HTTPS staging origin, including a mobile browser.
+- [ ] Human visual review and STG-01–STG-18 remain NOT RUN; CI is not staging UAT.
+- [ ] No merge, deployment, canonical publication, sitemap/robots release or editorial approval is implied.

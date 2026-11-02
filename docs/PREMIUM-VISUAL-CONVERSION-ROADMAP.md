@@ -468,3 +468,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [ ] Actual meeting point, drop-off, route conditions, luggage support and contact responsiveness still require owner confirmation.
 - [ ] Human visual review and STG-01–STG-18 remain NOT RUN until an owner-approved HTTPS staging origin and real-device evidence exist.
 - [ ] The arrival form remains an enquiry-only draft; no booking, message submission, guest-data storage, SEO publication, canonical, robots, sitemap or deployment policy is changed.
+
+## M35 — sitewide guest-journey and booking-handoff acceptance
+
+- [x] Add a route-wide Chromium acceptance check for the booking action on all eight public routes.
+- [x] Require every booking CTA to hydrate to the single source-authorized HTTPS AsiaTech destination, open safely in a new tab and expose an enabled accessible state.
+- [x] Verify authored same-page conversion fragments resolve to real targets on every route.
+- [x] Add a static route contract for one H1, the main landmark, primary navigation, the accessible contact fallback and valid CTA anchors.
+- [x] Keep the booking handoff external; no availability, payment, reservation confirmation or guest-data collection is implied.
+- [ ] Owner must complete real booking-engine UAT on the approved staging origin and verify the provider response on desktop and mobile.
+- [ ] Human visual review, owner confirmation and STG-01–STG-18 remain separate release gates.

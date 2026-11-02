@@ -3432,6 +3432,63 @@ def check_stay_planner(page, base_url: str) -> None:
     check(not non_get_requests,
           "Stay planner handoff must not submit guest details using a non-GET request")
 
+
+def check_booking_handoff_on_route(page, page_name: str) -> None:
+    """Verify that every public route exposes the same safe external booking handoff."""
+    links = page.locator("a[data-booking-link]")
+    check(links.count() >= 1, f"{page_name}: a booking action must remain available on every public route")
+    try:
+        page.wait_for_function(
+            """() => {
+              const links = Array.from(document.querySelectorAll('a[data-booking-link]'));
+              return links.length > 0 && links.every(link =>
+                /^https:\/\/asiatech\.in\/booking_engine\/index3\?token=/.test(link.href)
+              );
+            }""",
+            timeout=7000,
+        )
+    except Exception as error:
+        check(False, f"{page_name}: booking actions did not hydrate from the authorized provider ({type(error).__name__})")
+        return
+
+    records = page.evaluate(
+        """() => Array.from(document.querySelectorAll('a[data-booking-link]')).map(link => {
+          const url = new URL(link.href);
+          return {
+            href: link.href,
+            protocol: url.protocol,
+            hostname: url.hostname,
+            pathname: url.pathname,
+            tokenPresent: Boolean(url.searchParams.get('token')),
+            target: link.getAttribute('target'),
+            rel: (link.getAttribute('rel') || '').split(/\s+/).filter(Boolean),
+            disabled: link.getAttribute('aria-disabled')
+          };
+        })"""
+    )
+    check(all(
+        (item["protocol"] == "https:"
+         and item["hostname"].lower() == "asiatech.in"
+         and item["pathname"] == "/booking_engine/index3"
+         and item["tokenPresent"] is True
+         and item["target"] == "_blank"
+         and {"noopener", "noreferrer"}.issubset(set(item["rel"]))
+         and item["disabled"] is None)
+        for item in records
+    ), f"{page_name}: every booking CTA must use the authorized HTTPS provider with safe new-tab attributes")
+    destinations = {item["href"] for item in records}
+    check(len(destinations) == 1,
+          f"{page_name}: header, page and mobile booking CTAs must share one configured booking destination")
+
+    broken_fragments = page.evaluate(
+        """() => Array.from(document.querySelectorAll('a[href^="#"]'))
+          .map(link => link.getAttribute('href'))
+          .filter(href => href && href !== '#' && !document.getElementById(decodeURIComponent(href.slice(1))))"""
+    )
+    check(not broken_fragments,
+          f"{page_name}: internal CTA fragment(s) must resolve to real page targets ({broken_fragments})")
+
+
 def check_contact_hydration(page, base_url: str) -> None:
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
     page.wait_for_function(
@@ -6657,6 +6714,7 @@ def main(argv: list[str] | None = None) -> int:
                         PAGES_HTTP_OK.append(page_name)
                 page.wait_for_selector("main#main", timeout=5000)
                 check_page_contract(page, page_name, titles)
+                check_booking_handoff_on_route(page, page_name)
                 load_visible_images(page, page_name, base_url)
                 page.evaluate("window.scrollTo(0, 0)")
                 check(len(RUNTIME_ERRORS) == before_errors,
