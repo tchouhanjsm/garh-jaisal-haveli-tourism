@@ -40,6 +40,13 @@ EXPECTED_DEFERRED_MEDIA_COUNTS = {
     "gallery.html": 17,
     "experiences.html": 6,
     "experience-details.html": 7,
+    "dining.html": 1,
+    "about.html": 1,
+}
+FIRST_VIEW_IMAGE_GATES = {
+    "gallery.html": {"max_requested": 2, "max_offscreen": 1, "label": "Gallery"},
+    "dining.html": {"max_requested": 1, "max_offscreen": 0, "label": "Dining"},
+    "about.html": {"max_requested": 1, "max_offscreen": 0, "label": "About"},
 }
 VIEWPORTS = [
     (viewport["width"], viewport["height"])
@@ -1471,16 +1478,16 @@ def build_responsive_image_evidence_report(
                 "requestedImageCount": requested_count,
                 "requestedOutsideViewportCount": requested_outside_viewport_count,
             }
-            # M47 regression gate: the prior Gallery trace requested four offscreen images
-            # at 768px (both DPRs). Keep the hero plus at most one nearby supporting image.
-            if route == "gallery.html" and viewport_width == 768:
-                if requested_count > 2:
+            # M47–M48 first-view gates protect Gallery, Dining and About from speculative image fetches.
+            gate = FIRST_VIEW_IMAGE_GATES.get(route)
+            if gate and viewport_width == 768:
+                if requested_count > gate["max_requested"]:
                     page_resource_validation_failures.append(
-                        f"Gallery at 768px @{dpr}x requested {requested_count} first-view images; maximum is 2"
+                        f"{gate['label']} at 768px @{dpr}x requested {requested_count} first-view images; maximum is {gate['max_requested']}"
                     )
-                if requested_outside_viewport_count > 1:
+                if requested_outside_viewport_count > gate["max_offscreen"]:
                     page_resource_validation_failures.append(
-                        f"Gallery at 768px @{dpr}x requested {requested_outside_viewport_count} offscreen images; maximum is 1"
+                        f"{gate['label']} at 768px @{dpr}x requested {requested_outside_viewport_count} offscreen images; maximum is {gate['max_offscreen']}"
                     )
             for field, expected_value in expected_first_view_counts.items():
                 declared_value = first_view.get(field)

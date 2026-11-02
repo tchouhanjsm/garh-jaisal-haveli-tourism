@@ -89,6 +89,16 @@ assert.match(html, /Nothing is stored on this website/i, 'No backend persistence
 assert.ok(html.includes('href="https://maps.app.goo.gl/28gGJ6tX8xoanQ9D8"'), 'Restaurant map destination is retained');
 assert.ok(html.includes('https://www.instagram.com/garhjaisal/'), 'Owner-provided restaurant Instagram link is retained');
 assert.ok(html.includes('src="assets/images/dining/rooftop-candlelit-table.jpg"'), 'The rooftop table image remains locally hosted');
+const supportingFigure = html.match(/<figure class="story-image" data-deferred-media>[\s\S]*?<\/figure>/)?.[0] || '';
+assert.ok(supportingFigure, 'Dining supporting photograph must use the shared deferred-media container');
+assert.match(supportingFigure, /<template data-deferred-picture-template><img src="assets\/images\/legacy\/rooftop-candlelight\.webp" alt="Candlelit table on a rooftop terrace overlooking Jaisalmer at dusk"[^>]*loading="lazy"[^>]*decoding="async"[^>]*fetchpriority="low"><\/template>/,
+  'Dining photograph must preserve its source, visible subject description and lazy-loading behavior');
+assert.match(supportingFigure, /<noscript data-deferred-picture-fallback><img src="assets\/images\/legacy\/rooftop-candlelight\.webp" alt="Candlelit table on a rooftop terrace overlooking Jaisalmer at dusk"/,
+  'Dining photograph must retain a no-JavaScript fallback');
+assert.match(supportingFigure, /<figcaption>This photograph is a visual reference, not confirmation that a candlelit setup is available for your date\.<\/figcaption>/,
+  'The deferred image must retain its availability disclaimer and figure caption');
+assert.equal((html.match(/data-deferred-media/g) || []).length, 1, 'Dining must defer exactly its one supporting story photograph');
+
 assert.ok(html.includes('src="assets/images/gallery/hotel/fort-from-roof.jpg"'), 'The separate fort view retains its source-backed JPEG fallback');
 assert.ok(html.includes('href="directions.html"'), 'The main Directions journey remains linked');
 assert.ok(html.includes('assets/css/dining-tabs.css') && html.includes('assets/dining-tabs.js'),

@@ -613,3 +613,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Keep all 17 Gallery photo subjects, original source files, responsive candidates, visual compositions and the existing 48-screenshot baseline; no quality or package-budget threshold is relaxed.
 - [ ] Exact-head Actions, complete route smoke, no-JavaScript fallbacks, package-budget validation and packaged Chromium first-view evidence must pass before M47 is accepted.
 - [ ] Browser first-view Resource Timing remains a laboratory diagnostic, not field Core Web Vitals; owner review and real-device checks remain separate.
+
+
+## M48 — Dining and About first-view media containment
+
+- [x] Defer the Dining candlelit-table supporting photograph and About rooftop supporting photograph without removing source assets or changing their visible subjects.
+- [x] Preserve descriptive alt text, intrinsic dimensions, lazy decoding, figure captions and no-JavaScript fallbacks.
+- [x] Reuse the 96px route-scoped activation margin for Gallery, Dining and About; retain 256px elsewhere.
+- [x] Add packaged Chromium first-view gates at 768px for DPR 1×/2×: one requested image maximum (the eager hero) and zero offscreen image requests on Dining and About.
+- [ ] Exact-head Actions and packaged Chromium acceptance must pass before M48 is considered automated-complete.
+- [ ] These laboratory resource measurements are not field Core Web Vitals or human visual approval.

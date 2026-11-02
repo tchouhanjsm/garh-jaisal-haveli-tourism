@@ -1221,6 +1221,16 @@ experiences_fixture_first_view = next(
 )
 assert experiences_fixture_first_view["deferredTemplateCount"] == 6
 assert experiences_fixture_first_view["deferredActivatedCount"] == 0
+for route in ("dining.html", "about.html"):
+    route_first_view = next(
+        item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+        if item["route"] == route
+    )
+    assert route_first_view["deferredTemplateCount"] == 1, f"{route} fixture must retain its one deferred supporting photograph"
+    assert route_first_view["deferredActivatedCount"] == 0
+    assert route_first_view["requestedImageCount"] == 1
+    assert route_first_view["requestedOutsideViewportCount"] == 0
+
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1

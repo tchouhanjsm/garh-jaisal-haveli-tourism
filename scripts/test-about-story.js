@@ -40,6 +40,14 @@ requireMatch(/href="experiences\.html"/, 'About page must link to experiences');
 requireMatch(/href="dining\.html"/, 'About page must link to dining');
 requireMatch(/<section class="section section--dark about-plan">[\s\S]*?<\/section>/, 'Four-step planning section must exist');
 assert.equal((html.match(/class="about-plan__item"/g) || []).length, 4, 'Planning section must contain four distinct decisions');
+const storyFigure = html.match(/<figure class="story-image" data-deferred-media>[\s\S]*?<\/figure>/)?.[0] || '';
+assert.ok(storyFigure, 'About story photograph must use the shared deferred-media container');
+assert.match(storyFigure, /<template data-deferred-picture-template><img src="assets\/images\/rest3\.jpg" alt="Golden hour from the rooftop terrace"[^>]*loading="lazy"[^>]*width="900"[^>]*height="600"[^>]*decoding="async"[^>]*fetchpriority="low"><\/template>/,
+  'About photograph must preserve its local source, descriptive alt text, dimensions and lazy-decoding contract');
+assert.match(storyFigure, /<noscript data-deferred-picture-fallback><img src="assets\/images\/rest3\.jpg" alt="Golden hour from the rooftop terrace"/,
+  'About photograph must retain a no-JavaScript fallback');
+assert.equal((html.match(/data-deferred-media/g) || []).length, 1, 'About must defer exactly its one supporting story photograph');
+
 requireMatch(/@media\(max-width:1000px\)/, 'Planning layout must adapt to tablet widths', css);
 requireMatch(/@media\(max-width:600px\)/, 'Planning layout must adapt to narrow phones', css);
 requireMatch(/border-right:0/, 'Mobile layout must remove desktop column dividers', css);

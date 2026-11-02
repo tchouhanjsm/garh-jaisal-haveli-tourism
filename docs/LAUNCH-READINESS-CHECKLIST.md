@@ -599,3 +599,13 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Retain all 17 Gallery image subjects, alt text, dimensions, responsive picture candidates, package thresholds and the 48-screenshot contract.
 - [ ] Exact-head Actions and packaged Chromium evidence remain required before M47 automated acceptance.
 - [ ] Owner visual/rights review, physical-device testing, M32 editorial authority and STG-01–STG-18 remain separate release gates. No canonical approval, production indexing or deployment is authorized.
+
+
+## 2 November 2026 — M48: Dining and About first-view media containment
+
+- [x] Move the Dining candlelit-table supporting photograph and About rooftop supporting photograph into inert deferred templates while preserving original local sources, descriptive alt text, intrinsic dimensions and no-JavaScript fallbacks.
+- [x] Preserve the Dining figure caption by inserting activated image content before the caption; keep the existing fixed story-image frame and visual semantics.
+- [x] Apply a route-scoped 96px activation margin to Gallery, Dining and About; retain the established 256px margin on other supporting-media routes.
+- [x] Extend the consolidated route contracts and packaged Chromium first-view gates: at 768px, Dining and About may request only their eager hero image and must make zero offscreen image requests at DPR 1× and 2×.
+- [ ] Exact-head quality workflow, package-budget validation and packaged Chromium evidence remain required before M48 automated acceptance.
+- [ ] Owner media review, human staging UAT and production release approvals remain separate gates; no indexing or deployment is authorized.

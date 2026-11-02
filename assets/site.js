@@ -67,7 +67,7 @@
   window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
   focusArrivalPlannerFromFragment();
 
-  // Homepage and Gallery supporting photos stay inert until they approach the reading viewport.
+  // Homepage, Gallery, Dining and About supporting photos stay inert until they approach the reading viewport.
   // IntersectionObserver is primary; a bounded scroll/resize scan covers missed observer deliveries.
   // The source markup retains a <noscript> fallback; unsupported observers activate all images.
   function initDeferredSupportingMedia() {
@@ -75,9 +75,9 @@
     if (!targets.length) return;
 
     const pendingTargets = new Set(targets);
-    // The Gallery first-view trace showed supporting cards activating too far ahead of the reader.
-    // Keep the tighter margin local to Gallery; preserve the established margin on other routes.
-    const activationMargin = document.querySelector('.page-hero--gallery') ? 96 : 256;
+    // Gallery, Dining and About first-view traces showed supporting photos loading too far ahead.
+    // Keep a 96px activation margin on those routes; preserve the established 256px margin elsewhere.
+    const activationMargin = document.querySelector('.page-hero--gallery, .page-hero--dining, .about-origin') ? 96 : 256;
     let observer = null;
     let scanFrame = 0;
 
@@ -103,7 +103,9 @@
         return false;
       }
 
-      target.appendChild(template.content.cloneNode(true));
+      // Preserve figure semantics: insert the image before a caption when the target is a figure.
+      const caption = Array.from(target.children).find(child => child.tagName === 'FIGCAPTION') || null;
+      target.insertBefore(template.content.cloneNode(true), caption);
       template.remove();
       const fallback = target.querySelector('noscript[data-deferred-picture-fallback]');
       if (fallback) fallback.remove();

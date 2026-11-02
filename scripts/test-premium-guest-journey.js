@@ -458,6 +458,13 @@ assert.match(siteJs, /const guestJourneyPanel = document\.querySelector\('\.gues
   'the mobile fixed-action obstruction model must include the shared inner-page journey rail');
 assert.match(siteJs, /is-suppressed-by-guest-journey/,
   'the fixed booking action must expose an explicit guest-journey suppression state');
+assert.match(siteJs, /document\.querySelector\('\.page-hero--gallery, \.page-hero--dining, \.about-origin'\) \? 96 : 256/,
+  'Gallery, Dining and About must use a bounded 96px supporting-media activation margin');
+assert.match(siteJs, /const caption = Array\.from\(target\.children\)\.find\(child => child\.tagName === 'FIGCAPTION'\) \|\| null/,
+  'Deferred figure activation must preserve the semantic caption order');
+assert.match(siteJs, /target\.insertBefore\(template\.content\.cloneNode\(true\), caption\)/,
+  'Deferred figure images must be inserted before their figcaption');
+
 assert.match(css, /\.mobile-booking-bar\.is-suppressed-by-guest-journey\s*\{[\s\S]*?display:\s*none\s*!important/,
   'the shared premium layer must visually remove the booking bar while it obstructs guest-journey navigation');
 assert.match(css, /\.mobile-booking-bar\.is-suppressed-by-arrival-card\s*,/,
