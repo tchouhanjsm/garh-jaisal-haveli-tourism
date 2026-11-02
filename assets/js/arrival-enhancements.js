@@ -62,21 +62,40 @@
       button.disabled = true;
       status.textContent = '';
 
-      var copied = false;
       try {
-        if (!navigator.clipboard || !window.isSecureContext) {
-          throw new Error('Clipboard API unavailable');
+        if (typeof navigator.share === 'function') {
+          try {
+            await navigator.share({
+              title: 'Garh Jaisal Haveli arrival details',
+              text: arrivalNote
+            });
+            status.textContent = 'Share sheet opened. Choose your driver to send the arrival note.';
+            return;
+          } catch (error) {
+            if (error && error.name === 'AbortError') {
+              status.textContent = 'Sharing cancelled. No message was sent.';
+              return;
+            }
+          }
         }
-        await navigator.clipboard.writeText(arrivalNote);
-        copied = true;
-      } catch (_) {
-        copied = legacyCopy(arrivalNote);
-      }
 
-      status.textContent = copied
-        ? 'Arrival note copied. Share it with your driver before you set out.'
-        : 'Copy is unavailable in this browser. Share the address and walking details shown here manually.';
-      button.disabled = false;
+        var copied = false;
+        try {
+          if (!navigator.clipboard || !window.isSecureContext) {
+            throw new Error('Clipboard API unavailable');
+          }
+          await navigator.clipboard.writeText(arrivalNote);
+          copied = true;
+        } catch (_) {
+          copied = legacyCopy(arrivalNote);
+        }
+
+        status.textContent = copied
+          ? 'Arrival note copied. Share it with your driver before you set out.'
+          : 'Sharing is unavailable and the note could not be copied. Share the address and walking details shown here manually.';
+      } finally {
+        button.disabled = false;
+      }
     });
   }
 

@@ -208,20 +208,36 @@ async function boot(config, fetchFails = false) {
 async function main() {
   const root = path.resolve(__dirname, '..');
   const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
+  const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
+  const exactHotelMapUrl = publicConfig.propertyNavigation.hotelMapUrl;
   const authoredMessages = new Set();
   for (const page of publicPages) {
     const html = fs.readFileSync(path.join(root, page), 'utf8');
     assert.equal((html.match(/id="contact-status"/g) || []).length, 1, page + ' must have one accessible contact-status fallback');
     assert.match(html, /data-enquiry-link/, page + ' must mark enquiry links for runtime verification');
     assert.match(html, /data-property-map-link/, page + ' must use the central map configuration');
-    assert.doesNotMatch(html, /https:\/\/maps\.google\.com\/\?q=Garh\+Jaisal\+Haveli\+Jaisalmer|https:\/\/maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/i,
-      page + ' must not hard-code the map destination');
+    assert.doesNotMatch(html, /https:\/\/maps\.google\.com\/\?q=Garh\+Jaisal\+Haveli\+Jaisalmer/i,
+      page + ' must not hard-code an unapproved Google Maps query destination');
+    const shortMapLinks = [...html.matchAll(/https:\/\/maps\.app\.goo\.gl\/[A-Za-z0-9]+/g)].map(match => match[0]);
+    if (page === 'directions.html') {
+      assert.deepEqual(shortMapLinks, [exactHotelMapUrl, exactHotelMapUrl],
+        'Directions may use the centrally authorized pin only in the driver payload and no-JavaScript fallback');
+      const driverNote = html.match(/data-arrival-copy="([^"]*)"/);
+      assert.ok(driverNote && driverNote[1].includes('Exact hotel map pin: ' + exactHotelMapUrl),
+        'driver payload must include the exact central hotel pin');
+      const noScriptFallback = html.match(/<noscript>[\s\S]*?<\/noscript>/i);
+      assert.ok(noScriptFallback && noScriptFallback[0].includes('href="' + exactHotelMapUrl + '"')
+        && noScriptFallback[0].includes('target="_blank"')
+        && noScriptFallback[0].includes('rel="noopener noreferrer"'),
+        'no-JavaScript fallback must open the same exact pin safely in a new tab');
+    } else {
+      assert.equal(shortMapLinks.length, 0, page + ' must not hard-code the property map short link');
+    }
     assert.doesNotMatch(html, /https:\/\/wa\.me\/\d+|href="tel:\+?\d+|info@hotelgarhjaisal\.com|7727047567|2992253836/i, page + ' must not publish unverified contact endpoints');
     for (const match of html.matchAll(/data-enquiry-message="([^"]*)"/g)) authoredMessages.add(match[1]);
   }
   assert.ok(authoredMessages.size > 10, 'section-specific enquiry messages must be preserved');
 
-  const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
   assert.equal(publicConfig.verificationStatus, 'owner-authorized-source',
     'source-derived endpoints must be marked owner-authorized, not live-tested');
   assert.equal(publicConfig.site.canonicalHostApproved, false,

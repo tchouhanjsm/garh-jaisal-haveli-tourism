@@ -3489,6 +3489,7 @@ def check_contact_hydration(page, base_url: str) -> None:
     page.evaluate(
         """() => {
           Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+          Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
           Object.defineProperty(navigator, "clipboard", {
             configurable: true,
             value: { writeText: async value => { window.__arrivalCopiedNote = value; } }
@@ -3508,6 +3509,53 @@ def check_contact_hydration(page, base_url: str) -> None:
           "Directions: copied driver note must contain the authoritative address, approximate walk and exact hotel pin")
     check("Arrival note copied" in (driver_card.locator("[data-arrival-copy-status]").inner_text() or ""),
           "Directions: successful copy must announce a polite status")
+
+    # Simulate the operating-system share sheet without opening an external app or sending a message.
+    page.evaluate(
+        """() => {
+          Object.defineProperty(navigator, "share", {
+            configurable: true,
+            value: async payload => { window.__arrivalSharedPayload = payload; }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => Boolean(window.__arrivalSharedPayload && window.__arrivalSharedPayload.text)",
+        timeout=3000,
+    )
+    shared_payload = page.evaluate("window.__arrivalSharedPayload")
+    check(shared_payload["title"] == "Garh Jaisal Haveli arrival details"
+          and "Fort Kotari Para, Inside Jaisalmer Fort" in shared_payload["text"]
+          and "https://maps.app.goo.gl/nAbRiZhv78FSbju48" in shared_payload["text"],
+          "Directions: native sharing must contain the exact address, walk and authorized hotel pin")
+    check("Share sheet opened" in driver_card.locator("[data-arrival-copy-status]").inner_text(),
+          "Directions: native-share success must announce that the share sheet opened")
+
+    # Cancellation is not a send and must not silently invoke the clipboard fallback.
+    page.evaluate(
+        """() => {
+          window.__arrivalClipboardWritesAfterCancel = 0;
+          const originalWriteText = navigator.clipboard.writeText;
+          navigator.clipboard.writeText = async value => {
+            window.__arrivalClipboardWritesAfterCancel += 1;
+            return originalWriteText(value);
+          };
+          Object.defineProperty(navigator, "share", {
+            configurable: true,
+            value: async () => { throw new DOMException("Share cancelled", "AbortError"); }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => (document.querySelector('[data-arrival-copy-status]')?.textContent || '').includes('Sharing cancelled')",
+        timeout=3000,
+    )
+    check(page.evaluate("window.__arrivalClipboardWritesAfterCancel") == 0,
+          "Directions: cancelling native share must not start a clipboard write")
+    check("No message was sent" in driver_card.locator("[data-arrival-copy-status]").inner_text(),
+          "Directions: cancellation feedback must not imply that a message was sent")
 
     # The embedded Google Maps request must remain dormant until the native disclosure is opened.
     map_preview = page.locator("[data-map-preview]")

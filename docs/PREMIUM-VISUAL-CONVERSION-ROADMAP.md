@@ -444,3 +444,16 @@ Each of the 48 screenshot records now carries expected, activated, pending and f
 ## M32 — authenticated editorial approval authority (blocked on owner policy)
 
 The technical implementation must consume an explicit owner-defined policy identifying authorized editorial reviewers and the required approval threshold. No GitHub identity or team is inferred from commit authors, worksheet text, repository ownership or an unverified reviewer field. Until that policy and trusted review binding are configured and independently tested, reviewer authorization remains `NOT_CONFIGURED`, `approvalAuthorized=false`, and publication eligibility remains false.
+
+
+## M33 — source-backed driver handoff and visitor-controlled map preview
+
+- [x] Add a Directions-only driver handoff note with the source-authorized Fort Kotari Para address, Fort Parking vehicle stop, approximate 300-metre / 5–6-minute walk and surface/steps caveat.
+- [x] Support the native device share sheet where available; retain secure Clipboard API and legacy copy recovery for desktop/unsupported browsers.
+- [x] Treat share cancellation as an explicit no-send result; do not silently fall through to copying or imply that a message reached a driver.
+- [x] Restrict the exact hotel short link to the driver note and no-JavaScript fallback; assert both values match `content/site-config.json` exactly.
+- [x] Keep the interactive iframe source absent until the native disclosure is opened; lazy loading remains intact and reopening must not duplicate the map request.
+- [x] Extend source-contract and Chromium coverage for the central map URL, safe fallback link, native share payload, cancellation, copy fallback and map activation.
+- [ ] Owner must confirm the current driver drop-off, meeting point and walking approach for real arrival dates; the page does not guarantee a transfer or assistance.
+- [ ] Human visual/UAT review on owner-approved HTTPS staging remains NOT RUN; verify native sharing and clipboard permissions on iOS, Android and desktop.
+- [ ] No booking, messaging submission, guest-data storage, canonical, robots, sitemap, publication or deployment policy changes are authorized by M33.

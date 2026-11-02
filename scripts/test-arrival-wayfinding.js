@@ -292,8 +292,14 @@ assert.match(arrivalEnhancements, /details\.open && !iframe\.hasAttribute\('src'
   'Map JavaScript must attach the iframe source only after the disclosure opens');
 assert.match(arrivalEnhancements, /iframe\.setAttribute\('src', source\)/,
   'Map JavaScript must load the approved embed URL on activation');
+assert.match(arrivalEnhancements, /typeof navigator\.share === 'function'/,
+  'Driver handoff must use the native share sheet when supported');
+assert.match(arrivalEnhancements, /await navigator\.share\(\{[\s\S]*?title: 'Garh Jaisal Haveli arrival details'[\s\S]*?text: arrivalNote/,
+  'Native sharing must pass the complete, source-backed note after explicit user activation');
+assert.match(arrivalEnhancements, /error && error\.name === 'AbortError'[\s\S]*?Sharing cancelled\. No message was sent\./,
+  'User cancellation must not trigger automatic copy or claim a message was sent');
 assert.match(arrivalEnhancements, /navigator\.clipboard\.writeText/,
-  'Driver handoff must use the secure clipboard API when available');
+  'Driver handoff must retain the secure clipboard fallback when native sharing is unavailable');
 assert.match(arrivalEnhancements, /document\.execCommand\('copy'\)/,
   'Driver handoff must retain a legacy clipboard fallback');
 assert.doesNotMatch(arrivalEnhancements, /fetch\(|XMLHttpRequest/,
