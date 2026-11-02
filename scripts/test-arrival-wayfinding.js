@@ -206,6 +206,8 @@ assert.equal(count(mobility, /class="arrival-step"/g), 4,
   'The arrival approach must be a four-step, scannable sequence');
 assert.match(mobility, /cannot confirm step-free access or assistance/i,
   'Mobility content must not promise access or assistance');
+const arrivalEnhancements = fs.readFileSync(path.join(ROOT, 'assets', 'js', 'arrival-enhancements.js'), 'utf8');
+
 const map = directions.match(/<section id="arrival-map"[\s\S]*?<\/section>/)?.[0] || '';
 assert.match(map, /data-property-map-link/,
   'Map panel must use the centrally authorized exact hotel pin');
@@ -257,5 +259,50 @@ assert.match(premiumStylesheet,
   'Shared premium CSS must hide the fixed booking action while it overlaps either protected in-flow decision surface');
 assert.doesNotMatch(stylesheet, /\.mobile-booking-bar\.is-suppressed-by-arrival-card/,
   'Directions-specific CSS must not own shared fixed-action suppression presentation');
+
+
+const driverCard = directions.match(/<aside class="arrival-driver-card"[\s\S]*?<\/aside>/)?.[0] || '';
+assert.ok(driverCard, 'Directions must provide a source-backed driver handoff card');
+assert.match(driverCard, /Fort Kotari Para, Inside Jaisalmer Fort/,
+  'Driver handoff must use the authoritative source address');
+assert.match(driverCard, /Vehicles cannot enter Jaisalmer Fort[\s\S]*?Fort Parking as the drop-off point/,
+  'Driver handoff must preserve the source-confirmed vehicle-to-foot approach');
+assert.match(driverCard, /300 metres \(5–6 minutes\)[\s\S]*?uneven cobbles and short stair sections/,
+  'Driver note must preserve the source-listed approximate walk and surface conditions');
+assert.match(driverCard, /data-arrival-copy="Garh Jaisal Haveli&#10;/,
+  'Copy action must use the visible property and arrival guidance');
+assert.match(driverCard, /Exact hotel map pin: https:\/\/maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/,
+  'Driver note must include the exact source-authorized hotel pin');
+assert.match(driverCard, /data-arrival-copy-status role="status" aria-live="polite"/,
+  'Copy feedback must be announced through a polite live region');
+assert.match(directions, /assets\/js\/arrival-enhancements\.js/,
+  'Directions must load the progressive arrival enhancements');
+
+const mapPreview = map.match(/<details class="arrival-map-preview__details" data-map-preview>[\s\S]*?<\/details>/)?.[0] || '';
+assert.ok(mapPreview, 'Directions must expose an opt-in native map disclosure');
+assert.match(mapPreview, /data-map-preview-label>Load interactive map/,
+  'Map disclosure must expose a clear activation label');
+assert.match(mapPreview, /data-map-src="https:\/\/www\.google\.com\/maps\?q=Garh\+Jaisal\+Haveli[^"]*&amp;output=embed"/,
+  'Map preview must use the authoritative source embed URL');
+assert.doesNotMatch(mapPreview, /<iframe[^>]*\ssrc=/,
+  'Interactive map iframe must not request Google Maps before explicit activation');
+assert.match(map, /<noscript>[\s\S]*?maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/,
+  'No-JavaScript visitors must retain a direct exact-pin fallback');
+assert.match(arrivalEnhancements, /details\.open && !iframe\.hasAttribute\('src'\)/,
+  'Map JavaScript must attach the iframe source only after the disclosure opens');
+assert.match(arrivalEnhancements, /iframe\.setAttribute\('src', source\)/,
+  'Map JavaScript must load the approved embed URL on activation');
+assert.match(arrivalEnhancements, /typeof navigator\.share === 'function'/,
+  'Driver handoff must use the native share sheet when supported');
+assert.match(arrivalEnhancements, /await navigator\.share\(\{[\s\S]*?title: 'Garh Jaisal Haveli arrival details'[\s\S]*?text: arrivalNote/,
+  'Native sharing must pass the complete, source-backed note after explicit user activation');
+assert.match(arrivalEnhancements, /error && error\.name === 'AbortError'[\s\S]*?Sharing cancelled\. No message was sent\./,
+  'User cancellation must not trigger automatic copy or claim a message was sent');
+assert.match(arrivalEnhancements, /navigator\.clipboard\.writeText/,
+  'Driver handoff must retain the secure clipboard fallback when native sharing is unavailable');
+assert.match(arrivalEnhancements, /document\.execCommand\('copy'\)/,
+  'Driver handoff must retain a legacy clipboard fallback');
+assert.doesNotMatch(arrivalEnhancements, /fetch\(|XMLHttpRequest/,
+  'Arrival enhancements must not make background network requests');
 
 console.log('PASS: source-backed distances, accessible Directions navigation, qualified travel options, mobility safeguards and exact-pin orientation are present.');

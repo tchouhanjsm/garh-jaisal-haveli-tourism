@@ -3477,6 +3477,146 @@ def check_contact_hydration(page, base_url: str) -> None:
         check(link.get_attribute("target") == "_blank", "Hotel map pin must open in a separate tab")
         check(set((link.get_attribute("rel") or "").split()) >= {"noopener", "noreferrer"},
               "Hotel map pin must protect the new tab with noopener/noreferrer")
+    # Exercise the source-backed driver handoff without sending a message or leaving the site.
+    driver_card = page.locator(".arrival-driver-card")
+    check(driver_card.count() == 1 and driver_card.is_visible(),
+          "Directions: one visible driver handoff card must show the source-backed address")
+    copy_button = driver_card.locator("[data-arrival-copy]")
+    page.wait_for_function(
+        "() => { const button = document.querySelector('[data-arrival-copy]'); return Boolean(button && !button.hidden); }",
+        timeout=7000,
+    )
+    page.evaluate(
+        """() => {
+          Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+          Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+          Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText: async value => { window.__arrivalCopiedNote = value; } }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => typeof window.__arrivalCopiedNote === 'string' && window.__arrivalCopiedNote.length > 0",
+        timeout=3000,
+    )
+    copied_arrival_note = page.evaluate("window.__arrivalCopiedNote")
+    check("Fort Kotari Para, Inside Jaisalmer Fort" in copied_arrival_note
+          and "Fort Parking" in copied_arrival_note
+          and "300 metres (5–6 minutes)" in copied_arrival_note
+          and "https://maps.app.goo.gl/nAbRiZhv78FSbju48" in copied_arrival_note,
+          "Directions: copied driver note must contain the authoritative address, approximate walk and exact hotel pin")
+    check("Arrival note copied" in (driver_card.locator("[data-arrival-copy-status]").inner_text() or ""),
+          "Directions: successful copy must announce a polite status")
+
+    # Simulate the operating-system share sheet without opening an external app or sending a message.
+    page.evaluate(
+        """() => {
+          Object.defineProperty(navigator, "share", {
+            configurable: true,
+            value: async payload => { window.__arrivalSharedPayload = payload; }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => Boolean(window.__arrivalSharedPayload && window.__arrivalSharedPayload.text)",
+        timeout=3000,
+    )
+    shared_payload = page.evaluate("window.__arrivalSharedPayload")
+    check(shared_payload["title"] == "Garh Jaisal Haveli arrival details"
+          and "Fort Kotari Para, Inside Jaisalmer Fort" in shared_payload["text"]
+          and "https://maps.app.goo.gl/nAbRiZhv78FSbju48" in shared_payload["text"],
+          "Directions: native sharing must contain the exact address, walk and authorized hotel pin")
+    check("Share sheet opened" in driver_card.locator("[data-arrival-copy-status]").inner_text(),
+          "Directions: native-share success must announce that the share sheet opened")
+
+    # Cancellation is not a send and must not silently invoke the clipboard fallback.
+    page.evaluate(
+        """() => {
+          window.__arrivalClipboardWritesAfterCancel = 0;
+          const originalWriteText = navigator.clipboard.writeText;
+          navigator.clipboard.writeText = async value => {
+            window.__arrivalClipboardWritesAfterCancel += 1;
+            return originalWriteText(value);
+          };
+          Object.defineProperty(navigator, "share", {
+            configurable: true,
+            value: async () => { throw new DOMException("Share cancelled", "AbortError"); }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => (document.querySelector('[data-arrival-copy-status]')?.textContent || '').includes('Sharing cancelled')",
+        timeout=3000,
+    )
+    check(page.evaluate("window.__arrivalClipboardWritesAfterCancel") == 0,
+          "Directions: cancelling native share must not start a clipboard write")
+    check("No message was sent" in driver_card.locator("[data-arrival-copy-status]").inner_text(),
+          "Directions: cancellation feedback must not imply that a message was sent")
+
+    # The embedded Google Maps request must remain dormant until the native disclosure is opened.
+    map_preview = page.locator("[data-map-preview]")
+    map_frame = map_preview.locator("iframe[data-map-src]")
+    expected_embed_url = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+    check(map_preview.count() == 1 and map_preview.is_visible(),
+          "Directions: one visible opt-in map preview must be present")
+    check(map_frame.get_attribute("src") is None,
+          "Directions: Google Maps iframe must not have a src before explicit activation")
+    check(map_frame.get_attribute("data-map-src") == expected_embed_url,
+          "Directions: map preview must use the authoritative Google Maps embed URL")
+    map_preview_requests = []
+    page.on(
+        "request",
+        lambda request: map_preview_requests.append(request.url)
+        if request.url.startswith("https://www.google.com/maps?")
+        else None,
+    )
+    page.route("https://www.google.com/maps*", lambda route: route.abort())
+    check(not map_preview_requests,
+          "Directions: Google Maps must not be requested before the visitor opens the preview")
+    map_preview.locator("summary").click()
+    page.wait_for_function(
+        """() => {
+          const details = document.querySelector('[data-map-preview]');
+          const frame = details && details.querySelector('iframe[data-map-src]');
+          return Boolean(details && details.open && frame && frame.getAttribute('src') ===
+            "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed");
+        }""",
+        timeout=5000,
+    )
+    # The iframe is intentionally loading=lazy. Scroll it into view after activation
+    # so the test observes the deferred request without weakening the lazy-load contract.
+    if not map_preview_requests:
+        with page.expect_request(
+            lambda request: request.url.startswith("https://www.google.com/maps?"),
+            timeout=7000,
+        ):
+            map_frame.scroll_into_view_if_needed()
+    check(any(url.startswith("https://www.google.com/maps?") for url in map_preview_requests),
+          "Directions: Google Maps request must begin only after explicit preview activation")
+    map_preview.locator("summary").click()
+    page.wait_for_function(
+        """() => {
+          const details = document.querySelector('[data-map-preview]');
+          const label = document.querySelector('[data-map-preview-label]');
+          return Boolean(details && !details.open && label && label.textContent === 'Show interactive map');
+        }""",
+        timeout=3000,
+    )
+    request_count_after_first_open = len(map_preview_requests)
+    map_preview.locator("summary").click()
+    page.wait_for_function(
+        "() => Boolean(document.querySelector('[data-map-preview]')?.open)",
+        timeout=3000,
+    )
+    check(map_preview.get_attribute("open") is not None,
+          "Directions: native map disclosure must reopen")
+    check(len(map_preview_requests) == request_count_after_first_open,
+          "Directions: reopening an already loaded map must not issue a second map request")
+
     # Directions M2: validate in-page wayfinding and responsive navigation without opening external links.
     section_nav = page.locator("nav.arrival-section-nav")
     check(section_nav.count() == 1 and section_nav.is_visible(),

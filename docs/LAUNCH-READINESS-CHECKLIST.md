@@ -456,3 +456,16 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Owner/editor content, factual, source, visual-subject, rights and alt-text review remains pending for all 12 drafts.
 - [ ] Human visual review and STG-01–STG-18 remain NOT RUN; CI artifacts are local-only evidence, not staging UAT.
 - [ ] Public routes, indexing, canonical approval, sitemap publication and deployment remain disabled.
+
+
+## 2 November 2026 — M33: arrival driver handoff and opt-in map
+
+- [x] Add the source-backed Fort Kotari Para driver note and exact hotel pin.
+- [x] Use the native share sheet when supported; retain clipboard fallback and explicit cancellation feedback.
+- [x] Restrict the exact pin URL in static markup to the driver note and the safe no-JavaScript fallback; both must equal the central site-config URL.
+- [x] Keep Google Maps iframe requests dormant until the visitor opens the native disclosure and preserve lazy-load behavior.
+- [x] Cover the driver handoff, share/cancel/copy paths, and first/repeated map activation in the consolidated Chromium smoke.
+- [ ] Owner confirmation of date-specific vehicle stop, driver meeting point, route conditions and available assistance remains pending.
+- [ ] Verify actual native share-sheet behaviour and clipboard permissions on iOS, Android and desktop on an owner-approved staging origin.
+- [ ] STG-01–STG-18 and human visual review remain NOT RUN; CI screenshots are not staging UAT.
+- [ ] No public publishing, SEO indexing, canonical approval or deployment policy has changed.
