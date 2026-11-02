@@ -578,3 +578,16 @@ The technical implementation must consume an explicit owner-defined policy ident
 - The Rooms hero WebP remains a required source input and is copied into the temporary package before the responsive rewrite.
 - The generated staging markup points to the rewritten responsive candidates. Only after that transformation, the package scans all runtime HTML/CSS/JS/config references and prunes the original WebP if no reference remains.
 - CI now rejects pruning at the source-tree stage, rejects pruning if the transformed package still references the image, and confirms the source file remains in the repository.
+
+
+## M44 — retained duplicate identity and M45 hero contrast correction
+
+- [x] Resolve the retained duplicate counterparts from the reviewed registry and protect them before package-only JPEG optimization.
+- [x] Keep `assets/images/rooms/opium.jpg` and `assets/images/rooms/rising-sun.jpg` byte-identical to the approved duplicate sources; optimizer evidence must report `SKIPPED_PROTECTED_DUPLICATE_IDENTITY` with zero savings.
+- [x] Keep exact archive validation of original byte count, SHA-256 and Git blob SHA; do not accept optimizer-rewritten duplicate bytes.
+- [x] Exercise the real optimizer with protected duplicate fixtures plus an ordinary JPEG that must remain optimizable; reject tampered retained bytes.
+- [x] Keep source-WebP pruning after responsive rewrite only, with original Git source retention, live reference rejection and post-prune asset closure.
+- [x] M45: use the existing light text-link variant for the Experience Details photographic hero secondary CTA, with gold underline and a clear focus-visible outline.
+- [x] Add static hero CTA coverage and Chromium computed-style, visibility, viewport and keyboard focus-visible assertions across mobile and desktop audit widths.
+- [ ] Exact-head workflow #41428554444 must pass staging package build, remain at or below 92% utilization, pass responsive package validation and packaged Chromium checks before M44/M45 automated acceptance.
+- [ ] Preserve separate owner/manual release gates; do not infer visual UAT or staging approval from automation.
