@@ -26,6 +26,9 @@ assert.match(smoke, /def check_extended_guest_viewports\(page, page_name: str\)/
   'The Chromium runner must implement the extended viewport geometry/navigation pass.');
 assert.match(smoke, /check_extended_guest_viewports\(page, page_name\)/,
   'The extended viewport pass must run on every core route.');
+assert.ok(smoke.includes('desktop_transition') && smoke.includes('compact_transition')
+  && smoke.includes('focusOnFirstLink') && smoke.includes('focusOnToggle'),
+  'Every route must verify focus-safe compact/full-navigation transitions in real Chromium.');
 assert.match(smoke, /finally:\s+page\.set_viewport_size\(original_viewport\)/,
   'The supplementary viewport pass must restore the original viewport even after an assertion.');
 assert.ok(smoke.includes('journeyOverlap')
