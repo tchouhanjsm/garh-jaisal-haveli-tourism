@@ -3439,7 +3439,7 @@ def check_booking_handoff_on_route(page, page_name: str) -> None:
     check(links.count() >= 1, f"{page_name}: a booking action must remain available on every public route")
     try:
         page.wait_for_function(
-            """() => {
+            r"""() => {
               const links = Array.from(document.querySelectorAll('a[data-booking-link]'));
               return links.length > 0 && links.every(link =>
                 /^https:\/\/asiatech\.in\/booking_engine\/index3\?token=/.test(link.href)
@@ -3452,7 +3452,7 @@ def check_booking_handoff_on_route(page, page_name: str) -> None:
         return
 
     records = page.evaluate(
-        """() => Array.from(document.querySelectorAll('a[data-booking-link]')).map(link => {
+        r"""() => Array.from(document.querySelectorAll('a[data-booking-link]')).map(link => {
           const url = new URL(link.href);
           return {
             href: link.href,

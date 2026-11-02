@@ -276,8 +276,8 @@ assert.match(driverCard, /data-arrival-copy=""/,
   'The complete driver note must remain unavailable until the source-authorized map configuration loads');
 assert.doesNotMatch(driverCard, /maps\.app\.goo\.gl/,
   'The driver note must obtain its exact pin from centralized source configuration');
-assert.match(arrivalEnhancements, /document\.addEventListener\('garh-jaisal:contact-ready'/,
-  'Arrival handoff must receive validated map configuration from the shared runtime');
+assert.match(arrivalEnhancements, /document\.addEventListener\('garh-jaisal:contact-ready'[\s\S]*?configureMapDestinations\(currentMapConfig\)/,
+  'Arrival handoff must immediately apply validated map configuration, independent of initializer timing');
 assert.match(arrivalEnhancements, /detail\.hotelMapUrl[\s\S]*?detail\.hotelMapEmbedUrl/,
   'Arrival handoff must consume the centrally validated hotel pin and embed destination');
 assert.match(arrivalEnhancements, /Exact hotel map pin: '\s*\+ hotelMapUrl/,

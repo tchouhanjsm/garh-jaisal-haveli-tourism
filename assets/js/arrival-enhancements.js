@@ -175,7 +175,11 @@
 
   document.addEventListener('garh-jaisal:contact-ready', function (event) {
     currentMapConfig = event && event.detail ? event.detail : {};
-    if (initialised) configureMapDestinations(currentMapConfig);
+    // The Directions DOM exists before this deferred script runs. Apply the
+    // validated event immediately, even if the one-time UI initializer has
+    // not fired yet; initialise() reapplies the last config after wiring the
+    // native disclosure and handoff handlers.
+    configureMapDestinations(currentMapConfig);
   });
 
   function initialise() {
