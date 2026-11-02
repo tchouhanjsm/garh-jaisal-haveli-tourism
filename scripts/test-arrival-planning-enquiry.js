@@ -118,9 +118,9 @@ assert.ok(browserSmoke.includes('matrix = [(390, 844), (1280, 900)]'),
 assert.ok(browserSmoke.includes('for page_name in PAGES:'),
   'arrival deep-link coverage must iterate every route in the shared core-page contract');
 assert.ok(browserSmoke.includes('headingRect = heading.getBoundingClientRect()')
-  && browserSmoke.includes('"headingTop": headingRect.top')
-  && browserSmoke.includes('"headingBottom": headingRect.bottom')
-  && browserSmoke.includes('"headerBottom": header ? header.getBoundingClientRect().bottom : 0')
+  && browserSmoke.includes('headingTop: headingRect.top')
+  && browserSmoke.includes('headingBottom: headingRect.bottom')
+  && browserSmoke.includes('headerBottom: header ? header.getBoundingClientRect().bottom : 0')
   && browserSmoke.includes('viewport_geometry["headingTop"] >= max(0, viewport_geometry["headerBottom"])')
   && browserSmoke.includes('viewport_geometry["headingBottom"] <= viewport_height'),
   'arrival deep-link coverage must prove the date-specific planner heading is fully visible below the sticky header');
