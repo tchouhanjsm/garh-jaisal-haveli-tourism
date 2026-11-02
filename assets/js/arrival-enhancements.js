@@ -1,6 +1,9 @@
 'use strict';
 
 (function () {
+  var currentMapConfig = {};
+  var initialised = false;
+
   function validateHotelMapUrl(value) {
     try {
       var url = new URL(value);
@@ -76,6 +79,7 @@
       var label = details.querySelector('[data-map-preview-label]');
       if (!iframe) return;
 
+      details.hidden = true;
       details.dataset.mapPreviewInitialised = 'true';
       details.addEventListener('toggle', function () {
         if (details.open && !iframe.hasAttribute('src')) {
@@ -170,16 +174,16 @@
   }
 
   document.addEventListener('garh-jaisal:contact-ready', function (event) {
-    configureMapDestinations(event && event.detail ? event.detail : {});
+    currentMapConfig = event && event.detail ? event.detail : {};
+    if (initialised) configureMapDestinations(currentMapConfig);
   });
 
   function initialise() {
+    if (initialised) return;
+    initialised = true;
     initialiseMapPreviews();
     initialiseArrivalCopy();
-    configureMapDestinations({
-      hotelMapUrl: document.documentElement.dataset.hotelMapUrl || '',
-      hotelMapEmbedUrl: document.documentElement.dataset.hotelMapEmbedUrl || ''
-    });
+    configureMapDestinations(currentMapConfig);
   }
 
   if (document.readyState === 'loading') {

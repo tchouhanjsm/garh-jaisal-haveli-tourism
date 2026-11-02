@@ -749,8 +749,6 @@
         }
       }
 
-      document.documentElement.dataset.hotelMapUrl = hotelMapUrl;
-      document.documentElement.dataset.hotelMapEmbedUrl = hotelMapEmbedUrl;
       if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
           detail: { whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl }
@@ -828,8 +826,6 @@
         || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
-      document.documentElement.dataset.hotelMapUrl = '';
-      document.documentElement.dataset.hotelMapEmbedUrl = '';
       if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
           detail: { whatsappBaseUrl: '', hotelMapUrl: '', hotelMapEmbedUrl: '' }

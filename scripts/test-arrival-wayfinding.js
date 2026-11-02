@@ -286,6 +286,8 @@ assert.match(driverCard, /data-arrival-copy-status role="status" aria-live="poli
   'Copy feedback must be announced through a polite live region');
 assert.match(directions, /assets\/js\/arrival-enhancements\.js/,
   'Directions must load the progressive arrival enhancements');
+assert.ok(directions.indexOf('assets/js/arrival-enhancements.js') < directions.indexOf('assets/site.js'),
+  'Arrival enhancements must subscribe before the shared runtime publishes validated map configuration');
 
 const mapPreview = map.match(/<details class="arrival-map-preview__details" data-map-preview>[\s\S]*?<\/details>/)?.[0] || '';
 assert.ok(mapPreview, 'Directions must expose an opt-in native map disclosure');
