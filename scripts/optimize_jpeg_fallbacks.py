@@ -64,6 +64,7 @@ def optimize_jpeg_fallbacks(root: Path, image_sources: list[dict[str, Any]]) -> 
 
     WebP/AVIF generation and validation must run before this function. Files with
     hero delivery or AVIF source-provenance bindings are left byte-identical.
+    Retained counterparts of package-pruned exact duplicates are immutable too.
     """
     root_path = Path(os.path.abspath(os.fspath(root)))
     if root_path.is_symlink() or not root_path.is_dir():
@@ -87,7 +88,9 @@ def optimize_jpeg_fallbacks(root: Path, image_sources: list[dict[str, Any]]) -> 
         original_sha256 = hashlib.sha256(original_bytes).hexdigest()
 
         protected_reason = None
-        if source_record.get("heroDeliveryAvif"):
+        if source_record.get("preserveSourceIdentity") is True:
+            protected_reason = "retained-duplicate-source-identity"
+        elif source_record.get("heroDeliveryAvif"):
             protected_reason = "source-provenance-bound-avif"
         elif source_record.get("heroDeliveryWebp"):
             protected_reason = "hero-delivery-quality-protected"
@@ -99,7 +102,7 @@ def optimize_jpeg_fallbacks(root: Path, image_sources: list[dict[str, Any]]) -> 
             protected_count += 1
             records.append({
                 "path": relative,
-                "status": "SKIPPED_PROTECTED_SOURCE",
+                "status": "SKIPPED_PROTECTED_DUPLICATE_IDENTITY" if protected_reason == "retained-duplicate-source-identity" else "SKIPPED_PROTECTED_SOURCE",
                 "reason": protected_reason,
                 "originalBytes": original_size,
                 "optimizedBytes": original_size,
