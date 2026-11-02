@@ -496,3 +496,12 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Update the deep-link static contract to require the planner heading to be fully visible below the sticky header, not merely inside the viewport.
 - [ ] Human validation of the booking CTA position on real iOS/Android devices remains pending.
 - [ ] The visitor still prepares and reviews an enquiry-only draft; no message submission, transfer booking, guest-data persistence or production release is introduced.
+
+## M38 — central contact-configuration resilience
+
+- [x] Simulate a same-origin HTTP 503 for \`content/site-config.json\` in a separate Chromium context.
+- [x] Verify booking, WhatsApp, phone and map actions fail closed and point to the accessible contact-status fallback.
+- [x] Keep the interactive arrival form hidden and retain the no-JavaScript/static arrival fallback during the outage.
+- [x] Confirm the map iframe has no active \`src\` and cannot issue an external map request while configuration is unavailable.
+- [x] Retry the same Directions page after the one-time failure and verify the authorized booking, arrival form, and exact dormant map destination recover.
+- [ ] Live availability of the hotel/provider channels remains an owner/staging UAT item; this test verifies local failure/retry behavior only.

@@ -3646,6 +3646,121 @@ def check_booking_handoff_on_route(page, page_name: str) -> None:
           f"{page_name}: internal CTA fragment(s) must resolve to real page targets ({broken_fragments})")
 
 
+
+
+def check_contact_configuration_failure_recovery(browser, base_url: str) -> None:
+    """Fail the central contact-config request once, then prove the same page recovers."""
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    config_requests = 0
+
+    def intercept_config(route) -> None:
+        nonlocal config_requests
+        config_requests += 1
+        if config_requests == 1:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body='{"error":"temporary configuration outage"}',
+            )
+        else:
+            route.continue_()
+
+    page.route("**/content/site-config.json", intercept_config)
+    try:
+        response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              "Contact-config recovery: Directions must load even when central configuration is unavailable")
+        try:
+            page.wait_for_function(
+                """() => {
+                  const status = document.querySelector('#contact-status');
+                  const map = document.querySelector('[data-map-preview]');
+                  const form = document.querySelector('[data-arrival-planning-form]');
+                  return Boolean(status && !status.hidden && map
+                    && map.dataset.mapConfigState === 'unavailable'
+                    && form && form.hidden);
+                }""",
+                timeout=7000,
+            )
+        except Exception as error:
+            check(False,
+                  f"Contact-config recovery: failure state did not settle safely ({type(error).__name__})")
+
+        check(config_requests == 1,
+              "Contact-config recovery: the first page load must make one central-config request")
+        check(page.locator("#contact-status").is_visible(),
+              "Contact-config recovery: accessible contact status must explain the unavailable channels")
+        check(page.locator("[data-arrival-planning-form]").is_hidden(),
+              "Contact-config recovery: interactive arrival form must remain hidden without an authorized destination")
+        check(page.locator("[data-arrival-enquiry-fallback]").is_visible(),
+              "Contact-config recovery: static arrival fallback must remain visible")
+        check(page.locator("[data-map-preview]").is_hidden()
+              and page.locator("[data-map-preview]").get_attribute("data-map-config-state") == "unavailable",
+              "Contact-config recovery: interactive map must remain hidden when configuration fails")
+        check(page.locator("[data-map-preview] iframe[src]").count() == 0,
+              "Contact-config recovery: no map network request may start from a failed configuration")
+        for selector, label in (
+            ("[data-enquiry-link]", "WhatsApp"),
+            ("[data-contact-phone]", "phone"),
+            ("[data-property-map-link]", "hotel map"),
+            ("[data-booking-link]", "booking"),
+        ):
+            link = page.locator(selector).first
+            check(link.count() == 1
+                  and link.get_attribute("aria-disabled") == "true"
+                  and link.get_attribute("href") == "#contact-status",
+                  f"Contact-config recovery: {label} action must point to the accessible fallback, not a stale destination")
+
+        # The same page is retried after the one-time 503. No external channel
+        # or map iframe is activated; only the central same-origin JSON is fetched.
+        response = page.reload(wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              "Contact-config recovery: retry must reload the same Directions page")
+        try:
+            page.wait_for_function(
+                """() => {
+                  const status = document.querySelector('#contact-status');
+                  const map = document.querySelector('[data-map-preview]');
+                  const frame = map && map.querySelector('iframe[data-map-src]');
+                  const form = document.querySelector('[data-arrival-planning-form]');
+                  const fallback = document.querySelector('[data-arrival-enquiry-fallback]');
+                  return Boolean(status && status.hidden && map && !map.hidden
+                    && map.dataset.mapConfigState === 'ready'
+                    && frame && frame.getAttribute('data-map-src')
+                    && form && !form.hidden && fallback && fallback.hidden);
+                }""",
+                timeout=7000,
+            )
+        except Exception as error:
+            check(False,
+                  f"Contact-config recovery: valid retry did not restore approved controls ({type(error).__name__})")
+
+        check(config_requests == 2,
+              "Contact-config recovery: retry must make exactly one additional central-config request")
+        check(page.locator("#contact-status").is_hidden(),
+              "Contact-config recovery: accessible unavailable status must clear after a valid retry")
+        check(page.locator("[data-arrival-planning-form]").is_visible()
+              and page.locator("[data-arrival-enquiry-fallback]").is_hidden(),
+              "Contact-config recovery: authorized arrival form must replace the static fallback after recovery")
+        details = page.locator("[data-map-preview]")
+        frame = details.locator("iframe")
+        check(details.is_visible() and details.get_attribute("data-map-config-state") == "ready",
+              "Contact-config recovery: map disclosure must become available after a valid retry")
+        expected_embed = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+        check(frame.get_attribute("data-map-src") == expected_embed
+              and frame.get_attribute("src") is None,
+              "Contact-config recovery: exact approved map source must be restored but remain dormant until visitor activation")
+        booking = page.locator("[data-booking-link]").first
+        check(booking.get_attribute("aria-disabled") is None
+              and booking.get_attribute("href",) is not None
+              and booking.get_attribute("target") == "_blank"
+              and {"noopener", "noreferrer"}.issubset(set((booking.get_attribute("rel") or "").split())),
+              "Contact-config recovery: booking action must regain its protected destination after retry")
+    finally:
+        context.close()
+
+
 def check_contact_hydration(page, base_url: str) -> None:
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
     page.wait_for_function(
@@ -6916,6 +7031,7 @@ def main(argv: list[str] | None = None) -> int:
 
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
+            check_contact_configuration_failure_recovery(browser, base_url)
             check_stay_planner(page, base_url)
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)

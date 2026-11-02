@@ -494,3 +494,10 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Exercise arrival enquiry form geometry at 320, 375, 390, 430, 768, 1280 and 1440px.
 - [x] Require planner heading visibility below the sticky header in the deep-link route matrix.
 - [ ] Owner must complete real-device iOS/Android review; browser emulation is not device UAT.
+
+## 2 November 2026 — M38: central contact-configuration resilience
+
+- [x] Exercise temporary HTTP 503 for the central site configuration in isolated Chromium.
+- [x] Verify all affected links and forms fail closed and retain accessible recovery text.
+- [x] Verify map iframe remains dormant during failure and valid config retry restores the approved destination without auto-loading it.
+- [ ] Owner must verify real contact-channel responsiveness and booking-provider availability on staging.
