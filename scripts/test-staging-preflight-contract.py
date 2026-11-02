@@ -1195,7 +1195,7 @@ gallery_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
     if item["route"] == "gallery.html"
 )
-assert gallery_fixture_first_view["deferredTemplateCount"] == 7
+assert gallery_fixture_first_view["deferredTemplateCount"] == 17, "Gallery fixture must retain 7 introductory, 7 named-room and 3 source-gallery templates"
 assert gallery_fixture_first_view["deferredActivatedCount"] == 0
 home_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
