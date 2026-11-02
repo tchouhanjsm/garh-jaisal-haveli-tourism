@@ -10,6 +10,7 @@ const directions = fs.readFileSync(path.join(ROOT, 'directions.html'), 'utf8');
 const siteJs = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'arrival-wayfinding.css'), 'utf8');
 const quality = fs.readFileSync(path.join(ROOT, 'scripts', 'check-pr-quality.sh'), 'utf8');
+const browserSmoke = fs.readFileSync(path.join(ROOT, 'scripts', 'test-browser-smoke.py'), 'utf8');
 
 const formStart = directions.indexOf('<form class="arrival-enquiry-form" data-arrival-planning-form hidden>');
 const formEnd = formStart < 0 ? -1 : directions.indexOf('</form>', formStart);
@@ -108,3 +109,18 @@ assert.match(quality, /node scripts\/test-arrival-planning-enquiry\.js/,
   'The arrival-planning contract must run in the main GitHub quality gate');
 
 console.log('PASS: date-specific arrival enquiry contract, accessible fallback, contact gating, data minimization and non-persistent draft behavior.');
+
+
+assert.ok(browserSmoke.includes('def check_arrival_planning_deep_links(page, base_url: str)'),
+  'the consolidated Chromium suite must exercise the Arrive planner deep-link contract');
+assert.ok(browserSmoke.includes('matrix = [(390, 844), (1280, 900)]'),
+  'arrival deep links must be exercised at mobile and desktop viewport sizes');
+assert.ok(browserSmoke.includes('for page_name in PAGES:'),
+  'arrival deep-link coverage must iterate every route in the shared core-page contract');
+assert.ok(browserSmoke.includes('heading_bounds = heading.bounding_box()'),
+  'arrival deep-link coverage must measure the date-specific planner heading in the viewport');
+assert.ok(browserSmoke.includes('completed_cases.append((page_name, width, height))'),
+  'arrival deep-link coverage must record every route/viewport case');
+assert.ok(browserSmoke.includes('check_arrival_planning_deep_links(page, base_url)'),
+  'the arrival deep-link matrix must be called by the consolidated Chromium runner');
+

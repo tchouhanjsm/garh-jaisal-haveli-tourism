@@ -420,8 +420,8 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 
 ## Arrival planner route coverage — automated gate
 
-- [ ] Confirm the Home Arrive tile and every Stay / Explore / Dine / Arrive navigation rail link to `directions.html#arrival-planning`; do not regress to the top-of-page URL.
-- [ ] Verify the date-specific planner section and heading resolve after navigation from all eight core routes at desktop and mobile viewports.
+- [x] Confirm the Home Arrive tile and every Stay / Explore / Dine / Arrive navigation rail link to `directions.html#arrival-planning`; do not regress to the top-of-page URL.
+- [x] Verify the date-specific planner section and heading resolve after navigation from all eight core routes at mobile (390×844) and desktop (1280×900) viewports; Chromium records all 16 route/viewport journeys.
 - [ ] Continue to treat this as a draft enquiry only; actual meeting point, route conditions, luggage support and contact responsiveness require owner/staging confirmation.
 
 

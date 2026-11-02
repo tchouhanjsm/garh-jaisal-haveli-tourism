@@ -5807,52 +5807,91 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
 
 
 def check_arrival_planning_deep_links(page, base_url: str) -> None:
-    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
+    """Exercise every Arrive entry point at mobile and desktop viewport sizes."""
+    original_viewport = page.viewport_size
+    matrix = [(390, 844), (1280, 900)]
+    completed_cases: list[tuple[str, int, int]] = []
+    failures_before = len(FAILURES)
+    try:
+        for width, height in matrix:
+            page.set_viewport_size({"width": width, "height": height})
+            for page_name in PAGES:
+                viewport_label = f"{width}x{height}"
+                response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
+                check(response is not None and response.status == 200,
+                      f"{page_name} at {viewport_label}: arrival deep-link source must return HTTP 200")
+                if response is None or response.status != 200:
+                    continue
+                if page_name == "index.html":
+                    link = page.locator('.home-plan-panel a.home-plan-path[href="directions.html#arrival-planning"]')
+                else:
+                    link = page.locator('.guest-journey a.guest-journey__step[href="directions.html#arrival-planning"]')
+                check(link.count() == 1,
+                      f"{page_name} at {viewport_label}: expected exactly one Arrive deep link to the planner")
+                if link.count() != 1:
+                    continue
+                check(link.is_visible(),
+                      f"{page_name} at {viewport_label}: Arrive deep link must be visible before activation")
+                if not link.is_visible():
+                    continue
+                link.click()
+                try:
+                    page.wait_for_url("**/directions.html#arrival-planning", timeout=7000)
+                except Exception as error:
+                    check(False,
+                          f"{page_name} at {viewport_label}: Arrive link must land at Directions#arrival-planning ({error})")
+                    continue
 
-def check_arrival_planning_deep_links(page, base_url: str) -> None:
-    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
-    for page_name in PAGES:
-        response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
-        check(response is not None and response.status == 200,
-              f"{page_name}: arrival deep-link source must return HTTP 200")
-        if page_name == "index.html":
-            link = page.locator('.home-plan-panel a.home-plan-path[href="directions.html#arrival-planning"]')
-        else:
-            link = page.locator('.guest-journey a.guest-journey__step[href="directions.html#arrival-planning"]')
-        check(link.count() == 1, f"{page_name}: expected exactly one Arrive deep link to the planner")
-        if link.count() != 1:
-            continue
-        link.click()
-        try:
-            page.wait_for_url("**/directions.html#arrival-planning", timeout=7000)
-        except Exception as error:
-            check(False, f"{page_name}: Arrive link must land at Directions#arrival-planning ({error})")
-            continue
-        target = page.locator("#arrival-planning")
-        check(target.count() == 1, "Directions must provide one arrival-planning fragment target")
-        if target.count() == 1:
-            try:
-                page.wait_for_function(
-                    "() => { const target = document.querySelector('#arrival-planning'); "
-                    "if (!target) return false; const rect = target.getBoundingClientRect(); "
-                    "return rect.top < window.innerHeight && rect.bottom > 0 "
-                    "&& document.activeElement === target; }",
-                    timeout=5000,
+                target = page.locator("#arrival-planning")
+                check(target.count() == 1,
+                      f"{page_name} at {viewport_label}: Directions must provide one arrival-planning fragment target")
+                if target.count() != 1:
+                    continue
+                try:
+                    page.wait_for_function(
+                        "() => { const target = document.querySelector('#arrival-planning'); "
+                        "if (!target) return false; const rect = target.getBoundingClientRect(); "
+                        "return rect.top < window.innerHeight && rect.bottom > 0 "
+                        "&& document.activeElement === target; }",
+                        timeout=5000,
+                    )
+                except Exception as error:
+                    check(False,
+                          f"{page_name} at {viewport_label}: arrival fragment should scroll into view and transfer focus ({error})")
+
+                bounds = target.bounding_box()
+                viewport_height = page.evaluate("() => window.innerHeight")
+                is_focused = page.evaluate(
+                    "() => document.activeElement && document.activeElement.id === 'arrival-planning'"
                 )
-            except Exception as error:
-                check(False, f"{page_name}: arrival fragment should scroll into view and transfer focus ({error})")
-            bounds = target.bounding_box()
-            viewport_height = page.evaluate("() => window.innerHeight")
-            is_focused = page.evaluate("() => document.activeElement && document.activeElement.id === 'arrival-planning'")
-            check(is_focused, f"{page_name}: focus must move to the arrival planner for keyboard/screen-reader continuity")
-            check(bounds is not None and bounds["y"] < viewport_height
-                  and bounds["y"] + bounds["height"] > 0,
-                  f"{page_name}: deep-linked arrival planner must be within the viewport ({bounds})")
-        check(page.locator("#arrival-enquiry-title").is_visible(),
-              f"{page_name}: deep link must expose the date-specific arrival planner heading")
-        check(same_origin(page.url, base_url),
-              f"{page_name}: arrival planning deep link must remain same-origin")
+                check(is_focused,
+                      f"{page_name} at {viewport_label}: focus must move to the planner for keyboard/screen-reader continuity")
+                check(bounds is not None and bounds["y"] < viewport_height
+                      and bounds["y"] + bounds["height"] > 0,
+                      f"{page_name} at {viewport_label}: deep-linked planner must be within the viewport ({bounds})")
 
+                heading = page.locator("#arrival-enquiry-title")
+                check(heading.count() == 1 and heading.is_visible(),
+                      f"{page_name} at {viewport_label}: deep link must expose the date-specific planner heading")
+                heading_bounds = heading.bounding_box()
+                check(heading_bounds is not None and 0 <= heading_bounds["y"] < viewport_height,
+                      f"{page_name} at {viewport_label}: planner heading must be in the visible viewport ({heading_bounds})")
+                check(same_origin(page.url, base_url),
+                      f"{page_name} at {viewport_label}: arrival planner handoff must remain same-origin")
+                completed_cases.append((page_name, width, height))
+    finally:
+        if original_viewport is not None:
+            page.set_viewport_size(original_viewport)
+
+    expected_cases = len(PAGES) * len(matrix)
+    check(len(completed_cases) == expected_cases,
+          f"Arrival planner deep-link matrix must complete {expected_cases} route/viewport cases; completed {len(completed_cases)}")
+    if len(completed_cases) == expected_cases and len(FAILURES) == failures_before:
+        print(
+            "PASS: arrival planner deep links verified across "
+            f"{len(PAGES)} core routes × {len(matrix)} viewports = {expected_cases} cases "
+            "(390x844 mobile, 1280x900 desktop), including visible heading, focus transfer and same-origin URL."
+        )
 
 def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
     """Exercise the date-specific arrival draft without opening WhatsApp or sending data."""

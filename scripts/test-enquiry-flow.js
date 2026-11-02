@@ -226,15 +226,23 @@ async function main() {
       const driverNote = html.match(/data-arrival-copy="([^"]*)"/);
       assert.ok(driverNote && driverNote[1].includes('Exact hotel map pin: ' + exactHotelMapUrl),
         'driver payload must include the exact central hotel pin');
-      const noScriptFallback = html.match(/<noscript>[\\s\\S]*?<\\/noscript>/i);
-      assert.ok(noScriptFallback && noScriptFallback[0].includes('href="' + exactHotelMapUrl + '"')
-        && noScriptFallback[0].includes('target="_blank"')
-        && noScriptFallback[0].includes('rel="noopener noreferrer"'),
+      const noScriptStart = html.indexOf('<noscript>');
+      const noScriptEnd = noScriptStart < 0 ? -1 : html.indexOf('</noscript>', noScriptStart);
+      const noScriptFallback = noScriptStart >= 0 && noScriptEnd > noScriptStart
+        ? html.slice(noScriptStart, noScriptEnd + '</noscript>'.length)
+        : '';
+      assert.ok(noScriptFallback && noScriptFallback.includes('href="' + exactHotelMapUrl + '"')
+        && noScriptFallback.includes('target="_blank"')
+        && noScriptFallback.includes('rel="noopener noreferrer"'),
         'no-JavaScript fallback must open the same exact pin safely in a new tab');
     } else if (page === 'dining.html') {
       assert.deepEqual(shortMapLinks, [exactRestaurantMapUrl],
         'Dining may use only the centrally authorized restaurant map pin');
-      const restaurantLinks = html.match(/<div class="restaurant-source-links">([\\s\\S]*?)<\\/div>/)?.[1] || '';
+      const restaurantLinksStart = html.indexOf('<div class="restaurant-source-links">');
+      const restaurantLinksEnd = restaurantLinksStart < 0 ? -1 : html.indexOf('</div>', restaurantLinksStart);
+      const restaurantLinks = restaurantLinksStart >= 0 && restaurantLinksEnd > restaurantLinksStart
+        ? html.slice(restaurantLinksStart, restaurantLinksEnd + '</div>'.length)
+        : '';
       assert.ok(restaurantLinks.includes('href="' + exactRestaurantMapUrl + '"')
         && restaurantLinks.includes('target="_blank"')
         && restaurantLinks.includes('rel="noopener noreferrer"'),

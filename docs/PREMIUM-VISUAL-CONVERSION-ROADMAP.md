@@ -457,3 +457,14 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [ ] Owner must confirm the current driver drop-off, meeting point and walking approach for real arrival dates; the page does not guarantee a transfer or assistance.
 - [ ] Human visual/UAT review on owner-approved HTTPS staging remains NOT RUN; verify native sharing and clipboard permissions on iOS, Android and desktop.
 - [ ] No booking, messaging submission, guest-data storage, canonical, robots, sitemap, publication or deployment policy changes are authorized by M33.
+
+
+## M34 — arrival-planner deep-link route and viewport matrix
+
+- [x] Exercise the Home Arrive decision and all Stay / Explore / Dine / Arrive rails across every route in the shared eight-page contract.
+- [x] Run every source route at mobile 390×844 and desktop 1280×900 CSS pixels, then activate the visible Arrive link to `directions.html#arrival-planning`.
+- [x] Assert HTTP 200 source pages, exact same-origin fragment destination, one planner anchor, visible date-specific heading, viewport geometry and focus transfer.
+- [x] Record the route/viewport matrix completion in the real Chromium smoke output and enforce the matrix through the static arrival-planner contract.
+- [ ] Actual meeting point, drop-off, route conditions, luggage support and contact responsiveness still require owner confirmation.
+- [ ] Human visual review and STG-01–STG-18 remain NOT RUN until an owner-approved HTTPS staging origin and real-device evidence exist.
+- [ ] The arrival form remains an enquiry-only draft; no booking, message submission, guest-data storage, SEO publication, canonical, robots, sitemap or deployment policy is changed.
