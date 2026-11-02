@@ -912,12 +912,77 @@ for forbidden_relative in (
                 "Release package must reject draft-only editorial payload: " + forbidden_relative
             )
 
-# The original exact-duplicate source pair is proven before optimization; the
-# retained package JPEG must separately match its post-optimization evidence.
+# Retained duplicate counterparts must never be re-encoded. Exercise the
+# optimizer itself with real JPEG fixtures; protected files retain exact
+# byte/SHA/Git-blob identity while an ordinary non-hero JPEG still optimizes.
 import hashlib
+import importlib.util
+from PIL import Image
+
+OPTIMIZER_PATH = ROOT / "scripts" / "optimize_jpeg_fallbacks.py"
+OPTIMIZER_SPEC = importlib.util.spec_from_file_location("jpeg_fallback_optimizer_contract", OPTIMIZER_PATH)
+if OPTIMIZER_SPEC is None or OPTIMIZER_SPEC.loader is None:
+    raise RuntimeError("Could not load JPEG fallback optimizer contract")
+jpeg_optimizer = importlib.util.module_from_spec(OPTIMIZER_SPEC)
+OPTIMIZER_SPEC.loader.exec_module(jpeg_optimizer)
+
+with tempfile.TemporaryDirectory(prefix="garh-jpeg-identity-optimization-") as temporary_directory:
+    fixture_root = Path(temporary_directory)
+    fixture_records = []
+    protected_originals = {}
+    for index, relative in enumerate((
+        "assets/images/rooms/opium.jpg",
+        "assets/images/rooms/rising-sun.jpg",
+    )):
+        path = fixture_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        image = Image.new("RGB", (1200, 800), (40 + index * 25, 95, 135))
+        for x in range(1200):
+            image.putpixel((x, (x * (index + 7)) % 800), ((x + index) % 255, 90, 155))
+        image.save(path, "JPEG", quality=96, optimize=False)
+        original = path.read_bytes()
+        protected_originals[relative] = original
+        fixture_records.append({"sourceJpeg": relative, "preserveSourceIdentity": True})
+
+    ordinary_path = fixture_root / "assets/images/rooms/ordinary-support.jpg"
+    ordinary_path.parent.mkdir(parents=True, exist_ok=True)
+    ordinary_image = Image.new("RGB", (1200, 800), (90, 130, 170))
+    for x in range(1200):
+        ordinary_image.putpixel((x, (x * 13) % 800), ((x * 7) % 255, (x * 3) % 255, 155))
+    ordinary_image.save(ordinary_path, "JPEG", quality=96, optimize=False)
+    ordinary_original_size = ordinary_path.stat().st_size
+    fixture_records.append({"sourceJpeg": "assets/images/rooms/ordinary-support.jpg"})
+
+    optimizer_report = jpeg_optimizer.optimize_jpeg_fallbacks(fixture_root, fixture_records)
+    assert optimizer_report["status"] == "PASS"
+    assert optimizer_report["protectedFallbackCount"] == 2
+    assert optimizer_report["optimizedFallbackCount"] == 1, optimizer_report
+    optimizer_records = {item["path"]: item for item in optimizer_report["files"]}
+    for relative, original in protected_originals.items():
+        record = optimizer_records[relative]
+        retained = (fixture_root / relative).read_bytes()
+        assert record["status"] == "SKIPPED_PROTECTED_DUPLICATE_IDENTITY"
+        assert record["reason"] == "retained-duplicate-source-identity"
+        assert record["originalBytes"] == len(original) == record["optimizedBytes"]
+        assert record["savedBytes"] == 0
+        assert record["originalSha256"] == hashlib.sha256(original).hexdigest()
+        assert retained == original
+        assert staging_packager.git_blob_sha(retained) == staging_packager.git_blob_sha(original)
+        identity = {
+            "bytes": len(original),
+            "sha256": hashlib.sha256(original).hexdigest(),
+            "gitBlobSha": staging_packager.git_blob_sha(original),
+        }
+        staging_packager.validate_retained_duplicate_package_payload(
+            relative, retained, identity, identity, optimizer_report
+        )
+
+    ordinary_record = optimizer_records["assets/images/rooms/ordinary-support.jpg"]
+    assert ordinary_record["status"] == "OPTIMIZED", ordinary_record
+    assert ordinary_record["optimizedBytes"] < ordinary_original_size
+    assert ordinary_record["savedPercent"] >= jpeg_optimizer.MINIMUM_SAVINGS_PERCENT
 
 duplicate_original = b"original exact duplicate bytes"
-duplicate_optimized = b"optimized retained JPEG bytes"
 duplicate_expected = {
     "sha256": hashlib.sha256(duplicate_original).hexdigest(),
     "gitBlobSha": staging_packager.git_blob_sha(duplicate_original),
@@ -929,71 +994,30 @@ duplicate_pruning_entry = {
     "sha256": duplicate_expected["sha256"],
     "gitBlobSha": duplicate_expected["gitBlobSha"],
 }
-optimized_record = {
+protected_record = {
     "path": duplicate_pruning_entry["duplicateOf"],
-    "status": "OPTIMIZED",
-    "originalBytes": len(duplicate_original),
-    "optimizedBytes": len(duplicate_optimized),
-    "savedBytes": len(duplicate_original) - len(duplicate_optimized),
-    "savedPercent": 12.0,
-    "quality": 86,
-    "psnrDb": 41.25,
-    "minimumPsnrDb": 35.0,
-    "minimumSavingsPercent": 5.0,
-    "originalSha256": duplicate_expected["sha256"],
-    "optimizedSha256": hashlib.sha256(duplicate_optimized).hexdigest(),
-    "dimensionsPreserved": True,
-    "iccProfilePreserved": True,
-    "exifOrientationPreserved": True,
-}
-staging_packager.validate_retained_duplicate_package_payload(
-    duplicate_pruning_entry["duplicateOf"],
-    duplicate_optimized,
-    duplicate_pruning_entry,
-    duplicate_expected,
-    {"status": "PASS", "files": [optimized_record]},
-)
-bad_optimized_record = dict(optimized_record, optimizedSha256="0" * 64)
-try:
-    staging_packager.validate_retained_duplicate_package_payload(
-        duplicate_pruning_entry["duplicateOf"],
-        duplicate_optimized,
-        duplicate_pruning_entry,
-        duplicate_expected,
-        {"status": "PASS", "files": [bad_optimized_record]},
-    )
-except RuntimeError as error:
-    assert "optimization evidence" in str(error)
-else:
-    raise AssertionError("A retained JPEG whose bytes disagree with optimizer evidence must be rejected.")
-
-unchanged_record = {
-    "path": duplicate_pruning_entry["duplicateOf"],
-    "status": "SKIPPED_NO_QUALIFYING_CANDIDATE",
+    "status": "SKIPPED_PROTECTED_DUPLICATE_IDENTITY",
+    "reason": "retained-duplicate-source-identity",
     "originalBytes": len(duplicate_original),
     "optimizedBytes": len(duplicate_original),
     "savedBytes": 0,
     "originalSha256": duplicate_expected["sha256"],
 }
 staging_packager.validate_retained_duplicate_package_payload(
-    duplicate_pruning_entry["duplicateOf"],
-    duplicate_original,
-    duplicate_pruning_entry,
-    duplicate_expected,
-    {"status": "PASS", "files": [unchanged_record]},
+    duplicate_pruning_entry["duplicateOf"], duplicate_original,
+    duplicate_pruning_entry, duplicate_expected,
+    {"status": "PASS", "files": [protected_record]},
 )
 try:
     staging_packager.validate_retained_duplicate_package_payload(
-        duplicate_pruning_entry["duplicateOf"],
-        duplicate_optimized,
-        duplicate_pruning_entry,
-        duplicate_expected,
-        {"status": "PASS", "files": [unchanged_record]},
+        duplicate_pruning_entry["duplicateOf"], b"tampered retained package image",
+        duplicate_pruning_entry, duplicate_expected,
+        {"status": "PASS", "files": [protected_record]},
     )
 except RuntimeError as error:
-    assert "original source bytes" in str(error)
+    assert "exact Git source identity" in str(error)
 else:
-    raise AssertionError("A skipped JPEG optimizer record must keep the retained original bytes.")
+    raise AssertionError("The retained duplicate validator must reject altered protected bytes.")
 
 metrics = staging_packager.package_size_metrics(
     [{"path": "index.html", "bytes": 90, "sha256": "0" * 64}],
