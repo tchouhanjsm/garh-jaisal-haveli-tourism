@@ -3454,6 +3454,9 @@ def check_contact_hydration(page, base_url: str) -> None:
           "Alternate landline must hydrate from the central config")
     check(page.locator("[data-contact-email]").first.get_attribute("href") == "mailto:info@hotelgarhjaisal.com",
           "Email must hydrate from the central config")
+    # The shared contact runtime must resolve central configuration from its own script URL,
+    # independent of the current route and the asynchronous document.currentScript lifecycle.
+    page.evaluate("() => { window.__siteConfigRequestUrls = []; const originalFetch = window.fetch.bind(window); window.fetch = (input, init) => { const url = typeof input === 'string' ? input : input.url; window.__siteConfigRequestUrls.push(url); return originalFetch(input, init); }; }")
     # Inspect the exact source-authorized hotel pin without opening the external map.
     page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
     page.wait_for_function(
@@ -3470,6 +3473,9 @@ def check_contact_hydration(page, base_url: str) -> None:
         }""",
         timeout=7000,
     )
+
+    check(page.evaluate("() => window.__siteConfigRequestUrls.some(url => new URL(url).pathname.endsWith('/content/site-config.json'))"),
+          "Directions: shared contact config must resolve to the repository content/site-config.json path")
     map_links = page.locator("[data-property-map-link]")
     check(map_links.count() >= 2, "Directions and footer must expose the central hotel map pin")
     for index in range(map_links.count()):
