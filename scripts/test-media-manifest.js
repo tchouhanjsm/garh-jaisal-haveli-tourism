@@ -326,7 +326,7 @@ try {
   assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).width, 1);
   assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).height, 1);
   function auditFixture(options) {
-    return auditFixture({ ...options, decodedImages: decodedFixtureImages });
+    return auditAuthoritativeGallerySource({ ...options, decodedImages: decodedFixtureImages });
   }
   const unreviewed = auditFixture({
     pinnedSourceRoot: pinnedRoot,
