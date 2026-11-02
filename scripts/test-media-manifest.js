@@ -274,6 +274,22 @@ function makeGalleryFixture(root, options, record) {
   fs.writeFileSync(path.join(root, 'content', 'gallery', record.id + '.json'), JSON.stringify(record, null, 2));
 }
 
+
+function injectDuplicateYamlProperty(root, blockMarker, existingLine, duplicateLine) {
+  const configPath = path.join(root, 'admin', 'config.yml');
+  const config = fs.readFileSync(configPath, 'utf8');
+  const blockIndex = config.indexOf(blockMarker);
+  assert.notEqual(blockIndex, -1, 'Expected YAML block marker: ' + blockMarker);
+  const propertyIndex = config.indexOf(existingLine, blockIndex);
+  assert.notEqual(propertyIndex, -1, 'Expected YAML property line: ' + existingLine);
+  const nextCollection = config.indexOf('\n  - name:', blockIndex + blockMarker.length);
+  assert.ok(nextCollection === -1 || propertyIndex < nextCollection,
+    'Expected property to belong to the selected YAML block');
+  const insertionPoint = propertyIndex + existingLine.length;
+  const updated = config.slice(0, insertionPoint) + '\n' + duplicateLine + config.slice(insertionPoint);
+  fs.writeFileSync(configPath, updated, 'utf8');
+}
+
 const sourceAuditDirectory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'garh-source-gallery-audit-'));
 try {
   const pinnedRoot = path.join(sourceAuditDirectory, 'pinned');
@@ -413,6 +429,49 @@ try {
   assert.ok(wrongCollection.cmsSchema.collectionContractViolations.some(item => item.includes('format')));
   assert.equal(wrongCollection.summary.approvalEligibleCount, 0);
   assert.ok(wrongCollection.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
+
+
+  // Duplicate scalar YAML properties must fail closed; the CMS parser may use the later value.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  injectDuplicateYamlProperty(
+    currentRoot,
+    '      - name: review_status',
+    '        default: draft',
+    '        default: approved'
+  );
+  const duplicateFieldProperty = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(duplicateFieldProperty.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateFieldProperty.cmsSchema.safeDefaults, false);
+  assert.ok(duplicateFieldProperty.cmsSchema.duplicatePropertyPaths.includes('review_status.default'));
+  assert.ok(duplicateFieldProperty.records[0].blockers.includes('cms-schema-contains-duplicate-properties'));
+  assert.equal(duplicateFieldProperty.summary.approvalEligibleCount, 0);
+
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  injectDuplicateYamlProperty(
+    currentRoot,
+    '  - name: gallery',
+    '    folder: /content/gallery',
+    '    folder: /content/unrelated'
+  );
+  const duplicateCollectionProperty = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(duplicateCollectionProperty.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateCollectionProperty.cmsSchema.collectionValid, false);
+  assert.equal(duplicateCollectionProperty.cmsSchema.safeDefaults, false);
+  assert.ok(duplicateCollectionProperty.cmsSchema.duplicatePropertyPaths.includes('gallery.folder'));
+  assert.equal(duplicateCollectionProperty.summary.approvalEligibleCount, 0);
+  assert.ok(duplicateCollectionProperty.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
 
   const unsafeRecord = {
     ...unreviewedRecord,
