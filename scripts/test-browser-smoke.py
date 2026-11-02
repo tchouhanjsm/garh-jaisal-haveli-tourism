@@ -3539,14 +3539,32 @@ def check_contact_hydration(page, base_url: str) -> None:
         }""",
         timeout=5000,
     )
+    # The iframe is intentionally loading=lazy. Scroll it into view after activation
+    # so the test observes the deferred request without weakening the lazy-load contract.
+    if not map_preview_requests:
+        with page.expect_request(
+            lambda request: request.url.startswith("https://www.google.com/maps?"),
+            timeout=7000,
+        ):
+            map_frame.scroll_into_view_if_needed()
     check(any(url.startswith("https://www.google.com/maps?") for url in map_preview_requests),
           "Directions: Google Maps request must begin only after explicit preview activation")
     map_preview.locator("summary").click()
-    check(map_preview.locator("[data-map-preview-label]").inner_text() == "Show interactive map",
-          "Directions: closing a loaded map must update the disclosure label")
+    page.wait_for_function(
+        """() => {
+          const details = document.querySelector('[data-map-preview]');
+          const label = document.querySelector('[data-map-preview-label]');
+          return Boolean(details && !details.open && label && label.textContent === 'Show interactive map');
+        }""",
+        timeout=3000,
+    )
     request_count_after_first_open = len(map_preview_requests)
     map_preview.locator("summary").click()
-    check(map_preview.locator("[data-map-preview]").get_attribute("open") is not None,
+    page.wait_for_function(
+        "() => Boolean(document.querySelector('[data-map-preview]')?.open)",
+        timeout=3000,
+    )
+    check(map_preview.get_attribute("open") is not None,
           "Directions: native map disclosure must reopen")
     check(len(map_preview_requests) == request_count_after_first_open,
           "Directions: reopening an already loaded map must not issue a second map request")
