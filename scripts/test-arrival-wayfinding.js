@@ -310,6 +310,8 @@ assert.match(arrivalEnhancements, /details\.open && !iframe\.hasAttribute\('src'
   'Map JavaScript must attach the iframe source only after the disclosure opens');
 assert.match(arrivalEnhancements, /iframe\.setAttribute\('data-map-src', hotelMapEmbedUrl\)/,
   'Map JavaScript must receive the approved embed URL from centralized configuration');
+assert.match(arrivalEnhancements, /details\.dataset\.mapConfigState = 'ready'/,
+  'Map preview must expose an explicit configured state only after destination validation');
 assert.match(arrivalEnhancements, /iframe\.setAttribute\('src', source\)/,
   'Map JavaScript must load the approved embed URL on activation');
 assert.match(arrivalEnhancements, /typeof navigator\.share === 'function'/,

@@ -3559,6 +3559,11 @@ def check_contact_hydration(page, base_url: str) -> None:
 
     # The embedded Google Maps request must remain dormant until the native disclosure is opened.
     map_preview = page.locator("[data-map-preview]")
+    map_config_state = page.evaluate(
+        "() => document.querySelector('[data-map-preview]')?.dataset.mapConfigState || 'not-configured'"
+    )
+    check(map_config_state == "ready",
+          "Directions: map configuration must be validated before the preview is shown (state: " + map_config_state + ")")
     map_frame = map_preview.locator("iframe[data-map-src]")
     expected_embed_url = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
     check(map_preview.count() == 1 and map_preview.is_visible(),

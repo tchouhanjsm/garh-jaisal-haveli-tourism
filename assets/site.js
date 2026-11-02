@@ -730,19 +730,15 @@
         }
       }
 
+      const expectedHotelMapEmbedUrl = 'https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed';
       let hotelMapEmbedUrl = '';
-      if (propertyNavigationAuthorized && typeof propertyNavigation.hotelMapEmbedUrl === 'string') {
+      if (propertyNavigationAuthorized && propertyNavigation.hotelMapEmbedUrl === expectedHotelMapEmbedUrl) {
         try {
-          const url = new URL(propertyNavigation.hotelMapEmbedUrl);
-          const expectedQuery = 'Garh Jaisal Haveli, Fort Kotari Para, Inside Jaisalmer Fort, Jaisalmer, Rajasthan 345001';
-          const queryKeys = Array.from(url.searchParams.keys()).sort().join(',');
+          const url = new URL(expectedHotelMapEmbedUrl);
           if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'www.google.com'
               && url.port === '' && url.pathname === '/maps'
-              && queryKeys === 'output,q'
-              && url.searchParams.get('q') === expectedQuery
-              && url.searchParams.get('output') === 'embed'
               && !url.username && !url.password && !url.hash) {
-            hotelMapEmbedUrl = url.origin + url.pathname + url.search;
+            hotelMapEmbedUrl = expectedHotelMapEmbedUrl;
           }
         } catch (_) {
           // An invalid or unexpected map embed destination remains disabled.
