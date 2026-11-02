@@ -24,6 +24,7 @@ from rewrite_image_refs import (
     RESPONSIVE_WIDTHS,
     RESPONSIVE_WIDTH_OVERRIDES,
     _save_webp,
+    _responsive_sizes,
     generate_responsive_variants,
     rewrite_html_text,
     rewrite_site,
@@ -1897,6 +1898,63 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
 
+    def test_m51_experience_detail_candidates_add_budgeted_512px_bridges(self) -> None:
+        source_sizes = {
+            "legacy/camel-sunset.jpg": (1366, 768),
+            "experiences/open-air-sleeping-setup.jpeg": (1280, 854),
+            "experiences/half-day-jaisalmer-tour.jpg": (1366, 768),
+            "experiences/heritage-architecture.jpg": (1366, 768),
+            "legacy/fort-temple-spires.jpg": (1366, 768),
+            "experiences/cultural-programme.jpg": (1280, 1600),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for filename, dimensions in source_sizes.items():
+                create_jpeg(root, filename, dimensions)
+
+            generated = generate_responsive_variants(root, tuple(source_sizes))
+            markup = ['<section class="experience-detail-section experience-detail-section--visual">']
+            for filename, entry in generated.items():
+                candidates = {item["width"]: item for item in entry["variants"]}
+                candidate = candidates.get(512)
+                self.assertIsNotNone(candidate, f"{filename} must have a 512px bridge")
+                self.assertEqual(
+                    candidate["maxBytes"],
+                    RESPONSIVE_VARIANT_MAX_BYTES[candidate["path"]],
+                )
+                self.assertLessEqual(candidate["bytes"], candidate["maxBytes"])
+                with Image.open(root / candidate["path"]) as decoded:
+                    decoded.load()
+                    self.assertEqual(decoded.size[0], 512)
+                    self.assertEqual(decoded.format, "WEBP")
+                markup.append(
+                    f'<figure class="experience-detail-media"><img '
+                    f'src="assets/images/{filename}" alt="Verified experience reference"></figure>'
+                )
+
+            markup.append("</section>")
+            rewritten = rewrite_html_text("".join(markup), "responsive", root=root)
+            for filename in source_sizes:
+                self.assertIn(
+                    f"assets/images/responsive/{Path(filename).with_suffix('').as_posix()}-512.webp 512w",
+                    rewritten,
+                )
+
+        self.assertEqual(
+            _responsive_sizes('<img alt="Intro">', {"intro__image"}),
+            "(max-width: 760px) min(264px, calc(100vw - 36px)), "
+            "(max-width: 1050px) min(432px, 42.2vw), min(447px, 33vw)",
+        )
+        self.assertEqual(
+            _responsive_sizes('<img alt="Dining">', {"feature-photo"}),
+            "(max-width: 760px) calc(100vw - 94px), "
+            "(max-width: 900px) calc(100vw - 176px), min(596px, 44vw)",
+        )
+        self.assertEqual(
+            _responsive_sizes('<img alt="Experience">', {"experience-detail-media"}),
+            "(max-width: 900px) min(480px, calc(100vw - 76px)), min(460px, 36vw)",
+        )
+
     def test_browser_smoke_contract_exercises_hidden_responsive_images(self) -> None:
         smoke_path = Path(__file__).with_name("test-browser-smoke.py")
         source = smoke_path.read_text(encoding="utf-8")
@@ -1912,7 +1970,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
         self.assertIn("responsive source must declare sizes", browser_check)
         self.assertIn("for width, height in RESPONSIVE_AUDIT_VIEWPORTS:", browser_check)
         self.assertIn("for device_scale_factor in (1, 2):", browser_check)
-        self.assertIn("selected_width <= required_pixels * 1.9", browser_check)
+        self.assertIn("selected_width <= required_pixels * 1.6", browser_check)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

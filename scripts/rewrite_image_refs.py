@@ -59,9 +59,14 @@ RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 # at high DPR. Add a 1280px bridge only for the three measured Gallery assets.
 RESPONSIVE_WIDTH_OVERRIDES = {
     "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "experiences/cultural-programme.jpg": (320, 480, 512, 768, 1200),
+    "experiences/half-day-jaisalmer-tour.jpg": (320, 480, 512, 768, 1200),
+    "experiences/heritage-architecture.jpg": (320, 480, 512, 768, 1200),
+    "experiences/open-air-sleeping-setup.jpeg": (320, 480, 512, 768, 1200),
     "gallery/hotel/fort-from-roof.jpg": (320, 480, 768, 800, 1200, 1280, 1600),
     "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
-    "legacy/fort-temple-spires.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "legacy/camel-sunset.jpg": (320, 480, 512, 768, 1200),
+    "legacy/fort-temple-spires.jpg": (320, 480, 512, 768, 1200, 1280, 1600),
     "rooms/haveli-interior.jpg": (320, 480, 768, 800, 1200, 1280),
 }
 MAX_PIXELS = 64_000_000
@@ -104,7 +109,13 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
+    "assets/images/responsive/experiences/cultural-programme-512.webp": 29_000,
+    "assets/images/responsive/experiences/half-day-jaisalmer-tour-512.webp": 36_000,
+    "assets/images/responsive/experiences/heritage-architecture-512.webp": 35_000,
+    "assets/images/responsive/experiences/open-air-sleeping-setup-512.webp": 20_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-800.webp": 80_000,
+    "assets/images/responsive/legacy/camel-sunset-512.webp": 8_000,
+    "assets/images/responsive/legacy/fort-temple-spires-512.webp": 34_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp": 170_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1280.webp": 180_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp": 250_000,
@@ -730,9 +741,9 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         )
     if "feature-photo" in ancestors:
         return (
-            "(max-width: 760px) calc(100vw - 72px), "
-            "(max-width: 900px) calc(100vw - 100px), "
-            "min(610px, 44vw)"
+            "(max-width: 760px) calc(100vw - 94px), "
+            "(max-width: 900px) calc(100vw - 176px), "
+            "min(596px, 44vw)"
         )
     if "story-image" in ancestors and "dining-restaurant__panel" in ancestors:
         return "(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"
@@ -745,7 +756,7 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         return "(max-width: 900px) min(375px, calc(100vw - 76px)), 336px"
     if "experience-detail-media" in ancestors:
         return (
-            "(max-width: 900px) min(620px, calc(100vw - 76px)), "
+            "(max-width: 900px) min(480px, calc(100vw - 76px)), "
             "min(460px, 36vw)"
         )
     if "arrival-visual__media" in ancestors:
@@ -760,8 +771,9 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         )
     if "intro__image" in ancestors:
         return (
-            "(max-width: 760px) calc(100vw - 36px), "
-            "(max-width: 1050px) 40vw, min(432px, 33vw)"
+            "(max-width: 760px) min(264px, calc(100vw - 36px)), "
+            "(max-width: 1050px) min(432px, 42.2vw), "
+            "min(447px, 33vw)"
         )
 
     # Retain the conservative fallback for unclassified markup; core public

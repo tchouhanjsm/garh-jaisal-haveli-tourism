@@ -1185,8 +1185,8 @@ def build_responsive_image_evidence_report(
             validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate has no encoded body bytes")
         if request_count != 1:
             validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate was not requested exactly once")
-        if calculated_ratio > 1.9:
-            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate exceeds the 1.9x pixel-demand guard")
+        if calculated_ratio > 1.6:
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate exceeds the 1.6x pixel-demand guard")
 
         unique_key = (route, viewport_width, dpr, picture_index)
         unique_keys.add(unique_key)
@@ -2512,8 +2512,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     ratio = selected_width / required_pixels
                                     max_selected_to_required_ratio = max(max_selected_to_required_ratio, ratio)
                                     check_preview(
-                                        selected_width <= required_pixels * 1.9,
-                                        f"{label}: selected WebP {selected_width}px exceeds 1.9x "
+                                        selected_width <= required_pixels * 1.6,
+                                        f"{label}: selected WebP {selected_width}px exceeds 1.6x "
                                         f"rendered slot demand ({required_pixels:.1f}px); verify sizes",
                                     )
                                 check_preview(
