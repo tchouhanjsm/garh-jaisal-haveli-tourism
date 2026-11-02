@@ -46,6 +46,7 @@ with tempfile.TemporaryDirectory(prefix="garh-jpeg-fallback-optimizer-") as temp
     assert result["status"] == "OPTIMIZED"
     assert result["savedBytes"] >= original_bytes * 0.05
     assert result["psnrDb"] >= optimizer.MINIMUM_PSNR_DB
+    assert result["quality"] == 98, "The optimizer must try the highest quality candidate first."
     assert source_records[0]["fallbackBytes"] == image_path.stat().st_size
     assert source_records[0]["fallbackSha256"] == result["optimizedSha256"]
     with Image.open(image_path) as optimized:
@@ -79,6 +80,21 @@ with tempfile.TemporaryDirectory(prefix="garh-jpeg-fallback-avif-protected-") as
     )
     assert report["protectedFallbackCount"] == 1
     assert image_path.read_bytes() == original
+
+with tempfile.TemporaryDirectory(prefix="garh-jpeg-fallback-no-candidate-") as temporary:
+    root = Path(temporary)
+    image_path = root / "assets" / "images" / "low-quality.jpg"
+    image_path.parent.mkdir(parents=True)
+    make_fixture_jpeg(image_path, quality=70)
+    original = image_path.read_bytes()
+    records = [{"sourceJpeg": "assets/images/low-quality.jpg"}]
+    report = optimizer.optimize_jpeg_fallbacks(root, records)
+    assert report["unchangedFallbackCount"] == 1
+    assert report["optimizedFallbackCount"] == 0
+    assert report["files"][0]["status"] == "SKIPPED_NO_QUALIFYING_CANDIDATE"
+    assert image_path.read_bytes() == original
+    assert records[0]["fallbackBytes"] == len(original)
+    assert records[0]["fallbackSha256"] is not None
 
 with tempfile.TemporaryDirectory(prefix="garh-jpeg-fallback-path-") as temporary:
     root = Path(temporary)

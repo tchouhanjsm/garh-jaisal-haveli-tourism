@@ -16,7 +16,7 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageStat
 
-QUALITY_LADDER = tuple(range(90, 69, -2))
+QUALITY_LADDER = tuple(range(98, 89, -2))
 MINIMUM_PSNR_DB = 35.0
 MINIMUM_SAVINGS_PERCENT = 5.0
 MAX_PIXELS = 64_000_000
@@ -33,10 +33,11 @@ def _psnr_db(reference: Image.Image, candidate: Image.Image) -> float:
 
 
 def _safe_fallback_path(root: Path, relative: str) -> Path:
+    if not isinstance(relative, str):
+        raise ValueError(f"Unsafe JPEG fallback path: {relative!r}")
     value = PurePosixPath(relative)
     if (
-        not isinstance(relative, str)
-        or not relative
+        not relative
         or value.is_absolute()
         or value.as_posix() != relative
         or any(part in {"", ".", ".."} for part in value.parts)
