@@ -1,6 +1,73 @@
 'use strict';
 
 (function () {
+  function validateHotelMapUrl(value) {
+    try {
+      var url = new URL(value);
+      if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'maps.app.goo.gl'
+          && url.port === '' && /^\/[A-Za-z0-9_-]{6,}$/.test(url.pathname)
+          && !url.username && !url.password && !url.search && !url.hash) {
+        return url.origin + url.pathname;
+      }
+    } catch (_) {
+      // Invalid source configuration keeps the handoff unavailable.
+    }
+    return '';
+  }
+
+  function validateHotelMapEmbedUrl(value) {
+    try {
+      var url = new URL(value);
+      var expectedQuery = 'Garh Jaisal Haveli, Fort Kotari Para, Inside Jaisalmer Fort, Jaisalmer, Rajasthan 345001';
+      var queryKeys = Array.from(url.searchParams.keys()).sort().join(',');
+      if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'www.google.com'
+          && url.port === '' && url.pathname === '/maps'
+          && queryKeys === 'output,q'
+          && url.searchParams.get('q') === expectedQuery
+          && url.searchParams.get('output') === 'embed'
+          && !url.username && !url.password && !url.hash) {
+        return url.origin + url.pathname + url.search;
+      }
+    } catch (_) {
+      // Invalid source configuration keeps the interactive preview unavailable.
+    }
+    return '';
+  }
+
+  function configureMapDestinations(detail) {
+    detail = detail || {};
+    var hotelMapUrl = validateHotelMapUrl(detail.hotelMapUrl);
+    var hotelMapEmbedUrl = validateHotelMapEmbedUrl(detail.hotelMapEmbedUrl);
+
+    document.querySelectorAll('[data-map-preview]').forEach(function (details) {
+      var iframe = details.querySelector('iframe[data-map-src]');
+      if (!iframe) return;
+      if (!hotelMapEmbedUrl) {
+        iframe.removeAttribute('data-map-src');
+        details.hidden = true;
+        return;
+      }
+
+      details.hidden = false;
+      iframe.setAttribute('data-map-src', hotelMapEmbedUrl);
+      if (details.open && !iframe.hasAttribute('src')) {
+        iframe.setAttribute('src', hotelMapEmbedUrl);
+      }
+    });
+
+    var button = document.querySelector('[data-arrival-copy]');
+    if (!button) return;
+    var baseNote = button.getAttribute('data-arrival-copy-base') || '';
+    if (!hotelMapUrl || !baseNote.trim()) {
+      button.hidden = true;
+      button.setAttribute('data-arrival-copy', '');
+      return;
+    }
+
+    button.setAttribute('data-arrival-copy', baseNote + '\nExact hotel map pin: ' + hotelMapUrl);
+    button.hidden = false;
+  }
+
   function initialiseMapPreviews() {
     document.querySelectorAll('[data-map-preview]').forEach(function (details) {
       if (details.dataset.mapPreviewInitialised === 'true') return;
@@ -54,11 +121,14 @@
     var status = document.querySelector('[data-arrival-copy-status]');
     if (!button || !status) return;
 
-    var arrivalNote = button.getAttribute('data-arrival-copy') || '';
-    if (!arrivalNote.trim()) return;
-
-    button.hidden = false;
+    button.hidden = true;
     button.addEventListener('click', async function () {
+      var arrivalNote = button.getAttribute('data-arrival-copy') || '';
+      if (!arrivalNote.trim()) {
+        status.textContent = 'The exact hotel pin is unavailable right now. Use the address and walking details shown here, and confirm the meeting point with the hotel.';
+        return;
+      }
+
       button.disabled = true;
       status.textContent = '';
 
@@ -99,9 +169,17 @@
     });
   }
 
+  document.addEventListener('garh-jaisal:contact-ready', function (event) {
+    configureMapDestinations(event && event.detail ? event.detail : {});
+  });
+
   function initialise() {
     initialiseMapPreviews();
     initialiseArrivalCopy();
+    configureMapDestinations({
+      hotelMapUrl: document.documentElement.dataset.hotelMapUrl || '',
+      hotelMapEmbedUrl: document.documentElement.dataset.hotelMapEmbedUrl || ''
+    });
   }
 
   if (document.readyState === 'loading') {

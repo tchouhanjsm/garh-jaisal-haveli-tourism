@@ -686,11 +686,6 @@
         }
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
-      if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
-        document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
-          detail: { whatsappBaseUrl }
-        }));
-      }
       configureRoomCompareEnquiry(whatsappBaseUrl);
       configureArrivalPlanningForms(whatsappBaseUrl);
 
@@ -733,6 +728,33 @@
         } catch (_) {
           // An invalid or unexpected map destination remains disabled.
         }
+      }
+
+      let hotelMapEmbedUrl = '';
+      if (propertyNavigationAuthorized && typeof propertyNavigation.hotelMapEmbedUrl === 'string') {
+        try {
+          const url = new URL(propertyNavigation.hotelMapEmbedUrl);
+          const expectedQuery = 'Garh Jaisal Haveli, Fort Kotari Para, Inside Jaisalmer Fort, Jaisalmer, Rajasthan 345001';
+          const queryKeys = Array.from(url.searchParams.keys()).sort().join(',');
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'www.google.com'
+              && url.port === '' && url.pathname === '/maps'
+              && queryKeys === 'output,q'
+              && url.searchParams.get('q') === expectedQuery
+              && url.searchParams.get('output') === 'embed'
+              && !url.username && !url.password && !url.hash) {
+            hotelMapEmbedUrl = url.origin + url.pathname + url.search;
+          }
+        } catch (_) {
+          // An invalid or unexpected map embed destination remains disabled.
+        }
+      }
+
+      document.documentElement.dataset.hotelMapUrl = hotelMapUrl;
+      document.documentElement.dataset.hotelMapEmbedUrl = hotelMapEmbedUrl;
+      if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
+        document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
+          detail: { whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl }
+        }));
       }
 
       enquiryLinks.forEach(link => {
@@ -806,9 +828,11 @@
         || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
+      document.documentElement.dataset.hotelMapUrl = '';
+      document.documentElement.dataset.hotelMapEmbedUrl = '';
       if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
-          detail: { whatsappBaseUrl: '' }
+          detail: { whatsappBaseUrl: '', hotelMapUrl: '', hotelMapEmbedUrl: '' }
         }));
       }
       if (contactStatus) contactStatus.hidden = false;

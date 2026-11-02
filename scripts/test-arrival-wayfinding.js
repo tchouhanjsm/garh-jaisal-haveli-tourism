@@ -11,6 +11,7 @@ const about = fs.readFileSync(path.join(ROOT, 'about.html'), 'utf8');
 const stylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'arrival-wayfinding.css'), 'utf8');
 const premiumStylesheet = fs.readFileSync(path.join(ROOT, 'assets', 'css', 'premium-guest-journey.css'), 'utf8');
 const siteRuntime = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
+const siteConfig = JSON.parse(fs.readFileSync(path.join(ROOT, 'content', 'site-config.json'), 'utf8'));
 
 const publicPages = [
   'index.html',
@@ -269,10 +270,18 @@ assert.match(driverCard, /Vehicles cannot enter Jaisalmer Fort[\s\S]*?Fort Parki
   'Driver handoff must preserve the source-confirmed vehicle-to-foot approach');
 assert.match(driverCard, /300 metres \(5–6 minutes\)[\s\S]*?uneven cobbles and short stair sections/,
   'Driver note must preserve the source-listed approximate walk and surface conditions');
-assert.match(driverCard, /data-arrival-copy="Garh Jaisal Haveli&#10;/,
-  'Copy action must use the visible property and arrival guidance');
-assert.match(driverCard, /Exact hotel map pin: https:\/\/maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/,
-  'Driver note must include the exact source-authorized hotel pin');
+assert.match(driverCard, /data-arrival-copy-base="Garh Jaisal Haveli&#10;/,
+  'Copy action must use the visible property and arrival guidance without duplicating configured destinations');
+assert.match(driverCard, /data-arrival-copy=""/,
+  'The complete driver note must remain unavailable until the source-authorized map configuration loads');
+assert.doesNotMatch(driverCard, /maps\.app\.goo\.gl/,
+  'The driver note must obtain its exact pin from centralized source configuration');
+assert.match(arrivalEnhancements, /document\.addEventListener\('garh-jaisal:contact-ready'/,
+  'Arrival handoff must receive validated map configuration from the shared runtime');
+assert.match(arrivalEnhancements, /detail\.hotelMapUrl[\s\S]*?detail\.hotelMapEmbedUrl/,
+  'Arrival handoff must consume the centrally validated hotel pin and embed destination');
+assert.match(arrivalEnhancements, /Exact hotel map pin: '\s*\+ hotelMapUrl/,
+  'The exact hotel pin must be appended to the driver note only after configuration validation');
 assert.match(driverCard, /data-arrival-copy-status role="status" aria-live="polite"/,
   'Copy feedback must be announced through a polite live region');
 assert.match(directions, /assets\/js\/arrival-enhancements\.js/,
@@ -282,14 +291,23 @@ const mapPreview = map.match(/<details class="arrival-map-preview__details" data
 assert.ok(mapPreview, 'Directions must expose an opt-in native map disclosure');
 assert.match(mapPreview, /data-map-preview-label>Load interactive map/,
   'Map disclosure must expose a clear activation label');
-assert.match(mapPreview, /data-map-src="https:\/\/www\.google\.com\/maps\?q=Garh\+Jaisal\+Haveli[^"]*&amp;output=embed"/,
-  'Map preview must use the authoritative source embed URL');
+assert.match(mapPreview, /data-map-src=""/,
+  'Map preview must not duplicate the source-authorized embed URL in public HTML');
+assert.equal(siteConfig.propertyNavigation.hotelMapEmbedUrl,
+  'https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed',
+  'The centralized embed destination must match the authoritative legacy Directions page');
+assert.match(siteRuntime, /propertyNavigation\.hotelMapEmbedUrl[\s\S]*?hostname\.toLowerCase\(\) === 'www\.google\.com'/,
+  'The shared runtime must validate the configured Google Maps embed destination');
+assert.match(siteRuntime, /detail: \{ whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl \}/,
+  'The shared runtime must publish only validated map destinations to the arrival enhancement');
 assert.doesNotMatch(mapPreview, /<iframe[^>]*\ssrc=/,
   'Interactive map iframe must not request Google Maps before explicit activation');
 assert.match(map, /<noscript>[\s\S]*?maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/,
   'No-JavaScript visitors must retain a direct exact-pin fallback');
 assert.match(arrivalEnhancements, /details\.open && !iframe\.hasAttribute\('src'\)/,
   'Map JavaScript must attach the iframe source only after the disclosure opens');
+assert.match(arrivalEnhancements, /iframe\.setAttribute\('data-map-src', hotelMapEmbedUrl\)/,
+  'Map JavaScript must receive the approved embed URL from centralized configuration');
 assert.match(arrivalEnhancements, /iframe\.setAttribute\('src', source\)/,
   'Map JavaScript must load the approved embed URL on activation');
 assert.match(arrivalEnhancements, /typeof navigator\.share === 'function'/,
