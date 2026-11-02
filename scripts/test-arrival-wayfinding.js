@@ -302,6 +302,19 @@ assert.match(siteRuntime, /propertyNavigation\.hotelMapEmbedUrl[\s\S]*?hostname\
   'The shared runtime must validate the configured Google Maps embed destination');
 assert.match(siteRuntime, /detail: \{ whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl \}/,
   'The shared runtime must publish only validated map destinations to the arrival enhancement');
+const contactConfigurationStart = siteRuntime.indexOf('async function configureContactChannels()');
+const contactConfigurationSource = siteRuntime.slice(contactConfigurationStart);
+const mapReadyDispatch = contactConfigurationSource.indexOf("document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready'");
+const guestFormSetup = contactConfigurationSource.indexOf('configureGuestEnquiryForms(config)');
+const roomFormSetup = contactConfigurationSource.indexOf('configureRoomCompareEnquiry(whatsappBaseUrl)');
+const arrivalFormSetup = contactConfigurationSource.indexOf('configureArrivalPlanningForms(whatsappBaseUrl)');
+assert.ok(contactConfigurationStart >= 0 && mapReadyDispatch >= 0
+  && guestFormSetup > mapReadyDispatch && roomFormSetup > mapReadyDispatch && arrivalFormSetup > mapReadyDispatch,
+  'Source-validated map configuration must be published before unrelated enquiry-form initialization');
+assert.match(contactConfigurationSource, /let mapConfigurationPublished = false;/,
+  'Contact setup must track whether source-validated map configuration was already published');
+assert.match(contactConfigurationSource, /if \(!mapConfigurationPublished && typeof CustomEvent === 'function'/,
+  'A later form-initialization failure must not overwrite a previously published valid map configuration');
 assert.doesNotMatch(mapPreview, /<iframe[^>]*\ssrc=/,
   'Interactive map iframe must not request Google Maps before explicit activation');
 assert.match(map, /<noscript>[\s\S]*?maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/,

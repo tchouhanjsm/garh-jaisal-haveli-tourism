@@ -653,6 +653,7 @@
   }
 
   async function configureContactChannels() {
+    let mapConfigurationPublished = false;
     if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
         && !emailLinks.length && !bookingLinks.length && !propertyMapLinks.length
         && !bookingForms.length && !guestEnquiryForms.length && !arrivalPlanningForms.length
@@ -667,7 +668,6 @@
       const contact = config && config.contact ? config.contact : {};
       const booking = config && config.booking ? config.booking : {};
       const propertyNavigation = config && config.propertyNavigation ? config.propertyNavigation : {};
-      configureGuestEnquiryForms(config);
       const contactAuthorized = channelIsAuthorized(config, contact);
       const bookingAuthorized = channelIsAuthorized(config, booking);
       const propertyNavigationAuthorized = channelIsAuthorized(config, propertyNavigation);
@@ -686,8 +686,6 @@
         }
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
-      configureRoomCompareEnquiry(whatsappBaseUrl);
-      configureArrivalPlanningForms(whatsappBaseUrl);
 
       const phoneE164 = contactAuthorized && typeof contact.primaryPhoneE164 === 'string'
         && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
@@ -749,7 +747,14 @@
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
           detail: { whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl }
         }));
+        mapConfigurationPublished = true;
       }
+
+      // Publish source-validated map destinations before unrelated enquiry-form
+      // setup. A form-specific error must not invalidate an already-ready map.
+      configureGuestEnquiryForms(config);
+      configureRoomCompareEnquiry(whatsappBaseUrl);
+      configureArrivalPlanningForms(whatsappBaseUrl);
 
       enquiryLinks.forEach(link => {
         if (!whatsappBaseUrl) {
@@ -822,7 +827,7 @@
         || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
-      if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
+      if (!mapConfigurationPublished && typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
           detail: { whatsappBaseUrl: '', hotelMapUrl: '', hotelMapEmbedUrl: '' }
         }));

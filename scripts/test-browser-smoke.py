@@ -3559,6 +3559,16 @@ def check_contact_hydration(page, base_url: str) -> None:
 
     # The embedded Google Maps request must remain dormant until the native disclosure is opened.
     map_preview = page.locator("[data-map-preview]")
+    try:
+        page.wait_for_function(
+            """() => {
+              const details = document.querySelector('[data-map-preview]');
+              return Boolean(details && ['ready', 'unavailable'].includes(details.dataset.mapConfigState || ''));
+            }""",
+            timeout=7000,
+        )
+    except Exception as error:
+        check(False, f"Directions: source map configuration did not settle ({type(error).__name__})")
     map_config_state = page.evaluate(
         "() => document.querySelector('[data-map-preview]')?.dataset.mapConfigState || 'not-configured'"
     )
