@@ -591,3 +591,15 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Add static hero CTA coverage and Chromium computed-style, visibility, viewport and keyboard focus-visible assertions across mobile and desktop audit widths.
 - [ ] Exact-head workflow #41428554444 must pass staging package build, remain at or below 92% utilization, pass responsive package validation and packaged Chromium checks before M44/M45 automated acceptance.
 - [ ] Preserve separate owner/manual release gates; do not infer visual UAT or staging approval from automation.
+
+
+## M46 — cross-route responsive navigation state and focus continuity
+
+- [x] Correct the compact-navigation state when a guest resizes or rotates from mobile width (760px and below) into the full-navigation layout.
+- [x] On transition to desktop/tablet width, close the compact menu, reset `aria-expanded` and the accessible toggle label, and clear the open-navigation/body state.
+- [x] If the compact toggle held focus, move focus to the first visible full-navigation link; when returning to compact width with focus inside the now-hidden navigation, return focus to the visible menu toggle.
+- [x] Extend the dependency-free site-runtime behavior test for both breakpoint directions and exact focus ownership.
+- [x] Extend real Chromium checks across all eight core routes at 375px and 430px: open, Escape-close, reopen, resize to 768px, validate desktop state/focus, resize back, validate compact state/focus.
+- [x] Keep the original six-width/48-screenshot baseline contract unchanged; M46 adds transition assertions without increasing the screenshot count.
+- [ ] Exact-head GitHub Actions and real Chromium acceptance must pass before M46 is considered automated-complete.
+- [ ] Real iOS/Android orientation and browser-chrome behavior remain separate owner/device UAT; automation does not replace STG-01–STG-18.
