@@ -578,3 +578,14 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Add static and real-Chromium computed-style/visibility/focus assertions at responsive mobile and desktop widths.
 - [ ] Exact-head workflow #41428554444 remains pending; package utilization, archive output, responsive package validation and packaged Chromium acceptance are NOT YET VERIFIED.
 - [ ] Owner confirmation, physical-device share/clipboard testing, live contact/booking-provider response, image rights/subject/alt review, M32 editor authority and STG-01–STG-18 remain separate release gates. Canonical host approval remains false; indexing and deployment remain disabled.
+
+
+## 2 November 2026 — M46: cross-route responsive navigation state
+
+- [x] Reset compact navigation state when the viewport moves above the 760px menu breakpoint.
+- [x] Synchronize `aria-expanded`, the accessible toggle label, navigation open class and body menu state when the compact control becomes hidden.
+- [x] Move focus to the first visible desktop navigation link when the hidden compact toggle owned focus; return focus to the compact toggle when moving back to mobile with focus in the navigation.
+- [x] Add dependency-free runtime state coverage and real Chromium resize/orientation-transition assertions on all eight routes at 375px and 430px.
+- [x] Preserve the six responsive screenshot widths and the existing 48-image evidence requirement.
+- [ ] Exact-head GitHub Actions, full route smoke and staging package acceptance remain pending for this follow-up change.
+- [ ] Real-device orientation checks and STG-01–STG-18 remain NOT RUN. No staging deployment, canonical approval, indexing or production release is authorized.
