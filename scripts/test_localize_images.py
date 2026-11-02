@@ -202,7 +202,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "legacy/camel-day.jpg": (1366, 768),
                 "legacy/fort-temple-spires.jpg": (1366, 768),
             }
-            expected_widths = (320, 480, 768, 1200, 1280, 1600)
+            expected_widths = {
+                "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+                "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
+                "legacy/fort-temple-spires.jpg": (320, 480, 512, 768, 1200, 1280, 1600),
+            }
             for filename, dimensions in source_sizes.items():
                 create_jpeg(root, filename, dimensions)
 
@@ -213,10 +217,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
             expected_candidate_count = 0
 
             for filename in source_sizes:
-                self.assertEqual(RESPONSIVE_WIDTH_OVERRIDES[filename], expected_widths)
+                filename_widths = expected_widths[filename]
+                self.assertEqual(RESPONSIVE_WIDTH_OVERRIDES[filename], filename_widths)
                 entry = generated[filename]
                 expected_generated_widths = [
-                    width for width in expected_widths if width < entry["width"]
+                    width for width in filename_widths if width < entry["width"]
                 ]
                 self.assertEqual(
                     [item["width"] for item in entry["variants"]],
