@@ -113,7 +113,7 @@ for (const entry of manifest.entries) {
 }
 
 
-const { auditAuthoritativeGallerySource } = require('./audit-authoritative-gallery-source');
+const { auditAuthoritativeGallerySource, decodeGalleryImages } = require('./audit-authoritative-gallery-source');
 
 function galleryField(name, spec, indentation = 6) {
   const spaces = ' '.repeat(indentation);
@@ -270,7 +270,10 @@ function makeGalleryFixture(root, options, record) {
     '        widget: string',
   ].join('\n') + '\n';
   fs.writeFileSync(path.join(root, 'admin', 'config.yml'), config, 'utf8');
-  fs.writeFileSync(path.join(root, 'img', 'gallery', 'fixture.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  fs.writeFileSync(
+    path.join(root, 'img', 'gallery', 'fixture.png'),
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+  );
   fs.writeFileSync(path.join(root, 'content', 'gallery', record.id + '.json'), JSON.stringify(record, null, 2));
 }
 
@@ -312,13 +315,20 @@ try {
     status: 'live',
     order: 1,
     image: {
-      src: 'img/gallery/fixture.jpg',
+      src: 'img/gallery/fixture.png',
       alt: 'Carved sandstone facade inside the historic Jaisalmer Fort',
       crop: 'landscape',
     },
   };
   makeGalleryFixture(currentRoot, { includeEvidence: false }, unreviewedRecord);
-  const unreviewed = auditAuthoritativeGallerySource({
+  const decodedFixtureImages = decodeGalleryImages(currentRoot, [{ imagePath: unreviewedRecord.image.src }]);
+  assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).status, 'verified');
+  assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).width, 1);
+  assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).height, 1);
+  function auditFixture(options) {
+    return auditFixture({ ...options, decodedImages: decodedFixtureImages });
+  }
+  const unreviewed = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -357,7 +367,7 @@ try {
     },
   };
   makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
-  const complete = auditAuthoritativeGallerySource({
+  const complete = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -371,9 +381,31 @@ try {
   assert.equal(complete.cmsSchema.safeDefaults, true);
   assert.equal(complete.cmsSchema.supportsRequiredEvidence, true);
   assert.deepEqual(complete.cmsSchema.defaultViolations, []);
+  assert.equal(complete.records[0].imageDecodeComplete, true);
+  assert.equal(complete.records[0].imageWidth, 1);
+  assert.equal(complete.records[0].imageHeight, 1);
+
+  const mismatchedImageHash = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+    decodedImages: new Map([[unreviewedRecord.image.src, {
+      path: unreviewedRecord.image.src,
+      status: 'verified',
+      width: 1,
+      height: 1,
+      sha256: 'f'.repeat(64),
+    }]]),
+  });
+  assert.equal(mismatchedImageHash.status, 'REVIEW_REQUIRED');
+  assert.equal(mismatchedImageHash.summary.approvalEligibleCount, 0);
+  assert.equal(mismatchedImageHash.records[0].imageDecodeComplete, false);
+  assert.ok(mismatchedImageHash.records[0].blockers.includes('gallery-image-decode-validation-failed'));
 
   makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: false }, reviewedRecord);
-  const unsafeSchema = auditAuthoritativeGallerySource({
+  const unsafeSchema = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -393,7 +425,7 @@ try {
     duplicateReviewStatus: true,
     duplicateEvidenceStatus: true,
   }, reviewedRecord);
-  const duplicateSchema = auditAuthoritativeGallerySource({
+  const duplicateSchema = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -415,7 +447,7 @@ try {
     collectionFolder: '/content/unrelated',
     collectionFormat: 'yaml',
   }, reviewedRecord);
-  const wrongCollection = auditAuthoritativeGallerySource({
+  const wrongCollection = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -439,7 +471,7 @@ try {
     '        default: draft',
     '        default: approved'
   );
-  const duplicateFieldProperty = auditAuthoritativeGallerySource({
+  const duplicateFieldProperty = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -459,7 +491,7 @@ try {
     '    folder: /content/gallery',
     '    folder: /content/unrelated'
   );
-  const duplicateCollectionProperty = auditAuthoritativeGallerySource({
+  const duplicateCollectionProperty = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
@@ -478,7 +510,7 @@ try {
     image: { ...unreviewedRecord.image, src: 'img/../../outside.jpg' },
   };
   makeGalleryFixture(currentRoot, { includeEvidence: false, safeDefaults: true }, unsafeRecord);
-  const unsafe = auditAuthoritativeGallerySource({
+  const unsafe = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
     currentSourceRoot: currentRoot,
