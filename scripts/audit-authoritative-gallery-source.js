@@ -19,6 +19,7 @@ const CATEGORIES = new Set(['hotel', 'rooms', 'desert', 'restaurant']);
 const PUBLICATION_STATES = new Set(['draft', 'live', 'hidden']);
 const CROPS = new Set(['standard', 'arch', 'landscape', 'portrait']);
 const REQUIRED_EVIDENCE_SCHEMA_FIELDS = [
+  'status',
   'review_status',
   'sourceEvidence',
   'creator',
@@ -28,9 +29,30 @@ const REQUIRED_EVIDENCE_SCHEMA_FIELDS = [
   'verifiedBy',
   'verifiedAt',
   'visualReview',
+  'evidence',
   'reviewer',
   'reviewedAt',
   'technicalValidation',
+];
+const REQUIRED_EVIDENCE_SCHEMA_PATHS = [
+  'status',
+  'review_status',
+  'sourceEvidence',
+  'sourceEvidence.status',
+  'sourceEvidence.creator',
+  'sourceEvidence.sourceUrl',
+  'sourceEvidence.licenseName',
+  'sourceEvidence.evidenceReference',
+  'sourceEvidence.verifiedBy',
+  'sourceEvidence.verifiedAt',
+  'visualReview',
+  'visualReview.status',
+  'visualReview.evidence',
+  'visualReview.reviewer',
+  'visualReview.reviewedAt',
+  'technicalValidation',
+  'technicalValidation.status',
+  'technicalValidation.evidenceReference',
 ];
 
 function nonEmpty(value, minimum = 2) {
@@ -99,37 +121,205 @@ function stableStringify(value) {
   return JSON.stringify(value);
 }
 
-function gallerySchemaFields(root, errors) {
-  const configPath = path.join(root, 'admin', 'config.yml');
-  if (!fs.existsSync(configPath)) return { available: false, fields: [], missing: REQUIRED_EVIDENCE_SCHEMA_FIELDS.slice() };
-  const stat = fs.lstatSync(configPath);
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    errors.push('admin/config.yml must be a regular file before CMS schema can be audited.');
-    return { available: false, fields: [], missing: REQUIRED_EVIDENCE_SCHEMA_FIELDS.slice() };
+function parseNamedFieldBlocks(source, indentation) {
+  const lines = source.split(/\r?\n/);
+  const marker = new RegExp('^ {' + indentation + '}- name: ([A-Za-z0-9_-]+)\\s*$');
+  const blocks = [];
+  let active = null;
+  for (const line of lines) {
+    const match = line.match(marker);
+    if (match) {
+      if (active) blocks.push(active);
+      active = { name: match[1], lines: [line] };
+    } else if (active) {
+      active.lines.push(line);
+    }
   }
-  const config = fs.readFileSync(configPath, 'utf8');
-  const start = config.indexOf('  - name: gallery');
-  if (start < 0) return { available: false, fields: [], missing: REQUIRED_EVIDENCE_SCHEMA_FIELDS.slice() };
-  const tail = config.slice(start);
-  const nextCollection = tail.indexOf('\n  - name:', 1);
-  const block = nextCollection < 0 ? tail : tail.slice(0, nextCollection);
-  const fields = [...block.matchAll(/^\s*-\s+name:\s*([A-Za-z0-9_-]+)/gm)].map(match => match[1]);
-  const uniqueFields = [...new Set(fields)].sort();
+  if (active) blocks.push(active);
+  return new Map(blocks.map(block => [block.name, block.lines.join('\n')]));
+}
+
+function fieldProperty(block, indentation, property) {
+  const pattern = new RegExp('^ {' + (indentation + 2) + '}' + property + ':\\s*([^\\s#]+)\\s*$', 'm');
+  const match = block.match(pattern);
+  return match ? match[1] : null;
+}
+
+function parseSchemaField(block, indentation) {
+  const children = parseNamedFieldBlocks(block, indentation + 4);
   return {
-    available: true,
-    fields: uniqueFields,
-    missing: REQUIRED_EVIDENCE_SCHEMA_FIELDS.filter(field => !uniqueFields.includes(field)),
+    block,
+    widget: fieldProperty(block, indentation, 'widget'),
+    required: fieldProperty(block, indentation, 'required'),
+    defaultValue: fieldProperty(block, indentation, 'default'),
+    options: [...block.matchAll(/^\s+value:\s*([A-Za-z0-9_-]+)\s*$/gm)].map(match => match[1]),
+    children: new Map([...children].map(([name, childBlock]) => [
+      name,
+      parseSchemaField(childBlock, indentation + 4),
+    ])),
   };
 }
 
+function gallerySchemaFields(root, errors) {
+  const configPath = path.join(root, 'admin', 'config.yml');
+  const unavailable = reason => ({
+    available: false,
+    fields: [],
+    missing: REQUIRED_EVIDENCE_SCHEMA_PATHS.slice(),
+    safeDefaults: false,
+    defaultViolations: [reason],
+  });
+  if (!fs.existsSync(configPath)) return unavailable('admin/config.yml is missing');
+  const stat = fs.lstatSync(configPath);
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    errors.push('admin/config.yml must be a regular file before CMS schema can be audited.');
+    return unavailable('admin/config.yml is not a regular file');
+  }
+
+  const config = fs.readFileSync(configPath, 'utf8');
+  const start = config.indexOf('  - name: gallery');
+  if (start < 0) return unavailable('Gallery collection is missing');
+  const tail = config.slice(start);
+  const nextCollection = tail.indexOf('\n  - name:', 1);
+  const collectionBlock = nextCollection < 0 ? tail : tail.slice(0, nextCollection);
+  const topLevelBlocks = parseNamedFieldBlocks(collectionBlock, 6);
+  const topLevel = new Map([...topLevelBlocks].map(([name, block]) => [
+    name,
+    parseSchemaField(block, 6),
+  ]));
+
+  const fields = new Set();
+  const collectFields = fieldMap => {
+    for (const [name, field] of fieldMap) {
+      fields.add(name);
+      collectFields(field.children);
+    }
+  };
+  collectFields(topLevel);
+
+  const missing = [];
+  for (const pathName of REQUIRED_EVIDENCE_SCHEMA_PATHS) {
+    const parts = pathName.split('.');
+    let fieldMap = topLevel;
+    let found = true;
+    for (const part of parts) {
+      const field = fieldMap.get(part);
+      if (!field) {
+        found = false;
+        break;
+      }
+      fieldMap = field.children;
+    }
+    if (!found) missing.push(pathName);
+  }
+
+  const defaultViolations = [];
+  function requireChoice(pathName, field, expected) {
+    if (!field) {
+      defaultViolations.push(pathName + ' must be present as a required select field.');
+      return;
+    }
+    if (field.widget !== 'select') defaultViolations.push(pathName + ' must use the select widget.');
+    if (field.required !== 'true') defaultViolations.push(pathName + ' must be required.');
+    if (field.defaultValue !== expected.defaultValue) {
+      defaultViolations.push(pathName + ' must default to ' + expected.defaultValue + '.');
+    }
+    for (const option of expected.options) {
+      if (!field.options.includes(option)) {
+        defaultViolations.push(pathName + ' must include the ' + option + ' option.');
+      }
+    }
+  }
+
+  function requireObject(pathName, field) {
+    if (!field) {
+      defaultViolations.push(pathName + ' must be present as a required object field.');
+      return;
+    }
+    if (field.widget !== 'object') defaultViolations.push(pathName + ' must use the object widget.');
+    if (field.required !== 'true') defaultViolations.push(pathName + ' must be required.');
+  }
+
+  function requireWidget(pathName, field, widget) {
+    if (!field) return;
+    if (field.widget !== widget) defaultViolations.push(pathName + ' must use the ' + widget + ' widget.');
+  }
+
+  const publicationStatus = topLevel.get('status');
+  const editorialStatus = topLevel.get('review_status');
+  requireChoice('status', publicationStatus, {
+    defaultValue: 'draft',
+    options: ['draft', 'live', 'hidden'],
+  });
+  requireChoice('review_status', editorialStatus, {
+    defaultValue: 'draft',
+    options: ['draft', 'review_required', 'approved', 'rejected'],
+  });
+
+  const sourceEvidence = topLevel.get('sourceEvidence');
+  const visualReview = topLevel.get('visualReview');
+  const technicalValidation = topLevel.get('technicalValidation');
+  requireObject('sourceEvidence', sourceEvidence);
+  requireObject('visualReview', visualReview);
+  requireObject('technicalValidation', technicalValidation);
+
+  requireChoice('sourceEvidence.status', sourceEvidence && sourceEvidence.children.get('status'), {
+    defaultValue: 'unverified',
+    options: ['unverified', 'owner-confirmed', 'licensed'],
+  });
+  requireChoice('visualReview.status', visualReview && visualReview.children.get('status'), {
+    defaultValue: 'not_assessed',
+    options: ['not_assessed', 'matched', 'mismatch'],
+  });
+  requireChoice('technicalValidation.status', technicalValidation && technicalValidation.children.get('status'), {
+    defaultValue: 'pending',
+    options: ['pending', 'verified', 'failed'],
+  });
+
+  const sourceChildren = sourceEvidence && sourceEvidence.children;
+  const visualChildren = visualReview && visualReview.children;
+  const technicalChildren = technicalValidation && technicalValidation.children;
+  for (const [name, widget] of [
+    ['creator', 'string'],
+    ['sourceUrl', 'string'],
+    ['licenseName', 'string'],
+    ['evidenceReference', 'string'],
+    ['verifiedBy', 'string'],
+    ['verifiedAt', 'string'],
+  ]) requireWidget('sourceEvidence.' + name, sourceChildren && sourceChildren.get(name), widget);
+  requireWidget('visualReview.evidence', visualChildren && visualChildren.get('evidence'), 'text');
+  requireWidget('visualReview.reviewer', visualChildren && visualChildren.get('reviewer'), 'string');
+  requireWidget('visualReview.reviewedAt', visualChildren && visualChildren.get('reviewedAt'), 'string');
+  requireWidget('technicalValidation.evidenceReference',
+    technicalChildren && technicalChildren.get('evidenceReference'), 'string');
+
+  const sourceUrlField = sourceChildren && sourceChildren.get('sourceUrl');
+  if (sourceUrlField && !sourceUrlField.block.includes("'^https://'")) {
+    defaultViolations.push('sourceEvidence.sourceUrl must constrain values to HTTPS.');
+  }
+
+  const uniqueMissing = [...new Set(missing)].sort();
+  const uniqueViolations = [...new Set(defaultViolations)].sort();
+  const uniqueFields = [...fields].sort();
+  const safeDefaults = uniqueViolations.length === 0;
+  return {
+    available: true,
+    fields: uniqueFields,
+    missing: uniqueMissing,
+    safeDefaults,
+    defaultViolations: uniqueViolations,
+    supportsRequiredEvidence: uniqueMissing.length === 0 && safeDefaults,
+  };
+}
 function readGallerySnapshot(directory, label) {
   const root = realDirectory(directory, label);
   const errors = [];
   const galleryDirectory = path.join(root, 'content', 'gallery');
   const records = new Map();
+  const schema = gallerySchemaFields(root, errors);
 
   if (!fs.existsSync(galleryDirectory)) {
-    return { root, records, errors, schema: gallerySchemaFields(root, errors) };
+    return { root, records, errors, schema };
   }
   const galleryStat = fs.lstatSync(galleryDirectory);
   if (galleryStat.isSymbolicLink() || !galleryStat.isDirectory()) {
@@ -184,11 +374,11 @@ function readGallerySnapshot(directory, label) {
         technicalValidation.status === 'verified' &&
         nonEmpty(technicalValidation.evidenceReference, 5)
       );
-      const schema = gallerySchemaFields(root, errors);
       const blockers = [];
       if (record.status !== 'live') blockers.push('source-record-not-live');
       if (record.review_status !== 'approved') blockers.push('owner-editor-review-not-approved');
       if (!schema.available || schema.missing.length) blockers.push('cms-schema-does-not-capture-required-evidence');
+      if (!schema.safeDefaults) blockers.push('cms-schema-does-not-enforce-fail-closed-defaults');
       if (!rightsEvidenceComplete) blockers.push('creator-source-rights-evidence-incomplete');
       if (!visualReviewComplete) blockers.push('documented-visual-match-missing');
       if (!meaningfulAlt) blockers.push('descriptive-alt-text-incomplete');
@@ -317,7 +507,9 @@ function auditAuthoritativeGallerySource(options) {
       available: current.schema.available,
       fields: current.schema.fields,
       missingEvidenceFields: current.schema.missing,
-      supportsRequiredEvidence: current.schema.available && current.schema.missing.length === 0,
+      safeDefaults: current.schema.safeDefaults,
+      defaultViolations: current.schema.defaultViolations,
+      supportsRequiredEvidence: current.schema.supportsRequiredEvidence,
     },
     summary,
     records,
