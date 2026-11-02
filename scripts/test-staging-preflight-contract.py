@@ -912,6 +912,89 @@ for forbidden_relative in (
                 "Release package must reject draft-only editorial payload: " + forbidden_relative
             )
 
+# The original exact-duplicate source pair is proven before optimization; the
+# retained package JPEG must separately match its post-optimization evidence.
+import hashlib
+
+duplicate_original = b"original exact duplicate bytes"
+duplicate_optimized = b"optimized retained JPEG bytes"
+duplicate_expected = {
+    "sha256": hashlib.sha256(duplicate_original).hexdigest(),
+    "gitBlobSha": staging_packager.git_blob_sha(duplicate_original),
+}
+duplicate_pruning_entry = {
+    "path": "assets/images/legacy/room-carved.jpg",
+    "duplicateOf": "assets/images/rooms/opium.jpg",
+    "bytes": len(duplicate_original),
+    "sha256": duplicate_expected["sha256"],
+    "gitBlobSha": duplicate_expected["gitBlobSha"],
+}
+optimized_record = {
+    "path": duplicate_pruning_entry["duplicateOf"],
+    "status": "OPTIMIZED",
+    "originalBytes": len(duplicate_original),
+    "optimizedBytes": len(duplicate_optimized),
+    "savedBytes": len(duplicate_original) - len(duplicate_optimized),
+    "savedPercent": 12.0,
+    "quality": 86,
+    "psnrDb": 41.25,
+    "minimumPsnrDb": 35.0,
+    "minimumSavingsPercent": 5.0,
+    "originalSha256": duplicate_expected["sha256"],
+    "optimizedSha256": hashlib.sha256(duplicate_optimized).hexdigest(),
+    "dimensionsPreserved": True,
+    "iccProfilePreserved": True,
+    "exifOrientationPreserved": True,
+}
+staging_packager.validate_retained_duplicate_package_payload(
+    duplicate_pruning_entry["duplicateOf"],
+    duplicate_optimized,
+    duplicate_pruning_entry,
+    duplicate_expected,
+    {"status": "PASS", "files": [optimized_record]},
+)
+bad_optimized_record = dict(optimized_record, optimizedSha256="0" * 64)
+try:
+    staging_packager.validate_retained_duplicate_package_payload(
+        duplicate_pruning_entry["duplicateOf"],
+        duplicate_optimized,
+        duplicate_pruning_entry,
+        duplicate_expected,
+        {"status": "PASS", "files": [bad_optimized_record]},
+    )
+except RuntimeError as error:
+    assert "optimization evidence" in str(error)
+else:
+    raise AssertionError("A retained JPEG whose bytes disagree with optimizer evidence must be rejected.")
+
+unchanged_record = {
+    "path": duplicate_pruning_entry["duplicateOf"],
+    "status": "SKIPPED_NO_QUALIFYING_CANDIDATE",
+    "originalBytes": len(duplicate_original),
+    "optimizedBytes": len(duplicate_original),
+    "savedBytes": 0,
+    "originalSha256": duplicate_expected["sha256"],
+}
+staging_packager.validate_retained_duplicate_package_payload(
+    duplicate_pruning_entry["duplicateOf"],
+    duplicate_original,
+    duplicate_pruning_entry,
+    duplicate_expected,
+    {"status": "PASS", "files": [unchanged_record]},
+)
+try:
+    staging_packager.validate_retained_duplicate_package_payload(
+        duplicate_pruning_entry["duplicateOf"],
+        duplicate_optimized,
+        duplicate_pruning_entry,
+        duplicate_expected,
+        {"status": "PASS", "files": [unchanged_record]},
+    )
+except RuntimeError as error:
+    assert "original source bytes" in str(error)
+else:
+    raise AssertionError("A skipped JPEG optimizer record must keep the retained original bytes.")
+
 metrics = staging_packager.package_size_metrics(
     [{"path": "index.html", "bytes": 90, "sha256": "0" * 64}],
     {"path": "img/", "fileCount": 164, "bytesExcluded": 46127863},

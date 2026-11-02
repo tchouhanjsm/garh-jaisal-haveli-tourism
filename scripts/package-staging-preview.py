@@ -2464,6 +2464,76 @@ def _validate_archive_member_path(path: object, label: str) -> str:
     return path
 
 
+def validate_retained_duplicate_package_payload(
+    duplicate_path: str,
+    retained_bytes: bytes,
+    pruning_entry: dict,
+    expected_identity: dict,
+    jpeg_optimization: dict,
+) -> None:
+    """Reconcile original duplicate identity with the retained package JPEG's optimizer evidence."""
+    original_bytes = pruning_entry.get("bytes")
+    if isinstance(original_bytes, bool) or not isinstance(original_bytes, int) or original_bytes < 1:
+        fail(f"Runtime duplicate-image byte count is invalid: {duplicate_path}")
+    if (
+        pruning_entry.get("sha256") != expected_identity.get("sha256")
+        or pruning_entry.get("gitBlobSha") != expected_identity.get("gitBlobSha")
+    ):
+        fail(f"Runtime duplicate-image source identity metadata is invalid: {duplicate_path}")
+
+    records = jpeg_optimization.get("files") if isinstance(jpeg_optimization, dict) else None
+    if not isinstance(records, list):
+        fail("JPEG fallback optimizer evidence is missing from the responsive-image manifest.")
+    matches = [
+        record for record in records
+        if isinstance(record, dict) and record.get("path") == duplicate_path
+    ]
+    if len(matches) != 1:
+        fail(f"Expected exactly one JPEG optimizer record for retained duplicate: {duplicate_path}")
+    record = matches[0]
+
+    if (
+        record.get("originalBytes") != original_bytes
+        or record.get("originalSha256") != expected_identity.get("sha256")
+    ):
+        fail(f"JPEG optimizer original bytes do not match the pre-optimization duplicate identity: {duplicate_path}")
+
+    status = record.get("status")
+    if status == "OPTIMIZED":
+        try:
+            psnr = float(record.get("psnrDb"))
+            minimum_psnr = float(record.get("minimumPsnrDb"))
+            savings_percent = float(record.get("savedPercent"))
+        except (TypeError, ValueError):
+            fail(f"JPEG optimizer quality evidence is invalid: {duplicate_path}")
+        if (
+            record.get("optimizedBytes") != len(retained_bytes)
+            or record.get("optimizedSha256") != digest_bytes(retained_bytes)
+            or record.get("dimensionsPreserved") is not True
+            or record.get("iccProfilePreserved") is not True
+            or record.get("exifOrientationPreserved") is not True
+            or psnr < MINIMUM_PSNR_DB
+            or psnr < minimum_psnr
+            or savings_percent < MINIMUM_SAVINGS_PERCENT
+            or record.get("savedBytes") != original_bytes - len(retained_bytes)
+        ):
+            fail(f"Retained duplicate does not match its quality-gated JPEG optimization evidence: {duplicate_path}")
+        return
+
+    if status in {"SKIPPED_NO_QUALIFYING_CANDIDATE", "SKIPPED_UNSUPPORTED_COLOR_MODE", "SKIPPED_PROTECTED_SOURCE"}:
+        if (
+            record.get("optimizedBytes") != original_bytes
+            or record.get("savedBytes") != 0
+            or len(retained_bytes) != original_bytes
+            or digest_bytes(retained_bytes) != expected_identity.get("sha256")
+            or git_blob_sha(retained_bytes) != expected_identity.get("gitBlobSha")
+        ):
+            fail(f"Unoptimized retained duplicate no longer matches its original source bytes: {duplicate_path}")
+        return
+
+    fail(f"Retained duplicate has an unsupported JPEG optimizer status: {duplicate_path} ({status!r})")
+
+
 def deterministic_archive(output: Path, archive: Path) -> None:
     """Create a reproducible ZIP and verify its exact payload against the release manifest."""
     archive.parent.mkdir(parents=True, exist_ok=True)
@@ -2516,6 +2586,10 @@ def deterministic_archive(output: Path, archive: Path) -> None:
         responsive_delivery = manifest.get("responsiveImageDelivery")
         delivery_evidence = (
             responsive_delivery.get("deliveryEvidence")
+            if isinstance(responsive_delivery, dict) else None
+        )
+        jpeg_optimization = (
+            responsive_delivery.get("jpegFallbackOptimization")
             if isinstance(responsive_delivery, dict) else None
         )
         if (
@@ -2580,12 +2654,9 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             if entry.get("sha256") != expected["sha256"] or entry.get("gitBlobSha") != expected["gitBlobSha"]:
                 fail(f"Runtime duplicate-image identity metadata is invalid: {pruned_path}")
             retained_bytes = package.read(duplicate_path)
-            if (
-                len(retained_bytes) != byte_count
-                or digest_bytes(retained_bytes) != expected["sha256"]
-                or git_blob_sha(retained_bytes) != expected["gitBlobSha"]
-            ):
-                fail(f"Retained duplicate does not match the pruned source identity: {duplicate_path}")
+            validate_retained_duplicate_package_payload(
+                duplicate_path, retained_bytes, entry, expected, jpeg_optimization
+            )
             if pruned_path in actual_pruned_paths:
                 fail(f"Runtime duplicate-image pruning repeats a path: {pruned_path}")
             actual_pruned_paths.add(pruned_path)
