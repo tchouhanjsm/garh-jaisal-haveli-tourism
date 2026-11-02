@@ -235,7 +235,7 @@ const galleryIntroSection = extractGallerySection('aria-labelledby="gallery-intr
 const galleryRoomSection = extractGallerySection('room-gallery-section', 'named-room gallery');
 const gallerySourceSection = extractGallerySection('aria-labelledby="fort-desert-gallery-title"', 'source gallery');
 
-assert.equal((galleryHeroHtml.match(/data-deferred-media(?:\\s|>)/g) || []).length, 17,
+assert.equal((galleryHeroHtml.match(/data-deferred-media/g) || []).length, 17,
   'gallery.html: all 17 intro, named-room and source-gallery media targets must defer their image payloads');
 assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g) || []).length, 17,
   'gallery.html: every deferred media target must retain an inert responsive-image template');
