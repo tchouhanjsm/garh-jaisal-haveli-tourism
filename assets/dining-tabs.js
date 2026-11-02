@@ -109,10 +109,10 @@
     try {
       const url = new URL(value);
       if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'wa.me' || url.port !== ''
-          || !/^\\/\\d{8,15}\\/?$/.test(url.pathname) || url.username || url.password || url.search || url.hash) {
+          || !/^\/\d{8,15}\/?$/.test(url.pathname) || url.username || url.password || url.search || url.hash) {
         throw new Error('Contact channel has an invalid destination');
       }
-      approvedWhatsAppBase = url.origin + url.pathname.replace(/\\/$/, '');
+      approvedWhatsAppBase = url.origin + url.pathname.replace(/\/$/, '');
       submit.disabled = false;
       status.dataset.state = 'ready';
       status.textContent = 'Ready. After submission, review the details in a WhatsApp draft. Nothing is sent automatically and no table is reserved yet.';
