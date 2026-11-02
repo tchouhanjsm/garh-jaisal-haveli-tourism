@@ -12,6 +12,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const SOURCE_REPOSITORY = 'https://github.com/tchouhanjsm/garh-jaisal-website';
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
@@ -93,6 +94,55 @@ function safeImageBytes(root, relative) {
     .update(bytes)
     .digest('hex');
   return { bytes: bytes.length, sha256, gitBlobSha };
+}
+
+function decodeGalleryImages(root, records) {
+  const imagePaths = [...new Set(records.map(record => record.imagePath).filter(Boolean))].sort();
+  if (!imagePaths.length) return new Map();
+
+  const helperPath = path.join(__dirname, 'decode-media-assets.py');
+  const result = spawnSync(process.env.PYTHON || 'python3', [helperPath, root], {
+    input: JSON.stringify(imagePaths.map(imagePath => ({ path: imagePath }))),
+    encoding: 'utf8',
+    timeout: 15 * 60 * 1000,
+    maxBuffer: 5 * 1024 * 1024,
+  });
+  if (result.error) throw new Error('Gallery image decoder could not start: ' + result.error.message);
+  if (result.status !== 0) {
+    throw new Error('Gallery image decoder failed: ' + String(result.stderr || result.stdout || 'unknown error').trim());
+  }
+
+  let report;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error('Gallery image decoder returned invalid JSON: ' + error.message);
+  }
+  if (!report || report.ok !== true || !Array.isArray(report.results)) {
+    throw new Error('Gallery image decoder did not return a valid result set.');
+  }
+
+  const expected = new Set(imagePaths);
+  const decoded = new Map();
+  for (const item of report.results) {
+    if (!item || typeof item.path !== 'string' || !expected.has(item.path) || decoded.has(item.path)) {
+      throw new Error('Gallery image decoder returned an unexpected or duplicate image path.');
+    }
+    if (item.status === 'verified') {
+      if (!Number.isInteger(item.width) || item.width < 1 ||
+          !Number.isInteger(item.height) || item.height < 1 ||
+          !/^[a-f0-9]{64}$/i.test(item.sha256 || '')) {
+        throw new Error('Gallery image decoder returned incomplete verification for ' + item.path + '.');
+      }
+    } else if (item.status !== 'failed') {
+      throw new Error('Gallery image decoder returned an unknown status for ' + item.path + '.');
+    }
+    decoded.set(item.path, item);
+  }
+  for (const imagePath of expected) {
+    if (!decoded.has(imagePath)) throw new Error('Gallery image decoder omitted ' + imagePath + '.');
+  }
+  return decoded;
 }
 
 function stableStringify(value) {
@@ -443,11 +493,20 @@ function readGallerySnapshot(directory, label) {
         validDate(visualReview.reviewedAt)
       );
       const technicalValidation = record.technicalValidation;
-      const technicalValidationComplete = Boolean(
+      const technicalValidationMetadataComplete = Boolean(
         technicalValidation &&
         technicalValidation.status === 'verified' &&
         nonEmpty(technicalValidation.evidenceReference, 5)
       );
+      const decodedImage = decodedImages.get(record.image.src);
+      const imageDecodeComplete = Boolean(
+        decodedImage &&
+        decodedImage.status === 'verified' &&
+        decodedImage.sha256 === asset.sha256 &&
+        Number.isInteger(decodedImage.width) && decodedImage.width > 0 &&
+        Number.isInteger(decodedImage.height) && decodedImage.height > 0
+      );
+      const technicalValidationComplete = technicalValidationMetadataComplete && imageDecodeComplete;
       const blockers = [];
       if (record.status !== 'live') blockers.push('source-record-not-live');
       if (record.review_status !== 'approved') blockers.push('owner-editor-review-not-approved');
@@ -459,7 +518,8 @@ function readGallerySnapshot(directory, label) {
       if (!rightsEvidenceComplete) blockers.push('creator-source-rights-evidence-incomplete');
       if (!visualReviewComplete) blockers.push('documented-visual-match-missing');
       if (!meaningfulAlt) blockers.push('descriptive-alt-text-incomplete');
-      if (!technicalValidationComplete) blockers.push('technical-validation-evidence-missing');
+      if (!technicalValidationMetadataComplete) blockers.push('technical-validation-evidence-missing');
+      if (!imageDecodeComplete) blockers.push('gallery-image-decode-validation-failed');
 
       const signature = crypto.createHash('sha256')
         .update(stableStringify(record) + '\0' + asset.sha256)
@@ -477,6 +537,11 @@ function readGallerySnapshot(directory, label) {
         rightsEvidenceComplete,
         visualReviewComplete,
         technicalValidationComplete,
+        imageDecodeComplete,
+        imageDecodeStatus: decodedImage ? decodedImage.status : 'missing',
+        imageWidth: imageDecodeComplete ? decodedImage.width : null,
+        imageHeight: imageDecodeComplete ? decodedImage.height : null,
+        imageDecodeError: decodedImage && decodedImage.status === 'failed' ? decodedImage.error : null,
         manifestMatchCandidate: false,
         approvalEligible: blockers.length === 0,
         blockers,
@@ -543,6 +608,9 @@ function auditAuthoritativeGallerySource(options) {
 
   const pinned = readGallerySnapshot(options.pinnedSourceRoot, 'pinned source');
   const current = readGallerySnapshot(options.currentSourceRoot, 'current source main');
+  const decodedImages = options.decodedImages instanceof Map
+    ? options.decodedImages
+    : decodeGalleryImages(options.currentSourceRoot, [...current.records.values()]);
   const errors = [...pinned.errors, ...current.errors];
   const diff = compareSnapshots(pinned, current);
   const records = [...current.records.values()].sort((left, right) => left.id.localeCompare(right.id));
@@ -600,6 +668,7 @@ function auditAuthoritativeGallerySource(options) {
       readOnly: true,
       sourceRepositoryMutated: false,
       automaticImportPerformed: false,
+      imageDecodePerformed: true,
       approvalAuthorized: false,
       publicationAuthorized: false,
     },
@@ -668,4 +737,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { auditAuthoritativeGallerySource };
+module.exports = { auditAuthoritativeGallerySource, decodeGalleryImages };
