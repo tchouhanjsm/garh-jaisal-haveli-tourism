@@ -1883,7 +1883,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 'calc((min(100vw, 1304px) - 88px) / 2)'
             )
             detail_sizes = (
-                '(max-width: 900px) min(620px, calc(100vw - 76px)), '
+                '(max-width: 900px) min(480px, calc(100vw - 76px)), '
                 'min(460px, 36vw)'
             )
             portrait_detail_sizes = (
