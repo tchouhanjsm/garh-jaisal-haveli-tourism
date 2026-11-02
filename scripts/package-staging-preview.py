@@ -144,8 +144,8 @@ def validate_runtime_duplicate_image_exclusions(root: Path = ROOT) -> dict:
 
 
 
-def validate_unreferenced_runtime_image_exclusions(root: Path = ROOT) -> dict:
-    """Prune explicitly approved package-only images only after a live runtime-reference scan."""
+def validate_unreferenced_runtime_image_exclusions(root: Path) -> dict:
+    """Audit staged runtime references before pruning package-only source assets."""
     raw_root = Path(root)
     if raw_root.is_symlink():
         fail("Unreferenced runtime-image exclusion root must not be a symlink.")
@@ -227,10 +227,45 @@ def validate_unreferenced_runtime_image_exclusions(root: Path = ROOT) -> dict:
 
     return {
         "status": "PASS",
+        "scope": "isolated-staging-package-after-responsive-rewrite",
+        "sourceRepositoryMutated": False,
         "excludedFileCount": len(entries),
         "excludedBytes": sum(entry["bytes"] for entry in entries),
         "runtimeTextFilesScanned": len(scanned_content),
         "files": entries,
+    }
+
+
+def prune_unreferenced_runtime_images(root: Path, validation_report: dict) -> dict:
+    """Delete only the exact, revalidated files from the isolated package."""
+    current_report = validate_unreferenced_runtime_image_exclusions(root)
+    if current_report != validation_report:
+        fail("Unreferenced runtime-image audit changed before package pruning.")
+
+    resolved_root = Path(root).resolve(strict=True)
+    pruned: list[dict] = []
+    for entry in current_report["files"]:
+        path = resolved_root / PurePosixPath(entry["path"])
+        if path.is_symlink() or not path.is_file():
+            fail(f"Refusing unsafe unreferenced runtime-image prune: {entry['path']}")
+        payload = path.read_bytes()
+        if (
+            len(payload) != entry["bytes"]
+            or digest_bytes(payload) != entry["sha256"]
+            or git_blob_sha(payload) != entry["gitBlobSha"]
+        ):
+            fail(f"Unreferenced runtime image changed immediately before pruning: {entry['path']}")
+        path.unlink()
+        if path.exists() or path.is_symlink():
+            fail(f"Unreferenced runtime image remained after pruning: {entry['path']}")
+        pruned.append(dict(entry))
+
+    return {
+        **current_report,
+        "status": "PASS",
+        "prunedFileCount": len(pruned),
+        "prunedBytes": sum(entry["bytes"] for entry in pruned),
+        "files": pruned,
     }
 
 
@@ -1817,12 +1852,10 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
 
 
 def checked_paths(excluded_runtime_assets: set[str] | None = None) -> list[Path]:
-    """Select browser runtime files, omitting only identity-verified duplicates and unreferenced assets."""
+    """Select runtime files; prune exact duplicates now, then unused sources after responsive rewriting."""
     if excluded_runtime_assets is None:
         duplicate_report = validate_runtime_duplicate_image_exclusions()
-        unreferenced_report = validate_unreferenced_runtime_image_exclusions()
         excluded_runtime_assets = {entry["path"] for entry in duplicate_report["files"]}
-        excluded_runtime_assets.update(entry["path"] for entry in unreferenced_report["files"])
     files: set[Path] = set()
     for candidate in ROOT.glob("*.html"):
         if candidate.is_symlink() or not candidate.is_file():
@@ -2735,9 +2768,7 @@ def main() -> int:
     output.mkdir(parents=True)
 
     runtime_asset_pruning_report = validate_runtime_duplicate_image_exclusions()
-    runtime_unreferenced_pruning_report = validate_unreferenced_runtime_image_exclusions()
     excluded_runtime_assets = {entry["path"] for entry in runtime_asset_pruning_report["files"]}
-    excluded_runtime_assets.update(entry["path"] for entry in runtime_unreferenced_pruning_report["files"])
     files = checked_paths(excluded_runtime_assets)
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
     hosting_delivery_report = validate_staging_policy(
@@ -2751,15 +2782,17 @@ def main() -> int:
     copy_runtime_files(files, output)
     legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
-    asset_closure_report = validate_runtime_asset_closure(output)
+    # The original WebP source is needed by the rewrite step. Audit and prune
+    # only after the generated responsive markup no longer references it.
+    runtime_unreferenced_validation = validate_unreferenced_runtime_image_exclusions(output)
+    runtime_unreferenced_pruning_report = prune_unreferenced_runtime_images(
+        output, runtime_unreferenced_validation
+    )
     for entry in runtime_asset_pruning_report["files"]:
         pruned_path = output / entry["path"]
         if pruned_path.is_symlink() or pruned_path.exists():
             fail(f"Verified duplicate runtime image was not pruned from the package: {entry['path']}")
-    for entry in runtime_unreferenced_pruning_report["files"]:
-        pruned_path = output / entry["path"]
-        if pruned_path.is_symlink() or pruned_path.exists():
-            fail(f"Verified unreferenced runtime image was not pruned from the package: {entry['path']}")
+    asset_closure_report = validate_runtime_asset_closure(output)
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     document_contract_report = validate_document_contract(output)

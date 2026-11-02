@@ -556,7 +556,13 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 
 - [x] Test JPEG fallback candidates down to quality 70 while retaining the 35 dB PSNR and 5% savings gates.
 - [x] Preserve the original image when no candidate passes both gates.
-- [x] Exclude only one identity-verified image with no runtime HTML/CSS/JavaScript/config reference; keep the source file in Git.
+- [x] Exclude the identity-verified Rooms hero source only after responsive rewrite proves the staged runtime no longer references it; retain it in the source tree and build input set.
 - [x] Check the 8% package reserve with exact byte arithmetic.
 - [ ] Confirm package remains below 92% utilization and packaged Chromium passes on final exact head.
 
+
+
+### M44 source-input vs packaged-runtime safeguard
+- The Rooms hero WebP remains in Git and is available to the responsive rewrite.
+- Package-only pruning happens only after rewritten markup is scanned and the exact image path/basename is absent from runtime HTML/CSS/JavaScript/config.
+- A new runtime reference blocks the prune, and a post-prune asset-closure audit remains mandatory.

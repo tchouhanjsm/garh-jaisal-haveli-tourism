@@ -768,17 +768,38 @@ assert not any(path.startswith("preview/") for path in selected_runtime_paths)
 assert not any(path.startswith("content/blogs/") for path in selected_runtime_paths)
 assert not any(path.startswith("blogs/") and path.lower().endswith(".html") for path in selected_runtime_paths)
 
-runtime_unreferenced_pruning = staging_packager.validate_unreferenced_runtime_image_exclusions(ROOT)
-assert runtime_unreferenced_pruning["status"] == "PASS"
-assert runtime_unreferenced_pruning["excludedFileCount"] == 1
-assert runtime_unreferenced_pruning["excludedBytes"] == 307548
-assert {entry["path"] for entry in runtime_unreferenced_pruning["files"]} == {
-    "assets/images/rooms/haveli-sitting-room.webp",
-}
-assert "assets/images/rooms/haveli-sitting-room.webp" not in selected_runtime_paths
-assert (ROOT / "assets/images/rooms/haveli-sitting-room.webp").is_file(), (
-    "The unreferenced original image must remain in the source repository."
+assert "assets/images/rooms/haveli-sitting-room.webp" in selected_runtime_paths, (
+    "The original WebP is a rewrite input and must be copied before package-only pruning."
 )
+try:
+    staging_packager.validate_unreferenced_runtime_image_exclusions(ROOT)
+except RuntimeError as error:
+    assert "runtime reference found" in str(error)
+else:
+    raise AssertionError("The source tree must refuse to prune a WebP still referenced by rooms.html.")
+
+with tempfile.TemporaryDirectory(prefix="garh-unreferenced-image-after-rewrite-") as temporary_directory:
+    staged_root = Path(temporary_directory)
+    candidate_relative = "assets/images/rooms/haveli-sitting-room.webp"
+    candidate_path = staged_root / candidate_relative
+    candidate_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path.write_bytes((ROOT / candidate_relative).read_bytes())
+    (staged_root / "rooms.html").write_text(
+        '<!doctype html><picture><source srcset="assets/images/responsive/rooms/haveli-interior-1600.webp 1600w">'
+        '<img src="assets/images/rooms/haveli-interior.jpg" alt="Room"></picture>',
+        encoding="utf-8",
+    )
+    audit = staging_packager.validate_unreferenced_runtime_image_exclusions(staged_root)
+    assert audit["status"] == "PASS"
+    assert audit["scope"] == "isolated-staging-package-after-responsive-rewrite"
+    assert audit["sourceRepositoryMutated"] is False
+    assert audit["excludedFileCount"] == 1
+    assert audit["excludedBytes"] == 307548
+    pruned = staging_packager.prune_unreferenced_runtime_images(staged_root, audit)
+    assert pruned["prunedFileCount"] == 1
+    assert pruned["prunedBytes"] == 307548
+    assert not candidate_path.exists()
+    assert (ROOT / candidate_relative).is_file(), "Original source WebP must remain in Git."
 
 with tempfile.TemporaryDirectory(prefix="garh-unreferenced-image-now-used-") as temporary_directory:
     referenced_root = Path(temporary_directory)
@@ -786,8 +807,9 @@ with tempfile.TemporaryDirectory(prefix="garh-unreferenced-image-now-used-") as 
     fixture_image = referenced_root / candidate_relative
     fixture_image.parent.mkdir(parents=True, exist_ok=True)
     fixture_image.write_bytes((ROOT / candidate_relative).read_bytes())
-    (referenced_root / "index.html").write_text(
-        '<!doctype html><img src="' + candidate_relative + '" alt="Room">',
+    (referenced_root / "assets").mkdir(parents=True, exist_ok=True)
+    (referenced_root / "assets" / "site.css").write_text(
+        ".hero{background-image:url('/assets/images/rooms/haveli-sitting-room.webp')}",
         encoding="utf-8",
     )
     try:

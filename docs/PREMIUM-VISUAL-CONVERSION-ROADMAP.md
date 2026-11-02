@@ -567,8 +567,14 @@ The technical implementation must consume an explicit owner-defined policy ident
 
 - [x] Extend the JPEG fallback quality ladder from 98 down to 70, selecting the highest candidate that still saves at least 5% and remains at or above 35 dB PSNR.
 - [x] Verify each candidate preserves dimensions, ICC profile and EXIF orientation; non-qualifying images remain byte-identical.
-- [x] Exclude one additional runtime image only after verifying its SHA-256/Git blob identity and the absence of its full path and filename in runtime HTML, CSS, JavaScript and config.
+- [x] Exclude one additional runtime image only after responsive rewriting, then verify its SHA-256/Git blob identity and absence from the staged package's rewritten HTML, CSS, JavaScript and config. Keep the original source file in Git and in the build input set.
 - [x] Keep the unreferenced image in the source repository; pruning is limited to the isolated staging package.
 - [x] Apply the 8% reserve using exact byte arithmetic, not rounded percentage comparison.
 - [ ] Reconfirm the final guarded package stays below 92% utilization and passes packaged responsive-image Chromium on the exact final head.
 
+
+
+### M44 source-input vs delivered-package correction
+- The Rooms hero WebP remains a required source input and is copied into the temporary package before the responsive rewrite.
+- The generated staging markup points to the rewritten responsive candidates. Only after that transformation, the package scans all runtime HTML/CSS/JS/config references and prunes the original WebP if no reference remains.
+- CI now rejects pruning at the source-tree stage, rejects pruning if the transformed package still references the image, and confirms the source file remains in the repository.
