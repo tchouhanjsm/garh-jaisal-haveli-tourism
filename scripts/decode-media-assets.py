@@ -47,7 +47,7 @@ def safe_asset_path(root: pathlib.Path, relative: str) -> pathlib.Path:
             raise ValueError("symlinks are not permitted")
     target = current.resolve(strict=True)
     assets_root = (
-        root / ("assets" / pathlib.Path("images") if relative.startswith("assets/images/") else "img")
+        root / (pathlib.Path("assets") / "images" if relative.startswith("assets/images/") else pathlib.Path("img"))
     ).resolve(strict=True)
     if not target.is_relative_to(assets_root) or not target.is_file():
         raise ValueError("path is not a regular local image")
