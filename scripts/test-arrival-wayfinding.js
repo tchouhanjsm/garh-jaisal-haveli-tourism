@@ -300,6 +300,11 @@ assert.equal(siteConfig.propertyNavigation.hotelMapEmbedUrl,
   'The centralized embed destination must match the authoritative legacy Directions page');
 assert.match(siteRuntime, /propertyNavigation\.hotelMapEmbedUrl[\s\S]*?hostname\.toLowerCase\(\) === 'www\.google\.com'/,
   'The shared runtime must validate the configured Google Maps embed destination');
+
+assert.match(siteRuntime, /const sharedRuntimeUrl = document\\.currentScript && document\\.currentScript\\.src/,
+  'The shared runtime URL must be captured synchronously before asynchronous configuration loading');
+assert.match(siteRuntime, /new URL\\('\\.\\.\\/content\\/site-config\\.json', sharedRuntimeUrl\\)/,
+  'The central site configuration must resolve relative to the shared runtime, not the current page or a cleared currentScript');
 assert.match(siteRuntime, /detail: \{ whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl \}/,
   'The shared runtime must publish only validated map destinations to the arrival enhancement');
 const contactConfigurationStart = siteRuntime.indexOf('async function configureContactChannels()');
