@@ -2299,6 +2299,11 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         fail("Could not load the guarded JPEG fallback optimizer.")
     optimizer = importlib.util.module_from_spec(optimizer_spec)
     optimizer_spec.loader.exec_module(optimizer)
+    # Revalidate the approved duplicate map against the untouched source tree;
+    # only its retained counterparts are exempt from package-only JPEG re-encoding.
+    retained_duplicate_paths = {
+        entry["duplicateOf"] for entry in validate_runtime_duplicate_image_exclusions()["files"]
+    }
     optimizer_sources = [
         {**record, "preserveSourceIdentity": record["sourceJpeg"] in retained_duplicate_paths}
         for record in image_sources
