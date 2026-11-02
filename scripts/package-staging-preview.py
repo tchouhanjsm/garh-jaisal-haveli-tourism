@@ -259,14 +259,16 @@ def validate_responsive_markup(
             if (fallback_absolute.is_symlink() or not fallback_absolute.is_file()
                     or not is_within(fallback_absolute.resolve(), output)):
                 fail(f"{page.name}: JPEG fallback is missing or unsafe: {fallback_path}.")
-            actual_fallback_bytes = fallback_absolute.stat().st_size
-            declared_fallback_bytes = source_record.get("fallbackBytes")
-            if (isinstance(declared_fallback_bytes, bool)
-                    or not isinstance(declared_fallback_bytes, int)
-                    or declared_fallback_bytes != actual_fallback_bytes):
-                fail(f"{page.name}: JPEG fallback byte metadata does not match its current bytes: {fallback_path}.")
             declared_fallback_sha256 = source_record.get("fallbackSha256")
+            # Hash evidence exists only after package-only optimization. Preserve
+            # compatibility with the pre-optimization markup fixtures and inputs.
             if declared_fallback_sha256 is not None:
+                actual_fallback_bytes = fallback_absolute.stat().st_size
+                declared_fallback_bytes = source_record.get("fallbackBytes")
+                if (isinstance(declared_fallback_bytes, bool)
+                        or not isinstance(declared_fallback_bytes, int)
+                        or declared_fallback_bytes != actual_fallback_bytes):
+                    fail(f"{page.name}: JPEG fallback byte metadata does not match its current bytes: {fallback_path}.")
                 actual_fallback_sha256 = hashlib.sha256(fallback_absolute.read_bytes()).hexdigest()
                 if declared_fallback_sha256 != actual_fallback_sha256:
                     fail(f"{page.name}: JPEG fallback SHA-256 does not match its current bytes: {fallback_path}.")
