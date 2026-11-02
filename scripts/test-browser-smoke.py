@@ -3457,15 +3457,13 @@ def check_contact_hydration(page, base_url: str) -> None:
     # The shared contact runtime must resolve central configuration from its own script URL,
     # independent of the current route and the asynchronous document.currentScript lifecycle.
     page.add_init_script(
-        """() => {
-          window.__siteConfigRequestUrls = [];
-          const originalFetch = window.fetch.bind(window);
-          window.fetch = (input, init) => {
-            const url = typeof input === "string" ? input : input.url;
-            window.__siteConfigRequestUrls.push(url);
-            return originalFetch(input, init);
-          };
-        }"""
+        """window.__siteConfigRequestUrls = [];
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = (input, init) => {
+          const url = typeof input === "string" ? input : input.url;
+          window.__siteConfigRequestUrls.push(url);
+          return originalFetch(input, init);
+        };"""
     )
     # Inspect the exact source-authorized hotel pin without opening the external map.
     page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
