@@ -37,7 +37,7 @@ DIRECTIONS_WEBP_PRELOAD_MEDIA = "not all and (min-width: 1160px) and (min-resolu
 EXPECTED_DEFERRED_MEDIA_COUNTS = {
     "index.html": 7,
     "rooms.html": 7,
-    "gallery.html": 7,
+    "gallery.html": 17,
     "experiences.html": 6,
     "experience-details.html": 7,
 }
@@ -1471,6 +1471,17 @@ def build_responsive_image_evidence_report(
                 "requestedImageCount": requested_count,
                 "requestedOutsideViewportCount": requested_outside_viewport_count,
             }
+            # M47 regression gate: the prior Gallery trace requested four offscreen images
+            # at 768px (both DPRs). Keep the hero plus at most one nearby supporting image.
+            if route == "gallery.html" and viewport_width == 768:
+                if requested_count > 2:
+                    page_resource_validation_failures.append(
+                        f"Gallery at 768px @{dpr}x requested {requested_count} first-view images; maximum is 2"
+                    )
+                if requested_outside_viewport_count > 1:
+                    page_resource_validation_failures.append(
+                        f"Gallery at 768px @{dpr}x requested {requested_outside_viewport_count} offscreen images; maximum is 1"
+                    )
             for field, expected_value in expected_first_view_counts.items():
                 declared_value = first_view.get(field)
                 if isinstance(declared_value, bool) or not isinstance(declared_value, int) or declared_value != expected_value:
@@ -1618,8 +1629,8 @@ def build_responsive_image_evidence_report(
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
-                "Homepage, Rooms, Gallery and Experience Details supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
-                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms, seven Gallery and seven Experience Details supporting images.",
+                "Homepage, Rooms and Experience Details supporting images use a 256px IntersectionObserver margin; Gallery supporting images use a tighter 96px margin, with noscript fallbacks preserved.",
+                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms, seventeen Gallery and seven Experience Details supporting images.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
@@ -3286,7 +3297,7 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            for fallback_route, expected_fallback_count in (("index.html", 7), ("rooms.html", 7), ("gallery.html", 7), ("experiences.html", 6), ("experience-details.html", 7)):
+            for fallback_route, expected_fallback_count in (("index.html", 7), ("rooms.html", 7), ("gallery.html", 17), ("experiences.html", 6), ("experience-details.html", 7)):
                 fallback_media_page = fallback_context.new_page()
                 fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
                 fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")

@@ -589,3 +589,13 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Preserve the six responsive screenshot widths and the existing 48-image evidence requirement.
 - [ ] Exact-head GitHub Actions, full route smoke and staging package acceptance remain pending for this follow-up change.
 - [ ] Real-device orientation checks and STG-01–STG-18 remain NOT RUN. No staging deployment, canonical approval, indexing or production release is authorized.
+
+
+## 2 November 2026 — M47: Gallery first-view media containment
+
+- [x] Defer the seven named-room and three lower source-gallery images in inert templates; preserve their original photographs and no-JavaScript fallbacks.
+- [x] Use a 96px Gallery-only activation margin while keeping the 256px behavior on other supporting-media routes.
+- [x] Gate the 768px packaged Gallery first view at both DPRs to a maximum of two requested images and one offscreen request.
+- [x] Retain all 17 Gallery image subjects, alt text, dimensions, responsive picture candidates, package thresholds and the 48-screenshot contract.
+- [ ] Exact-head Actions and packaged Chromium evidence remain required before M47 automated acceptance.
+- [ ] Owner visual/rights review, physical-device testing, M32 editorial authority and STG-01–STG-18 remain separate release gates. No canonical approval, production indexing or deployment is authorized.

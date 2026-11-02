@@ -75,6 +75,9 @@
     if (!targets.length) return;
 
     const pendingTargets = new Set(targets);
+    // The Gallery first-view trace showed supporting cards activating too far ahead of the reader.
+    // Keep the tighter margin local to Gallery; preserve the established margin on other routes.
+    const activationMargin = document.querySelector('.page-hero--gallery') ? 96 : 256;
     let observer = null;
     let scanFrame = 0;
 
@@ -113,7 +116,7 @@
 
     const isWithinActivationMargin = target => {
       const rect = target.getBoundingClientRect();
-      const margin = 256;
+      const margin = activationMargin;
       return rect.width > 0
         && rect.height > 0
         && rect.bottom >= -margin
@@ -146,7 +149,7 @@
         observer.unobserve(entry.target);
         activate(entry.target);
       });
-    }, { rootMargin: '256px 0px', threshold: 0 });
+    }, { rootMargin: `${activationMargin}px 0px`, threshold: 0 });
 
     targets.forEach(target => observer.observe(target));
     window.addEventListener('scroll', scheduleFallbackScan, { passive: true });

@@ -603,3 +603,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Keep the original six-width/48-screenshot baseline contract unchanged; M46 adds transition assertions without increasing the screenshot count.
 - [ ] Exact-head GitHub Actions and real Chromium acceptance must pass before M46 is considered automated-complete.
 - [ ] Real iOS/Android orientation and browser-chrome behavior remain separate owner/device UAT; automation does not replace STG-01–STG-18.
+
+
+## M47 — Gallery first-view media containment
+
+- [x] Convert all seven named-room gallery photos and all three lower source-gallery photos to inert supporting-media templates while preserving descriptive alt text, intrinsic dimensions, responsive picture generation and no-JavaScript image fallbacks.
+- [x] Use a Gallery-only 96px IntersectionObserver/fallback-scan activation margin; retain the established 256px margin on Homepage, Rooms and Experience Details.
+- [x] Add exact packaged first-view evidence gates at 768px for both DPRs: no more than two requested images (the hero plus one nearby supporting image) and no more than one requested image outside the viewport.
+- [x] Keep all 17 Gallery photo subjects, original source files, responsive candidates, visual compositions and the existing 48-screenshot baseline; no quality or package-budget threshold is relaxed.
+- [ ] Exact-head Actions, complete route smoke, no-JavaScript fallbacks, package-budget validation and packaged Chromium first-view evidence must pass before M47 is accepted.
+- [ ] Browser first-view Resource Timing remains a laboratory diagnostic, not field Core Web Vitals; owner review and real-device checks remain separate.
