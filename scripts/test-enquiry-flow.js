@@ -462,6 +462,7 @@ async function main() {
   assert.equal(fetchFailure.submit.disabled, true, 'booking enquiry must remain disabled after a repeated outage');
   assert.match(fetchFailure.note.textContent, /travel details have not been sent/i);
   await fetchFailure.retryButton.dispatchAsync('click');
+  assert.equal(fetchFailure.fetchCalls(), 3, 'the successful second retry must make the third and final config request');
   assert.equal(fetchFailure.retryButton.hidden, true,
     'retry action must hide after the authorized configuration is restored');
   assert.equal(fetchFailure.retryButton.disabled, false);
