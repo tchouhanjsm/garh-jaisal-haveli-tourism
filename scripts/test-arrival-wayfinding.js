@@ -303,6 +303,8 @@ assert.match(siteRuntime, /propertyNavigation\.hotelMapEmbedUrl[\s\S]*?hostname\
 
 assert.match(siteRuntime, /const sharedRuntimeUrl = document\\.currentScript && document\\.currentScript\\.src/,
   'The shared runtime URL must be captured synchronously before asynchronous configuration loading');
+assert.match(siteRuntime, /: \\(window\\.location && window\\.location\\.href \\? window\\.location\\.href : ''\\);/,
+  'The non-browser test fallback must not require a global URL constructor during script evaluation');
 assert.match(siteRuntime, /new URL\\('\\.\\.\\/content\\/site-config\\.json', sharedRuntimeUrl\\)/,
   'The central site configuration must resolve relative to the shared runtime, not the current page or a cleared currentScript');
 assert.match(siteRuntime, /detail: \{ whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl \}/,

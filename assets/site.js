@@ -23,7 +23,7 @@
   // Capture the shared runtime URL synchronously; document.currentScript is null after async work begins.
   const sharedRuntimeUrl = document.currentScript && document.currentScript.src
     ? document.currentScript.src
-    : new URL('assets/site.js', window.location.href).toString();
+    : (window.location && window.location.href ? window.location.href : '');
 
   function focusArrivalPlannerFromFragment() {
     if (!window.location || !['#arrival-planning', '#arrival-enquiry-title'].includes(window.location.hash)) return;
