@@ -390,7 +390,16 @@ async function main() {
   invalidPort.form.dispatch('submit');
   assert.equal(invalidPort.window.location.href, 'https://example.test/rooms.html');
 
-  const fetchFailure = await boot(makeConfig(), true);
+  const fetchFailure = await boot(makeConfig({
+    verified: true,
+    whatsapp: 'https://wa.me/15551234567',
+    phone: '+15551234567',
+    display: '+1 555 123 4567',
+    alternatePhone: '+15551234568',
+    alternateDisplay: '+1 555 123 4568',
+    email: 'hotel@example.com',
+    bookingUrl: 'https://asiatech.in/booking_engine/index3?token=test-token'
+  }), 1);
   assert.equal(fetchFailure.enquiryLink.getAttribute('aria-disabled'), 'true');
   assert.equal(fetchFailure.submit.disabled, true);
   assert.equal(fetchFailure.status.hidden, false);
