@@ -420,7 +420,14 @@ async function main() {
   assert.equal(fetchFailure.bookingLink.getAttribute('aria-disabled'), null);
   assert.equal(fetchFailure.status.hidden, true,
     'the unavailable banner must clear after the in-page retry succeeds');
-  assert.match(fetchFailure.note.textContent, /contact details supplied directly by the hotel/i);
+  assert.match(fetchFailure.note.textContent, /opens WhatsApp to ask about availability/i,
+    'successful retry must restore the normal WhatsApp enquiry guidance');
+  assert.match(fetchFailure.note.textContent, /this is an enquiry, not a reservation/i,
+    'successful retry must retain the no-reservation disclaimer');
+  assert.match(fetchFailure.note.textContent, /no payment is taken here/i,
+    'successful retry must retain the no-payment disclaimer');
+  assert.doesNotMatch(fetchFailure.note.textContent, /contact details supplied directly by the hotel/i,
+    'the unavailable-channel fallback must be removed after successful recovery');
 
   console.log('PASS: source-authorized booking, WhatsApp, telephone, landline, email and exact hotel map pin hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
 }
