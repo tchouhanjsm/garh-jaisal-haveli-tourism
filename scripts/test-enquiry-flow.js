@@ -210,6 +210,7 @@ async function main() {
   const publicPages = ['index.html', 'rooms.html', 'experiences.html', 'experience-details.html', 'dining.html', 'about.html', 'directions.html', 'gallery.html'];
   const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'content', 'site-config.json'), 'utf8'));
   const exactHotelMapUrl = publicConfig.propertyNavigation.hotelMapUrl;
+  const exactRestaurantMapUrl = publicConfig.restaurant.googleMapsUrl;
   const authoredMessages = new Set();
   for (const page of publicPages) {
     const html = fs.readFileSync(path.join(root, page), 'utf8');
@@ -225,13 +226,21 @@ async function main() {
       const driverNote = html.match(/data-arrival-copy="([^"]*)"/);
       assert.ok(driverNote && driverNote[1].includes('Exact hotel map pin: ' + exactHotelMapUrl),
         'driver payload must include the exact central hotel pin');
-      const noScriptFallback = html.match(/<noscript>[\s\S]*?<\/noscript>/i);
+      const noScriptFallback = html.match(/<noscript>[\\s\\S]*?<\\/noscript>/i);
       assert.ok(noScriptFallback && noScriptFallback[0].includes('href="' + exactHotelMapUrl + '"')
         && noScriptFallback[0].includes('target="_blank"')
         && noScriptFallback[0].includes('rel="noopener noreferrer"'),
         'no-JavaScript fallback must open the same exact pin safely in a new tab');
+    } else if (page === 'dining.html') {
+      assert.deepEqual(shortMapLinks, [exactRestaurantMapUrl],
+        'Dining may use only the centrally authorized restaurant map pin');
+      const restaurantLinks = html.match(/<div class="restaurant-source-links">([\\s\\S]*?)<\\/div>/)?.[1] || '';
+      assert.ok(restaurantLinks.includes('href="' + exactRestaurantMapUrl + '"')
+        && restaurantLinks.includes('target="_blank"')
+        && restaurantLinks.includes('rel="noopener noreferrer"'),
+        'Dining must expose the restaurant map pin as a safe external link');
     } else {
-      assert.equal(shortMapLinks.length, 0, page + ' must not hard-code the property map short link');
+      assert.equal(shortMapLinks.length, 0, page + ' must not hard-code a property or restaurant map short link');
     }
     assert.doesNotMatch(html, /https:\/\/wa\.me\/\d+|href="tel:\+?\d+|info@hotelgarhjaisal\.com|7727047567|2992253836/i, page + ' must not publish unverified contact endpoints');
     for (const match of html.matchAll(/data-enquiry-message="([^"]*)"/g)) authoredMessages.add(match[1]);
