@@ -1064,6 +1064,37 @@
         menuToggle.focus();
       }
     });
+    // A viewport change can hide the compact toggle while it owns an open menu.
+    // Normalize that state at the desktop breakpoint and keep keyboard focus visible
+    // when the active navigation control changes between compact and full navigation.
+    window.addEventListener('resize', () => {
+      const compactNavigation = window.innerWidth <= 760;
+      const menuExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
+      if (compactNavigation) {
+        if (!menuExpanded && nav.contains(document.activeElement)) {
+          menuToggle.focus();
+        }
+        return;
+      }
+
+      const toggleHadFocus = document.activeElement === menuToggle;
+      const needsReset = menuExpanded
+        || nav.classList.contains('is-open')
+        || document.body.classList.contains('menu-open');
+      if (!needsReset) return;
+
+      menuToggle.setAttribute('aria-expanded', 'false');
+      menuToggle.setAttribute('aria-label', 'Open navigation');
+      nav.classList.remove('is-open');
+      document.body.classList.remove('menu-open');
+      updateDirectEnquiryDock();
+
+      if (toggleHadFocus) {
+        const firstNavigationLink = nav.querySelectorAll('a[href]')[0]
+          || nav.querySelectorAll('a')[0];
+        if (firstNavigationLink) firstNavigationLink.focus();
+      }
+    });
   }
 
   document.querySelectorAll('[data-current-year]').forEach(el => { el.textContent = String(new Date().getFullYear()); });
