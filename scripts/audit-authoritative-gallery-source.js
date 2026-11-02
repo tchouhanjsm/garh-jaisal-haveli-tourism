@@ -247,7 +247,15 @@ function gallerySchemaFields(root, errors) {
   if (collectionMarkers.length !== 1) {
     return unavailable('admin/config.yml must contain exactly one root collections section');
   }
-  const collectionsSection = config.slice(collectionMarkers[0].index + collectionMarkers[0][0].length);
+  const collectionsStart = collectionMarkers[0].index + collectionMarkers[0][0].length;
+  const remainingConfig = config.slice(collectionsStart);
+  // Scope collection discovery to the actual root-level YAML collections section.
+  // A later root key may itself contain a list with "- name: gallery"; it must
+  // never be allowed to masquerade as a Sveltia collection.
+  const nextRootSection = remainingConfig.search(/^[A-Za-z0-9_-]+:(?:[ \t].*)?$/m);
+  const collectionsSection = nextRootSection === -1
+    ? remainingConfig
+    : remainingConfig.slice(0, nextRootSection);
   const parsedCollections = parseNamedFieldBlocks(collectionsSection, 2);
   const collectionBlock = parsedCollections.blocks.get('gallery');
   if (!collectionBlock) return unavailable('Gallery collection is missing');
