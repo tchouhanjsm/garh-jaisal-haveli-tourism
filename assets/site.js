@@ -67,7 +67,7 @@
   window.addEventListener('hashchange', focusArrivalPlannerFromFragment);
   focusArrivalPlannerFromFragment();
 
-  // Homepage and Gallery supporting photos stay inert until they approach the reading viewport.
+  // Homepage, Gallery, Dining and About supporting photos stay inert until they approach the reading viewport.
   // IntersectionObserver is primary; a bounded scroll/resize scan covers missed observer deliveries.
   // The source markup retains a <noscript> fallback; unsupported observers activate all images.
   function initDeferredSupportingMedia() {
@@ -75,6 +75,9 @@
     if (!targets.length) return;
 
     const pendingTargets = new Set(targets);
+    // Gallery, Dining and About first-view traces showed supporting photos loading too far ahead.
+    // Keep a 96px activation margin on those routes; preserve the established 256px margin elsewhere.
+    const activationMargin = document.querySelector('.page-hero--gallery, .page-hero--dining, .about-origin') ? 96 : 256;
     let observer = null;
     let scanFrame = 0;
 
@@ -100,7 +103,9 @@
         return false;
       }
 
-      target.appendChild(template.content.cloneNode(true));
+      // Preserve figure semantics: insert the image before a caption when the target is a figure.
+      const caption = Array.from(target.children).find(child => child.tagName === 'FIGCAPTION') || null;
+      target.insertBefore(template.content.cloneNode(true), caption);
       template.remove();
       const fallback = target.querySelector('noscript[data-deferred-picture-fallback]');
       if (fallback) fallback.remove();
@@ -113,7 +118,7 @@
 
     const isWithinActivationMargin = target => {
       const rect = target.getBoundingClientRect();
-      const margin = 256;
+      const margin = activationMargin;
       return rect.width > 0
         && rect.height > 0
         && rect.bottom >= -margin
@@ -146,7 +151,7 @@
         observer.unobserve(entry.target);
         activate(entry.target);
       });
-    }, { rootMargin: '256px 0px', threshold: 0 });
+    }, { rootMargin: `${activationMargin}px 0px`, threshold: 0 });
 
     targets.forEach(target => observer.observe(target));
     window.addEventListener('scroll', scheduleFallbackScan, { passive: true });
@@ -1039,6 +1044,24 @@
   window.addEventListener('load', updateMobileBookingBar, { once: true });
 
   if (menuToggle && nav) {
+    // Browsers may blur a control as CSS hides it during resize, before the resize
+    // handler runs. Retain the last meaningful navigation focus target so focus
+    // can move to the newly visible control instead of being stranded on <body>.
+    let lastFocusedNavigationControl = null;
+    document.addEventListener('focusin', event => {
+      const target = event.target;
+      if (target === menuToggle || nav.contains(target)) {
+        lastFocusedNavigationControl = target;
+      } else if (target && target !== document.body && target !== document.documentElement) {
+        lastFocusedNavigationControl = null;
+      }
+    });
+    document.addEventListener('pointerdown', event => {
+      if (!nav.contains(event.target) && event.target !== menuToggle) {
+        lastFocusedNavigationControl = null;
+      }
+    });
+
     menuToggle.addEventListener('click', () => {
       const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
       menuToggle.setAttribute('aria-expanded', String(!expanded));
@@ -1062,6 +1085,40 @@
         document.body.classList.remove('menu-open');
         updateDirectEnquiryDock();
         menuToggle.focus();
+      }
+    });
+    // A viewport change can hide the compact toggle while it owns an open menu.
+    // The premium masthead keeps the compact menu through the 761–820px tablet range.
+    // Match that CSS breakpoint so the runtime only transfers focus when full navigation appears.
+    window.addEventListener('resize', () => {
+      const compactNavigation = window.innerWidth <= 820;
+      const menuExpanded = menuToggle.getAttribute('aria-expanded') === 'true';
+      if (compactNavigation) {
+        const navigationHadFocus = nav.contains(document.activeElement)
+          || (lastFocusedNavigationControl && nav.contains(lastFocusedNavigationControl));
+        if (!menuExpanded && navigationHadFocus) {
+          menuToggle.focus();
+        }
+        return;
+      }
+
+      const toggleHadFocus = document.activeElement === menuToggle
+        || lastFocusedNavigationControl === menuToggle;
+      const needsReset = menuExpanded
+        || nav.classList.contains('is-open')
+        || document.body.classList.contains('menu-open');
+      if (!needsReset) return;
+
+      menuToggle.setAttribute('aria-expanded', 'false');
+      menuToggle.setAttribute('aria-label', 'Open navigation');
+      nav.classList.remove('is-open');
+      document.body.classList.remove('menu-open');
+      updateDirectEnquiryDock();
+
+      if (toggleHadFocus) {
+        const firstNavigationLink = nav.querySelectorAll('a[href]')[0]
+          || nav.querySelectorAll('a')[0];
+        if (firstNavigationLink) firstNavigationLink.focus();
       }
     });
   }

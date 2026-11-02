@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import importlib.util
 import json
 import tempfile
@@ -1195,7 +1196,7 @@ gallery_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
     if item["route"] == "gallery.html"
 )
-assert gallery_fixture_first_view["deferredTemplateCount"] == 7
+assert gallery_fixture_first_view["deferredTemplateCount"] == 17, "Gallery fixture must retain 7 introductory, 7 named-room and 3 source-gallery templates"
 assert gallery_fixture_first_view["deferredActivatedCount"] == 0
 home_fixture_first_view = next(
     item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
@@ -1221,9 +1222,67 @@ experiences_fixture_first_view = next(
 )
 assert experiences_fixture_first_view["deferredTemplateCount"] == 6
 assert experiences_fixture_first_view["deferredActivatedCount"] == 0
+for route in ("dining.html", "about.html"):
+    route_first_view = next(
+        item["firstView"] for item in responsive_evidence["pageResourceEvidence"]["observations"]
+        if item["route"] == route
+    )
+    assert route_first_view["deferredTemplateCount"] == 1, f"{route} fixture must retain its one deferred supporting photograph"
+    assert route_first_view["deferredActivatedCount"] == 0
+    assert route_first_view["requestedImageCount"] == 1
+    assert route_first_view["requestedOutsideViewportCount"] == 0
+
 assert responsive_evidence["pageResourceEvidence"]["observations"][0]["firstView"]["encodedBodyBytes"] == 1024 + 24576
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["contextCount"] == 12
 assert responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"][browser_smoke.PAGES[0]]["averageRequestedImageCount"] == 1
+assert all(
+    summary["contextCount"] == 12
+    and summary["averageRequestedImageCount"] == 1
+    and summary["averageRequestedOutsideViewportCount"] == 0
+    for summary in responsive_evidence["pageResourceEvidence"]["firstViewSummaryByRoute"].values()
+), "All eight core routes must maintain one first-view hero request and zero offscreen requests in all 12 contexts"
+
+# Prove the route-wide guard rejects a second, offscreen image request even at the smallest viewport.
+first_view_gate_regression = copy.deepcopy(fixture_page_resource_evidence)
+gate_observation = next(
+    item for item in first_view_gate_regression
+    if item["route"] == "index.html"
+    and item["viewportWidthCssPixels"] == 320
+    and item["deviceScaleFactor"] == 1
+)
+gate_first_view = gate_observation["firstView"]
+gate_first_view["resources"].append({
+    "path": "/assets/images/responsive/rooms/fixture-support-640.webp",
+    "initiatorType": "img",
+    "encodedBodyBytes": 8192,
+    "transferBytes": 8496,
+    "decodedBodyBytes": 32768,
+    "durationMs": 10.4,
+})
+gate_first_view["resourceCount"] = 3
+gate_first_view["encodedBodyBytes"] += 8192
+gate_first_view["transferBytes"] += 8496
+gate_first_view["decodedBodyBytes"] += 32768
+gate_first_view["requestedImageCount"] = 2
+gate_first_view["requestedOutsideViewportCount"] = 1
+gate_first_view["images"][1]["requestedBeforeAuditActivation"] = True
+gate_first_view["images"][1]["complete"] = True
+gate_first_view["images"][1]["naturalWidth"] = 640
+gate_first_view["images"][1]["naturalHeight"] = 480
+first_view_gate_report = browser_smoke.build_responsive_image_evidence_report(
+    route_picture_counts=fixture_picture_counts,
+    checked_picture_count=len(fixture_observations),
+    selected_resource_evidence=fixture_observations,
+    browser_version="Chromium test fixture",
+    failures=[],
+    page_resource_evidence=first_view_gate_regression,
+)
+assert first_view_gate_report["automatedResult"] == "FAIL"
+assert any(
+    "Home at 320px @1x requested 2 first-view images" in failure
+    for failure in first_view_gate_report["automatedFailures"]
+), "The global first-view gate must reject speculative offscreen image requests at any responsive width"
+
 assert responsive_evidence["pageResourceEvidence"]["measurementClass"] == "packaged-route-resource-timing-first-view-and-after-image-activation"
 assert responsive_evidence["measurementClass"] == "packaged-chromium-laboratory-diagnostic"
 assert responsive_evidence["fieldDataAvailable"] is False

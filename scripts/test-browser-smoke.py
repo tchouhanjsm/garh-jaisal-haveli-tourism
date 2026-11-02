@@ -37,9 +37,21 @@ DIRECTIONS_WEBP_PRELOAD_MEDIA = "not all and (min-width: 1160px) and (min-resolu
 EXPECTED_DEFERRED_MEDIA_COUNTS = {
     "index.html": 7,
     "rooms.html": 7,
-    "gallery.html": 7,
+    "gallery.html": 17,
     "experiences.html": 6,
     "experience-details.html": 7,
+    "dining.html": 1,
+    "about.html": 1,
+}
+FIRST_VIEW_IMAGE_GATES = {
+    "index.html": {"max_requested": 1, "max_offscreen": 0, "label": "Home"},
+    "rooms.html": {"max_requested": 1, "max_offscreen": 0, "label": "Rooms"},
+    "experiences.html": {"max_requested": 1, "max_offscreen": 0, "label": "Experiences"},
+    "experience-details.html": {"max_requested": 1, "max_offscreen": 0, "label": "Experience details"},
+    "dining.html": {"max_requested": 1, "max_offscreen": 0, "label": "Dining"},
+    "about.html": {"max_requested": 1, "max_offscreen": 0, "label": "About"},
+    "directions.html": {"max_requested": 1, "max_offscreen": 0, "label": "Directions"},
+    "gallery.html": {"max_requested": 1, "max_offscreen": 0, "label": "Gallery"},
 }
 VIEWPORTS = [
     (viewport["width"], viewport["height"])
@@ -1173,8 +1185,8 @@ def build_responsive_image_evidence_report(
             validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate has no encoded body bytes")
         if request_count != 1:
             validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate was not requested exactly once")
-        if calculated_ratio > 1.9:
-            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate exceeds the 1.9x pixel-demand guard")
+        if calculated_ratio > 1.6:
+            validation_failures.append(f"Observation {index + 1}: selected responsive-image candidate exceeds the 1.6x pixel-demand guard")
 
         unique_key = (route, viewport_width, dpr, picture_index)
         unique_keys.add(unique_key)
@@ -1471,6 +1483,18 @@ def build_responsive_image_evidence_report(
                 "requestedImageCount": requested_count,
                 "requestedOutsideViewportCount": requested_outside_viewport_count,
             }
+            # M49 protects every core route at all six widths and both DPRs:
+            # only the eager hero may be requested before audit activation; offscreen requests stay at zero.
+            gate = FIRST_VIEW_IMAGE_GATES.get(route)
+            if gate:
+                if requested_count > gate["max_requested"]:
+                    page_resource_validation_failures.append(
+                        f"{gate['label']} at {viewport_width}px @{dpr}x requested {requested_count} first-view images; maximum is {gate['max_requested']}"
+                    )
+                if requested_outside_viewport_count > gate["max_offscreen"]:
+                    page_resource_validation_failures.append(
+                        f"{gate['label']} at {viewport_width}px @{dpr}x requested {requested_outside_viewport_count} offscreen images; maximum is {gate['max_offscreen']}"
+                    )
             for field, expected_value in expected_first_view_counts.items():
                 declared_value = first_view.get(field)
                 if isinstance(declared_value, bool) or not isinstance(declared_value, int) or declared_value != expected_value:
@@ -1618,8 +1642,8 @@ def build_responsive_image_evidence_report(
                 "Repeated observations across viewports and DPR values are deliberate and are not unique-user traffic.",
                 "First-view resources and image loading states are captured after the load event, before the audit scrolls, activates hidden panels or forces any image eager.",
                 "The first-view snapshot reflects browser-native loading, including lazy resources fetched within the browser preload threshold; it is not a pure network-start waterfall.",
-                "Homepage, Rooms, Gallery and Experience Details supporting images remain inert in templates until they enter a 256px IntersectionObserver margin; noscript fallbacks preserve images when JavaScript is disabled.",
-                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms, seven Gallery and seven Experience Details supporting images.",
+                "Homepage, Rooms and Experience Details supporting images use a 256px IntersectionObserver margin; Gallery supporting images use a tighter 96px margin, with noscript fallbacks preserved.",
+                "Deferred-template and pre-capture activation counts reconcile to five homepage, seven Rooms, seventeen Gallery and seven Experience Details supporting images.",
                 "A second resource inventory is captured after the audit deliberately activates every responsive picture in the isolated test context.",
                 "Page-resource totals describe the fully exercised packaged route, not initial-navigation payload or field traffic.",
                 "Only same-origin URL paths are retained; query strings, fragments and origins are excluded.",
@@ -2488,8 +2512,8 @@ def run_responsive_image_preview_smoke(report_path: str) -> int:
                                     ratio = selected_width / required_pixels
                                     max_selected_to_required_ratio = max(max_selected_to_required_ratio, ratio)
                                     check_preview(
-                                        selected_width <= required_pixels * 1.9,
-                                        f"{label}: selected WebP {selected_width}px exceeds 1.9x "
+                                        selected_width <= required_pixels * 1.6,
+                                        f"{label}: selected WebP {selected_width}px exceeds 1.6x "
                                         f"rendered slot demand ({required_pixels:.1f}px); verify sizes",
                                     )
                                 check_preview(
@@ -3286,7 +3310,15 @@ def check_stay_planner(page, base_url: str) -> None:
                 "NOJS-PRIVACY-SENTINEL-20261029" not in fallback_page.url,
                 "Stay planner notes must never appear in a URL when JavaScript is disabled",
             )
-            for fallback_route, expected_fallback_count in (("index.html", 7), ("rooms.html", 7), ("gallery.html", 7), ("experiences.html", 6), ("experience-details.html", 7)):
+            for fallback_route, expected_fallback_count in (
+                ("index.html", 7),
+                ("rooms.html", 7),
+                ("gallery.html", 17),
+                ("experiences.html", 6),
+                ("experience-details.html", 7),
+                ("dining.html", 1),
+                ("about.html", 1),
+            ):
                 fallback_media_page = fallback_context.new_page()
                 fallback_media_page.goto(base_url + fallback_route, wait_until="domcontentloaded", timeout=15000)
                 fallback_nodes = fallback_media_page.locator("noscript[data-deferred-picture-fallback]")
@@ -3580,6 +3612,88 @@ def check_extended_guest_viewports(page, page_name: str) -> None:
                           f"{page_name} at {label} ({width}px): Escape must close navigation")
                     check(page.evaluate("document.activeElement === document.querySelector('.menu-toggle')"),
                           f"{page_name} at {label} ({width}px): Escape must restore focus to the navigation control")
+
+                    # M46: changing orientation/viewport while the compact menu is open
+                    # must normalize ARIA state and never strand focus on a hidden control.
+                    toggle.click()
+                    check(navigation.is_visible() and toggle.get_attribute("aria-expanded") == "true",
+                          f"{page_name} at {label} ({width}px): menu must reopen before breakpoint-transition coverage")
+                    # The tablet masthead (761–820px) intentionally retains compact navigation.
+                    page.set_viewport_size({"width": 768, "height": height})
+                    page.wait_for_timeout(45)
+                    tablet_transition = page.evaluate("""() => {
+                      const toggle = document.querySelector('.menu-toggle');
+                      const nav = document.querySelector('#primary-navigation');
+                      return {
+                        width: window.innerWidth,
+                        toggleDisplay: getComputedStyle(toggle).display,
+                        expanded: toggle.getAttribute('aria-expanded'),
+                        openClass: nav.classList.contains('is-open'),
+                        bodyMenuOpen: document.body.classList.contains('menu-open'),
+                        navVisible: Boolean(nav && getComputedStyle(nav).display !== 'none'),
+                        focusOnToggle: document.activeElement === toggle,
+                      };
+                    }""")
+                    check(tablet_transition["width"] == 768
+                          and tablet_transition["toggleDisplay"] != "none"
+                          and tablet_transition["expanded"] == "true"
+                          and tablet_transition["openClass"]
+                          and tablet_transition["bodyMenuOpen"]
+                          and tablet_transition["navVisible"]
+                          and tablet_transition["focusOnToggle"],
+                          f"{page_name} at {label} ({width}px): tablet resize must retain the open compact menu and its focus ({tablet_transition})")
+
+                    # 821px is the first width where the CSS exposes full desktop navigation.
+                    page.set_viewport_size({"width": 821, "height": height})
+                    page.wait_for_timeout(45)
+                    desktop_transition = page.evaluate("""() => {
+                      const toggle = document.querySelector('.menu-toggle');
+                      const nav = document.querySelector('#primary-navigation');
+                      const firstLink = nav && nav.querySelector('a[href]');
+                      return {
+                        width: window.innerWidth,
+                        toggleDisplay: getComputedStyle(toggle).display,
+                        expanded: toggle.getAttribute('aria-expanded'),
+                        openClass: nav.classList.contains('is-open'),
+                        bodyMenuOpen: document.body.classList.contains('menu-open'),
+                        navVisible: Boolean(nav && getComputedStyle(nav).display !== 'none'),
+                        focusOnFirstLink: Boolean(firstLink && document.activeElement === firstLink),
+                      };
+                    }""")
+                    check(desktop_transition["width"] == 821
+                          and desktop_transition["toggleDisplay"] == "none"
+                          and desktop_transition["expanded"] == "false"
+                          and not desktop_transition["openClass"]
+                          and not desktop_transition["bodyMenuOpen"]
+                          and desktop_transition["navVisible"],
+                          f"{page_name} at {label} ({width}px): desktop resize must close compact state and expose normal navigation ({desktop_transition})")
+                    check(desktop_transition["focusOnFirstLink"],
+                          f"{page_name} at {label} ({width}px): focus must move from hidden compact toggle to visible desktop navigation")
+
+                    page.set_viewport_size({"width": width, "height": height})
+                    page.wait_for_timeout(45)
+                    compact_transition = page.evaluate("""() => {
+                      const toggle = document.querySelector('.menu-toggle');
+                      const nav = document.querySelector('#primary-navigation');
+                      return {
+                        width: window.innerWidth,
+                        toggleVisible: getComputedStyle(toggle).display !== 'none',
+                        expanded: toggle.getAttribute('aria-expanded'),
+                        openClass: nav.classList.contains('is-open'),
+                        bodyMenuOpen: document.body.classList.contains('menu-open'),
+                        navHidden: getComputedStyle(nav).display === 'none',
+                        focusOnToggle: document.activeElement === toggle,
+                      };
+                    }""")
+                    check(compact_transition["width"] == width
+                          and compact_transition["toggleVisible"]
+                          and compact_transition["expanded"] == "false"
+                          and not compact_transition["openClass"]
+                          and not compact_transition["bodyMenuOpen"]
+                          and compact_transition["navHidden"],
+                          f"{page_name} at {label} ({width}px): returning to compact width must keep navigation closed ({compact_transition})")
+                    check(compact_transition["focusOnToggle"],
+                          f"{page_name} at {label} ({width}px): focus must return to the visible compact menu toggle")
             elif width >= 1000:
                 check(not toggle.is_visible(),
                       f"{page_name} at {label} ({width}px): desktop must not expose the compact menu toggle")

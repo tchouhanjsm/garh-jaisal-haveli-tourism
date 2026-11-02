@@ -41,7 +41,10 @@ function createElement(name) {
       }
     },
     querySelectorAll() { return []; },
-    focus() { document.activeElement = this; }
+    focus() {
+      document.activeElement = this;
+      document.dispatch('focusin', { target: this });
+    }
   };
 }
 
@@ -52,12 +55,14 @@ menuToggle.setAttribute('aria-expanded', 'false');
 menuToggle.setAttribute('aria-label', 'Open navigation');
 const nav = createElement('nav');
 const navLink = createElement('a');
-nav.querySelectorAll = selector => selector === 'a' ? [navLink] : [];
+nav.querySelectorAll = selector => selector === 'a' || selector === 'a[href]' ? [navLink] : [];
+nav.contains = element => element === navLink;
 const documentListeners = new Map();
 const body = { classList: createClassList(), appendChild() {} };
 
 document = {
   body,
+  documentElement: createElement('html'),
   activeElement: null,
   querySelector(selector) {
     return ({
@@ -79,9 +84,17 @@ document = {
   }
 };
 
+const windowListeners = new Map();
 const window = {
   scrollY: 0,
-  addEventListener() {},
+  innerWidth: 390,
+  addEventListener(type, listener) {
+    if (!windowListeners.has(type)) windowListeners.set(type, []);
+    windowListeners.get(type).push(listener);
+  },
+  dispatch(type, event = {}) {
+    for (const listener of windowListeners.get(type) || []) listener(event);
+  },
   clearTimeout() {},
   setTimeout() { return 1; }
 };
@@ -103,9 +116,49 @@ assert.equal(nav.classList.contains('is-open'), false);
 assert.equal(body.classList.contains('menu-open'), false);
 assert.equal(document.activeElement, menuToggle);
 
-document.activeElement = navLink;
+navLink.focus();
 document.dispatch('keydown', { key: 'Escape' });
 assert.equal(document.activeElement, navLink, 'Escape on a closed menu should not steal focus');
+
+// The 761–820px tablet layout still uses the compact menu; do not reset an open menu there.
+menuToggle.dispatch('click');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'true');
+menuToggle.focus();
+window.innerWidth = 768;
+window.dispatch('resize');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'true', 'tablet resize must preserve the available compact menu');
+assert.equal(nav.classList.contains('is-open'), true);
+assert.equal(body.classList.contains('menu-open'), true);
+assert.equal(document.activeElement, menuToggle, 'tablet resize must not move focus from the visible toggle');
+
+// Crossing the actual 820px CSS boundary into full navigation closes the compact menu.
+document.activeElement = body;
+document.dispatch('focusin', { target: body }); // CSS may blur the hidden toggle before resize runs.
+window.innerWidth = 821;
+window.dispatch('resize');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
+assert.equal(menuToggle.getAttribute('aria-label'), 'Open navigation');
+assert.equal(nav.classList.contains('is-open'), false);
+assert.equal(body.classList.contains('menu-open'), false);
+assert.equal(document.activeElement, navLink, 'desktop resize must move focus from the hidden toggle to the visible navigation');
+
+// Returning to tablet width restores focus to the visible compact toggle, with the menu closed.
+document.activeElement = body;
+document.dispatch('focusin', { target: body }); // CSS may blur the hidden navigation link before resize runs.
+window.innerWidth = 768;
+window.dispatch('resize');
+assert.equal(document.activeElement, menuToggle, 'tablet resize must restore focus to the visible menu toggle');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
+assert.equal(nav.classList.contains('is-open'), false);
+assert.equal(body.classList.contains('menu-open'), false);
+
+// Returning to phone width keeps the same closed, focus-safe compact state.
+window.innerWidth = 390;
+window.dispatch('resize');
+assert.equal(document.activeElement, menuToggle, 'phone resize must retain focus on the visible menu toggle');
+assert.equal(menuToggle.getAttribute('aria-expanded'), 'false');
+assert.equal(nav.classList.contains('is-open'), false);
+assert.equal(body.classList.contains('menu-open'), false);
 
 menuToggle.dispatch('click');
 navLink.dispatch('click');

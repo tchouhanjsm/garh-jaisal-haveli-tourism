@@ -24,6 +24,7 @@ from rewrite_image_refs import (
     RESPONSIVE_WIDTHS,
     RESPONSIVE_WIDTH_OVERRIDES,
     _save_webp,
+    _responsive_sizes,
     generate_responsive_variants,
     rewrite_html_text,
     rewrite_site,
@@ -117,6 +118,7 @@ def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
             })
         if hero and relative == hero["path"]:
             record.update({
+                "qualityStep": hero["qualityStep"],
                 "psnrDb": hero["psnrDb"],
                 "minPsnrDb": hero["minPsnrDb"],
                 "minimumSavingsPercent": hero["minimumSavingsPercent"],
@@ -200,7 +202,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "legacy/camel-day.jpg": (1366, 768),
                 "legacy/fort-temple-spires.jpg": (1366, 768),
             }
-            expected_widths = (320, 480, 768, 1200, 1280, 1600)
+            expected_widths = {
+                "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+                "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
+                "legacy/fort-temple-spires.jpg": (320, 480, 512, 768, 1200, 1280, 1600),
+            }
             for filename, dimensions in source_sizes.items():
                 create_jpeg(root, filename, dimensions)
 
@@ -211,10 +217,11 @@ class RewriteImageReferencesTests(unittest.TestCase):
             expected_candidate_count = 0
 
             for filename in source_sizes:
-                self.assertEqual(RESPONSIVE_WIDTH_OVERRIDES[filename], expected_widths)
+                filename_widths = expected_widths[filename]
+                self.assertEqual(RESPONSIVE_WIDTH_OVERRIDES[filename], filename_widths)
                 entry = generated[filename]
                 expected_generated_widths = [
-                    width for width in expected_widths if width < entry["width"]
+                    width for width in filename_widths if width < entry["width"]
                 ]
                 self.assertEqual(
                     [item["width"] for item in entry["variants"]],
@@ -528,7 +535,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual((hero["width"], hero["height"]), (1600, 1066))
             self.assertGreaterEqual(hero["psnrDb"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["minPsnrDb"])
             self.assertGreaterEqual(hero["savedPercent"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["minimumSavingsPercent"])
-            self.assertLessEqual(hero["bytes"], 240_000)
+            self.assertEqual(hero["maxBytes"], 220_000)
+            self.assertEqual(hero["qualityStep"], 1)
+            self.assertLessEqual(hero["bytes"], 220_000)
             self.assertGreaterEqual(hero["psnrDb"], 35.0)
             self.assertGreaterEqual(hero["savedPercent"], 10.0)
             self.assertEqual([item["width"] for item in entry["variants"]], [320, 480, 768, 800, 1200, 1280])
@@ -631,7 +640,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual((hero["width"], hero["height"]), (2000, 1333))
             self.assertGreaterEqual(hero["psnrDb"], HERO_DELIVERY_VARIANTS[filename]["minPsnrDb"])
             self.assertGreaterEqual(hero["savedPercent"], HERO_DELIVERY_VARIANTS[filename]["minimumSavingsPercent"])
-            self.assertLessEqual(hero["bytes"], 260_000)
+            self.assertEqual(hero["maxBytes"], 240_000)
+            self.assertEqual(hero["qualityStep"], 1)
+            self.assertLessEqual(hero["bytes"], 240_000)
             self.assertGreaterEqual(hero["psnrDb"], 35.0)
             self.assertGreaterEqual(hero["savedPercent"], 10.0)
 
@@ -1688,6 +1699,35 @@ class RewriteImageReferencesTests(unittest.TestCase):
 
 
 
+    def test_budgeted_webp_supports_per_asset_quality_step(self) -> None:
+        import random
+
+        generator = random.Random(19)
+        image = Image.frombytes(
+            "RGB", (320, 240),
+            bytes(generator.randrange(256) for _ in range(320 * 240 * 3)),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            quality_82 = root / "quality-82.webp"
+            quality_81 = root / "quality-81.webp"
+            _save_webp(image, quality_82, None, quality=82, max_bytes=None)
+            _save_webp(image, quality_81, None, quality=81, max_bytes=None)
+            budget = quality_81.stat().st_size
+            self.assertLess(budget, quality_82.stat().st_size)
+
+            selected = _save_webp(
+                image, root / "quality-step-one.webp", None,
+                quality=82, max_bytes=budget, quality_step=1,
+            )
+            self.assertEqual(selected["quality"], 81)
+            self.assertEqual(selected["qualityStep"], 1)
+            self.assertEqual(
+                [attempt["quality"] for attempt in selected["qualityAttempts"]],
+                [82, 81],
+            )
+            self.assertLessEqual((root / "quality-step-one.webp").stat().st_size, budget)
+
     def test_directions_hero_avif_is_quality_gated_and_preloaded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1843,7 +1883,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 'calc((min(100vw, 1304px) - 88px) / 2)'
             )
             detail_sizes = (
-                '(max-width: 900px) min(620px, calc(100vw - 76px)), '
+                '(max-width: 900px) min(480px, calc(100vw - 76px)), '
                 'min(460px, 36vw)'
             )
             portrait_detail_sizes = (
@@ -1863,6 +1903,63 @@ class RewriteImageReferencesTests(unittest.TestCase):
             )
             self.assertEqual(rewrite_html_text(result, "responsive", root=root), result)
 
+    def test_m51_experience_detail_candidates_add_budgeted_512px_bridges(self) -> None:
+        source_sizes = {
+            "legacy/camel-sunset.jpg": (1366, 768),
+            "experiences/open-air-sleeping-setup.jpeg": (1280, 854),
+            "experiences/half-day-jaisalmer-tour.jpg": (1366, 768),
+            "experiences/heritage-architecture.jpg": (1366, 768),
+            "legacy/fort-temple-spires.jpg": (1366, 768),
+            "experiences/cultural-programme.jpg": (1280, 1600),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for filename, dimensions in source_sizes.items():
+                create_jpeg(root, filename, dimensions)
+
+            generated = generate_responsive_variants(root, tuple(source_sizes))
+            markup = ['<section class="experience-detail-section experience-detail-section--visual">']
+            for filename, entry in generated.items():
+                candidates = {item["width"]: item for item in entry["variants"]}
+                candidate = candidates.get(512)
+                self.assertIsNotNone(candidate, f"{filename} must have a 512px bridge")
+                self.assertEqual(
+                    candidate["maxBytes"],
+                    RESPONSIVE_VARIANT_MAX_BYTES[candidate["path"]],
+                )
+                self.assertLessEqual(candidate["bytes"], candidate["maxBytes"])
+                with Image.open(root / candidate["path"]) as decoded:
+                    decoded.load()
+                    self.assertEqual(decoded.size[0], 512)
+                    self.assertEqual(decoded.format, "WEBP")
+                markup.append(
+                    f'<figure class="experience-detail-media"><img '
+                    f'src="assets/images/{filename}" alt="Verified experience reference"></figure>'
+                )
+
+            markup.append("</section>")
+            rewritten = rewrite_html_text("".join(markup), "responsive", root=root)
+            for filename in source_sizes:
+                self.assertIn(
+                    f"assets/images/responsive/{Path(filename).with_suffix('').as_posix()}-512.webp 512w",
+                    rewritten,
+                )
+
+        self.assertEqual(
+            _responsive_sizes('<img alt="Intro">', {"intro__image"}),
+            "(max-width: 760px) min(264px, calc(100vw - 36px)), "
+            "(max-width: 1050px) min(432px, 42.2vw), min(447px, 33vw)",
+        )
+        self.assertEqual(
+            _responsive_sizes('<img alt="Dining">', {"feature-photo"}),
+            "(max-width: 760px) calc(100vw - 94px), "
+            "(max-width: 900px) calc(100vw - 176px), min(596px, 44vw)",
+        )
+        self.assertEqual(
+            _responsive_sizes('<img alt="Experience">', {"experience-detail-media"}),
+            "(max-width: 900px) min(480px, calc(100vw - 76px)), min(460px, 36vw)",
+        )
+
     def test_browser_smoke_contract_exercises_hidden_responsive_images(self) -> None:
         smoke_path = Path(__file__).with_name("test-browser-smoke.py")
         source = smoke_path.read_text(encoding="utf-8")
@@ -1878,7 +1975,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
         self.assertIn("responsive source must declare sizes", browser_check)
         self.assertIn("for width, height in RESPONSIVE_AUDIT_VIEWPORTS:", browser_check)
         self.assertIn("for device_scale_factor in (1, 2):", browser_check)
-        self.assertIn("selected_width <= required_pixels * 1.9", browser_check)
+        self.assertIn("selected_width <= required_pixels * 1.6", browser_check)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

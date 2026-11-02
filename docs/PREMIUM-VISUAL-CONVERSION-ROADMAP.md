@@ -591,3 +591,65 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Add static hero CTA coverage and Chromium computed-style, visibility, viewport and keyboard focus-visible assertions across mobile and desktop audit widths.
 - [ ] Exact-head workflow #41428554444 must pass staging package build, remain at or below 92% utilization, pass responsive package validation and packaged Chromium checks before M44/M45 automated acceptance.
 - [ ] Preserve separate owner/manual release gates; do not infer visual UAT or staging approval from automation.
+
+
+## M46 — cross-route responsive navigation state and focus continuity
+
+- [x] Correct compact-navigation state across phone, tablet and desktop resizes; compact navigation remains active through the 761–820px tablet range and full navigation starts at 821px.
+- [x] Preserve compact-menu state when moving from phone to tablet; only above 820px, close the compact menu, reset `aria-expanded` and its accessible label, and clear the open-navigation/body state.
+- [x] If the compact toggle held focus, move focus to the first visible full-navigation link; when returning to compact width with focus inside the now-hidden navigation, return focus to the visible menu toggle.
+- [x] Extend the dependency-free site-runtime behavior test for the 768px tablet and 821px desktop boundaries, both transition directions and exact focus ownership.
+- [x] Extend real Chromium checks across all eight core routes at 375px and 430px: open, Escape-close, reopen, resize to 768px and verify the tablet compact menu remains available, cross 821px to verify full desktop state/focus, then return to the original compact width and verify closed state/focus.
+- [x] Keep the original six-width/48-screenshot baseline contract unchanged; M46 adds transition assertions without increasing the screenshot count.
+- [x] Exact-head workflow #41440049189 passed the complete quality, package and packaged Chromium suite; M46 is automated-complete.
+- [ ] Real iOS/Android orientation and browser-chrome behavior remain separate owner/device UAT; automation does not replace STG-01–STG-18.
+
+
+## M47 — Gallery first-view media containment
+
+- [x] Convert all seven named-room gallery photos and all three lower source-gallery photos to inert supporting-media templates while preserving descriptive alt text, intrinsic dimensions, responsive picture generation and no-JavaScript image fallbacks.
+- [x] Use a Gallery-only 96px IntersectionObserver/fallback-scan activation margin; retain the established 256px margin on Homepage, Rooms and Experience Details.
+- [x] Add exact packaged first-view evidence gates at 768px for both DPRs: no more than two requested images (the hero plus one nearby supporting image) and no more than one requested image outside the viewport.
+- [x] Keep all 17 Gallery photo subjects, original source files, responsive candidates, visual compositions and the existing 48-screenshot baseline; no quality or package-budget threshold is relaxed.
+- [x] Exact-head workflow #41447025917 passed route smoke, no-JavaScript fallbacks, package-budget validation and packaged Chromium first-view evidence.
+- [ ] Browser first-view Resource Timing remains a laboratory diagnostic, not field Core Web Vitals; owner review and real-device checks remain separate.
+
+
+## M48 — Dining and About first-view media containment
+
+- [x] Defer the Dining candlelit-table supporting photograph and About rooftop supporting photograph without removing source assets or changing their visible subjects.
+- [x] Preserve descriptive alt text, intrinsic dimensions, lazy decoding, figure captions and no-JavaScript fallbacks.
+- [x] Reuse the 96px route-scoped activation margin for Gallery, Dining and About; retain 256px elsewhere.
+- [x] Add packaged Chromium first-view gates at 768px for DPR 1×/2×: one requested image maximum (the eager hero) and zero offscreen image requests on Dining and About.
+- [x] Exact-head workflow #41452369004 passed the complete quality, package and packaged Chromium suite; M48 is automated-complete.
+- [ ] These laboratory resource measurements are not field Core Web Vitals or human visual approval.
+
+
+## M49 — all-route first-view image budget and no-JavaScript media fallback
+
+- [x] Promote the one-hero / zero-offscreen first-view contract from selected routes to all eight public routes.
+- [x] Enforce the budget at all six responsive widths (320, 360, 390, 768, 1280 and 1440px) and DPR 1×/2×, not only at the 768px tablet breakpoint.
+- [x] Add a negative fixture proving that a second offscreen image request fails even at 320px / DPR 1×.
+- [x] Extend real Chromium no-JavaScript fallback decoding to Dining and About, completing the seven deferred-media routes.
+- [x] Exact-head workflow #41454053199 passed the complete quality, package and packaged Chromium suite; M49 is automated-complete.
+- [ ] The invariant is a packaged browser-laboratory check, not field Core Web Vitals or live traffic measurement.
+
+
+## M50 — source-verified hero image byte ceilings
+
+- [x] Add per-image quality-step selection only for the source-verified About and Rooms hero candidates; retain the global responsive-image quality ladder.
+- [x] Enforce 240,000 bytes for the 2000w About panorama and 220,000 bytes for the 1600w Rooms hero, with at least 35 dB PSNR and 10% savings against the preserved source WebP.
+- [x] Record and validate every quality attempt and the per-image step in the staging manifest.
+- [x] Exact-head workflow [#41457401776](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/41457401776) passed the site/content suite, source/editorial audits, guarded package, responsive-image validation, packaged Chromium and evidence uploads.
+- [x] Guarded package: 17,186,676 / 18,874,368 bytes (91.06%); 1,687,692 bytes headroom (8.94%).
+- [x] About candidate: 238,318 bytes at 35.016 dB; Rooms candidate: 217,138 bytes at 35.163 dB.
+- [ ] Human visual/rights review remains pending. Automated PSNR and packaged screenshots are not owner approval.
+
+## M51 — responsive candidate density bridges and rendered-slot accuracy
+
+- [x] Add six budgeted 512w WebP bridges to the exact Experience Details images whose accepted M50 browser trace selected 768w for 480–484px pixel demand.
+- [x] Correct image sizing hints for the homepage intro image, Dining feature image and Experience Details wide-media frame to reflect measured CSS slots.
+- [x] Tighten the packaged Chromium selected-image oversupply guard from 1.9× to 1.6×; do not change the minimum resolution calculation, image quality floors or lazy-delivery contracts.
+- [ ] Exact-head site/content tests, package reserve, responsive-image validator and packaged Chromium evidence must pass before M51 is accepted.
+- [ ] Keep the 8% uncompressed package reserve; if the new variants breach it, reduce scope rather than relaxing the reserve or quality gates.
+- [ ] Browser measurements remain package laboratory diagnostics, not field Core Web Vitals. Owner review, media rights, physical-device UAT and STG-01–STG-18 remain separate.

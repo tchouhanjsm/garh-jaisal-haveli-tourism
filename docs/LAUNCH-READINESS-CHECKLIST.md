@@ -578,3 +578,60 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Add static and real-Chromium computed-style/visibility/focus assertions at responsive mobile and desktop widths.
 - [ ] Exact-head workflow #41428554444 remains pending; package utilization, archive output, responsive package validation and packaged Chromium acceptance are NOT YET VERIFIED.
 - [ ] Owner confirmation, physical-device share/clipboard testing, live contact/booking-provider response, image rights/subject/alt review, M32 editor authority and STG-01–STG-18 remain separate release gates. Canonical host approval remains false; indexing and deployment remain disabled.
+
+
+## 2 November 2026 — M46: cross-route responsive navigation state
+
+- [x] Keep compact navigation available through the 761–820px tablet range; reset state and transfer focus only when crossing above 820px into full desktop navigation.
+- [x] Synchronize `aria-expanded`, the accessible toggle label, navigation open class and body menu state when the compact control becomes hidden.
+- [x] Move focus to the first visible desktop navigation link when the hidden compact toggle owned focus; return focus to the compact toggle when moving back to mobile with focus in the navigation.
+- [x] Add dependency-free runtime state coverage and real Chromium resize/orientation-transition assertions on all eight routes at 375px and 430px.
+- [x] Preserve the six responsive screenshot widths and the existing 48-image evidence requirement.
+- [x] Exact-head workflow #41440049189 passed GitHub Actions, route smoke and staging package acceptance.
+- [ ] Real-device orientation checks and STG-01–STG-18 remain NOT RUN. No staging deployment, canonical approval, indexing or production release is authorized.
+
+
+## 2 November 2026 — M47: Gallery first-view media containment
+
+- [x] Defer the seven named-room and three lower source-gallery images in inert templates; preserve their original photographs and no-JavaScript fallbacks.
+- [x] Use a 96px Gallery-only activation margin while keeping the 256px behavior on other supporting-media routes.
+- [x] Gate the 768px packaged Gallery first view at both DPRs to a maximum of two requested images and one offscreen request.
+- [x] Retain all 17 Gallery image subjects, alt text, dimensions, responsive picture candidates, package thresholds and the 48-screenshot contract.
+- [x] Exact-head workflow #41447025917 passed the package and packaged Chromium evidence gates.
+- [ ] Owner visual/rights review, physical-device testing, M32 editorial authority and STG-01–STG-18 remain separate release gates. No canonical approval, production indexing or deployment is authorized.
+
+
+## 2 November 2026 — M48: Dining and About first-view media containment
+
+- [x] Move the Dining candlelit-table supporting photograph and About rooftop supporting photograph into inert deferred templates while preserving original local sources, descriptive alt text, intrinsic dimensions and no-JavaScript fallbacks.
+- [x] Preserve the Dining figure caption by inserting activated image content before the caption; keep the existing fixed story-image frame and visual semantics.
+- [x] Apply a route-scoped 96px activation margin to Gallery, Dining and About; retain the established 256px margin on other supporting-media routes.
+- [x] Extend the consolidated route contracts and packaged Chromium first-view gates: at 768px, Dining and About may request only their eager hero image and must make zero offscreen image requests at DPR 1× and 2×.
+- [x] Exact-head workflow #41452369004 passed the full quality, package and packaged Chromium evidence gates.
+- [ ] Owner media review, human staging UAT and production release approvals remain separate gates; no indexing or deployment is authorized.
+
+
+## 2 November 2026 — M49: route-wide first-view delivery and no-JavaScript fallbacks
+
+- [x] Apply the one-hero / zero-offscreen image request gate to all eight routes at every supported viewport/DPR context.
+- [x] Add a failing fixture for a speculative offscreen image at 320px / DPR 1×.
+- [x] Verify Dining and About no-JavaScript image fallbacks in Chromium, including local source decoding, dimensions and alternative text.
+- [x] Exact-head workflow #41454053199 passed CI, package validation and packaged Chromium evidence.
+
+
+## 2 November 2026 — M50: source-verified hero image byte ceilings
+
+- [x] Enforce the 2000w About hero at 240,000 bytes and the 1600w Rooms hero at 220,000 bytes, with at least 35 dB PSNR and 10% savings against preserved source WebP.
+- [x] Verify exact-head workflow [#41457401776](https://github.com/tchouhanjsm/garh-jaisal-haveli-tourism/actions/runs/41457401776): complete quality job, source/editorial audits, guarded package, responsive-image validator, packaged Chromium and uploads all passed.
+- [x] Guarded package: 17,186,676 / 18,874,368 bytes (91.06%); 8.94% headroom.
+- [x] About candidate 238,318 bytes / 35.016 dB; Rooms candidate 217,138 bytes / 35.163 dB.
+- [ ] Human visual and rights review remain pending; no owner approval or release authorization is implied.
+
+## 2 November 2026 — M51: responsive candidate density and slot accuracy
+
+- [x] Add six 512w WebP bridges for Experience Details assets where M50 measured 1.587–1.600× candidate oversupply.
+- [x] Align Homepage intro, Dining feature-photo and Experience Details sizing declarations with measured rendered image slots.
+- [x] Tighten the packaged Chromium selected-to-required pixel guard from 1.9× to 1.6× without weakening resolution, quality or package requirements.
+- [ ] Exact-head CI and package evidence remain pending until the complete new workflow passes.
+- [ ] Preserve at least 8% free space in the 18 MiB staging package; no threshold relaxation is permitted.
+- [ ] Human image/rights review, real-device checks, owner approval, STG-01–STG-18 and release authorization remain separate. Canonical approval, public indexing and deployment remain disabled.

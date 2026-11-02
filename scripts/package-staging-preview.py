@@ -575,6 +575,20 @@ def validate_responsive_markup(
                     declared_psnr = metadata.get("psnrDb")
                     minimum_psnr = metadata.get("minPsnrDb")
                     minimum_savings = metadata.get("minimumSavingsPercent")
+                    quality_step = metadata.get("qualityStep")
+                    quality_attempts = metadata.get("qualityAttempts")
+                    if (
+                        isinstance(quality_step, bool)
+                        or not isinstance(quality_step, int)
+                        or not 1 <= quality_step <= 100
+                        or not isinstance(quality_attempts, list)
+                        or not quality_attempts
+                        or any(
+                            quality_attempts[index]["quality"] - quality_attempts[index + 1]["quality"] != quality_step
+                            for index in range(len(quality_attempts) - 1)
+                        )
+                    ):
+                        fail(f"{page.name}: hero delivery quality-step evidence is invalid: {relative}")
                     if (
                         isinstance(declared_psnr, bool)
                         or not isinstance(declared_psnr, (int, float))
@@ -2252,6 +2266,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
                     "quality": hero_delivery_metadata["quality"],
                     "qualityAttempts": hero_delivery_metadata["qualityAttempts"],
                     "maxBytes": hero_delivery_metadata["maxBytes"],
+                    "qualityStep": hero_delivery_metadata["qualityStep"],
                     "psnrDb": hero_delivery_metadata["psnrDb"],
                     "minPsnrDb": hero_delivery_metadata["minPsnrDb"],
                     "minimumSavingsPercent": hero_delivery_metadata["minimumSavingsPercent"],

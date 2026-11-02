@@ -59,9 +59,14 @@ RESPONSIVE_WIDTHS = (320, 480, 768, 1200, 1600)
 # at high DPR. Add a 1280px bridge only for the three measured Gallery assets.
 RESPONSIVE_WIDTH_OVERRIDES = {
     "courtyard.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "experiences/cultural-programme.jpg": (320, 480, 512, 768, 1200),
+    "experiences/half-day-jaisalmer-tour.jpg": (320, 480, 512, 768, 1200),
+    "experiences/heritage-architecture.jpg": (320, 480, 512, 768, 1200),
+    "experiences/open-air-sleeping-setup.jpeg": (320, 480, 512, 768, 1200),
     "gallery/hotel/fort-from-roof.jpg": (320, 480, 768, 800, 1200, 1280, 1600),
     "legacy/camel-day.jpg": (320, 480, 768, 1200, 1280, 1600),
-    "legacy/fort-temple-spires.jpg": (320, 480, 768, 1200, 1280, 1600),
+    "legacy/camel-sunset.jpg": (320, 480, 512, 768, 1200),
+    "legacy/fort-temple-spires.jpg": (320, 480, 512, 768, 1200, 1280, 1600),
     "rooms/haveli-interior.jpg": (320, 480, 768, 800, 1200, 1280),
 }
 MAX_PIXELS = 64_000_000
@@ -104,7 +109,13 @@ RESPONSIVE_VARIANT_MAX_BYTES = {
     "assets/images/responsive/gallery/hotel/fort-from-roof-320.webp": 20_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-480.webp": 35_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-768.webp": 80_000,
+    "assets/images/responsive/experiences/cultural-programme-512.webp": 51_000,
+    "assets/images/responsive/experiences/half-day-jaisalmer-tour-512.webp": 36_000,
+    "assets/images/responsive/experiences/heritage-architecture-512.webp": 35_000,
+    "assets/images/responsive/experiences/open-air-sleeping-setup-512.webp": 32_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-800.webp": 80_000,
+    "assets/images/responsive/legacy/camel-sunset-512.webp": 28_000,
+    "assets/images/responsive/legacy/fort-temple-spires-512.webp": 33_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1200.webp": 170_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1280.webp": 180_000,
     "assets/images/responsive/gallery/hotel/fort-from-roof-1600.webp": 250_000,
@@ -121,20 +132,23 @@ FULL_SIZE_WEBP_MAX_BYTES = {
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
 
+# M50 tightens source-verified Rooms and About hero byte ceilings; PSNR remains >=35 dB.
 # These same-dimension derivatives are generated from verified JPEG fallbacks.
 # Original source-backed WebPs remain untouched and continue serving non-hero references.
 HERO_DELIVERY_VARIANTS = {
     "gallery/hotel/fort-from-roof.jpg": {
         "quality": 84,
+        "qualityStep": 1,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "maxBytesByWidth": {2000: 260_000},
+        "maxBytesByWidth": {2000: 240_000},
     },
     "rooms/haveli-interior.jpg": {
         "quality": 84,
+        "qualityStep": 1,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "maxBytesByWidth": {1600: 240_000},
+        "maxBytesByWidth": {1600: 220_000},
     },
 }
 
@@ -223,12 +237,15 @@ def _save_webp(
     preserve_different_existing: bool = False,
     quality: int = WEBP_QUALITY,
     max_bytes: int | None = None,
+    quality_step: int = BUDGET_QUALITY_STEP,
 ) -> dict:
     """Write a verified WebP; budgeted variants keep the highest quality that fits."""
     if target.parent.is_symlink():
         raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
     if isinstance(quality, bool) or not isinstance(quality, int) or not 1 <= quality <= 100:
         raise ValueError(f"Invalid WebP quality: {quality!r}")
+    if isinstance(quality_step, bool) or not isinstance(quality_step, int) or not 1 <= quality_step <= 100:
+        raise ValueError(f"Invalid WebP quality step: {quality_step!r}")
     if max_bytes is not None and (
         isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1
     ):
@@ -239,7 +256,7 @@ def _save_webp(
     qualities = (
         [quality]
         if max_bytes is None
-        else list(range(quality, BUDGET_QUALITY_FLOOR - 1, -BUDGET_QUALITY_STEP))
+        else list(range(quality, BUDGET_QUALITY_FLOOR - 1, -quality_step))
     )
     attempts: list[dict] = []
     temporary = target.with_name(target.name + ".tmp")
@@ -280,6 +297,7 @@ def _save_webp(
                 "quality": candidate_quality,
                 "qualityAttempts": attempts,
                 "maxBytes": max_bytes,
+                "qualityStep": quality_step,
             }
         except Exception:
             temporary.unlink(missing_ok=True)
@@ -491,6 +509,7 @@ def generate_responsive_variants(
                         hero_icc_profile,
                         quality=hero_config["quality"],
                         max_bytes=hero_max_bytes,
+                        quality_step=hero_config.get("qualityStep", BUDGET_QUALITY_STEP),
                     )
                     with Image.open(hero_target) as hero_candidate:
                         hero_candidate.load()
@@ -501,7 +520,7 @@ def generate_responsive_variants(
                 if measured_psnr < minimum_psnr:
                     raise RuntimeError(
                         f"Hero delivery candidate fails the {minimum_psnr:.2f} dB PSNR floor: "
-                        f"{hero_config['path']} ({measured_psnr:.3f} dB)"
+                        f"{hero_relative.as_posix()} ({measured_psnr:.3f} dB)"
                     )
                 source_webp_bytes = full_size.stat().st_size
                 saved_percent = (
@@ -512,7 +531,7 @@ def generate_responsive_variants(
                 if saved_percent < minimum_savings:
                     raise RuntimeError(
                         f"Hero delivery candidate saves less than {minimum_savings:.1f}% "
-                        f"against its preserved source WebP: {hero_config['path']}"
+                        f"against its preserved source WebP: {hero_relative.as_posix()}"
                     )
                 hero_delivery_variant = {
                     "width": width,
@@ -522,6 +541,7 @@ def generate_responsive_variants(
                     "quality": hero_encoding["quality"],
                     "qualityAttempts": hero_encoding["qualityAttempts"],
                     "maxBytes": hero_max_bytes,
+                    "qualityStep": hero_encoding["qualityStep"],
                     "psnrDb": round(measured_psnr, 3),
                     "minPsnrDb": minimum_psnr,
                     "minimumSavingsPercent": minimum_savings,
@@ -721,9 +741,9 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         )
     if "feature-photo" in ancestors:
         return (
-            "(max-width: 760px) calc(100vw - 72px), "
-            "(max-width: 900px) calc(100vw - 100px), "
-            "min(610px, 44vw)"
+            "(max-width: 760px) calc(100vw - 94px), "
+            "(max-width: 900px) calc(100vw - 176px), "
+            "min(596px, 44vw)"
         )
     if "story-image" in ancestors and "dining-restaurant__panel" in ancestors:
         return "(max-width: 760px) calc(100vw - 56px), min(600px, 43vw)"
@@ -736,7 +756,7 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         return "(max-width: 900px) min(375px, calc(100vw - 76px)), 336px"
     if "experience-detail-media" in ancestors:
         return (
-            "(max-width: 900px) min(620px, calc(100vw - 76px)), "
+            "(max-width: 900px) min(480px, calc(100vw - 76px)), "
             "min(460px, 36vw)"
         )
     if "arrival-visual__media" in ancestors:
@@ -751,8 +771,9 @@ def _responsive_sizes(tag: str, ancestor_classes: set[str] | None = None) -> str
         )
     if "intro__image" in ancestors:
         return (
-            "(max-width: 760px) calc(100vw - 36px), "
-            "(max-width: 1050px) 40vw, min(432px, 33vw)"
+            "(max-width: 760px) min(264px, calc(100vw - 36px)), "
+            "(max-width: 1050px) min(432px, 42.2vw), "
+            "min(447px, 33vw)"
         )
 
     # Retain the conservative fallback for unclassified markup; core public
