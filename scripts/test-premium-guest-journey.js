@@ -221,12 +221,32 @@ assert.doesNotMatch(homeHeroSection, /data-deferred-media/,
 assert.match(homeHeroSection, /<img class="hero__image"[^>]*fetchpriority="high"[^>]*loading="eager"/,
   'index.html: the primary hero must remain eager and high priority');
 
-assert.equal((galleryHeroHtml.match(/data-deferred-media(?:\s|>)/g) || []).length, 7,
-  'gallery.html: all seven supporting Gallery cards must defer their image payload');
-assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g) || []).length, 7,
-  'gallery.html: every deferred Gallery card must retain an inert responsive-image template');
-assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 7,
-  'gallery.html: every deferred Gallery card must retain a no-JavaScript image fallback');
+function extractGallerySection(marker, label) {
+  const markerIndex = galleryHeroHtml.indexOf(marker);
+  assert.ok(markerIndex >= 0, 'gallery.html: ' + label + ' section must remain present');
+  const sectionStart = galleryHeroHtml.lastIndexOf('<section', markerIndex);
+  const sectionEnd = galleryHeroHtml.indexOf('</section>', markerIndex);
+  assert.ok(sectionStart >= 0 && sectionEnd >= 0,
+    'gallery.html: ' + label + ' section must have a complete section boundary');
+  return galleryHeroHtml.slice(sectionStart, sectionEnd + '</section>'.length);
+}
+
+const galleryIntroSection = extractGallerySection('aria-labelledby="gallery-intro-title"', 'intro gallery');
+const galleryRoomSection = extractGallerySection('room-gallery-section', 'named-room gallery');
+const gallerySourceSection = extractGallerySection('aria-labelledby="fort-desert-gallery-title"', 'source gallery');
+
+assert.equal((galleryHeroHtml.match(/data-deferred-media(?:\\s|>)/g) || []).length, 17,
+  'gallery.html: all 17 intro, named-room and source-gallery media targets must defer their image payloads');
+assert.equal((galleryHeroHtml.match(/<template data-deferred-picture-template>/g) || []).length, 17,
+  'gallery.html: every deferred media target must retain an inert responsive-image template');
+assert.equal((galleryHeroHtml.match(/<noscript data-deferred-picture-fallback>/g) || []).length, 17,
+  'gallery.html: every deferred media target must retain a no-JavaScript image fallback');
+assert.equal((galleryIntroSection.match(/<div class="gallery-card__media[^"]*" data-deferred-media>/g) || []).length, 7,
+  'gallery.html: all seven introductory Gallery cards must defer their image payloads');
+assert.equal((galleryRoomSection.match(/<a class="room-gallery-card__image"[^>]*data-deferred-media>/g) || []).length, 7,
+  'gallery.html: all seven named-room images must defer their image payloads');
+assert.equal((gallerySourceSection.match(/<div class="gallery-card__media[^"]*" data-deferred-media>/g) || []).length, 3,
+  'gallery.html: all three lower source-gallery cards must defer their image payloads');
 assert.equal((experiencesHtml.match(/<figure class="experience-carousel__slide"[^>]*aria-label="Photo 1 of 2"[^>]*data-deferred-media>/g) || []).length, 6,
   'experiences.html: all six lead carousel slides must defer their supporting image payloads');
 assert.equal((experiencesHtml.match(/<template data-deferred-picture-template>/g) || []).length, 6,
@@ -281,8 +301,12 @@ assert.equal(roomCompareJs.split('const image = getRoomCardImage(card);').length
   'room comparison validation and comparison records must share the deferred-aware image resolver');
 assert.match(siteJs, /function initDeferredSupportingMedia\(/,
   'shared runtime must initialize deferred supporting media');
-assert.match(siteJs, /rootMargin:\s*'256px 0px'/,
-  'deferred supporting media must activate only within the bounded near-viewport margin');
+assert.match(siteJs, /const activationMargin = document\\.querySelector\\('\\.page-hero--gallery'\\) \\? 96 : 256;/,
+  'Gallery supporting media must use a tighter 96px margin without changing other routes');
+assert.match(siteJs, /rootMargin:\\s*`\\$\\{activationMargin\\}px 0px`/,
+  'IntersectionObserver must use the route-specific deferred-media margin');
+assert.match(siteJs, /const margin = activationMargin;/,
+  'the fallback scan must use the same route-specific deferred-media margin');
 assert.match(siteJs, /data-deferred-media-activated/,
   'deferred supporting-media activation must expose a verifiable runtime state');
 assert.match(siteJs, /function scheduleFallbackScan\(/,
