@@ -292,6 +292,34 @@ function injectDuplicateYamlProperty(root, blockMarker, existingLine, duplicateL
   const updated = config.slice(0, insertionPoint) + '\n' + duplicateLine + config.slice(insertionPoint);
   fs.writeFileSync(configPath, updated, 'utf8');
 }
+function moveGalleryCollectionOutsideRootCollections(root) {
+  const configPath = path.join(root, 'admin', 'config.yml');
+  const lines = fs.readFileSync(configPath, 'utf8').split(/\r?\n/);
+  const galleryIndex = lines.indexOf('  - name: gallery');
+  const nextCollectionIndex = lines.findIndex((line, index) =>
+    index > galleryIndex && line === '  - name: page_media_slots'
+  );
+  assert.notEqual(galleryIndex, -1, 'Expected the real Gallery collection');
+  assert.notEqual(nextCollectionIndex, -1, 'Expected the following page-media collection');
+
+  const decoyGallery = lines.slice(galleryIndex, nextCollectionIndex);
+  const unrelatedCollection = [
+    '  - name: unrelated',
+    '    folder: /content/unrelated',
+    '    format: json',
+    '    create: true',
+    '    delete: false',
+    '    identifier_field: id',
+    '    fields:',
+    '      - name: id',
+    '        widget: string',
+  ];
+  lines.splice(galleryIndex, nextCollectionIndex - galleryIndex, ...unrelatedCollection);
+  // This is valid YAML but is not a child of the root "collections" key.
+  lines.push('extension:', ...decoyGallery);
+  fs.writeFileSync(configPath, lines.join('\n'), 'utf8');
+}
+
 
 const sourceAuditDirectory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'garh-source-gallery-audit-'));
 try {
@@ -384,6 +412,23 @@ try {
   assert.equal(complete.records[0].imageDecodeComplete, true);
   assert.equal(complete.records[0].imageWidth, 1);
   assert.equal(complete.records[0].imageHeight, 1);
+
+  // A Gallery-shaped list under another root key must not satisfy the CMS contract.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  moveGalleryCollectionOutsideRootCollections(currentRoot);
+  const outOfScopeGallery = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(outOfScopeGallery.status, 'REVIEW_REQUIRED');
+  assert.equal(outOfScopeGallery.cmsSchema.available, false);
+  assert.equal(outOfScopeGallery.cmsSchema.collectionValid, false);
+  assert.equal(outOfScopeGallery.cmsSchema.supportsRequiredEvidence, false);
+  assert.equal(outOfScopeGallery.summary.approvalEligibleCount, 0);
+  assert.ok(outOfScopeGallery.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
 
   const mismatchedImageHash = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
