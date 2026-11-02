@@ -6070,33 +6070,60 @@ def check_arrival_planning_deep_links(page, base_url: str) -> None:
                     continue
                 try:
                     page.wait_for_function(
-                        "() => { const target = document.querySelector('#arrival-planning'); "
-                        "if (!target) return false; const rect = target.getBoundingClientRect(); "
-                        "return rect.top < window.innerHeight && rect.bottom > 0 "
-                        "&& document.activeElement === target; }",
-                        timeout=5000,
+                        """() => {
+                          const target = document.querySelector('#arrival-planning');
+                          const heading = document.querySelector('#arrival-enquiry-title');
+                          if (!target || !heading || document.activeElement !== target) return false;
+                          const targetRect = target.getBoundingClientRect();
+                          const headingRect = heading.getBoundingClientRect();
+                          const header = document.querySelector('[data-header]');
+                          const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+                          return targetRect.top < window.innerHeight && targetRect.bottom > 0
+                            && headingRect.top >= Math.max(0, headerBottom)
+                            && headingRect.bottom <= window.innerHeight;
+                        }""",
+                        timeout=7000,
                     )
                 except Exception as error:
                     check(False,
-                          f"{page_name} at {viewport_label}: arrival fragment should scroll into view and transfer focus ({error})")
+                          f"{page_name} at {viewport_label}: arrival fragment should finish scrolling with the planner heading visible and focus transferred ({error})")
 
-                bounds = target.bounding_box()
+                viewport_geometry = page.evaluate(
+                    """() => {
+                      const target = document.querySelector('#arrival-planning');
+                      const heading = document.querySelector('#arrival-enquiry-title');
+                      const header = document.querySelector('[data-header]');
+                      if (!target || !heading) return null;
+                      const targetRect = target.getBoundingClientRect();
+                      const headingRect = heading.getBoundingClientRect();
+                      return {
+                        targetTop: targetRect.top,
+                        targetBottom: targetRect.bottom,
+                        headingTop: headingRect.top,
+                        headingBottom: headingRect.bottom,
+                        headerBottom: header ? header.getBoundingClientRect().bottom : 0,
+                        viewportHeight: window.innerHeight
+                      };
+                    }"""
+                )
                 viewport_height = page.evaluate("() => window.innerHeight")
                 is_focused = page.evaluate(
                     "() => document.activeElement && document.activeElement.id === 'arrival-planning'"
                 )
                 check(is_focused,
                       f"{page_name} at {viewport_label}: focus must move to the planner for keyboard/screen-reader continuity")
-                check(bounds is not None and bounds["y"] < viewport_height
-                      and bounds["y"] + bounds["height"] > 0,
-                      f"{page_name} at {viewport_label}: deep-linked planner must be within the viewport ({bounds})")
+                check(bool(viewport_geometry)
+                      and viewport_geometry["targetTop"] < viewport_height
+                      and viewport_geometry["targetBottom"] > 0,
+                      f"{page_name} at {viewport_label}: deep-linked planner must be within the viewport ({viewport_geometry})")
 
                 heading = page.locator("#arrival-enquiry-title")
                 check(heading.count() == 1 and heading.is_visible(),
                       f"{page_name} at {viewport_label}: deep link must expose the date-specific planner heading")
-                heading_bounds = heading.bounding_box()
-                check(heading_bounds is not None and 0 <= heading_bounds["y"] < viewport_height,
-                      f"{page_name} at {viewport_label}: planner heading must be in the visible viewport ({heading_bounds})")
+                check(bool(viewport_geometry)
+                      and viewport_geometry["headingTop"] >= max(0, viewport_geometry["headerBottom"])
+                      and viewport_geometry["headingBottom"] <= viewport_height,
+                      f"{page_name} at {viewport_label}: planner heading must be fully visible below the sticky header ({viewport_geometry})")
                 check(same_origin(page.url, base_url),
                       f"{page_name} at {viewport_label}: arrival planner handoff must remain same-origin")
                 completed_cases.append((page_name, width, height))
