@@ -566,3 +566,15 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - The Rooms hero WebP remains in Git and is available to the responsive rewrite.
 - Package-only pruning happens only after rewritten markup is scanned and the exact image path/basename is absent from runtime HTML/CSS/JavaScript/config.
 - A new runtime reference blocks the prune, and a post-prune asset-closure audit remains mandatory.
+
+
+## 2 November 2026 — M44 duplicate identity correction and M45 hero contrast
+
+- [x] Protect the two retained duplicate counterparts from JPEG fallback re-encoding using verified duplicate-registry paths.
+- [x] Require zero optimizer savings and byte-for-byte source identity for retained `opium.jpg` and `rising-sun.jpg` package files.
+- [x] Keep the archive validator's exact byte count, SHA-256 and Git blob SHA checks; optimizer quality metadata cannot override a source-identity mismatch.
+- [x] Preserve the original image library and post-responsive-rewrite WebP source-pruning contract.
+- [x] Correct Experience Details' dark-hero secondary action with high-contrast ivory text, gold underline, hover and focus-visible treatment.
+- [x] Add static and real-Chromium computed-style/visibility/focus assertions at responsive mobile and desktop widths.
+- [ ] Exact-head workflow #41428554444 remains pending; package utilization, archive output, responsive package validation and packaged Chromium acceptance are NOT YET VERIFIED.
+- [ ] Owner confirmation, physical-device share/clipboard testing, live contact/booking-provider response, image rights/subject/alt review, M32 editor authority and STG-01–STG-18 remain separate release gates. Canonical host approval remains false; indexing and deployment remain disabled.
