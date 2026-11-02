@@ -16,7 +16,7 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageStat
 
-QUALITY_LADDER = tuple(range(98, 89, -2))
+QUALITY_LADDER = tuple(range(98, 69, -2))
 MINIMUM_PSNR_DB = 35.0
 MINIMUM_SAVINGS_PERCENT = 5.0
 MAX_PIXELS = 64_000_000

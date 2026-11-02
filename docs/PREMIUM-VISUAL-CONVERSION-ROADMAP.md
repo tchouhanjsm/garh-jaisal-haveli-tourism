@@ -562,3 +562,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [ ] Confirm exact-head package metrics and visual fallback quality in CI artifact review; automated PSNR does not replace owner visual inspection.
 - [ ] Staging preview remains non-deploying; STG-01–STG-18 and release approval remain separate operator gates.
 
+
+## M44 — package reserve follow-through
+
+- [x] Extend the JPEG fallback quality ladder from 98 down to 70, selecting the highest candidate that still saves at least 5% and remains at or above 35 dB PSNR.
+- [x] Verify each candidate preserves dimensions, ICC profile and EXIF orientation; non-qualifying images remain byte-identical.
+- [x] Exclude one additional runtime image only after verifying its SHA-256/Git blob identity and the absence of its full path and filename in runtime HTML, CSS, JavaScript and config.
+- [x] Keep the unreferenced image in the source repository; pruning is limited to the isolated staging package.
+- [x] Apply the 8% reserve using exact byte arithmetic, not rounded percentage comparison.
+- [ ] Reconfirm the final guarded package stays below 92% utilization and passes packaged responsive-image Chromium on the exact final head.
+

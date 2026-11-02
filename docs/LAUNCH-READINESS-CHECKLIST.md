@@ -551,3 +551,12 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Review packaged visual evidence and fallback crops on approved staging; this is not a visual UAT substitute.
 - [ ] STG-01–STG-18 remain NOT RUN; no staging deployment or production release is authorized.
 
+
+## 2 November 2026 — M44 package reserve follow-through
+
+- [x] Test JPEG fallback candidates down to quality 70 while retaining the 35 dB PSNR and 5% savings gates.
+- [x] Preserve the original image when no candidate passes both gates.
+- [x] Exclude only one identity-verified image with no runtime HTML/CSS/JavaScript/config reference; keep the source file in Git.
+- [x] Check the 8% package reserve with exact byte arithmetic.
+- [ ] Confirm package remains below 92% utilization and packaged Chromium passes on final exact head.
+

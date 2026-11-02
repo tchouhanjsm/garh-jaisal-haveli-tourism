@@ -47,6 +47,7 @@ with tempfile.TemporaryDirectory(prefix="garh-jpeg-fallback-optimizer-") as temp
     assert result["savedBytes"] >= original_bytes * 0.05
     assert result["psnrDb"] >= optimizer.MINIMUM_PSNR_DB
     assert result["quality"] == 98, "The optimizer must try the highest quality candidate first."
+    assert optimizer.QUALITY_LADDER[-1] == 70, "The quality ladder must test all high-quality candidates down to 70."
     assert source_records[0]["fallbackBytes"] == image_path.stat().st_size
     assert source_records[0]["fallbackSha256"] == result["optimizedSha256"]
     with Image.open(image_path) as optimized:

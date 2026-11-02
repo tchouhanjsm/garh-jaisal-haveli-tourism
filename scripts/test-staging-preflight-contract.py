@@ -768,6 +768,35 @@ assert not any(path.startswith("preview/") for path in selected_runtime_paths)
 assert not any(path.startswith("content/blogs/") for path in selected_runtime_paths)
 assert not any(path.startswith("blogs/") and path.lower().endswith(".html") for path in selected_runtime_paths)
 
+runtime_unreferenced_pruning = staging_packager.validate_unreferenced_runtime_image_exclusions(ROOT)
+assert runtime_unreferenced_pruning["status"] == "PASS"
+assert runtime_unreferenced_pruning["excludedFileCount"] == 1
+assert runtime_unreferenced_pruning["excludedBytes"] == 307548
+assert {entry["path"] for entry in runtime_unreferenced_pruning["files"]} == {
+    "assets/images/rooms/haveli-sitting-room.webp",
+}
+assert "assets/images/rooms/haveli-sitting-room.webp" not in selected_runtime_paths
+assert (ROOT / "assets/images/rooms/haveli-sitting-room.webp").is_file(), (
+    "The unreferenced original image must remain in the source repository."
+)
+
+with tempfile.TemporaryDirectory(prefix="garh-unreferenced-image-now-used-") as temporary_directory:
+    referenced_root = Path(temporary_directory)
+    candidate_relative = "assets/images/rooms/haveli-sitting-room.webp"
+    fixture_image = referenced_root / candidate_relative
+    fixture_image.parent.mkdir(parents=True, exist_ok=True)
+    fixture_image.write_bytes((ROOT / candidate_relative).read_bytes())
+    (referenced_root / "index.html").write_text(
+        '<!doctype html><img src="' + candidate_relative + '" alt="Room">',
+        encoding="utf-8",
+    )
+    try:
+        staging_packager.validate_unreferenced_runtime_image_exclusions(referenced_root)
+    except RuntimeError as error:
+        assert "runtime reference found" in str(error)
+    else:
+        raise AssertionError("A newly referenced runtime image must no longer be pruned.")
+
 runtime_pruning = staging_packager.validate_runtime_duplicate_image_exclusions(ROOT)
 assert runtime_pruning["status"] == "PASS"
 assert runtime_pruning["excludedFileCount"] == 2

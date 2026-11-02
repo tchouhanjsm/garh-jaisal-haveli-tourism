@@ -48,9 +48,18 @@ UNREFERENCED_DUPLICATE_RUNTIME_IMAGES = {
         "sha256": "1962dfbbb131d1fbf21d703aabbd14197801fe52187cbb948ec6d066780d8ae6",
     },
 }
+# This reviewed room image is retained in the source repository but has no
+# reference in the current runtime HTML, CSS, JavaScript or site config.
+# Its exact source identity and a live reference scan are required to omit it.
+UNREFERENCED_RUNTIME_IMAGES = {
+    "assets/images/rooms/haveli-sitting-room.webp": {
+        "gitBlobSha": "7a733bd4abc6f37eaa86898cd92f431894c2e5eb",
+        "sha256": "08620783448c16ca6b88eb5b5c3c41b78b5746b3008b0bd9f73efd873a23ef79",
+        "reason": "not-referenced-by-runtime-html-css-js-or-config",
+    },
+}
 MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
 MINIMUM_PACKAGE_RESERVE_PERCENT = 8.0
-MAX_PACKAGE_UTILIZATION_PERCENT = 100.0 - MINIMUM_PACKAGE_RESERVE_PERCENT
 LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
     ".htaccess",
@@ -130,6 +139,97 @@ def validate_runtime_duplicate_image_exclusions(root: Path = ROOT) -> dict:
         "status": "PASS",
         "excludedFileCount": len(entries),
         "excludedBytes": sum(entry["bytes"] for entry in entries),
+        "files": entries,
+    }
+
+
+
+def validate_unreferenced_runtime_image_exclusions(root: Path = ROOT) -> dict:
+    """Prune explicitly approved package-only images only after a live runtime-reference scan."""
+    raw_root = Path(root)
+    if raw_root.is_symlink():
+        fail("Unreferenced runtime-image exclusion root must not be a symlink.")
+    resolved_root = raw_root.resolve(strict=True)
+    if not resolved_root.is_dir():
+        fail("Unreferenced runtime-image exclusion root must be a directory.")
+
+    runtime_text_files: set[Path] = set()
+    for candidate in resolved_root.glob("*.html"):
+        if candidate.is_symlink() or not candidate.is_file():
+            fail(f"Runtime root HTML must be a regular file: {candidate.name}")
+        runtime_text_files.add(candidate)
+
+    for directory in ("assets", "tours", "blogs"):
+        directory_root = resolved_root / directory
+        if not directory_root.exists():
+            continue
+        if directory_root.is_symlink() or not directory_root.is_dir():
+            fail(f"Runtime source directory must be a regular directory: {directory}")
+        for candidate in directory_root.rglob("*"):
+            if candidate.is_symlink():
+                fail(f"Symlink found while checking runtime image references: {candidate.relative_to(resolved_root)}")
+            if not candidate.is_file():
+                continue
+            if directory in {"tours", "blogs"}:
+                include = candidate.suffix.lower() == ".html"
+            else:
+                include = candidate.suffix.lower() in {".html", ".css", ".js", ".json", ".svg", ".xml", ".webmanifest"}
+            if include:
+                runtime_text_files.add(candidate)
+
+    config_path = resolved_root / "content" / "site-config.json"
+    if config_path.exists():
+        if config_path.is_symlink() or not config_path.is_file():
+            fail("Runtime site configuration must be a regular file.")
+        runtime_text_files.add(config_path)
+
+    scanned_content: list[tuple[str, str]] = []
+    for candidate in sorted(runtime_text_files):
+        try:
+            content = candidate.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        scanned_content.append((candidate.relative_to(resolved_root).as_posix(), content))
+
+    entries: list[dict] = []
+    for relative, expected in sorted(UNREFERENCED_RUNTIME_IMAGES.items()):
+        source_path = resolved_root / PurePosixPath(relative)
+        if source_path.is_symlink() or not source_path.is_file():
+            fail(f"Unreferenced runtime-image exclusion requires a regular source file: {relative}")
+        if not is_within(source_path.resolve(strict=True), resolved_root):
+            fail(f"Unreferenced runtime-image exclusion escapes its root: {relative}")
+
+        source_bytes = source_path.read_bytes()
+        source_sha256 = digest_bytes(source_bytes)
+        source_git_blob_sha = git_blob_sha(source_bytes)
+        if source_sha256 != expected["sha256"] or source_git_blob_sha != expected["gitBlobSha"]:
+            fail("Unreferenced runtime-image source identity changed; re-review before pruning: " + relative)
+
+        basename = PurePosixPath(relative).name
+        references = [
+            path for path, content in scanned_content
+            if relative in content or basename in content
+        ]
+        if references:
+            fail(
+                "Unreferenced runtime-image exclusion is no longer safe; runtime reference found for "
+                + relative + " in " + ", ".join(references[:8])
+            )
+
+        entries.append({
+            "path": relative,
+            "bytes": len(source_bytes),
+            "gitBlobSha": source_git_blob_sha,
+            "sha256": source_sha256,
+            "reason": expected["reason"],
+            "runtimeTextFilesScanned": len(scanned_content),
+        })
+
+    return {
+        "status": "PASS",
+        "excludedFileCount": len(entries),
+        "excludedBytes": sum(entry["bytes"] for entry in entries),
+        "runtimeTextFilesScanned": len(scanned_content),
         "files": entries,
     }
 
@@ -1696,9 +1796,9 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
             f"{total} bytes. Review runtime assets; do not raise the budget without a measured reason."
         )
     utilization = round((total / budget_bytes) * 100, 2)
-    if utilization > MAX_PACKAGE_UTILIZATION_PERCENT:
-        required_headroom = math.ceil(budget_bytes * MINIMUM_PACKAGE_RESERVE_PERCENT / 100)
-        actual_headroom = budget_bytes - total
+    required_headroom = math.ceil(budget_bytes * MINIMUM_PACKAGE_RESERVE_PERCENT / 100)
+    actual_headroom = budget_bytes - total
+    if actual_headroom < required_headroom:
         fail(
             f"Staging payload uses {utilization:.2f}% of its uncompressed budget; "
             f"at least {MINIMUM_PACKAGE_RESERVE_PERCENT:.1f}% headroom "
@@ -1717,10 +1817,12 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
 
 
 def checked_paths(excluded_runtime_assets: set[str] | None = None) -> list[Path]:
-    """Select browser runtime files, omitting only verified duplicate legacy images."""
+    """Select browser runtime files, omitting only identity-verified duplicates and unreferenced assets."""
     if excluded_runtime_assets is None:
-        exclusion_report = validate_runtime_duplicate_image_exclusions()
-        excluded_runtime_assets = {entry["path"] for entry in exclusion_report["files"]}
+        duplicate_report = validate_runtime_duplicate_image_exclusions()
+        unreferenced_report = validate_unreferenced_runtime_image_exclusions()
+        excluded_runtime_assets = {entry["path"] for entry in duplicate_report["files"]}
+        excluded_runtime_assets.update(entry["path"] for entry in unreferenced_report["files"])
     files: set[Path] = set()
     for candidate in ROOT.glob("*.html"):
         if candidate.is_symlink() or not candidate.is_file():
@@ -2633,7 +2735,9 @@ def main() -> int:
     output.mkdir(parents=True)
 
     runtime_asset_pruning_report = validate_runtime_duplicate_image_exclusions()
+    runtime_unreferenced_pruning_report = validate_unreferenced_runtime_image_exclusions()
     excluded_runtime_assets = {entry["path"] for entry in runtime_asset_pruning_report["files"]}
+    excluded_runtime_assets.update(entry["path"] for entry in runtime_unreferenced_pruning_report["files"])
     files = checked_paths(excluded_runtime_assets)
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
     hosting_delivery_report = validate_staging_policy(
@@ -2652,6 +2756,10 @@ def main() -> int:
         pruned_path = output / entry["path"]
         if pruned_path.is_symlink() or pruned_path.exists():
             fail(f"Verified duplicate runtime image was not pruned from the package: {entry['path']}")
+    for entry in runtime_unreferenced_pruning_report["files"]:
+        pruned_path = output / entry["path"]
+        if pruned_path.is_symlink() or pruned_path.exists():
+            fail(f"Verified unreferenced runtime image was not pruned from the package: {entry['path']}")
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     document_contract_report = validate_document_contract(output)
@@ -2674,6 +2782,7 @@ def main() -> int:
         "packageMetrics": package_metrics,
         "runtimeAssetClosure": runtime_asset_report,
         "runtimeAssetPruning": runtime_asset_pruning_report,
+        "runtimeUnreferencedAssetPruning": runtime_unreferenced_pruning_report,
         "documentContract": document_contract_report,
         "editorialDraftIsolation": editorial_draft_isolation_report,
         "hostingDelivery": hosting_delivery_report,
@@ -2709,6 +2818,10 @@ def main() -> int:
         "Verified unreferenced duplicate runtime images excluded: "
         f"{runtime_asset_pruning_report['excludedFileCount']} files / "
         f"{runtime_asset_pruning_report['excludedBytes']} bytes"
+    )    print(
+        "Verified unreferenced runtime-only images excluded: "
+        f"{runtime_unreferenced_pruning_report['excludedFileCount']} files / "
+        f"{runtime_unreferenced_pruning_report['excludedBytes']} bytes"
     )
     print("Draft editorial source records, preview route/assets and generated draft blog routes excluded: PASS")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
