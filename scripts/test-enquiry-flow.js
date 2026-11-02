@@ -49,8 +49,15 @@ function element(name, initialAttributes = {}, text = '') {
       evt.defaultPrevented = prevented;
       return evt;
     },
+    children: [],
+    appendChild(child) { this.children.push(child); return child; },
     querySelectorAll() { return []; },
     querySelector() { return null; },
+    async dispatchAsync(type, event = {}) {
+      const evt = { ...event, preventDefault() {} };
+      for (const listener of listeners.get(type) || []) await listener(evt);
+      return evt;
+    },
     focus() {}
   };
   Object.defineProperty(el, 'href', {
@@ -88,6 +95,8 @@ function makeConfig({
 }
 
 async function boot(config, fetchFails = false) {
+  let remainingFailures = fetchFails === true ? Number.POSITIVE_INFINITY : Math.max(0, Number(fetchFails) || 0);
+  let fetchCalls = 0;
   const header = element('header');
   const menuToggle = element('button', { 'aria-expanded': 'false', 'aria-label': 'Open navigation' });
   const nav = element('nav');
@@ -193,8 +202,12 @@ async function boot(config, fetchFails = false) {
     setTimeout() { return 1; }
   };
   const fetch = async url => {
+    fetchCalls += 1;
     assert.equal(new URL(url).pathname, '/content/site-config.json');
-    if (fetchFails) throw new Error('simulated config fetch failure');
+    if (remainingFailures > 0) {
+      remainingFailures -= 1;
+      throw new Error('simulated config fetch failure');
+    }
     return { ok: true, json: async () => config };
   };
   const source = fs.readFileSync(path.join(__dirname, '..', 'assets', 'site.js'), 'utf8');
@@ -202,7 +215,7 @@ async function boot(config, fetchFails = false) {
     filename: 'assets/site.js'
   });
   await new Promise(resolve => setImmediate(resolve));
-  return { window, status, enquiryLink, phoneLink, alternatePhoneLink, emailLink, bookingLink, mapLink, form, arrival, departure, guests, note, submit };
+  return { window, status, retryButton: status.children.find(child => child.getAttribute('data-contact-config-retry') !== null), fetchCalls: () => fetchCalls, enquiryLink, phoneLink, alternatePhoneLink, emailLink, bookingLink, mapLink, form, arrival, departure, guests, note, submit };
 }
 
 async function main() {
@@ -221,11 +234,17 @@ async function main() {
       page + ' must not hard-code an unapproved Google Maps query destination');
     const shortMapLinks = [...html.matchAll(/https:\/\/maps\.app\.goo\.gl\/[A-Za-z0-9]+/g)].map(match => match[0]);
     if (page === 'directions.html') {
-      assert.deepEqual(shortMapLinks, [exactHotelMapUrl, exactHotelMapUrl],
-        'Directions may use the centrally authorized pin only in the driver payload and no-JavaScript fallback');
-      const driverNote = html.match(/data-arrival-copy="([^"]*)"/);
-      assert.ok(driverNote && driverNote[1].includes('Exact hotel map pin: ' + exactHotelMapUrl),
-        'driver payload must include the exact central hotel pin');
+      assert.deepEqual(shortMapLinks, [exactHotelMapUrl],
+        'Directions may hard-code the centrally authorized pin only in the no-JavaScript fallback');
+      const driverBase = html.match(/data-arrival-copy-base="([^"]*)"/);
+      const driverPayload = html.match(/data-arrival-copy="([^"]*)"/);
+      assert.ok(driverBase && driverBase[1].includes('Fort Parking')
+        && !driverBase[1].includes(exactHotelMapUrl)
+        && driverPayload && driverPayload[1] === '',
+        'the static driver note must contain only operational copy and leave the exact pin for validated runtime hydration');
+      assert.ok(fs.readFileSync(path.join(root, 'assets', 'site.js'), 'utf8')
+        .includes("button.setAttribute('data-arrival-copy', baseNote + '\\nExact hotel map pin: ' + hotelMapUrl);"),
+        'the driver payload must receive the exact central hotel pin only after runtime validation');
       const noScriptStart = html.indexOf('<noscript>');
       const noScriptEnd = noScriptStart < 0 ? -1 : html.indexOf('</noscript>', noScriptStart);
       const noScriptFallback = noScriptStart >= 0 && noScriptEnd > noScriptStart
@@ -378,6 +397,20 @@ async function main() {
   assert.match(fetchFailure.status.textContent, /no enquiry message was sent/i);
   assert.match(fetchFailure.note.textContent, /travel details have not been sent/i);
   assert.match(fetchFailure.note.textContent, /refresh the page and try again/i);
+  assert.ok(fetchFailure.retryButton, 'contact fetch failure must append an in-page retry button');
+  assert.equal(fetchFailure.retryButton.hidden, false);
+  assert.equal(fetchFailure.retryButton.disabled, false);
+  assert.equal(fetchFailure.fetchCalls(), 1);
+  await fetchFailure.retryButton.dispatchAsync('click');
+  assert.equal(fetchFailure.fetchCalls(), 2, 'explicit retry must re-run the central config loader once');
+  assert.equal(fetchFailure.retryButton.hidden, true,
+    'retry action must hide after the authorized configuration is restored');
+  assert.equal(fetchFailure.retryButton.disabled, false);
+  assert.match(fetchFailure.enquiryLink.getAttribute('href'), /^https:\/\/wa\.me\/15551234567\?text=/);
+  assert.equal(fetchFailure.enquiryLink.getAttribute('aria-disabled'), null);
+  assert.equal(fetchFailure.bookingLink.getAttribute('aria-disabled'), null);
+  assert.equal(fetchFailure.status.hidden, true,
+    'the unavailable banner must clear after the in-page retry succeeds');
   assert.match(fetchFailure.note.textContent, /contact details supplied directly by the hotel/i);
 
   console.log('PASS: source-authorized booking, WhatsApp, telephone, landline, email and exact hotel map pin hydrate safely; invalid or unavailable channels fail closed; date/guest message generation remains an enquiry only.');
