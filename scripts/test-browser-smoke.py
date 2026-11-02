@@ -5443,6 +5443,55 @@ def check_experience_detail_visual_refinement(page, base_url: str) -> None:
                 check(layout["contentBelow"],
                       f"{section_id}: itinerary and fact columns must follow the editorial image row")
 
+        # M45: assert the actual rendered hero CTA remains legible over the
+        # photographic overlay at every mobile and desktop audit width.
+        hero_cta = page.locator(
+            '.experience-detail-hero__actions a[data-enquiry-link]'
+        ).filter(has_text="Ask about my dates")
+        check(hero_cta.count() == 1,
+              f"Experience details: expected one secondary hero enquiry CTA at {width}px")
+        if hero_cta.count() == 1:
+            visual = hero_cta.evaluate("""element => {
+              const style = getComputedStyle(element);
+              const rect = element.getBoundingClientRect();
+              const viewport = document.documentElement.clientWidth;
+              return {
+                color: style.color,
+                underlineColor: style.borderBottomColor,
+                underlineWidth: parseFloat(style.borderBottomWidth),
+                display: style.display,
+                visibility: style.visibility,
+                opacity: parseFloat(style.opacity),
+                width: rect.width,
+                height: rect.height,
+                left: rect.left,
+                right: rect.right,
+                insideViewport: rect.width > 0 && rect.height > 0
+                  && rect.left >= -1 && rect.right <= viewport + 1,
+              };
+            }""")
+            check(visual["color"] == "rgb(255, 253, 248)",
+                  f"Experience details: hero secondary CTA must use high-contrast ivory text at {width}px; got {visual['color']}")
+            check(visual["underlineColor"] == "rgb(201, 164, 106)" and visual["underlineWidth"] >= 1,
+                  f"Experience details: hero secondary CTA must retain its gold underline at {width}px")
+            check(visual["display"] != "none" and visual["visibility"] == "visible"
+                  and visual["opacity"] > 0 and visual["insideViewport"],
+                  f"Experience details: hero secondary CTA must be visibly within the viewport at {width}px")
+            hero_cta.focus()
+            focus = hero_cta.evaluate("""element => {
+              const style = getComputedStyle(element);
+              return {
+                focusVisible: element.matches(':focus-visible'),
+                outlineStyle: style.outlineStyle,
+                outlineWidth: parseFloat(style.outlineWidth),
+                outlineColor: style.outlineColor,
+              };
+            }""")
+            check(focus["focusVisible"] and focus["outlineStyle"] != "none"
+                  and focus["outlineWidth"] >= 3
+                  and focus["outlineColor"] == "rgb(240, 213, 165)",
+                  f"Experience details: hero secondary CTA must retain a clear keyboard focus-visible outline at {width}px")
+
         for text_only_id in ("car-and-road-travel-detail", "other-routes"):
             text_only = page.locator("#" + text_only_id)
             check(text_only.count() == 1 and text_only.locator("img").count() == 0,
