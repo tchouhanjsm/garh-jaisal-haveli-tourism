@@ -549,3 +549,16 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Extend the all-route HTTP 503/recovery test to verify Dining table-form disable/re-enable and the one-fetch-per-attempt contract.
 - [ ] Live WhatsApp responsiveness and actual table availability still require owner/staging verification.
 
+
+
+## M44 — staging package headroom and JPEG fallback optimization
+
+- [x] Add a package-only JPEG compatibility-fallback optimizer; the Git source image library and working tree remain unchanged.
+- [x] Re-encode only responsive JPEG fallbacks after the WebP/AVIF candidates have been generated from their original source bytes.
+- [x] Require at least 35 dB PSNR and at least 5% byte savings; retain original dimensions, ICC profile and EXIF orientation.
+- [x] Keep hero-delivery and AVIF source-provenance-bound JPEG files byte-identical.
+- [x] Re-run the complete responsive picture validator after optimization and include per-image original/optimized SHA-256, quality, PSNR and byte-savings evidence in the staging manifest.
+- [x] Reserve at least 8% of the 18 MiB uncompressed staging payload budget; fail package construction instead of silently consuming the reserve.
+- [ ] Confirm exact-head package metrics and visual fallback quality in CI artifact review; automated PSNR does not replace owner visual inspection.
+- [ ] Staging preview remains non-deploying; STG-01–STG-18 and release approval remain separate operator gates.
+

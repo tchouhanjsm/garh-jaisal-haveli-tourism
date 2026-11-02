@@ -38,6 +38,7 @@ python3 scripts/test-public-route-contract.py
 
 echo "== Staging preflight safety/report contract tests =="
 python3 scripts/test-staging-preflight-contract.py
+python3 scripts/test-jpeg-fallback-optimization.py
 python3 scripts/test-staging-visual-review.py
 
 echo "== Static accessibility contract across public HTML routes =="

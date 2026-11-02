@@ -539,3 +539,15 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Cover disabled/recovered table form behavior in the route-wide Chromium recovery matrix.
 - [ ] Verify actual WhatsApp response and current restaurant table availability during owner-approved staging UAT.
 
+
+
+## 2 November 2026 — M44: staging package headroom
+
+- [x] Optimize package-only JPEG compatibility fallbacks after generating WebP/AVIF candidates from the original bytes.
+- [x] Preserve original repository assets, JPEG dimensions, ICC profile and EXIF orientation.
+- [x] Enforce 35 dB minimum PSNR and 5% minimum byte savings; keep hero/provenance-bound fallbacks unchanged.
+- [x] Revalidate responsive markup against the optimized packaged fallbacks and record SHA-256/quality/PSNR/savings evidence.
+- [x] Require at least 8% free space in the 18 MiB package budget.
+- [ ] Review packaged visual evidence and fallback crops on approved staging; this is not a visual UAT substitute.
+- [ ] STG-01–STG-18 remain NOT RUN; no staging deployment or production release is authorized.
+

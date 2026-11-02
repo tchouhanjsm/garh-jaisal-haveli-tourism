@@ -862,23 +862,35 @@ for forbidden_relative in (
             )
 
 metrics = staging_packager.package_size_metrics(
-    [{"path": "index.html", "bytes": 4, "sha256": "0" * 64}],
+    [{"path": "index.html", "bytes": 90, "sha256": "0" * 64}],
     {"path": "img/", "fileCount": 164, "bytesExcluded": 46127863},
-    budget_bytes=4,
+    budget_bytes=100,
 )
-assert metrics["uncompressedPayloadBytes"] == 4
+assert metrics["uncompressedPayloadBytes"] == 90
 assert metrics["sizeBudgetPassed"] is True
 assert metrics["sourceOnlyImageLibraryExcluded"]["bytesExcluded"] == 46127863
+assert metrics["minimumReservePercent"] == 8.0
+assert metrics["remainingHeadroomBytes"] == 10
 try:
     staging_packager.package_size_metrics(
-        [{"path": "oversized.bin", "bytes": 5, "sha256": "0" * 64}],
+        [{"path": "reserve-exhausted.bin", "bytes": 93, "sha256": "0" * 64}],
         {"path": "img/", "fileCount": 164, "bytesExcluded": 46127863},
-        budget_bytes=4,
+        budget_bytes=100,
+    )
+except RuntimeError as error:
+    assert "at least 8.0% headroom" in str(error)
+else:
+    raise AssertionError("Package-size regression must fail when the 8% reserve is consumed")
+try:
+    staging_packager.package_size_metrics(
+        [{"path": "oversized.bin", "bytes": 101, "sha256": "0" * 64}],
+        {"path": "img/", "fileCount": 164, "bytesExcluded": 46127863},
+        budget_bytes=100,
     )
 except RuntimeError as error:
     assert "exceeds" in str(error) and "budget" in str(error)
 else:
-    raise AssertionError("Package-size regression must fail when the payload crosses its budget")
+    raise AssertionError("Package-size regression must fail when the payload crosses its hard budget")
 
 
 # M15: the packaged Chromium report is a complete, durable laboratory record,

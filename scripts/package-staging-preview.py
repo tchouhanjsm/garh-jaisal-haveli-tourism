@@ -49,6 +49,8 @@ UNREFERENCED_DUPLICATE_RUNTIME_IMAGES = {
     },
 }
 MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
+MINIMUM_PACKAGE_RESERVE_PERCENT = 8.0
+MAX_PACKAGE_UTILIZATION_PERCENT = 100.0 - MINIMUM_PACKAGE_RESERVE_PERCENT
 LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
     ".htaccess",
@@ -1677,10 +1679,21 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
             f"{total} bytes. Review runtime assets; do not raise the budget without a measured reason."
         )
     utilization = round((total / budget_bytes) * 100, 2)
+    if utilization > MAX_PACKAGE_UTILIZATION_PERCENT:
+        required_headroom = math.ceil(budget_bytes * MINIMUM_PACKAGE_RESERVE_PERCENT / 100)
+        actual_headroom = budget_bytes - total
+        fail(
+            f"Staging payload uses {utilization:.2f}% of its uncompressed budget; "
+            f"at least {MINIMUM_PACKAGE_RESERVE_PERCENT:.1f}% headroom "
+            f"({required_headroom} bytes) must remain, but only {actual_headroom} bytes remain. "
+            "Optimize package assets instead of raising the budget."
+        )
     return {
         "uncompressedPayloadBytes": total,
         "uncompressedBudgetBytes": budget_bytes,
         "budgetUtilizationPercent": utilization,
+        "minimumReservePercent": MINIMUM_PACKAGE_RESERVE_PERCENT,
+        "remainingHeadroomBytes": budget_bytes - total,
         "sizeBudgetPassed": True,
         "sourceOnlyImageLibraryExcluded": legacy_inventory,
     }
@@ -2128,6 +2141,19 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
         generator.RESPONSIVE_WIDTH_OVERRIDES,
     )
+    optimizer_path = ROOT / "scripts" / "optimize_jpeg_fallbacks.py"
+    optimizer_spec = importlib.util.spec_from_file_location("jpeg_fallback_optimizer", optimizer_path)
+    if optimizer_spec is None or optimizer_spec.loader is None:
+        fail("Could not load the guarded JPEG fallback optimizer.")
+    optimizer = importlib.util.module_from_spec(optimizer_spec)
+    optimizer_spec.loader.exec_module(optimizer)
+    jpeg_fallback_optimization = optimizer.optimize_jpeg_fallbacks(output, image_sources)
+    # Re-run responsive checks against the optimized fallback bytes. Hero and
+    # AVIF-provenance-bound fallbacks are left byte-identical by the optimizer.
+    markup_validation = validate_responsive_markup(
+        output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
+        generator.RESPONSIVE_WIDTH_OVERRIDES,
+    )
     source_jpeg_bytes = sum(item["fallbackBytes"] for item in image_sources)
     optimized_jpeg_source_bytes = sum(
         item["sourceBytes"] for item in image_sources if item["sourceFormat"] == "JPEG"
@@ -2218,6 +2244,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         ),
         "enforcedFullSizeByteBudgets": sorted(enforced_full_size_budgets, key=lambda item: item["path"]),
         "sourceImages": image_sources,
+        "jpegFallbackOptimization": jpeg_fallback_optimization,
         "generatedWebpFileCount": sum(item["path"].endswith(".webp") for item in generated_output_files),
         "generatedWebpFiles": sorted(
             (item for item in generated_output_files if item["path"].endswith(".webp")),
@@ -2669,6 +2696,7 @@ def main() -> int:
     print("Draft editorial source records, preview route/assets and generated draft blog routes excluded: PASS")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
     print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
+    print(f"Reserved package headroom: {package_metrics['minimumReservePercent']}% minimum; {package_metrics['remainingHeadroomBytes']} bytes remain")
     print(f"Responsive source photos processed: {responsive_report['sourceImageCount']}")
     print(f"Generated responsive WebP files: {responsive_report['generatedWebpFileCount']}")
     print(f"Downscaled responsive variants: {responsive_report['responsiveVariantCount']} ({responsive_report['responsiveVariantBytes']} bytes)")
