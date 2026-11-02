@@ -1414,6 +1414,7 @@ class RewriteImageReferencesTests(unittest.TestCase):
             source_root = Path(__file__).resolve().parents[1]
             retained_duplicate_entries = []
             pruned_duplicate_entries = []
+            protected_optimizer_records = []
             for relative, expected in sorted(_PACKAGE_PREVIEW.UNREFERENCED_DUPLICATE_RUNTIME_IMAGES.items()):
                 retained_data = (source_root / expected["duplicateOf"]).read_bytes()
                 retained_output = output / expected["duplicateOf"]
@@ -1428,6 +1429,15 @@ class RewriteImageReferencesTests(unittest.TestCase):
                     "bytes": len(retained_data),
                     "sha256": retained_sha256,
                 })
+                protected_optimizer_records.append({
+                    "path": expected["duplicateOf"],
+                    "status": "SKIPPED_PROTECTED_DUPLICATE_IDENTITY",
+                    "reason": "retained-duplicate-source-identity",
+                    "originalBytes": len(retained_data),
+                    "optimizedBytes": len(retained_data),
+                    "savedBytes": 0,
+                    "originalSha256": retained_sha256,
+                })
                 pruned_duplicate_entries.append({
                     "path": relative,
                     "duplicateOf": expected["duplicateOf"],
@@ -1441,6 +1451,10 @@ class RewriteImageReferencesTests(unittest.TestCase):
                 "releaseStatus": "BLOCKED_PENDING_MANUAL_UAT",
                 "qualityGate": "PASS",
                 "responsiveImageDelivery": {
+                    "jpegFallbackOptimization": {
+                        "status": "PASS",
+                        "files": protected_optimizer_records,
+                    },
                     "deliveryEvidence": {
                         "measurementClass": "packaged-chromium-laboratory-diagnostic",
                         "fieldDataAvailable": False,

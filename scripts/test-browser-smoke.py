@@ -49,6 +49,13 @@ RESPONSIVE_AUDIT_VIEWPORTS = [
     (viewport["width"], viewport["height"])
     for viewport in ROUTE_CONTRACT["responsiveAuditViewports"]
 ]
+
+EDGE_GUEST_VIEWPORTS = [
+    (375, 812, "common mobile"),
+    (430, 932, "large mobile"),
+    (1366, 768, "laptop"),
+    (1920, 1080, "large desktop"),
+]
 NOT_FOUND_SMOKE_PATH = "__garh-jaisal-404-smoke-not-found-20261027__"
 NOT_FOUND_RECOVERY_LINKS = ["/dining.html", "/directions.html", "/experiences.html", "/gallery.html", "/index.html", "/rooms.html"]
 SCREENSHOT_EVIDENCE: list[dict] = []
@@ -3432,6 +3439,511 @@ def check_stay_planner(page, base_url: str) -> None:
     check(not non_get_requests,
           "Stay planner handoff must not submit guest details using a non-GET request")
 
+
+
+def check_extended_guest_viewports(page, page_name: str) -> None:
+    """Stress the guest layout at four additional requested screen sizes without adding screenshots."""
+    original_viewport = page.evaluate(
+        "() => ({ width: window.innerWidth, height: window.innerHeight })"
+    )
+    try:
+        for width, height, label in EDGE_GUEST_VIEWPORTS:
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(35)
+            geometry = page.evaluate(
+                """() => {
+                  const bounds = element => {
+                    if (!element) return null;
+                    const rect = element.getBoundingClientRect();
+                    return {
+                      x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+                      right: rect.right, bottom: rect.bottom
+                    };
+                  };
+                  const visible = element => {
+                    if (!element) return false;
+                    const style = getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.display !== "none" && style.visibility !== "hidden"
+                      && rect.width > 0 && rect.height > 0;
+                  };
+                  const heading = document.querySelector("main#main h1");
+                  const main = document.querySelector("main#main");
+                  const toggle = document.querySelector(".menu-toggle");
+                  const navigation = document.querySelector("#primary-navigation");
+                  const heroActions = Array.from(document.querySelectorAll(
+                    "main .page-hero__actions a, main .arrival-hero__actions a"
+                  )).filter(visible);
+                  return {
+                    viewportWidth: window.innerWidth,
+                    documentWidth: document.documentElement.scrollWidth,
+                    bodyWidth: document.body.scrollWidth,
+                    heading: bounds(heading),
+                    main: bounds(main),
+                    visibleHeroActions: heroActions.map(bounds),
+                    menuToggleVisible: visible(toggle),
+                    primaryNavigationVisible: visible(navigation)
+                  };
+                }"""
+            )
+            check(geometry["viewportWidth"] == width,
+                  f"{page_name} at {label} ({width}px): browser did not adopt the requested viewport")
+            check(geometry["documentWidth"] <= width + 2 and geometry["bodyWidth"] <= width + 2,
+                  f"{page_name} at {label} ({width}px): horizontal overflow ({geometry})")
+            heading = geometry["heading"]
+            main = geometry["main"]
+            check(bool(heading and heading["width"] > 0 and heading["height"] > 0
+                       and heading["x"] >= -1 and heading["right"] <= width + 1),
+                  f"{page_name} at {label} ({width}px): page heading must remain in the content rail ({heading})")
+            check(bool(main and main["width"] > 0 and main["x"] >= -1
+                       and main["right"] <= width + 1),
+                  f"{page_name} at {label} ({width}px): main content must remain inside the viewport ({main})")
+            for action in geometry["visibleHeroActions"]:
+                check(action["width"] >= 40 and action["x"] >= -1 and action["right"] <= width + 1,
+                      f"{page_name} at {label} ({width}px): visible hero action is clipped ({action})")
+
+            toggle = page.locator(".menu-toggle")
+            navigation = page.locator("#primary-navigation")
+            if width <= 760:
+                # Verify the fixed booking CTA yields whenever it would cover a
+                # guest decision surface; it must return as soon as the surface clears.
+                conversion_state = page.evaluate(
+                    """() => {
+                      const bar = document.querySelector('.mobile-booking-bar');
+                      const journey = document.querySelector('.guest-journey');
+                      const arrival = document.querySelector('[data-arrival-quick-card]');
+                      if (!bar) return null;
+                      const height = Math.max(64, Number.parseFloat(getComputedStyle(bar).height) || 0);
+                      const obstructionTop = Math.max(0, window.innerHeight - height);
+                      const overlaps = surface => {
+                        if (!surface) return false;
+                        const rect = surface.getBoundingClientRect();
+                        return rect.left < window.innerWidth && rect.right > 0
+                          && rect.top < window.innerHeight && rect.bottom > obstructionTop;
+                      };
+                      const journeyOverlap = overlaps(journey);
+                      const arrivalOverlap = overlaps(arrival);
+                      const focused = bar.contains(document.activeElement);
+                      return {
+                        journeyPresent: Boolean(journey),
+                        journeyOverlap,
+                        arrivalOverlap,
+                        journeySuppressed: bar.classList.contains('is-suppressed-by-guest-journey'),
+                        arrivalSuppressed: bar.classList.contains('is-suppressed-by-arrival-card'),
+                        expectedJourneySuppression: journeyOverlap && !focused,
+                        expectedArrivalSuppression: arrivalOverlap && !focused,
+                        display: getComputedStyle(bar).display,
+                        ariaHidden: bar.getAttribute('aria-hidden'),
+                        inert: bar.hasAttribute('inert'),
+                        bounds: (() => {
+                          const rect = bar.getBoundingClientRect();
+                          return { x: rect.x, right: rect.right, top: rect.top, bottom: rect.bottom };
+                        })()
+                      };
+                    }"""
+                )
+                check(conversion_state is not None
+                      and conversion_state["journeyPresent"] == (page_name != "index.html"),
+                      f"{page_name} at {label} ({width}px): mobile conversion bar must expose the expected protected journey surface")
+                check(conversion_state is not None
+                      and conversion_state["journeySuppressed"] == conversion_state["expectedJourneySuppression"]
+                      and conversion_state["arrivalSuppressed"] == conversion_state["expectedArrivalSuppression"],
+                      f"{page_name} at {label} ({width}px): booking CTA suppression must match real obstruction geometry ({conversion_state})")
+                should_suppress_bar = bool(conversion_state and (
+                    conversion_state["expectedJourneySuppression"]
+                    or conversion_state["expectedArrivalSuppression"]
+                ))
+                if should_suppress_bar:
+                    check(conversion_state["display"] == "none"
+                          and conversion_state["ariaHidden"] == "true"
+                          and conversion_state["inert"],
+                          f"{page_name} at {label} ({width}px): obscured booking CTA must be removed from visual and keyboard access")
+                else:
+                    check(conversion_state["display"] != "none"
+                          and conversion_state["ariaHidden"] is None
+                          and not conversion_state["inert"],
+                          f"{page_name} at {label} ({width}px): unobstructed booking CTA must remain accessible")
+                dock = page.locator("[data-direct-enquiry-dock]")
+                check(not dock.is_visible(),
+                      f"{page_name} at {label} ({width}px): redundant floating enquiry dock must yield to the fixed booking bar")
+
+                check(toggle.is_visible(),
+                      f"{page_name} at {label} ({width}px): compact navigation control must be visible")
+                check(not navigation.is_visible(),
+                      f"{page_name} at {label} ({width}px): navigation must start closed")
+                if toggle.is_visible():
+                    toggle.click()
+                    check(navigation.is_visible() and toggle.get_attribute("aria-expanded") == "true",
+                          f"{page_name} at {label} ({width}px): navigation must open on explicit activation")
+                    page.keyboard.press("Escape")
+                    check(not navigation.is_visible() and toggle.get_attribute("aria-expanded") == "false",
+                          f"{page_name} at {label} ({width}px): Escape must close navigation")
+                    check(page.evaluate("document.activeElement === document.querySelector('.menu-toggle')"),
+                          f"{page_name} at {label} ({width}px): Escape must restore focus to the navigation control")
+            elif width >= 1000:
+                check(not toggle.is_visible(),
+                      f"{page_name} at {label} ({width}px): desktop must not expose the compact menu toggle")
+                check(navigation.is_visible(),
+                      f"{page_name} at {label} ({width}px): primary navigation must remain visible")
+    finally:
+        page.set_viewport_size(original_viewport)
+        page.wait_for_timeout(35)
+
+
+def check_booking_handoff_on_route(page, page_name: str) -> None:
+    """Verify that every public route exposes the same safe external booking handoff."""
+    links = page.locator("a[data-booking-link]")
+    check(links.count() >= 1, f"{page_name}: a booking action must remain available on every public route")
+    try:
+        page.wait_for_function(
+            r"""() => {
+              const links = Array.from(document.querySelectorAll('a[data-booking-link]'));
+              return links.length > 0 && links.every(link =>
+                /^https:\/\/asiatech\.in\/booking_engine\/index3\?token=/.test(link.href)
+              );
+            }""",
+            timeout=7000,
+        )
+    except Exception as error:
+        check(False, f"{page_name}: booking actions did not hydrate from the authorized provider ({type(error).__name__})")
+        return
+
+    records = page.evaluate(
+        r"""() => Array.from(document.querySelectorAll('a[data-booking-link]')).map(link => {
+          const url = new URL(link.href);
+          return {
+            href: link.href,
+            protocol: url.protocol,
+            hostname: url.hostname,
+            pathname: url.pathname,
+            tokenPresent: Boolean(url.searchParams.get('token')),
+            target: link.getAttribute('target'),
+            rel: (link.getAttribute('rel') || '').split(/\s+/).filter(Boolean),
+            disabled: link.getAttribute('aria-disabled')
+          };
+        })"""
+    )
+    check(all(
+        (item["protocol"] == "https:"
+         and item["hostname"].lower() == "asiatech.in"
+         and item["pathname"] == "/booking_engine/index3"
+         and item["tokenPresent"] is True
+         and item["target"] == "_blank"
+         and {"noopener", "noreferrer"}.issubset(set(item["rel"]))
+         and item["disabled"] is None)
+        for item in records
+    ), f"{page_name}: every booking CTA must use the authorized HTTPS provider with safe new-tab attributes")
+    destinations = {item["href"] for item in records}
+    check(len(destinations) == 1,
+          f"{page_name}: header, page and mobile booking CTAs must share one configured booking destination")
+
+    broken_fragments = page.evaluate(
+        """() => Array.from(document.querySelectorAll('a[href^="#"]'))
+          .map(link => link.getAttribute('href'))
+          .filter(href => href && href !== '#' && !document.getElementById(decodeURIComponent(href.slice(1))))"""
+    )
+    check(not broken_fragments,
+          f"{page_name}: internal CTA fragment(s) must resolve to real page targets ({broken_fragments})")
+
+
+
+
+def check_contact_configuration_failure_recovery(browser, base_url: str) -> None:
+    """Fail the central contact-config request once, then prove the same page recovers."""
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    config_requests = 0
+
+    def intercept_config(route) -> None:
+        nonlocal config_requests
+        config_requests += 1
+        if config_requests <= 2:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body='{"error":"temporary configuration outage"}',
+            )
+        else:
+            route.continue_()
+
+    page.route("**/content/site-config.json", intercept_config)
+    try:
+        response = page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
+        check(response is not None and response.status == 200,
+              "Contact-config recovery: Directions must load even when central configuration is unavailable")
+        try:
+            page.wait_for_function(
+                """() => {
+                  const status = document.querySelector('#contact-status');
+                  const map = document.querySelector('[data-map-preview]');
+                  const form = document.querySelector('[data-arrival-planning-form]');
+                  return Boolean(status && !status.hidden && map
+                    && map.dataset.mapConfigState === 'unavailable'
+                    && form && form.hidden);
+                }""",
+                timeout=7000,
+            )
+        except Exception as error:
+            check(False,
+                  f"Contact-config recovery: failure state did not settle safely ({type(error).__name__})")
+
+        check(config_requests == 1,
+              "Contact-config recovery: the first page load must make one central-config request")
+        check(page.locator("#contact-status").is_visible(),
+              "Contact-config recovery: accessible contact status must explain the unavailable channels")
+        check(page.locator("[data-arrival-planning-form]").is_hidden(),
+              "Contact-config recovery: interactive arrival form must remain hidden without an authorized destination")
+        check(page.locator("[data-arrival-enquiry-fallback]").is_visible(),
+              "Contact-config recovery: static arrival fallback must remain visible")
+        check(page.locator("[data-map-preview]").is_hidden()
+              and page.locator("[data-map-preview]").get_attribute("data-map-config-state") == "unavailable",
+              "Contact-config recovery: interactive map must remain hidden when configuration fails")
+        check(page.locator("[data-map-preview] iframe[src]").count() == 0,
+              "Contact-config recovery: no map network request may start from a failed configuration")
+        for selector, label in (
+            ("[data-enquiry-link]", "WhatsApp"),
+            ("[data-contact-phone]", "phone"),
+            ("[data-property-map-link]", "hotel map"),
+            ("[data-booking-link]", "booking"),
+        ):
+            link = page.locator(selector).first
+            check(link.count() == 1
+                  and link.get_attribute("aria-disabled") == "true"
+                  and link.get_attribute("href") == "#contact-status",
+                  f"Contact-config recovery: {label} action must point to the accessible fallback, not a stale destination")
+
+        # Retry in place after the one-time 503. No document reload,
+        # external channel or map iframe activation is permitted.
+        retry_button = page.locator("[data-contact-config-retry]")
+        check(retry_button.is_visible() and not retry_button.is_disabled(),
+              "Contact-config recovery: an accessible in-page retry control must appear after failure")
+        retry_button.click()
+        try:
+            page.wait_for_function(
+                """() => {
+                  const status = document.querySelector('#contact-status');
+                  const retry = document.querySelector('[data-contact-config-retry]');
+                  const map = document.querySelector('[data-map-preview]');
+                  const form = document.querySelector('[data-arrival-planning-form]');
+                  const frame = map && map.querySelector('iframe');
+                  return Boolean(status && !status.hidden && retry && !retry.hidden
+                    && !retry.disabled && retry.textContent === 'Try again'
+                    && map && map.dataset.mapConfigState === 'unavailable'
+                    && form && form.hidden && frame && !frame.hasAttribute('src'));
+                }""",
+                timeout=7000,
+            )
+        except Exception as error:
+            check(False,
+                  f"Contact-config recovery: retry failure did not preserve the safe state ({type(error).__name__})")
+        check(config_requests == 2,
+              "Contact-config recovery: a failed retry must issue exactly one additional request")
+        check(page.locator('[data-enquiry-link]').first.get_attribute('aria-disabled') == 'true'
+              and page.locator('[data-booking-link]').first.get_attribute('aria-disabled') == 'true',
+              "Contact-config recovery: channels must remain fail-closed after the retry also fails")
+        retry_button.click()
+        try:
+            page.wait_for_function(
+                """() => {
+                  const status = document.querySelector('#contact-status');
+                  const map = document.querySelector('[data-map-preview]');
+                  const frame = map && map.querySelector('iframe[data-map-src]');
+                  const form = document.querySelector('[data-arrival-planning-form]');
+                  const fallback = document.querySelector('[data-arrival-enquiry-fallback]');
+                  const retry = document.querySelector('[data-contact-config-retry]');
+                  return Boolean(status && status.hidden && map && !map.hidden
+                    && map.dataset.mapConfigState === 'ready'
+                    && frame && frame.getAttribute('data-map-src')
+                    && form && !form.hidden && fallback && fallback.hidden
+                    && retry && retry.hidden);
+                }""",
+                timeout=7000,
+            )
+        except Exception as error:
+            check(False,
+                  f"Contact-config recovery: in-page retry did not restore approved controls ({type(error).__name__})")
+
+        check(config_requests == 3,
+              "Contact-config recovery: two explicit retries must each make one config request after the initial outage")
+        check(page.locator("#contact-status").is_hidden(),
+              "Contact-config recovery: accessible unavailable status must clear after a valid retry")
+        check(page.locator("[data-arrival-planning-form]").is_visible()
+              and page.locator("[data-arrival-enquiry-fallback]").is_hidden(),
+              "Contact-config recovery: authorized arrival form must replace the static fallback after recovery")
+        details = page.locator("[data-map-preview]")
+        frame = details.locator("iframe")
+        check(details.is_visible() and details.get_attribute("data-map-config-state") == "ready",
+              "Contact-config recovery: map disclosure must become available after a valid retry")
+        expected_embed = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+        check(frame.get_attribute("data-map-src") == expected_embed
+              and frame.get_attribute("src") is None,
+              "Contact-config recovery: exact approved map source must be restored but remain dormant until visitor activation")
+        booking = page.locator("[data-booking-link]").first
+        check(booking.get_attribute("aria-disabled") is None
+              and booking.get_attribute("href",) is not None
+              and booking.get_attribute("target") == "_blank"
+              and {"noopener", "noreferrer"}.issubset(set((booking.get_attribute("rel") or "").split())),
+              "Contact-config recovery: booking action must regain its protected destination after retry")
+    finally:
+        context.close()
+
+
+def check_contact_configuration_recovery_all_routes(browser, base_url: str) -> None:
+    """Prove a transient config outage and explicit in-place recovery on every core route."""
+    recovered_routes = 0
+    channel_contracts = (
+        ("[data-enquiry-link]", "whatsapp"),
+        ("[data-contact-phone]", "phone"),
+        ("[data-contact-alt-phone]", "phone"),
+        ("[data-contact-email]", "email"),
+        ("[data-booking-link]", "booking"),
+        ("[data-property-map-link]", "map"),
+    )
+    expected_booking_path = "/booking_engine/index3"
+
+    for page_name in PAGES:
+        context = browser.new_context(viewport={"width": 390, "height": 844})
+        page = context.new_page()
+        config_requests = 0
+        main_document_navigations = 0
+
+        def intercept_config(route) -> None:
+            nonlocal config_requests
+            config_requests += 1
+            if config_requests == 1:
+                route.fulfill(
+                    status=503,
+                    content_type="application/json",
+                    body='{"error":"temporary route-wide contact outage"}',
+                )
+            else:
+                route.continue_()
+
+        def count_main_navigation(frame) -> None:
+            nonlocal main_document_navigations
+            if frame == page.main_frame:
+                main_document_navigations += 1
+
+        page.route("**/content/site-config.json", intercept_config)
+        page.on("framenavigated", count_main_navigation)
+        try:
+            response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
+            check(response is not None and response.status == 200,
+                  f"{page_name}: contact recovery route must load while the central config is unavailable")
+            try:
+                page.wait_for_function(
+                    """() => {
+                      const status = document.querySelector('#contact-status');
+                      const retry = document.querySelector('[data-contact-config-retry]');
+                      return Boolean(status && !status.hidden && retry && !retry.hidden
+                        && !retry.disabled && retry.getAttribute('type') === 'button');
+                    }""",
+                    timeout=7000,
+                )
+            except Exception as error:
+                check(False,
+                      f"{page_name}: contact outage state did not expose its retry action ({type(error).__name__})")
+
+            check(config_requests == 1,
+                  f"{page_name}: initial outage must make exactly one central-config request")
+            status = page.locator("#contact-status")
+            retry_button = page.locator("[data-contact-config-retry]")
+            if page_name == "dining.html":
+                table_submit = page.locator("[data-restaurant-table-submit]")
+                check(table_submit.count() == 1 and table_submit.is_disabled(),
+                      "dining.html: table enquiry must fail closed through the shared contact event during outage")
+            check(status.is_visible(),
+                  f"{page_name}: the accessible contact fallback must be visible during outage")
+
+            for selector, label in channel_contracts:
+                links = page.locator(selector)
+                for index in range(links.count()):
+                    link = links.nth(index)
+                    check(link.get_attribute("aria-disabled") == "true"
+                          and link.get_attribute("href") == "#contact-status",
+                          f"{page_name}: {label} action {index + 1} must fail closed to the contact fallback")
+
+            if retry_button.is_visible():
+                retry_button.click()
+            try:
+                page.wait_for_function(
+                    """() => {
+                      const status = document.querySelector('#contact-status');
+                      const retry = document.querySelector('[data-contact-config-retry]');
+                      return Boolean(status && status.hidden && retry && retry.hidden);
+                    }""",
+                    timeout=7000,
+                )
+            except Exception as error:
+                check(False,
+                      f"{page_name}: explicit retry did not restore the contact channels ({type(error).__name__})")
+
+            check(config_requests == 2,
+                  f"{page_name}: recovery must issue exactly one additional config request")
+            check(status.is_hidden(),
+                  f"{page_name}: unavailable status must clear after a valid config response")
+            if page_name == "dining.html":
+                table_submit = page.locator("[data-restaurant-table-submit]")
+                check(table_submit.count() == 1 and not table_submit.is_disabled(),
+                      "dining.html: table enquiry must recover from the shared contact event without another config fetch")
+
+            for selector, label in channel_contracts:
+                links = page.locator(selector)
+                for index in range(links.count()):
+                    link = links.nth(index)
+                    href = link.get_attribute("href") or ""
+                    valid = False
+                    if label == "whatsapp":
+                        parsed = urlsplit(href)
+                        valid = parsed.scheme == "https" and parsed.hostname == "wa.me" and bool(parsed.path)
+                    elif label == "phone":
+                        valid = href.startswith("tel:+")
+                    elif label == "email":
+                        valid = href.startswith("mailto:") and bool(href[7:])
+                    elif label == "booking":
+                        parsed = urlsplit(href)
+                        from urllib.parse import parse_qs
+                        valid = (parsed.scheme == "https" and parsed.hostname == "asiatech.in"
+                                 and parsed.path == expected_booking_path and bool(parse_qs(parsed.query).get("token")))
+                    elif label == "map":
+                        parsed = urlsplit(href)
+                        valid = parsed.scheme == "https" and parsed.hostname == "maps.app.goo.gl" and bool(parsed.path)
+                    check(valid and link.get_attribute("aria-disabled") is None,
+                          f"{page_name}: recovered {label} action {index + 1} must use its validated destination")
+                    if label in {"whatsapp", "booking", "map"}:
+                        rel = set((link.get_attribute("rel") or "").lower().split())
+                        check(link.get_attribute("target") == "_blank"
+                              and {"noopener", "noreferrer"}.issubset(rel),
+                              f"{page_name}: recovered {label} link must retain safe new-tab isolation")
+
+            arrival_form = page.locator("[data-arrival-planning-form]")
+            if arrival_form.count():
+                check(arrival_form.is_visible()
+                      and page.locator("[data-arrival-enquiry-fallback]").is_hidden(),
+                      f"{page_name}: arrival form must replace its static fallback after recovery")
+            map_preview = page.locator("[data-map-preview]")
+            if map_preview.count():
+                frame = map_preview.locator("iframe")
+                expected_embed = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+                check(map_preview.is_visible()
+                      and map_preview.get_attribute("data-map-config-state") == "ready"
+                      and frame.get_attribute("data-map-src") == expected_embed
+                      and frame.get_attribute("src") is None,
+                      f"{page_name}: map config must recover but remain dormant until visitor activation")
+
+            check(main_document_navigations == 1,
+                  f"{page_name}: contact retry must not reload or navigate the guest away from the current route")
+            recovered_routes += 1
+        except Exception as error:
+            check(False,
+                  f"{page_name}: route-wide contact recovery raised {type(error).__name__}: {error}")
+        finally:
+            context.close()
+
+    check(recovered_routes == len(PAGES),
+          f"Contact recovery must pass on all {len(PAGES)} public routes ({recovered_routes} recovered)")
+
+
 def check_contact_hydration(page, base_url: str) -> None:
     page.goto(base_url + "index.html", wait_until="domcontentloaded", timeout=15000)
     page.wait_for_function(
@@ -3454,6 +3966,36 @@ def check_contact_hydration(page, base_url: str) -> None:
           "Alternate landline must hydrate from the central config")
     check(page.locator("[data-contact-email]").first.get_attribute("href") == "mailto:info@hotelgarhjaisal.com",
           "Email must hydrate from the central config")
+    # The shared contact runtime must resolve central configuration from its own script URL,
+    # independent of the current route and the asynchronous document.currentScript lifecycle.
+    page.add_init_script(
+        """window.__siteConfigRequestUrls = [];
+        window.__siteConfigResponses = [];
+        window.__contactReadyEvents = [];
+        document.addEventListener("garh-jaisal:contact-ready", event => {
+          const detail = event && event.detail ? event.detail : {};
+          const embed = typeof detail.hotelMapEmbedUrl === "string" ? detail.hotelMapEmbedUrl : "";
+          window.__contactReadyEvents.push({
+            hasHotelMapUrl: Boolean(detail.hotelMapUrl),
+            hasEmbedUrl: Boolean(embed),
+            embedLength: embed.length,
+            embedMatchesExpected: embed === "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+          });
+        });
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const url = typeof input === "string" ? input : input.url;
+          window.__siteConfigRequestUrls.push(url);
+          try {
+            const response = await originalFetch(input, init);
+            window.__siteConfigResponses.push({ url, status: response.status, ok: response.ok });
+            return response;
+          } catch (error) {
+            window.__siteConfigResponses.push({ url, error: String(error) });
+            throw error;
+          }
+        };"""
+    )
     # Inspect the exact source-authorized hotel pin without opening the external map.
     page.goto(base_url + "directions.html", wait_until="domcontentloaded", timeout=15000)
     page.wait_for_function(
@@ -3470,6 +4012,9 @@ def check_contact_hydration(page, base_url: str) -> None:
         }""",
         timeout=7000,
     )
+
+    check(page.evaluate("() => window.__siteConfigRequestUrls.some(url => new URL(url).pathname.endsWith('/content/site-config.json'))"),
+          "Directions: shared contact config must resolve to the repository content/site-config.json path")
     map_links = page.locator("[data-property-map-link]")
     check(map_links.count() >= 2, "Directions and footer must expose the central hotel map pin")
     for index in range(map_links.count()):
@@ -3477,6 +4022,182 @@ def check_contact_hydration(page, base_url: str) -> None:
         check(link.get_attribute("target") == "_blank", "Hotel map pin must open in a separate tab")
         check(set((link.get_attribute("rel") or "").split()) >= {"noopener", "noreferrer"},
               "Hotel map pin must protect the new tab with noopener/noreferrer")
+    # Exercise the source-backed driver handoff without sending a message or leaving the site.
+    driver_card = page.locator(".arrival-driver-card")
+    check(driver_card.count() == 1 and driver_card.is_visible(),
+          "Directions: one visible driver handoff card must show the source-backed address")
+    copy_button = driver_card.locator("[data-arrival-copy]")
+    page.wait_for_function(
+        "() => { const button = document.querySelector('[data-arrival-copy]'); return Boolean(button && !button.hidden); }",
+        timeout=7000,
+    )
+    page.evaluate(
+        """() => {
+          Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+          Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+          Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText: async value => { window.__arrivalCopiedNote = value; } }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => typeof window.__arrivalCopiedNote === 'string' && window.__arrivalCopiedNote.length > 0",
+        timeout=3000,
+    )
+    copied_arrival_note = page.evaluate("window.__arrivalCopiedNote")
+    check("Fort Kotari Para, Inside Jaisalmer Fort" in copied_arrival_note
+          and "Fort Parking" in copied_arrival_note
+          and "300 metres (5–6 minutes)" in copied_arrival_note
+          and "https://maps.app.goo.gl/nAbRiZhv78FSbju48" in copied_arrival_note,
+          "Directions: copied driver note must contain the authoritative address, approximate walk and exact hotel pin")
+    check("Arrival note copied" in (driver_card.locator("[data-arrival-copy-status]").inner_text() or ""),
+          "Directions: successful copy must announce a polite status")
+
+    # Simulate the operating-system share sheet without opening an external app or sending a message.
+    page.evaluate(
+        """() => {
+          Object.defineProperty(navigator, "share", {
+            configurable: true,
+            value: async payload => { window.__arrivalSharedPayload = payload; }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => Boolean(window.__arrivalSharedPayload && window.__arrivalSharedPayload.text)",
+        timeout=3000,
+    )
+    shared_payload = page.evaluate("window.__arrivalSharedPayload")
+    check(shared_payload["title"] == "Garh Jaisal Haveli arrival details"
+          and "Fort Kotari Para, Inside Jaisalmer Fort" in shared_payload["text"]
+          and "https://maps.app.goo.gl/nAbRiZhv78FSbju48" in shared_payload["text"],
+          "Directions: native sharing must contain the exact address, walk and authorized hotel pin")
+    check("Share sheet opened" in driver_card.locator("[data-arrival-copy-status]").inner_text(),
+          "Directions: native-share success must announce that the share sheet opened")
+
+    # Cancellation is not a send and must not silently invoke the clipboard fallback.
+    page.evaluate(
+        """() => {
+          window.__arrivalClipboardWritesAfterCancel = 0;
+          const originalWriteText = navigator.clipboard.writeText;
+          navigator.clipboard.writeText = async value => {
+            window.__arrivalClipboardWritesAfterCancel += 1;
+            return originalWriteText(value);
+          };
+          Object.defineProperty(navigator, "share", {
+            configurable: true,
+            value: async () => { throw new DOMException("Share cancelled", "AbortError"); }
+          });
+        }"""
+    )
+    copy_button.click()
+    page.wait_for_function(
+        "() => (document.querySelector('[data-arrival-copy-status]')?.textContent || '').includes('Sharing cancelled')",
+        timeout=3000,
+    )
+    check(page.evaluate("window.__arrivalClipboardWritesAfterCancel") == 0,
+          "Directions: cancelling native share must not start a clipboard write")
+    check("No message was sent" in driver_card.locator("[data-arrival-copy-status]").inner_text(),
+          "Directions: cancellation feedback must not imply that a message was sent")
+
+    # The embedded Google Maps request must remain dormant until the native disclosure is opened.
+    map_preview = page.locator("[data-map-preview]")
+    try:
+        page.wait_for_function(
+            """() => {
+              const details = document.querySelector('[data-map-preview]');
+              return Boolean(details && ['ready', 'unavailable'].includes(details.dataset.mapConfigState || ''));
+            }""",
+            timeout=7000,
+        )
+    except Exception as error:
+        check(False, f"Directions: source map configuration did not settle ({type(error).__name__})")
+    map_config_state = page.evaluate(
+        "() => document.querySelector('[data-map-preview]')?.dataset.mapConfigState || 'not-configured'"
+    )
+    map_diagnostics = page.evaluate(
+        """() => ({
+          events: window.__contactReadyEvents || [],
+          mapReceiver: (() => {
+            const details = document.querySelector('[data-map-preview]');
+            return details ? {
+              eventReceived: details.dataset.mapConfigEventReceived === 'true',
+              inputLength: details.dataset.mapConfigInputLength || null,
+              allowlistMatch: details.dataset.mapConfigAllowlistMatch || null,
+              state: details.dataset.mapConfigState || null
+            } : null;
+          })(),
+          responses: (window.__siteConfigResponses || []).map(item => ({
+            path: new URL(item.url).pathname,
+            status: item.status || null,
+            ok: item.ok === true,
+            error: item.error || null
+          }))
+        })"""
+    )
+    check(map_config_state == "ready",
+          "Directions: map configuration must be validated before the preview is shown (state: "
+          + map_config_state + "; diagnostics: " + json.dumps(map_diagnostics, sort_keys=True) + ")")
+    map_frame = map_preview.locator("iframe[data-map-src]")
+    expected_embed_url = "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
+    check(map_preview.count() == 1 and map_preview.is_visible(),
+          "Directions: one visible opt-in map preview must be present")
+    check(map_frame.get_attribute("src") is None,
+          "Directions: Google Maps iframe must not have a src before explicit activation")
+    check(map_frame.get_attribute("data-map-src") == expected_embed_url,
+          "Directions: map preview must use the authoritative Google Maps embed URL")
+    map_preview_requests = []
+    page.on(
+        "request",
+        lambda request: map_preview_requests.append(request.url)
+        if request.url.startswith("https://www.google.com/maps?")
+        else None,
+    )
+    page.route("https://www.google.com/maps*", lambda route: route.abort())
+    check(not map_preview_requests,
+          "Directions: Google Maps must not be requested before the visitor opens the preview")
+    map_preview.locator("summary").click()
+    page.wait_for_function(
+        """() => {
+          const details = document.querySelector('[data-map-preview]');
+          const frame = details && details.querySelector('iframe[data-map-src]');
+          return Boolean(details && details.open && frame && frame.getAttribute('src') ===
+            "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed");
+        }""",
+        timeout=5000,
+    )
+    # The iframe is intentionally loading=lazy. Scroll it into view after activation
+    # so the test observes the deferred request without weakening the lazy-load contract.
+    if not map_preview_requests:
+        with page.expect_request(
+            lambda request: request.url.startswith("https://www.google.com/maps?"),
+            timeout=7000,
+        ):
+            map_frame.scroll_into_view_if_needed()
+    check(any(url.startswith("https://www.google.com/maps?") for url in map_preview_requests),
+          "Directions: Google Maps request must begin only after explicit preview activation")
+    map_preview.locator("summary").click()
+    page.wait_for_function(
+        """() => {
+          const details = document.querySelector('[data-map-preview]');
+          const label = document.querySelector('[data-map-preview-label]');
+          return Boolean(details && !details.open && label && label.textContent === 'Show interactive map');
+        }""",
+        timeout=3000,
+    )
+    request_count_after_first_open = len(map_preview_requests)
+    map_preview.locator("summary").click()
+    page.wait_for_function(
+        "() => Boolean(document.querySelector('[data-map-preview]')?.open)",
+        timeout=3000,
+    )
+    check(map_preview.get_attribute("open") is not None,
+          "Directions: native map disclosure must reopen")
+    check(len(map_preview_requests) == request_count_after_first_open,
+          "Directions: reopening an already loaded map must not issue a second map request")
+
     # Directions M2: validate in-page wayfinding and responsive navigation without opening external links.
     section_nav = page.locator("nav.arrival-section-nav")
     check(section_nav.count() == 1 and section_nav.is_visible(),
@@ -4722,6 +5443,55 @@ def check_experience_detail_visual_refinement(page, base_url: str) -> None:
                 check(layout["contentBelow"],
                       f"{section_id}: itinerary and fact columns must follow the editorial image row")
 
+        # M45: assert the actual rendered hero CTA remains legible over the
+        # photographic overlay at every mobile and desktop audit width.
+        hero_cta = page.locator(
+            '.experience-detail-hero__actions a[data-enquiry-link]'
+        ).filter(has_text="Ask about my dates")
+        check(hero_cta.count() == 1,
+              f"Experience details: expected one secondary hero enquiry CTA at {width}px")
+        if hero_cta.count() == 1:
+            visual = hero_cta.evaluate("""element => {
+              const style = getComputedStyle(element);
+              const rect = element.getBoundingClientRect();
+              const viewport = document.documentElement.clientWidth;
+              return {
+                color: style.color,
+                underlineColor: style.borderBottomColor,
+                underlineWidth: parseFloat(style.borderBottomWidth),
+                display: style.display,
+                visibility: style.visibility,
+                opacity: parseFloat(style.opacity),
+                width: rect.width,
+                height: rect.height,
+                left: rect.left,
+                right: rect.right,
+                insideViewport: rect.width > 0 && rect.height > 0
+                  && rect.left >= -1 && rect.right <= viewport + 1,
+              };
+            }""")
+            check(visual["color"] == "rgb(255, 253, 248)",
+                  f"Experience details: hero secondary CTA must use high-contrast ivory text at {width}px; got {visual['color']}")
+            check(visual["underlineColor"] == "rgb(201, 164, 106)" and visual["underlineWidth"] >= 1,
+                  f"Experience details: hero secondary CTA must retain its gold underline at {width}px")
+            check(visual["display"] != "none" and visual["visibility"] == "visible"
+                  and visual["opacity"] > 0 and visual["insideViewport"],
+                  f"Experience details: hero secondary CTA must be visibly within the viewport at {width}px")
+            hero_cta.focus()
+            focus = hero_cta.evaluate("""element => {
+              const style = getComputedStyle(element);
+              return {
+                focusVisible: element.matches(':focus-visible'),
+                outlineStyle: style.outlineStyle,
+                outlineWidth: parseFloat(style.outlineWidth),
+                outlineColor: style.outlineColor,
+              };
+            }""")
+            check(focus["focusVisible"] and focus["outlineStyle"] != "none"
+                  and focus["outlineWidth"] >= 3
+                  and focus["outlineColor"] == "rgb(240, 213, 165)",
+                  f"Experience details: hero secondary CTA must retain a clear keyboard focus-visible outline at {width}px")
+
         for text_only_id in ("car-and-road-travel-detail", "other-routes"):
             text_only = page.locator("#" + text_only_id)
             check(text_only.count() == 1 and text_only.locator("img").count() == 0,
@@ -5667,52 +6437,118 @@ def check_journal_preview(page, base_url: str, evidence_dir: Path) -> None:
 
 
 def check_arrival_planning_deep_links(page, base_url: str) -> None:
-    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
+    """Exercise every Arrive entry point at mobile and desktop viewport sizes."""
+    original_viewport = page.viewport_size
+    matrix = [(390, 844), (1280, 900)]
+    completed_cases: list[tuple[str, int, int]] = []
+    failures_before = len(FAILURES)
+    try:
+        for width, height in matrix:
+            page.set_viewport_size({"width": width, "height": height})
+            for page_name in PAGES:
+                viewport_label = f"{width}x{height}"
+                response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
+                check(response is not None and response.status == 200,
+                      f"{page_name} at {viewport_label}: arrival deep-link source must return HTTP 200")
+                if response is None or response.status != 200:
+                    continue
+                if page_name == "index.html":
+                    link = page.locator('.home-plan-panel a.home-plan-path[href="directions.html#arrival-planning"]')
+                else:
+                    link = page.locator('.guest-journey a.guest-journey__step[href="directions.html#arrival-planning"]')
+                check(link.count() == 1,
+                      f"{page_name} at {viewport_label}: expected exactly one Arrive deep link to the planner")
+                if link.count() != 1:
+                    continue
+                check(link.is_visible(),
+                      f"{page_name} at {viewport_label}: Arrive deep link must be visible before activation")
+                if not link.is_visible():
+                    continue
+                link.click()
+                try:
+                    page.wait_for_url("**/directions.html#arrival-planning", timeout=7000)
+                except Exception as error:
+                    check(False,
+                          f"{page_name} at {viewport_label}: Arrive link must land at Directions#arrival-planning ({error})")
+                    continue
 
-def check_arrival_planning_deep_links(page, base_url: str) -> None:
-    """Verify all guest-planning entry points land on the date-specific arrival form anchor."""
-    for page_name in PAGES:
-        response = page.goto(base_url + page_name, wait_until="domcontentloaded", timeout=15000)
-        check(response is not None and response.status == 200,
-              f"{page_name}: arrival deep-link source must return HTTP 200")
-        if page_name == "index.html":
-            link = page.locator('.home-plan-panel a.home-plan-path[href="directions.html#arrival-planning"]')
-        else:
-            link = page.locator('.guest-journey a.guest-journey__step[href="directions.html#arrival-planning"]')
-        check(link.count() == 1, f"{page_name}: expected exactly one Arrive deep link to the planner")
-        if link.count() != 1:
-            continue
-        link.click()
-        try:
-            page.wait_for_url("**/directions.html#arrival-planning", timeout=7000)
-        except Exception as error:
-            check(False, f"{page_name}: Arrive link must land at Directions#arrival-planning ({error})")
-            continue
-        target = page.locator("#arrival-planning")
-        check(target.count() == 1, "Directions must provide one arrival-planning fragment target")
-        if target.count() == 1:
-            try:
-                page.wait_for_function(
-                    "() => { const target = document.querySelector('#arrival-planning'); "
-                    "if (!target) return false; const rect = target.getBoundingClientRect(); "
-                    "return rect.top < window.innerHeight && rect.bottom > 0 "
-                    "&& document.activeElement === target; }",
-                    timeout=5000,
+                target = page.locator("#arrival-planning")
+                check(target.count() == 1,
+                      f"{page_name} at {viewport_label}: Directions must provide one arrival-planning fragment target")
+                if target.count() != 1:
+                    continue
+                try:
+                    page.wait_for_function(
+                        """() => {
+                          const target = document.querySelector('#arrival-planning');
+                          const heading = document.querySelector('#arrival-enquiry-title');
+                          if (!target || !heading || document.activeElement !== target) return false;
+                          const targetRect = target.getBoundingClientRect();
+                          const headingRect = heading.getBoundingClientRect();
+                          const header = document.querySelector('[data-header]');
+                          const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+                          return targetRect.top < window.innerHeight && targetRect.bottom > 0
+                            && headingRect.top >= Math.max(0, headerBottom)
+                            && headingRect.bottom <= window.innerHeight;
+                        }""",
+                        timeout=7000,
+                    )
+                except Exception as error:
+                    check(False,
+                          f"{page_name} at {viewport_label}: arrival fragment should finish scrolling with the planner heading visible and focus transferred ({error})")
+
+                viewport_geometry = page.evaluate(
+                    """() => {
+                      const target = document.querySelector('#arrival-planning');
+                      const heading = document.querySelector('#arrival-enquiry-title');
+                      const header = document.querySelector('[data-header]');
+                      if (!target || !heading) return null;
+                      const targetRect = target.getBoundingClientRect();
+                      const headingRect = heading.getBoundingClientRect();
+                      return {
+                        targetTop: targetRect.top,
+                        targetBottom: targetRect.bottom,
+                        headingTop: headingRect.top,
+                        headingBottom: headingRect.bottom,
+                        headerBottom: header ? header.getBoundingClientRect().bottom : 0,
+                        viewportHeight: window.innerHeight
+                      };
+                    }"""
                 )
-            except Exception as error:
-                check(False, f"{page_name}: arrival fragment should scroll into view and transfer focus ({error})")
-            bounds = target.bounding_box()
-            viewport_height = page.evaluate("() => window.innerHeight")
-            is_focused = page.evaluate("() => document.activeElement && document.activeElement.id === 'arrival-planning'")
-            check(is_focused, f"{page_name}: focus must move to the arrival planner for keyboard/screen-reader continuity")
-            check(bounds is not None and bounds["y"] < viewport_height
-                  and bounds["y"] + bounds["height"] > 0,
-                  f"{page_name}: deep-linked arrival planner must be within the viewport ({bounds})")
-        check(page.locator("#arrival-enquiry-title").is_visible(),
-              f"{page_name}: deep link must expose the date-specific arrival planner heading")
-        check(same_origin(page.url, base_url),
-              f"{page_name}: arrival planning deep link must remain same-origin")
+                viewport_height = page.evaluate("() => window.innerHeight")
+                is_focused = page.evaluate(
+                    "() => document.activeElement && document.activeElement.id === 'arrival-planning'"
+                )
+                check(is_focused,
+                      f"{page_name} at {viewport_label}: focus must move to the planner for keyboard/screen-reader continuity")
+                check(bool(viewport_geometry)
+                      and viewport_geometry["targetTop"] < viewport_height
+                      and viewport_geometry["targetBottom"] > 0,
+                      f"{page_name} at {viewport_label}: deep-linked planner must be within the viewport ({viewport_geometry})")
 
+                heading = page.locator("#arrival-enquiry-title")
+                check(heading.count() == 1 and heading.is_visible(),
+                      f"{page_name} at {viewport_label}: deep link must expose the date-specific planner heading")
+                check(bool(viewport_geometry)
+                      and viewport_geometry["headingTop"] >= max(0, viewport_geometry["headerBottom"])
+                      and viewport_geometry["headingBottom"] <= viewport_height,
+                      f"{page_name} at {viewport_label}: planner heading must be fully visible below the sticky header ({viewport_geometry})")
+                check(same_origin(page.url, base_url),
+                      f"{page_name} at {viewport_label}: arrival planner handoff must remain same-origin")
+                completed_cases.append((page_name, width, height))
+    finally:
+        if original_viewport is not None:
+            page.set_viewport_size(original_viewport)
+
+    expected_cases = len(PAGES) * len(matrix)
+    check(len(completed_cases) == expected_cases,
+          f"Arrival planner deep-link matrix must complete {expected_cases} route/viewport cases; completed {len(completed_cases)}")
+    if len(completed_cases) == expected_cases and len(FAILURES) == failures_before:
+        print(
+            "PASS: arrival planner deep links verified across "
+            f"{len(PAGES)} core routes × {len(matrix)} viewports = {expected_cases} cases "
+            "(390x844 mobile, 1280x900 desktop), including visible heading, focus transfer and same-origin URL."
+        )
 
 def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
     """Exercise the date-specific arrival draft without opening WhatsApp or sending data."""
@@ -5832,7 +6668,7 @@ def check_arrival_planning_enquiry(page, base_url: str, browser) -> None:
     check("copied" in (form.locator('[data-arrival-enquiry-status]').inner_text() or "").lower(),
           "Arrival enquiry: copy result must be announced")
 
-    for width, height in [(320, 740), (390, 844), (768, 900), (1280, 800), (1440, 900)]:
+    for width, height in [(320, 740), (375, 812), (390, 844), (430, 932), (768, 900), (1280, 800), (1440, 900)]:
         page.set_viewport_size({"width": width, "height": height})
         dimensions = page.evaluate(
             "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"
@@ -6418,6 +7254,8 @@ def main(argv: list[str] | None = None) -> int:
                         PAGES_HTTP_OK.append(page_name)
                 page.wait_for_selector("main#main", timeout=5000)
                 check_page_contract(page, page_name, titles)
+                check_booking_handoff_on_route(page, page_name)
+                check_extended_guest_viewports(page, page_name)
                 load_visible_images(page, page_name, base_url)
                 page.evaluate("window.scrollTo(0, 0)")
                 check(len(RUNTIME_ERRORS) == before_errors,
@@ -6425,6 +7263,8 @@ def main(argv: list[str] | None = None) -> int:
 
             unknown_route_evidence = check_404_recovery(page, base_url)
             check_contact_hydration(page, base_url)
+            check_contact_configuration_failure_recovery(browser, base_url)
+            check_contact_configuration_recovery_all_routes(browser, base_url)
             check_stay_planner(page, base_url)
             check_direct_enquiry_dock(page, base_url)
             check_guest_enquiry_forms(page, base_url)

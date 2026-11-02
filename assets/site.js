@@ -4,6 +4,25 @@
   const menuToggle = document.querySelector('.menu-toggle');
   const nav = document.querySelector('#primary-navigation');
   const contactStatus = document.querySelector('#contact-status');
+  const contactRetryButton = contactStatus ? document.createElement('button') : null;
+  if (contactRetryButton) {
+    contactRetryButton.type = 'button';
+    contactRetryButton.className = 'contact-status-banner__retry';
+    contactRetryButton.setAttribute('data-contact-config-retry', '');
+    contactRetryButton.textContent = 'Retry contact options';
+    contactRetryButton.hidden = true;
+    contactStatus.appendChild(contactRetryButton);
+    contactRetryButton.addEventListener('click', async () => {
+      if (contactRetryButton.disabled) return;
+      contactRetryButton.disabled = true;
+      contactRetryButton.textContent = 'Retrying…';
+      await configureContactChannels();
+      if (!contactRetryButton.hidden) {
+        contactRetryButton.disabled = false;
+        contactRetryButton.textContent = 'Try again';
+      }
+    });
+  }
   const directEnquiryDock = document.querySelector('[data-direct-enquiry-dock]');
   const mobileBookingBar = document.querySelector('.mobile-booking-bar');
   const arrivalQuickCard = document.querySelector('[data-arrival-quick-card]');
@@ -20,6 +39,10 @@
   const arrivalPlanningForms = Array.from(document.querySelectorAll('[data-arrival-planning-form]'));
   const roomCompareEnquiryButtons = Array.from(document.querySelectorAll('[data-room-compare-enquiry]'));
   let activeWhatsAppBaseUrl = '';
+  // Capture the shared runtime URL synchronously; document.currentScript is null after async work begins.
+  const sharedRuntimeUrl = document.currentScript && document.currentScript.src
+    ? document.currentScript.src
+    : (window.location && window.location.href ? window.location.href : '');
 
   function focusArrivalPlannerFromFragment() {
     if (!window.location || !['#arrival-planning', '#arrival-enquiry-title'].includes(window.location.hash)) return;
@@ -653,21 +676,20 @@
   }
 
   async function configureContactChannels() {
+    let mapConfigurationPublished = false;
     if (!enquiryLinks.length && !phoneLinks.length && !alternatePhoneLinks.length
         && !emailLinks.length && !bookingLinks.length && !propertyMapLinks.length
         && !bookingForms.length && !guestEnquiryForms.length && !arrivalPlanningForms.length
         && !roomCompareEnquiryButtons.length) return;
     try {
       if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
-      const scriptUrl = document.currentScript && document.currentScript.src;
-      const configUrl = new URL('../content/site-config.json', scriptUrl || window.location.href);
+      const configUrl = new URL('../content/site-config.json', sharedRuntimeUrl);
       const response = await fetch(configUrl.toString(), { cache: 'no-store' });
       if (!response.ok) throw new Error('Contact configuration could not be loaded');
       const config = await response.json();
       const contact = config && config.contact ? config.contact : {};
       const booking = config && config.booking ? config.booking : {};
       const propertyNavigation = config && config.propertyNavigation ? config.propertyNavigation : {};
-      configureGuestEnquiryForms(config);
       const contactAuthorized = channelIsAuthorized(config, contact);
       const bookingAuthorized = channelIsAuthorized(config, booking);
       const propertyNavigationAuthorized = channelIsAuthorized(config, propertyNavigation);
@@ -686,13 +708,6 @@
         }
       }
       activeWhatsAppBaseUrl = whatsappBaseUrl;
-      if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
-        document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
-          detail: { whatsappBaseUrl }
-        }));
-      }
-      configureRoomCompareEnquiry(whatsappBaseUrl);
-      configureArrivalPlanningForms(whatsappBaseUrl);
 
       const phoneE164 = contactAuthorized && typeof contact.primaryPhoneE164 === 'string'
         && /^\+[1-9]\d{7,14}$/.test(contact.primaryPhoneE164) ? contact.primaryPhoneE164 : '';
@@ -734,6 +749,34 @@
           // An invalid or unexpected map destination remains disabled.
         }
       }
+
+      const expectedHotelMapEmbedUrl = 'https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed';
+      let hotelMapEmbedUrl = '';
+      if (propertyNavigationAuthorized && propertyNavigation.hotelMapEmbedUrl === expectedHotelMapEmbedUrl) {
+        try {
+          const url = new URL(expectedHotelMapEmbedUrl);
+          if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'www.google.com'
+              && url.port === '' && url.pathname === '/maps'
+              && !url.username && !url.password && !url.hash) {
+            hotelMapEmbedUrl = expectedHotelMapEmbedUrl;
+          }
+        } catch (_) {
+          // An invalid or unexpected map embed destination remains disabled.
+        }
+      }
+
+      if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
+        document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
+          detail: { whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl }
+        }));
+        mapConfigurationPublished = true;
+      }
+
+      // Publish source-validated map destinations before unrelated enquiry-form
+      // setup. A form-specific error must not invalidate an already-ready map.
+      configureGuestEnquiryForms(config);
+      configureRoomCompareEnquiry(whatsappBaseUrl);
+      configureArrivalPlanningForms(whatsappBaseUrl);
 
       enquiryLinks.forEach(link => {
         if (!whatsappBaseUrl) {
@@ -804,12 +847,22 @@
         || (propertyMapLinks.length > 0 && !hotelMapUrl)
         || (bookingForms.length > 0 && !whatsappBaseUrl)
         || (arrivalPlanningForms.length > 0 && !whatsappBaseUrl);
+      if (contactRetryButton) {
+        contactRetryButton.hidden = true;
+        contactRetryButton.disabled = false;
+        contactRetryButton.textContent = 'Retry contact options';
+      }
       if (contactStatus) contactStatus.hidden = !hasUnavailableChannel;
     } catch (_) {
-      if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
+      if (!mapConfigurationPublished && typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'function') {
         document.dispatchEvent(new CustomEvent('garh-jaisal:contact-ready', {
-          detail: { whatsappBaseUrl: '' }
+          detail: { whatsappBaseUrl: '', hotelMapUrl: '', hotelMapEmbedUrl: '' }
         }));
+      }
+      if (contactRetryButton) {
+        contactRetryButton.hidden = false;
+        contactRetryButton.disabled = false;
+        contactRetryButton.textContent = 'Try again';
       }
       if (contactStatus) contactStatus.hidden = false;
       enquiryLinks.forEach(link => disableContactLink(link, 'WhatsApp unavailable'));

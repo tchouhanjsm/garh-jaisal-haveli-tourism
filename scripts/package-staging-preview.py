@@ -48,7 +48,18 @@ UNREFERENCED_DUPLICATE_RUNTIME_IMAGES = {
         "sha256": "1962dfbbb131d1fbf21d703aabbd14197801fe52187cbb948ec6d066780d8ae6",
     },
 }
+# This reviewed room image is retained in the source repository but has no
+# reference in the current runtime HTML, CSS, JavaScript or site config.
+# Its exact source identity and a live reference scan are required to omit it.
+UNREFERENCED_RUNTIME_IMAGES = {
+    "assets/images/rooms/haveli-sitting-room.webp": {
+        "gitBlobSha": "7a733bd4abc6f37eaa86898cd92f431894c2e5eb",
+        "sha256": "08620783448c16ca6b88eb5b5c3c41b78b5746b3008b0bd9f73efd873a23ef79",
+        "reason": "not-referenced-by-runtime-html-css-js-or-config",
+    },
+}
 MAX_UNCOMPRESSED_PACKAGE_BYTES = 18 * 1024 * 1024
+MINIMUM_PACKAGE_RESERVE_PERCENT = 8.0
 LEGACY_IMG_REFERENCE = re.compile(r"(?<![A-Za-z0-9_.-])(?:\.\.?/)*img/", re.IGNORECASE)
 RUNTIME_ROOT_FILES = (
     ".htaccess",
@@ -129,6 +140,132 @@ def validate_runtime_duplicate_image_exclusions(root: Path = ROOT) -> dict:
         "excludedFileCount": len(entries),
         "excludedBytes": sum(entry["bytes"] for entry in entries),
         "files": entries,
+    }
+
+
+
+def validate_unreferenced_runtime_image_exclusions(root: Path) -> dict:
+    """Audit staged runtime references before pruning package-only source assets."""
+    raw_root = Path(root)
+    if raw_root.is_symlink():
+        fail("Unreferenced runtime-image exclusion root must not be a symlink.")
+    resolved_root = raw_root.resolve(strict=True)
+    if not resolved_root.is_dir():
+        fail("Unreferenced runtime-image exclusion root must be a directory.")
+
+    runtime_text_files: set[Path] = set()
+    for candidate in resolved_root.glob("*.html"):
+        if candidate.is_symlink() or not candidate.is_file():
+            fail(f"Runtime root HTML must be a regular file: {candidate.name}")
+        runtime_text_files.add(candidate)
+
+    for directory in ("assets", "tours", "blogs"):
+        directory_root = resolved_root / directory
+        if not directory_root.exists():
+            continue
+        if directory_root.is_symlink() or not directory_root.is_dir():
+            fail(f"Runtime source directory must be a regular directory: {directory}")
+        for candidate in directory_root.rglob("*"):
+            if candidate.is_symlink():
+                fail(f"Symlink found while checking runtime image references: {candidate.relative_to(resolved_root)}")
+            if not candidate.is_file():
+                continue
+            if directory in {"tours", "blogs"}:
+                include = candidate.suffix.lower() == ".html"
+            else:
+                include = candidate.suffix.lower() in {".html", ".css", ".js", ".json", ".svg", ".xml", ".webmanifest"}
+            if include:
+                runtime_text_files.add(candidate)
+
+    config_path = resolved_root / "content" / "site-config.json"
+    if config_path.exists():
+        if config_path.is_symlink() or not config_path.is_file():
+            fail("Runtime site configuration must be a regular file.")
+        runtime_text_files.add(config_path)
+
+    scanned_content: list[tuple[str, str]] = []
+    for candidate in sorted(runtime_text_files):
+        try:
+            content = candidate.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        scanned_content.append((candidate.relative_to(resolved_root).as_posix(), content))
+
+    entries: list[dict] = []
+    for relative, expected in sorted(UNREFERENCED_RUNTIME_IMAGES.items()):
+        source_path = resolved_root / PurePosixPath(relative)
+        if source_path.is_symlink() or not source_path.is_file():
+            fail(f"Unreferenced runtime-image exclusion requires a regular source file: {relative}")
+        if not is_within(source_path.resolve(strict=True), resolved_root):
+            fail(f"Unreferenced runtime-image exclusion escapes its root: {relative}")
+
+        source_bytes = source_path.read_bytes()
+        source_sha256 = digest_bytes(source_bytes)
+        source_git_blob_sha = git_blob_sha(source_bytes)
+        if source_sha256 != expected["sha256"] or source_git_blob_sha != expected["gitBlobSha"]:
+            fail("Unreferenced runtime-image source identity changed; re-review before pruning: " + relative)
+
+        basename = PurePosixPath(relative).name
+        references = [
+            path for path, content in scanned_content
+            if relative in content or basename in content
+        ]
+        if references:
+            fail(
+                "Unreferenced runtime-image exclusion is no longer safe; runtime reference found for "
+                + relative + " in " + ", ".join(references[:8])
+            )
+
+        entries.append({
+            "path": relative,
+            "bytes": len(source_bytes),
+            "gitBlobSha": source_git_blob_sha,
+            "sha256": source_sha256,
+            "reason": expected["reason"],
+            "runtimeTextFilesScanned": len(scanned_content),
+        })
+
+    return {
+        "status": "PASS",
+        "scope": "isolated-staging-package-after-responsive-rewrite",
+        "sourceRepositoryMutated": False,
+        "excludedFileCount": len(entries),
+        "excludedBytes": sum(entry["bytes"] for entry in entries),
+        "runtimeTextFilesScanned": len(scanned_content),
+        "files": entries,
+    }
+
+
+def prune_unreferenced_runtime_images(root: Path, validation_report: dict) -> dict:
+    """Delete only the exact, revalidated files from the isolated package."""
+    current_report = validate_unreferenced_runtime_image_exclusions(root)
+    if current_report != validation_report:
+        fail("Unreferenced runtime-image audit changed before package pruning.")
+
+    resolved_root = Path(root).resolve(strict=True)
+    pruned: list[dict] = []
+    for entry in current_report["files"]:
+        path = resolved_root / PurePosixPath(entry["path"])
+        if path.is_symlink() or not path.is_file():
+            fail(f"Refusing unsafe unreferenced runtime-image prune: {entry['path']}")
+        payload = path.read_bytes()
+        if (
+            len(payload) != entry["bytes"]
+            or digest_bytes(payload) != entry["sha256"]
+            or git_blob_sha(payload) != entry["gitBlobSha"]
+        ):
+            fail(f"Unreferenced runtime image changed immediately before pruning: {entry['path']}")
+        path.unlink()
+        if path.exists() or path.is_symlink():
+            fail(f"Unreferenced runtime image remained after pruning: {entry['path']}")
+        pruned.append(dict(entry))
+
+    return {
+        **current_report,
+        "status": "PASS",
+        "prunedFileCount": len(pruned),
+        "prunedBytes": sum(entry["bytes"] for entry in pruned),
+        "files": pruned,
     }
 
 
@@ -253,6 +390,23 @@ def validate_responsive_markup(
                     f"{page.name}: responsive picture has an unapproved or mismatched JPEG "
                     f"fallback: {fallback_path or '[missing src]'}."
                 )
+            fallback_absolute = output / fallback_path
+            if (fallback_absolute.is_symlink() or not fallback_absolute.is_file()
+                    or not is_within(fallback_absolute.resolve(), output)):
+                fail(f"{page.name}: JPEG fallback is missing or unsafe: {fallback_path}.")
+            declared_fallback_sha256 = source_record.get("fallbackSha256")
+            # Hash evidence exists only after package-only optimization. Preserve
+            # compatibility with the pre-optimization markup fixtures and inputs.
+            if declared_fallback_sha256 is not None:
+                actual_fallback_bytes = fallback_absolute.stat().st_size
+                declared_fallback_bytes = source_record.get("fallbackBytes")
+                if (isinstance(declared_fallback_bytes, bool)
+                        or not isinstance(declared_fallback_bytes, int)
+                        or declared_fallback_bytes != actual_fallback_bytes):
+                    fail(f"{page.name}: JPEG fallback byte metadata does not match its current bytes: {fallback_path}.")
+                actual_fallback_sha256 = hashlib.sha256(fallback_absolute.read_bytes()).hexdigest()
+                if declared_fallback_sha256 != actual_fallback_sha256:
+                    fail(f"{page.name}: JPEG fallback SHA-256 does not match its current bytes: {fallback_path}.")
             classes = fallback.get("class", "").split()
             is_hero = "hero__image" in classes or fallback.get("fetchpriority", "").lower() == "high"
             hero_delivery_path = source_record.get("heroDeliveryWebp") or ""
@@ -1677,20 +1831,31 @@ def package_size_metrics(entries: list[dict], legacy_inventory: dict,
             f"{total} bytes. Review runtime assets; do not raise the budget without a measured reason."
         )
     utilization = round((total / budget_bytes) * 100, 2)
+    required_headroom = math.ceil(budget_bytes * MINIMUM_PACKAGE_RESERVE_PERCENT / 100)
+    actual_headroom = budget_bytes - total
+    if actual_headroom < required_headroom:
+        fail(
+            f"Staging payload uses {utilization:.2f}% of its uncompressed budget; "
+            f"at least {MINIMUM_PACKAGE_RESERVE_PERCENT:.1f}% headroom "
+            f"({required_headroom} bytes) must remain, but only {actual_headroom} bytes remain. "
+            "Optimize package assets instead of raising the budget."
+        )
     return {
         "uncompressedPayloadBytes": total,
         "uncompressedBudgetBytes": budget_bytes,
         "budgetUtilizationPercent": utilization,
+        "minimumReservePercent": MINIMUM_PACKAGE_RESERVE_PERCENT,
+        "remainingHeadroomBytes": budget_bytes - total,
         "sizeBudgetPassed": True,
         "sourceOnlyImageLibraryExcluded": legacy_inventory,
     }
 
 
 def checked_paths(excluded_runtime_assets: set[str] | None = None) -> list[Path]:
-    """Select browser runtime files, omitting only verified duplicate legacy images."""
+    """Select runtime files; prune exact duplicates now, then unused sources after responsive rewriting."""
     if excluded_runtime_assets is None:
-        exclusion_report = validate_runtime_duplicate_image_exclusions()
-        excluded_runtime_assets = {entry["path"] for entry in exclusion_report["files"]}
+        duplicate_report = validate_runtime_duplicate_image_exclusions()
+        excluded_runtime_assets = {entry["path"] for entry in duplicate_report["files"]}
     files: set[Path] = set()
     for candidate in ROOT.glob("*.html"):
         if candidate.is_symlink() or not candidate.is_file():
@@ -2128,6 +2293,29 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
         generator.RESPONSIVE_WIDTH_OVERRIDES,
     )
+    optimizer_path = ROOT / "scripts" / "optimize_jpeg_fallbacks.py"
+    optimizer_spec = importlib.util.spec_from_file_location("jpeg_fallback_optimizer", optimizer_path)
+    if optimizer_spec is None or optimizer_spec.loader is None:
+        fail("Could not load the guarded JPEG fallback optimizer.")
+    optimizer = importlib.util.module_from_spec(optimizer_spec)
+    optimizer_spec.loader.exec_module(optimizer)
+    # Revalidate the approved duplicate map against the untouched source tree;
+    # only its retained counterparts are exempt from package-only JPEG re-encoding.
+    retained_duplicate_paths = {
+        entry["duplicateOf"] for entry in validate_runtime_duplicate_image_exclusions()["files"]
+    }
+    optimizer_sources = [
+        {**record, "preserveSourceIdentity": record["sourceJpeg"] in retained_duplicate_paths}
+        for record in image_sources
+    ]
+    jpeg_fallback_optimization = optimizer.optimize_jpeg_fallbacks(output, optimizer_sources)
+    image_sources = optimizer_sources
+    # Re-run responsive checks against the optimized fallback bytes. Hero and
+    # AVIF-provenance-bound fallbacks are left byte-identical by the optimizer.
+    markup_validation = validate_responsive_markup(
+        output, generated_files, image_sources, tuple(generator.RESPONSIVE_WIDTHS),
+        generator.RESPONSIVE_WIDTH_OVERRIDES,
+    )
     source_jpeg_bytes = sum(item["fallbackBytes"] for item in image_sources)
     optimized_jpeg_source_bytes = sum(
         item["sourceBytes"] for item in image_sources if item["sourceFormat"] == "JPEG"
@@ -2218,6 +2406,7 @@ def apply_responsive_image_delivery(output: Path) -> dict:
         ),
         "enforcedFullSizeByteBudgets": sorted(enforced_full_size_budgets, key=lambda item: item["path"]),
         "sourceImages": image_sources,
+        "jpegFallbackOptimization": jpeg_fallback_optimization,
         "generatedWebpFileCount": sum(item["path"].endswith(".webp") for item in generated_output_files),
         "generatedWebpFiles": sorted(
             (item for item in generated_output_files if item["path"].endswith(".webp")),
@@ -2285,6 +2474,88 @@ def _validate_archive_member_path(path: object, label: str) -> str:
     return path
 
 
+def validate_retained_duplicate_package_payload(
+    duplicate_path: str,
+    retained_bytes: bytes,
+    pruning_entry: dict,
+    expected_identity: dict,
+    jpeg_optimization: dict,
+) -> None:
+    """Reconcile original duplicate identity with the retained package JPEG's optimizer evidence."""
+    original_bytes = pruning_entry.get("bytes")
+    if isinstance(original_bytes, bool) or not isinstance(original_bytes, int) or original_bytes < 1:
+        fail(f"Runtime duplicate-image byte count is invalid: {duplicate_path}")
+    if (
+        pruning_entry.get("sha256") != expected_identity.get("sha256")
+        or pruning_entry.get("gitBlobSha") != expected_identity.get("gitBlobSha")
+    ):
+        fail(f"Runtime duplicate-image source identity metadata is invalid: {duplicate_path}")
+
+    records = jpeg_optimization.get("files") if isinstance(jpeg_optimization, dict) else None
+    if not isinstance(records, list):
+        fail("JPEG fallback optimizer evidence is missing from the responsive-image manifest.")
+    matches = [
+        record for record in records
+        if isinstance(record, dict) and record.get("path") == duplicate_path
+    ]
+    if len(matches) != 1:
+        fail(f"Expected exactly one JPEG optimizer record for retained duplicate: {duplicate_path}")
+    record = matches[0]
+
+    if (
+        record.get("originalBytes") != original_bytes
+        or record.get("originalSha256") != expected_identity.get("sha256")
+    ):
+        fail(f"JPEG optimizer original bytes do not match the pre-optimization duplicate identity: {duplicate_path}")
+
+    status = record.get("status")
+    if status == "OPTIMIZED":
+        try:
+            psnr = float(record.get("psnrDb"))
+            minimum_psnr = float(record.get("minimumPsnrDb"))
+            savings_percent = float(record.get("savedPercent"))
+        except (TypeError, ValueError):
+            fail(f"JPEG optimizer quality evidence is invalid: {duplicate_path}")
+        if (
+            record.get("optimizedBytes") != len(retained_bytes)
+            or record.get("optimizedSha256") != digest_bytes(retained_bytes)
+            or record.get("dimensionsPreserved") is not True
+            or record.get("iccProfilePreserved") is not True
+            or record.get("exifOrientationPreserved") is not True
+            or psnr < MINIMUM_PSNR_DB
+            or psnr < minimum_psnr
+            or savings_percent < MINIMUM_SAVINGS_PERCENT
+            or record.get("savedBytes") != original_bytes - len(retained_bytes)
+        ):
+            fail(f"Retained duplicate does not match its quality-gated JPEG optimization evidence: {duplicate_path}")
+        return
+
+    if status == "SKIPPED_PROTECTED_DUPLICATE_IDENTITY":
+        if (
+            record.get("reason") != "retained-duplicate-source-identity"
+            or record.get("optimizedBytes") != original_bytes
+            or record.get("savedBytes") != 0
+            or len(retained_bytes) != original_bytes
+            or digest_bytes(retained_bytes) != expected_identity.get("sha256")
+            or git_blob_sha(retained_bytes) != expected_identity.get("gitBlobSha")
+        ):
+            fail(f"Protected retained duplicate no longer matches its exact Git source identity: {duplicate_path}")
+        return
+
+    if status in {"SKIPPED_NO_QUALIFYING_CANDIDATE", "SKIPPED_UNSUPPORTED_COLOR_MODE", "SKIPPED_PROTECTED_SOURCE"}:
+        if (
+            record.get("optimizedBytes") != original_bytes
+            or record.get("savedBytes") != 0
+            or len(retained_bytes) != original_bytes
+            or digest_bytes(retained_bytes) != expected_identity.get("sha256")
+            or git_blob_sha(retained_bytes) != expected_identity.get("gitBlobSha")
+        ):
+            fail(f"Unoptimized retained duplicate no longer matches its original source bytes: {duplicate_path}")
+        return
+
+    fail(f"Retained duplicate has an unsupported JPEG optimizer status: {duplicate_path} ({status!r})")
+
+
 def deterministic_archive(output: Path, archive: Path) -> None:
     """Create a reproducible ZIP and verify its exact payload against the release manifest."""
     archive.parent.mkdir(parents=True, exist_ok=True)
@@ -2337,6 +2608,10 @@ def deterministic_archive(output: Path, archive: Path) -> None:
         responsive_delivery = manifest.get("responsiveImageDelivery")
         delivery_evidence = (
             responsive_delivery.get("deliveryEvidence")
+            if isinstance(responsive_delivery, dict) else None
+        )
+        jpeg_optimization = (
+            responsive_delivery.get("jpegFallbackOptimization")
             if isinstance(responsive_delivery, dict) else None
         )
         if (
@@ -2401,12 +2676,9 @@ def deterministic_archive(output: Path, archive: Path) -> None:
             if entry.get("sha256") != expected["sha256"] or entry.get("gitBlobSha") != expected["gitBlobSha"]:
                 fail(f"Runtime duplicate-image identity metadata is invalid: {pruned_path}")
             retained_bytes = package.read(duplicate_path)
-            if (
-                len(retained_bytes) != byte_count
-                or digest_bytes(retained_bytes) != expected["sha256"]
-                or git_blob_sha(retained_bytes) != expected["gitBlobSha"]
-            ):
-                fail(f"Retained duplicate does not match the pruned source identity: {duplicate_path}")
+            validate_retained_duplicate_package_payload(
+                duplicate_path, retained_bytes, entry, expected, jpeg_optimization
+            )
             if pruned_path in actual_pruned_paths:
                 fail(f"Runtime duplicate-image pruning repeats a path: {pruned_path}")
             actual_pruned_paths.add(pruned_path)
@@ -2589,6 +2861,7 @@ def main() -> int:
     output.mkdir(parents=True)
 
     runtime_asset_pruning_report = validate_runtime_duplicate_image_exclusions()
+    retained_duplicate_paths = {entry["duplicateOf"] for entry in runtime_asset_pruning_report["files"]}
     excluded_runtime_assets = {entry["path"] for entry in runtime_asset_pruning_report["files"]}
     files = checked_paths(excluded_runtime_assets)
     source_config = json.loads((ROOT / "content" / "site-config.json").read_text(encoding="utf-8"))
@@ -2603,11 +2876,17 @@ def main() -> int:
     copy_runtime_files(files, output)
     legacy_reference_report = validate_no_legacy_image_tree_references(output)
     responsive_report = apply_responsive_image_delivery(output)
-    asset_closure_report = validate_runtime_asset_closure(output)
+    # The original WebP source is needed by the rewrite step. Audit and prune
+    # only after the generated responsive markup no longer references it.
+    runtime_unreferenced_validation = validate_unreferenced_runtime_image_exclusions(output)
+    runtime_unreferenced_pruning_report = prune_unreferenced_runtime_images(
+        output, runtime_unreferenced_validation
+    )
     for entry in runtime_asset_pruning_report["files"]:
         pruned_path = output / entry["path"]
         if pruned_path.is_symlink() or pruned_path.exists():
             fail(f"Verified duplicate runtime image was not pruned from the package: {entry['path']}")
+    asset_closure_report = validate_runtime_asset_closure(output)
     runtime_asset_report = {**legacy_reference_report, **asset_closure_report}
     route_report = validate_packaged_routes(output)
     document_contract_report = validate_document_contract(output)
@@ -2630,6 +2909,7 @@ def main() -> int:
         "packageMetrics": package_metrics,
         "runtimeAssetClosure": runtime_asset_report,
         "runtimeAssetPruning": runtime_asset_pruning_report,
+        "runtimeUnreferencedAssetPruning": runtime_unreferenced_pruning_report,
         "documentContract": document_contract_report,
         "editorialDraftIsolation": editorial_draft_isolation_report,
         "hostingDelivery": hosting_delivery_report,
@@ -2666,9 +2946,15 @@ def main() -> int:
         f"{runtime_asset_pruning_report['excludedFileCount']} files / "
         f"{runtime_asset_pruning_report['excludedBytes']} bytes"
     )
+    print(
+        "Verified unreferenced runtime-only images excluded: "
+        f"{runtime_unreferenced_pruning_report['excludedFileCount']} files / "
+        f"{runtime_unreferenced_pruning_report['excludedBytes']} bytes"
+    )
     print("Draft editorial source records, preview route/assets and generated draft blog routes excluded: PASS")
     print(f"Legacy source image library excluded: {legacy_inventory['fileCount']} files / {legacy_inventory['bytesExcluded']} bytes")
     print(f"Uncompressed payload: {package_metrics['uncompressedPayloadBytes']} / {package_metrics['uncompressedBudgetBytes']} bytes ({package_metrics['budgetUtilizationPercent']}% of budget)")
+    print(f"Reserved package headroom: {package_metrics['minimumReservePercent']}% minimum; {package_metrics['remainingHeadroomBytes']} bytes remain")
     print(f"Responsive source photos processed: {responsive_report['sourceImageCount']}")
     print(f"Generated responsive WebP files: {responsive_report['generatedWebpFileCount']}")
     print(f"Downscaled responsive variants: {responsive_report['responsiveVariantCount']} ({responsive_report['responsiveVariantBytes']} bytes)")

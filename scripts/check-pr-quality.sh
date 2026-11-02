@@ -7,6 +7,9 @@ cd "$ROOT"
 echo "== Static website integrity =="
 bash scripts/check-site.sh
 node scripts/test-content-ux.js
+node scripts/test-guest-journey-acceptance.js
+node scripts/test-extended-responsive-acceptance.js
+node scripts/test-contact-config-resilience.js
 node scripts/test-premium-guest-journey.js
 node scripts/test-conversion-hierarchy.js
 node scripts/test-about-story.js
@@ -35,6 +38,7 @@ python3 scripts/test-public-route-contract.py
 
 echo "== Staging preflight safety/report contract tests =="
 python3 scripts/test-staging-preflight-contract.py
+python3 scripts/test-jpeg-fallback-optimization.py
 python3 scripts/test-staging-visual-review.py
 
 echo "== Static accessibility contract across public HTML routes =="

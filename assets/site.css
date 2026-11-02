@@ -43,6 +43,10 @@
 /* Contact endpoints stay inactive until owner verification succeeds. */
 .contact-status-banner{max-width:var(--wrap,1120px);margin:24px auto;padding:15px 18px;border-left:3px solid var(--gold);background:var(--sand);color:var(--ink);font-size:12px;line-height:1.75}
 .contact-status-banner strong{display:block;margin-bottom:3px;font-size:11px;letter-spacing:.03em}
+.contact-status-banner__retry{display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin-top:10px;padding:9px 15px;border:1px solid var(--ink);border-radius:var(--control-radius,2px);background:var(--ink);color:var(--white,#fff);font:inherit;font-weight:700;cursor:pointer}
+.contact-status-banner__retry:hover,.contact-status-banner__retry:focus-visible{background:var(--gold-dark,var(--ink));color:var(--white,#fff)}
+.contact-status-banner__retry:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.contact-status-banner__retry:disabled{opacity:.6;cursor:wait}
 .contact-status-banner[hidden]{display:none!important}
 a[aria-disabled="true"]{opacity:.62;cursor:help}
 .booking-form__submit:disabled{opacity:.55;cursor:not-allowed}
@@ -369,3 +373,9 @@ a[aria-disabled="true"]{opacity:.62;cursor:help}
 /* Keep fallback panel headings consistent when nested below an existing h3. */
 .guest-enquiry-recovery h4{margin:0;font-family:var(--serif);font-size:clamp(20px,2.4vw,26px);font-weight:400;line-height:1.2}
 picture.responsive-image{display:contents}
+
+
+/* M45: readable secondary action on the photographic Experience Details hero. */
+.experience-detail-hero .experience-detail-hero__actions .text-link--light{color:#fffdf8;border-bottom-color:var(--gold);text-shadow:0 1px 2px rgba(0,0,0,.55)}
+.experience-detail-hero .experience-detail-hero__actions .text-link--light:hover{color:#fff;border-bottom-color:#f0d5a5}
+.experience-detail-hero .experience-detail-hero__actions .text-link--light:focus-visible{outline:3px solid #f0d5a5;outline-offset:5px;border-radius:2px}

@@ -17,7 +17,8 @@
   },
   "propertyNavigation": {
     "status": "source-authorized",
-    "hotelMapUrl": "https://maps.app.goo.gl/nAbRiZhv78FSbju48"
+    "hotelMapUrl": "https://maps.app.goo.gl/nAbRiZhv78FSbju48",
+    "hotelMapEmbedUrl": "https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed"
   },
   "contact": {
     "whatsappBaseUrl": "https://wa.me/917727047567",

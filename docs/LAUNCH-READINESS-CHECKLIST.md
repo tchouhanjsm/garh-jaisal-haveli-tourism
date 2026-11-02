@@ -420,8 +420,8 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 
 ## Arrival planner route coverage — automated gate
 
-- [ ] Confirm the Home Arrive tile and every Stay / Explore / Dine / Arrive navigation rail link to `directions.html#arrival-planning`; do not regress to the top-of-page URL.
-- [ ] Verify the date-specific planner section and heading resolve after navigation from all eight core routes at desktop and mobile viewports.
+- [x] Confirm the Home Arrive tile and every Stay / Explore / Dine / Arrive navigation rail link to `directions.html#arrival-planning`; do not regress to the top-of-page URL.
+- [x] Verify the date-specific planner section and heading resolve after navigation from all eight core routes at mobile (390×844) and desktop (1280×900) viewports; Chromium records all 16 route/viewport journeys.
 - [ ] Continue to treat this as a draft enquiry only; actual meeting point, route conditions, luggage support and contact responsiveness require owner/staging confirmation.
 
 
@@ -456,3 +456,125 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [ ] Owner/editor content, factual, source, visual-subject, rights and alt-text review remains pending for all 12 drafts.
 - [ ] Human visual review and STG-01–STG-18 remain NOT RUN; CI artifacts are local-only evidence, not staging UAT.
 - [ ] Public routes, indexing, canonical approval, sitemap publication and deployment remain disabled.
+
+
+## 2 November 2026 — M33: arrival driver handoff and opt-in map
+
+- [x] Add the source-backed Fort Kotari Para driver note and exact hotel pin.
+- [x] Use the native share sheet when supported; retain clipboard fallback and explicit cancellation feedback.
+- [x] Restrict the exact pin URL in static markup to the driver note and the safe no-JavaScript fallback; both must equal the central site-config URL.
+- [x] Keep Google Maps iframe requests dormant until the visitor opens the native disclosure and preserve lazy-load behavior.
+- [x] Cover the driver handoff, share/cancel/copy paths, and first/repeated map activation in the consolidated Chromium smoke.
+- [ ] Owner confirmation of date-specific vehicle stop, driver meeting point, route conditions and available assistance remains pending.
+- [ ] Verify actual native share-sheet behaviour and clipboard permissions on iOS, Android and desktop on an owner-approved staging origin.
+- [ ] STG-01–STG-18 and human visual review remain NOT RUN; CI screenshots are not staging UAT.
+- [ ] No public publishing, SEO indexing, canonical approval or deployment policy has changed.
+
+## 2 November 2026 — M35: sitewide guest-journey acceptance
+
+- [x] Exercise booking CTA hydration on all eight public routes using the same source-authorized AsiaTech destination.
+- [x] Verify HTTPS, provider hostname/path, token presence, new-tab target and noopener/noreferrer on every booking CTA.
+- [x] Verify same-page CTA fragments resolve to real elements and reject inert # / javascript: anchor destinations.
+- [x] Add a static route contract for H1 count, main landmark, primary navigation and contact fallback.
+- [ ] Owner must complete real booking-provider UAT on an approved HTTPS staging origin, including a mobile browser.
+- [ ] Human visual review and STG-01–STG-18 remain NOT RUN; CI is not staging UAT.
+- [ ] No merge, deployment, canonical publication, sitemap/robots release or editorial approval is implied.
+
+## 2 November 2026 — M36: extended guest viewport stress coverage
+
+- [x] Exercise every core route at 375×812, 430×932, 1366×768 and 1920×1080 without increasing the screenshot artifact count.
+- [x] Verify horizontal overflow, H1/main bounds, visible hero-action fit, compact navigation, Escape closure and focus return.
+- [x] Restore the caller viewport after each route to avoid contaminating the existing six-width screenshot and performance matrix.
+- [ ] Owner visual review and real-device checks remain pending; no staging UAT is implied.
+
+## 2 November 2026 — M37: mobile conversion obstruction and arrival-form acceptance
+
+- [x] Verify the fixed booking action never covers the guest-journey rail or Directions quick-arrival card at 375px and 430px.
+- [x] Verify visual, accessibility-tree and keyboard suppression states match measured overlap and restore when clear.
+- [x] Exercise arrival enquiry form geometry at 320, 375, 390, 430, 768, 1280 and 1440px.
+- [x] Require planner heading visibility below the sticky header in the deep-link route matrix.
+- [ ] Owner must complete real-device iOS/Android review; browser emulation is not device UAT.
+
+## 2 November 2026 — M38: central contact-configuration resilience
+
+- [x] Exercise temporary HTTP 503 for the central site configuration in isolated Chromium.
+- [x] Verify all affected links and forms fail closed and retain accessible recovery text.
+- [x] Verify map iframe remains dormant during failure and valid config retry restores the approved destination without auto-loading it.
+- [ ] Owner must verify real contact-channel responsiveness and booking-provider availability on staging.
+
+## 2 November 2026 — M39: in-page contact configuration retry
+
+- [x] Show a retry action only after central configuration fails to load.
+- [x] Disable it while retrying and hide it after a successful configuration response.
+- [x] Restore authorized actions in place while keeping the map iframe dormant until explicit visitor activation.
+- [ ] Owner must still verify live contact-channel/provider availability on approved staging.
+
+## 2 November 2026 — M40: route-wide contact recovery
+
+- [x] Exercise central contact-config outage and explicit recovery on all eight shared public routes.
+- [x] Check contact/booking/map actions fail closed during outage and recover to source-authorized destinations.
+- [x] Verify safe external-link isolation, no reload, no automatic map request and arrival-form fallback restoration.
+- [ ] Owner must verify real endpoint responsiveness on approved staging.
+
+## 2 November 2026 — M41: independent contact-channel validation
+
+- [x] Validate malformed WhatsApp, telephone, alternate telephone, phone display, email, booking and property-map values independently.
+- [x] Confirm an invalid channel cannot disable unrelated authorized actions or replace their destinations.
+- [x] Keep the shared contact status visible while any rendered channel is unavailable.
+- [ ] Source authorization does not replace owner verification that the contact values are current.
+
+## 2 November 2026 — M42: repeated retry failure and recovery
+
+- [x] Simulate two consecutive HTTP 503 config responses and verify retry remains actionable after each failure.
+- [x] Keep every affected action disabled until a later valid response is received.
+- [x] Recover the same page without reload; preserve the enquiry-only/no-payment copy and dormant map.
+- [ ] Live channel responsiveness, provider availability and staging UAT remain pending.
+
+
+## 2 November 2026 — M43: single-source Dining contact configuration
+
+- [x] Remove the page-specific duplicate contact configuration request.
+- [x] Drive the table-enquiry form from the shared validated contact event, including outage and retry states.
+- [x] Ensure the event listener loads before the central runtime and that the WhatsApp destination is independently revalidated.
+- [x] Cover disabled/recovered table form behavior in the route-wide Chromium recovery matrix.
+- [ ] Verify actual WhatsApp response and current restaurant table availability during owner-approved staging UAT.
+
+
+
+## 2 November 2026 — M44: staging package headroom
+
+- [x] Optimize package-only JPEG compatibility fallbacks after generating WebP/AVIF candidates from the original bytes.
+- [x] Preserve original repository assets, JPEG dimensions, ICC profile and EXIF orientation.
+- [x] Enforce 35 dB minimum PSNR and 5% minimum byte savings; keep hero/provenance-bound fallbacks unchanged.
+- [x] Revalidate responsive markup against the optimized packaged fallbacks and record SHA-256/quality/PSNR/savings evidence.
+- [x] Require at least 8% free space in the 18 MiB package budget.
+- [ ] Review packaged visual evidence and fallback crops on approved staging; this is not a visual UAT substitute.
+- [ ] STG-01–STG-18 remain NOT RUN; no staging deployment or production release is authorized.
+
+
+## 2 November 2026 — M44 package reserve follow-through
+
+- [x] Test JPEG fallback candidates down to quality 70 while retaining the 35 dB PSNR and 5% savings gates.
+- [x] Preserve the original image when no candidate passes both gates.
+- [x] Exclude the identity-verified Rooms hero source only after responsive rewrite proves the staged runtime no longer references it; retain it in the source tree and build input set.
+- [x] Check the 8% package reserve with exact byte arithmetic.
+- [ ] Confirm package remains below 92% utilization and packaged Chromium passes on final exact head.
+
+
+
+### M44 source-input vs packaged-runtime safeguard
+- The Rooms hero WebP remains in Git and is available to the responsive rewrite.
+- Package-only pruning happens only after rewritten markup is scanned and the exact image path/basename is absent from runtime HTML/CSS/JavaScript/config.
+- A new runtime reference blocks the prune, and a post-prune asset-closure audit remains mandatory.
+
+
+## 2 November 2026 — M44 duplicate identity correction and M45 hero contrast
+
+- [x] Protect the two retained duplicate counterparts from JPEG fallback re-encoding using verified duplicate-registry paths.
+- [x] Require zero optimizer savings and byte-for-byte source identity for retained `opium.jpg` and `rising-sun.jpg` package files.
+- [x] Keep the archive validator's exact byte count, SHA-256 and Git blob SHA checks; optimizer quality metadata cannot override a source-identity mismatch.
+- [x] Preserve the original image library and post-responsive-rewrite WebP source-pruning contract.
+- [x] Correct Experience Details' dark-hero secondary action with high-contrast ivory text, gold underline, hover and focus-visible treatment.
+- [x] Add static and real-Chromium computed-style/visibility/focus assertions at responsive mobile and desktop widths.
+- [ ] Exact-head workflow #41428554444 remains pending; package utilization, archive output, responsive package validation and packaged Chromium acceptance are NOT YET VERIFIED.
+- [ ] Owner confirmation, physical-device share/clipboard testing, live contact/booking-provider response, image rights/subject/alt review, M32 editor authority and STG-01–STG-18 remain separate release gates. Canonical host approval remains false; indexing and deployment remain disabled.

@@ -25,6 +25,7 @@ const launchDoc = fs.readFileSync(path.join(ROOT, 'docs', 'LAUNCH-READINESS-CHEC
 const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
 const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
 const siteCss = fs.readFileSync(path.join(ROOT, 'assets', 'site.css'), 'utf8');
+const siteRuntime = fs.readFileSync(path.join(ROOT, 'assets', 'site.js'), 'utf8');
 
 assert.equal(config.verificationStatus, 'owner-authorized-source',
   'Source-derived contact endpoints must be marked source-authorized, not live-tested');
@@ -46,6 +47,30 @@ assert.equal(hotelMap.port, '');
 assert.equal(hotelMap.search, '');
 assert.equal(hotelMap.hash, '');
 
+const hotelMapEmbed = new URL(config.propertyNavigation.hotelMapEmbedUrl);
+assert.equal(hotelMapEmbed.protocol, 'https:');
+assert.equal(hotelMapEmbed.hostname, 'www.google.com');
+assert.equal(hotelMapEmbed.pathname, '/maps');
+assert.equal(hotelMapEmbed.port, '');
+assert.equal(hotelMapEmbed.searchParams.get('q'),
+  'Garh Jaisal Haveli, Fort Kotari Para, Inside Jaisalmer Fort, Jaisalmer, Rajasthan 345001');
+assert.equal(hotelMapEmbed.searchParams.get('output'), 'embed');
+assert.deepEqual(Array.from(hotelMapEmbed.searchParams.keys()).sort(), ['output', 'q']);
+assert.equal(hotelMapEmbed.username, '');
+assert.equal(hotelMapEmbed.password, '');
+assert.equal(hotelMapEmbed.hash, '');
+assert.match(siteRuntime, /propertyNavigation\.hotelMapEmbedUrl/,
+  'Interactive map embeds must hydrate from the central source config');
+assert.match(siteRuntime, /detail: \{ whatsappBaseUrl, hotelMapUrl, hotelMapEmbedUrl \}/,
+  'The shared runtime must publish only validated map destinations to progressive enhancements');
+
+const restaurantMap = new URL(config.restaurant.googleMapsUrl);
+assert.equal(restaurantMap.protocol, 'https:');
+assert.equal(restaurantMap.hostname, 'maps.app.goo.gl');
+assert.equal(restaurantMap.port, '');
+assert.equal(restaurantMap.search, '');
+assert.equal(restaurantMap.hash, '');
+
 
 const booking = new URL(config.booking.legacyBookingEngineUrl);
 assert.equal(booking.protocol, 'https:');
@@ -57,8 +82,28 @@ for (const file of PAGE_NAMES) {
   const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
   assert.equal((html.match(/id="contact-status"/g) || []).length, 1, file + ': expected one accessible contact fallback');
   assert.ok(html.includes('data-property-map-link'), file + ': map links must hydrate from the central source config');
-  assert.doesNotMatch(html, /https:\/\/maps\.google\.com\/\?q=Garh\+Jaisal\+Haveli\+Jaisalmer|https:\/\/maps\.app\.goo\.gl\/nAbRiZhv78FSbju48/i,
-    file + ': map destinations must not be duplicated in public HTML');
+  const mapDestinationPattern = /https:\/\/(?:maps\.app\.goo\.gl\/[A-Za-z0-9_-]+|www\.google\.com\/maps\?[^"'\s<>]+)/i;
+  const noScriptFallback = html.match(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/i)?.[0] || '';
+  if (file === 'directions.html') {
+    assert.equal(html.split(config.propertyNavigation.hotelMapUrl).length - 1, 1,
+      file + ': the exact source-authorized pin may appear once for the no-JavaScript fallback');
+    assert.ok(noScriptFallback.includes(config.propertyNavigation.hotelMapUrl),
+      file + ': the only static hotel map destination must remain inside the no-JavaScript fallback');
+    assert.doesNotMatch(noScriptFallback, /www\.google\.com\/maps\?/i,
+      file + ': the interactive embed URL must remain out of static HTML');
+    assert.doesNotMatch(html.replace(noScriptFallback, ''), mapDestinationPattern,
+      file + ': configured hotel map destinations must not be duplicated outside the no-JavaScript fallback');
+  } else if (file === 'dining.html') {
+    assert.equal(html.split(config.restaurant.googleMapsUrl).length - 1, 1,
+      file + ': the separately authorized restaurant pin must appear exactly once');
+    assert.match(html, /href="https:\/\/maps\.app\.goo\.gl\/28gGJ6tX8xoanQ9D8" target="_blank" rel="noopener noreferrer"/,
+      file + ': the restaurant map action must retain safe external-link attributes');
+    assert.doesNotMatch(html.replace(config.restaurant.googleMapsUrl, ''), mapDestinationPattern,
+      file + ': no additional map destination may be duplicated in the Dining page');
+  } else {
+    assert.doesNotMatch(html, mapDestinationPattern,
+      file + ': map destinations must not be duplicated outside their authorized page-specific use');
+  }
 
   for (const marker of ['data-booking-link', 'data-enquiry-link', 'data-contact-phone', 'data-contact-alt-phone', 'data-contact-email']) {
     assert.ok(html.includes(marker), file + ': missing centralized channel marker ' + marker);
