@@ -121,6 +121,7 @@ FULL_SIZE_WEBP_MAX_BYTES = {
 BUDGET_QUALITY_FLOOR = 58
 BUDGET_QUALITY_STEP = 2
 
+# M50 tightens source-verified Rooms and About hero byte ceilings; PSNR remains >=35 dB.
 # These same-dimension derivatives are generated from verified JPEG fallbacks.
 # Original source-backed WebPs remain untouched and continue serving non-hero references.
 HERO_DELIVERY_VARIANTS = {
@@ -128,13 +129,13 @@ HERO_DELIVERY_VARIANTS = {
         "quality": 84,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "maxBytesByWidth": {2000: 260_000},
+        "maxBytesByWidth": {2000: 235_000},
     },
     "rooms/haveli-interior.jpg": {
         "quality": 84,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "maxBytesByWidth": {1600: 240_000},
+        "maxBytesByWidth": {1600: 215_000},
     },
 }
 
