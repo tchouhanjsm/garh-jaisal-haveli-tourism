@@ -3580,6 +3580,62 @@ def check_extended_guest_viewports(page, page_name: str) -> None:
                           f"{page_name} at {label} ({width}px): Escape must close navigation")
                     check(page.evaluate("document.activeElement === document.querySelector('.menu-toggle')"),
                           f"{page_name} at {label} ({width}px): Escape must restore focus to the navigation control")
+
+                    # M46: changing orientation/viewport while the compact menu is open
+                    # must normalize ARIA state and never strand focus on a hidden control.
+                    toggle.click()
+                    check(navigation.is_visible() and toggle.get_attribute("aria-expanded") == "true",
+                          f"{page_name} at {label} ({width}px): menu must reopen before breakpoint-transition coverage")
+                    page.set_viewport_size({"width": 768, "height": height})
+                    page.wait_for_timeout(45)
+                    desktop_transition = page.evaluate("""() => {
+                      const toggle = document.querySelector('.menu-toggle');
+                      const nav = document.querySelector('#primary-navigation');
+                      const firstLink = nav && nav.querySelector('a[href]');
+                      return {
+                        width: window.innerWidth,
+                        toggleDisplay: getComputedStyle(toggle).display,
+                        expanded: toggle.getAttribute('aria-expanded'),
+                        openClass: nav.classList.contains('is-open'),
+                        bodyMenuOpen: document.body.classList.contains('menu-open'),
+                        navVisible: Boolean(nav && getComputedStyle(nav).display !== 'none'),
+                        focusOnFirstLink: Boolean(firstLink && document.activeElement === firstLink),
+                      };
+                    }""")
+                    check(desktop_transition["width"] == 768
+                          and desktop_transition["toggleDisplay"] == "none"
+                          and desktop_transition["expanded"] == "false"
+                          and not desktop_transition["openClass"]
+                          and not desktop_transition["bodyMenuOpen"]
+                          and desktop_transition["navVisible"],
+                          f"{page_name} at {label} ({width}px): desktop resize must close compact state and expose normal navigation ({desktop_transition})")
+                    check(desktop_transition["focusOnFirstLink"],
+                          f"{page_name} at {label} ({width}px): focus must move from hidden compact toggle to visible desktop navigation")
+
+                    page.set_viewport_size({"width": width, "height": height})
+                    page.wait_for_timeout(45)
+                    compact_transition = page.evaluate("""() => {
+                      const toggle = document.querySelector('.menu-toggle');
+                      const nav = document.querySelector('#primary-navigation');
+                      return {
+                        width: window.innerWidth,
+                        toggleVisible: getComputedStyle(toggle).display !== 'none',
+                        expanded: toggle.getAttribute('aria-expanded'),
+                        openClass: nav.classList.contains('is-open'),
+                        bodyMenuOpen: document.body.classList.contains('menu-open'),
+                        navHidden: getComputedStyle(nav).display === 'none',
+                        focusOnToggle: document.activeElement === toggle,
+                      };
+                    }""")
+                    check(compact_transition["width"] == width
+                          and compact_transition["toggleVisible"]
+                          and compact_transition["expanded"] == "false"
+                          and not compact_transition["openClass"]
+                          and not compact_transition["bodyMenuOpen"]
+                          and compact_transition["navHidden"],
+                          f"{page_name} at {label} ({width}px): returning to compact width must keep navigation closed ({compact_transition})")
+                    check(compact_transition["focusOnToggle"],
+                          f"{page_name} at {label} ({width}px): focus must return to the visible compact menu toggle")
             elif width >= 1000:
                 check(not toggle.is_visible(),
                       f"{page_name} at {label} ({width}px): desktop must not expose the compact menu toggle")
