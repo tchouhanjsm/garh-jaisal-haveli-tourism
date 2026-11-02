@@ -2818,7 +2818,8 @@ def main() -> int:
         "Verified unreferenced duplicate runtime images excluded: "
         f"{runtime_asset_pruning_report['excludedFileCount']} files / "
         f"{runtime_asset_pruning_report['excludedBytes']} bytes"
-    )    print(
+    )
+    print(
         "Verified unreferenced runtime-only images excluded: "
         f"{runtime_unreferenced_pruning_report['excludedFileCount']} files / "
         f"{runtime_unreferenced_pruning_report['excludedBytes']} bytes"
