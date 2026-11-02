@@ -127,15 +127,17 @@ BUDGET_QUALITY_STEP = 2
 HERO_DELIVERY_VARIANTS = {
     "gallery/hotel/fort-from-roof.jpg": {
         "quality": 84,
+        "qualityStep": 1,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "maxBytesByWidth": {2000: 235_000},
+        "maxBytesByWidth": {2000: 240_000},
     },
     "rooms/haveli-interior.jpg": {
         "quality": 84,
+        "qualityStep": 1,
         "minPsnrDb": 35.0,
         "minimumSavingsPercent": 10.0,
-        "maxBytesByWidth": {1600: 215_000},
+        "maxBytesByWidth": {1600: 220_000},
     },
 }
 
@@ -224,12 +226,15 @@ def _save_webp(
     preserve_different_existing: bool = False,
     quality: int = WEBP_QUALITY,
     max_bytes: int | None = None,
+    quality_step: int = BUDGET_QUALITY_STEP,
 ) -> dict:
     """Write a verified WebP; budgeted variants keep the highest quality that fits."""
     if target.parent.is_symlink():
         raise ValueError(f"Refusing to write through a symlinked image directory: {target.parent}")
     if isinstance(quality, bool) or not isinstance(quality, int) or not 1 <= quality <= 100:
         raise ValueError(f"Invalid WebP quality: {quality!r}")
+    if isinstance(quality_step, bool) or not isinstance(quality_step, int) or not 1 <= quality_step <= 100:
+        raise ValueError(f"Invalid WebP quality step: {quality_step!r}")
     if max_bytes is not None and (
         isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1
     ):
@@ -240,7 +245,7 @@ def _save_webp(
     qualities = (
         [quality]
         if max_bytes is None
-        else list(range(quality, BUDGET_QUALITY_FLOOR - 1, -BUDGET_QUALITY_STEP))
+        else list(range(quality, BUDGET_QUALITY_FLOOR - 1, -quality_step))
     )
     attempts: list[dict] = []
     temporary = target.with_name(target.name + ".tmp")
@@ -281,6 +286,7 @@ def _save_webp(
                 "quality": candidate_quality,
                 "qualityAttempts": attempts,
                 "maxBytes": max_bytes,
+                "qualityStep": quality_step,
             }
         except Exception:
             temporary.unlink(missing_ok=True)
@@ -492,6 +498,7 @@ def generate_responsive_variants(
                         hero_icc_profile,
                         quality=hero_config["quality"],
                         max_bytes=hero_max_bytes,
+                        quality_step=hero_config.get("qualityStep", BUDGET_QUALITY_STEP),
                     )
                     with Image.open(hero_target) as hero_candidate:
                         hero_candidate.load()
@@ -502,7 +509,7 @@ def generate_responsive_variants(
                 if measured_psnr < minimum_psnr:
                     raise RuntimeError(
                         f"Hero delivery candidate fails the {minimum_psnr:.2f} dB PSNR floor: "
-                        f"{hero_config['path']} ({measured_psnr:.3f} dB)"
+                        f"{hero_relative.as_posix()} ({measured_psnr:.3f} dB)"
                     )
                 source_webp_bytes = full_size.stat().st_size
                 saved_percent = (
@@ -513,7 +520,7 @@ def generate_responsive_variants(
                 if saved_percent < minimum_savings:
                     raise RuntimeError(
                         f"Hero delivery candidate saves less than {minimum_savings:.1f}% "
-                        f"against its preserved source WebP: {hero_config['path']}"
+                        f"against its preserved source WebP: {hero_relative.as_posix()}"
                     )
                 hero_delivery_variant = {
                     "width": width,
@@ -523,6 +530,7 @@ def generate_responsive_variants(
                     "quality": hero_encoding["quality"],
                     "qualityAttempts": hero_encoding["qualityAttempts"],
                     "maxBytes": hero_max_bytes,
+                    "qualityStep": hero_encoding["qualityStep"],
                     "psnrDb": round(measured_psnr, 3),
                     "minPsnrDb": minimum_psnr,
                     "minimumSavingsPercent": minimum_savings,

@@ -117,6 +117,7 @@ def generated_candidate_records(root: Path, entry: dict) -> list[dict]:
             })
         if hero and relative == hero["path"]:
             record.update({
+                "qualityStep": hero["qualityStep"],
                 "psnrDb": hero["psnrDb"],
                 "minPsnrDb": hero["minPsnrDb"],
                 "minimumSavingsPercent": hero["minimumSavingsPercent"],
@@ -528,8 +529,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual((hero["width"], hero["height"]), (1600, 1066))
             self.assertGreaterEqual(hero["psnrDb"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["minPsnrDb"])
             self.assertGreaterEqual(hero["savedPercent"], HERO_DELIVERY_VARIANTS["rooms/haveli-interior.jpg"]["minimumSavingsPercent"])
-            self.assertEqual(hero["maxBytes"], 215_000)
-            self.assertLessEqual(hero["bytes"], 215_000)
+            self.assertEqual(hero["maxBytes"], 220_000)
+            self.assertEqual(hero["qualityStep"], 1)
+            self.assertLessEqual(hero["bytes"], 220_000)
             self.assertGreaterEqual(hero["psnrDb"], 35.0)
             self.assertGreaterEqual(hero["savedPercent"], 10.0)
             self.assertEqual([item["width"] for item in entry["variants"]], [320, 480, 768, 800, 1200, 1280])
@@ -632,8 +634,9 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertEqual((hero["width"], hero["height"]), (2000, 1333))
             self.assertGreaterEqual(hero["psnrDb"], HERO_DELIVERY_VARIANTS[filename]["minPsnrDb"])
             self.assertGreaterEqual(hero["savedPercent"], HERO_DELIVERY_VARIANTS[filename]["minimumSavingsPercent"])
-            self.assertEqual(hero["maxBytes"], 235_000)
-            self.assertLessEqual(hero["bytes"], 235_000)
+            self.assertEqual(hero["maxBytes"], 240_000)
+            self.assertEqual(hero["qualityStep"], 1)
+            self.assertLessEqual(hero["bytes"], 240_000)
             self.assertGreaterEqual(hero["psnrDb"], 35.0)
             self.assertGreaterEqual(hero["savedPercent"], 10.0)
 
@@ -1689,6 +1692,35 @@ class RewriteImageReferencesTests(unittest.TestCase):
             self.assertIn('src="assets/images/scarlet.jpg"', first_contents[1])
 
 
+
+    def test_budgeted_webp_supports_per_asset_quality_step(self) -> None:
+        import random
+
+        generator = random.Random(19)
+        image = Image.frombytes(
+            "RGB", (320, 240),
+            bytes(generator.randrange(256) for _ in range(320 * 240 * 3)),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            quality_82 = root / "quality-82.webp"
+            quality_81 = root / "quality-81.webp"
+            _save_webp(image, quality_82, None, quality=82, max_bytes=None)
+            _save_webp(image, quality_81, None, quality=81, max_bytes=None)
+            budget = quality_81.stat().st_size
+            self.assertLess(budget, quality_82.stat().st_size)
+
+            selected = _save_webp(
+                image, root / "quality-step-one.webp", None,
+                quality=82, max_bytes=budget, quality_step=1,
+            )
+            self.assertEqual(selected["quality"], 81)
+            self.assertEqual(selected["qualityStep"], 1)
+            self.assertEqual(
+                [attempt["quality"] for attempt in selected["qualityAttempts"]],
+                [82, 81],
+            )
+            self.assertLessEqual((root / "quality-step-one.webp").stat().st_size, budget)
 
     def test_directions_hero_avif_is_quality_gated_and_preloaded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
