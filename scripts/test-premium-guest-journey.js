@@ -301,8 +301,8 @@ assert.equal(roomCompareJs.split('const image = getRoomCardImage(card);').length
   'room comparison validation and comparison records must share the deferred-aware image resolver');
 assert.match(siteJs, /function initDeferredSupportingMedia\(/,
   'shared runtime must initialize deferred supporting media');
-assert.ok(siteJs.includes("const activationMargin = document.querySelector('.page-hero--gallery') ? 96 : 256;"),
-  'Gallery supporting media must use a tighter 96px margin without changing other routes');
+assert.ok(siteJs.includes("const activationMargin = document.querySelector('.page-hero--gallery, .page-hero--dining, .about-origin') ? 96 : 256;"),
+  'Gallery, Dining and About supporting media must use a tighter 96px margin while other routes retain 256px');
 assert.ok(siteJs.includes("}, { rootMargin: `${activationMargin}px 0px`, threshold: 0 });"),
   'IntersectionObserver must use the route-specific deferred-media margin');
 assert.ok(siteJs.includes('const margin = activationMargin;'),
@@ -458,8 +458,6 @@ assert.match(siteJs, /const guestJourneyPanel = document\.querySelector\('\.gues
   'the mobile fixed-action obstruction model must include the shared inner-page journey rail');
 assert.match(siteJs, /is-suppressed-by-guest-journey/,
   'the fixed booking action must expose an explicit guest-journey suppression state');
-assert.match(siteJs, /document\.querySelector\('\.page-hero--gallery, \.page-hero--dining, \.about-origin'\) \? 96 : 256/,
-  'Gallery, Dining and About must use a bounded 96px supporting-media activation margin');
 assert.match(siteJs, /const caption = Array\.from\(target\.children\)\.find\(child => child\.tagName === 'FIGCAPTION'\) \|\| null/,
   'Deferred figure activation must preserve the semantic caption order');
 assert.match(siteJs, /target\.insertBefore\(template\.content\.cloneNode\(true\), caption\)/,
