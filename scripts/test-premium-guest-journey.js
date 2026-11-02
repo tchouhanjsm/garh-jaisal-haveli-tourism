@@ -301,11 +301,11 @@ assert.equal(roomCompareJs.split('const image = getRoomCardImage(card);').length
   'room comparison validation and comparison records must share the deferred-aware image resolver');
 assert.match(siteJs, /function initDeferredSupportingMedia\(/,
   'shared runtime must initialize deferred supporting media');
-assert.match(siteJs, /const activationMargin = document\\.querySelector\\('\\.page-hero--gallery'\\) \\? 96 : 256;/,
+assert.ok(siteJs.includes("const activationMargin = document.querySelector('.page-hero--gallery') ? 96 : 256;"),
   'Gallery supporting media must use a tighter 96px margin without changing other routes');
-assert.match(siteJs, /rootMargin:\\s*`\\$\\{activationMargin\\}px 0px`/,
+assert.ok(siteJs.includes("}, { rootMargin: `${activationMargin}px 0px`, threshold: 0 });"),
   'IntersectionObserver must use the route-specific deferred-media margin');
-assert.match(siteJs, /const margin = activationMargin;/,
+assert.ok(siteJs.includes('const margin = activationMargin;'),
   'the fallback scan must use the same route-specific deferred-media margin');
 assert.match(siteJs, /data-deferred-media-activated/,
   'deferred supporting-media activation must expose a verifiable runtime state');
