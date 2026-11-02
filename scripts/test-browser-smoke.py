@@ -3665,6 +3665,15 @@ def check_contact_hydration(page, base_url: str) -> None:
     map_diagnostics = page.evaluate(
         """() => ({
           events: window.__contactReadyEvents || [],
+          mapReceiver: (() => {
+            const details = document.querySelector('[data-map-preview]');
+            return details ? {
+              eventReceived: details.dataset.mapConfigEventReceived === 'true',
+              inputLength: details.dataset.mapConfigInputLength || null,
+              allowlistMatch: details.dataset.mapConfigAllowlistMatch || null,
+              state: details.dataset.mapConfigState || null
+            } : null;
+          })(),
           responses: (window.__siteConfigResponses || []).map(item => ({
             path: new URL(item.url).pathname,
             status: item.status || null,

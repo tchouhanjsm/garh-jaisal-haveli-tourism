@@ -18,15 +18,16 @@
     return '';
   }
 
+  var EXPECTED_HOTEL_MAP_EMBED_URL = 'https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed';
+
   function validateHotelMapEmbedUrl(value) {
-    var expectedEmbedUrl = 'https://www.google.com/maps?q=Garh+Jaisal+Haveli%2C+Fort+Kotari+Para%2C+Inside+Jaisalmer+Fort%2C+Jaisalmer%2C+Rajasthan+345001&output=embed';
-    if (value !== expectedEmbedUrl) return '';
+    if (value !== EXPECTED_HOTEL_MAP_EMBED_URL) return '';
     try {
       var url = new URL(value);
       if (url.protocol === 'https:' && url.hostname.toLowerCase() === 'www.google.com'
           && url.port === '' && url.pathname === '/maps'
           && !url.username && !url.password && !url.hash) {
-        return expectedEmbedUrl;
+        return EXPECTED_HOTEL_MAP_EMBED_URL;
       }
     } catch (_) {
       // Invalid source configuration keeps the interactive preview unavailable.
@@ -40,6 +41,12 @@
     var hotelMapEmbedUrl = validateHotelMapEmbedUrl(detail.hotelMapEmbedUrl);
 
     document.querySelectorAll('[data-map-preview]').forEach(function (details) {
+      details.dataset.mapConfigInputLength = String(
+        typeof detail.hotelMapEmbedUrl === 'string' ? detail.hotelMapEmbedUrl.length : 0
+      );
+      details.dataset.mapConfigAllowlistMatch = String(
+        detail.hotelMapEmbedUrl === EXPECTED_HOTEL_MAP_EMBED_URL
+      );
       var iframe = details.querySelector('iframe[data-map-src]');
       if (!iframe) return;
       if (!hotelMapEmbedUrl) {
@@ -175,6 +182,9 @@
 
   document.addEventListener('garh-jaisal:contact-ready', function (event) {
     currentMapConfig = event && event.detail ? event.detail : {};
+    document.querySelectorAll('[data-map-preview]').forEach(function (details) {
+      details.dataset.mapConfigEventReceived = 'true';
+    });
     // The Directions DOM exists before this deferred script runs. Apply the
     // validated event immediately, even if the one-time UI initializer has
     // not fired yet; initialise() reapplies the last config after wiring the
