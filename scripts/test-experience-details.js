@@ -5,6 +5,9 @@ const ROOT=path.resolve(__dirname,'..'),page=fs.readFileSync(path.join(ROOT,'exp
 function meta(html,selector){const tag=html.match(selector);if(!tag)return null;const attrs={},re=/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;let m;while((m=re.exec(tag[0])))attrs[m[1].toLowerCase()]=m[2]??m[3]??m[4]??'';return attrs;}
 function plain(s){return s.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<!--[\s\S]*?-->/g,' ').replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();}
 function section(id){const m=page.match(new RegExp('<section\\b[^>]*\\bid="'+id+'"[\\s\\S]*?<\\/section>','i'));assert.ok(m,'missing section '+id);return m[0];}
+const heroActions=(page.match(/<div class="experience-detail-actions experience-detail-hero__actions">([\s\S]*?)<\/div>/)||[])[1]||'';
+const heroSecondary=heroActions.match(/<a\b[^>]*>Ask about my dates/);
+assert.ok(heroSecondary&&/\btext-link--light\b/.test(heroSecondary[0]),'photographic hero secondary CTA must use the light contrast variant');
 const ids=['sunset-camel-safari-detail','cultural-safari-detail','sleep-under-the-stars-detail','swiss-tent-safari-detail','half-day-jaisalmer-tour-detail','full-day-jaisalmer-tour-detail','fort-heritage-walk-detail','car-and-road-travel-detail','other-routes'];
 assert.deepEqual([...options.matchAll(/href="experience-details\.html#([^"]+)"/g)].map(m=>m[1]),ids,'all detail links must resolve in order');
 for(const id of ids){assert.equal([...page.matchAll(new RegExp('\\bid="'+id+'"','g'))].length,1,'anchor must exist once: '+id);const s=section(id),cta=s.match(/<a\b[^>]*data-enquiry-link[^>]*>/);assert.ok(s.includes('aria-labelledby='),'heading association '+id);assert.ok(cta&&/href="#contact-status"/.test(cta[0])&&/aria-disabled="true"/.test(cta[0])&&/data-enquiry-message=/.test(cta[0]),'contextual fail-closed enquiry '+id);}
