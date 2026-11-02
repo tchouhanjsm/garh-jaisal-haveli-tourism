@@ -236,14 +236,34 @@ function makeGalleryFixture(root, options, record) {
     );
   }
 
+  const configFields = fields.slice();
+  if (schemaOptions.duplicateReviewStatus) {
+    const index = configFields.findIndex(field => field.name === 'review_status');
+    const duplicate = JSON.parse(JSON.stringify(configFields[index]));
+    duplicate.spec.defaultValue = 'approved';
+    configFields.splice(index, 0, duplicate);
+  }
+  if (schemaOptions.duplicateEvidenceStatus) {
+    const evidence = configFields.find(field => field.name === 'sourceEvidence');
+    const index = evidence.spec.children.findIndex(field => field.name === 'status');
+    const duplicate = JSON.parse(JSON.stringify(evidence.spec.children[index]));
+    duplicate.spec.defaultValue = 'owner-confirmed';
+    evidence.spec.children.splice(index, 0, duplicate);
+  }
+
   fs.mkdirSync(path.join(root, 'admin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'content', 'gallery'), { recursive: true });
   fs.mkdirSync(path.join(root, 'img', 'gallery'), { recursive: true });
   const config = [
     'collections:',
     '  - name: gallery',
+    '    folder: ' + (schemaOptions.collectionFolder || '/content/gallery'),
+    '    format: ' + (schemaOptions.collectionFormat || 'json'),
+    '    create: true',
+    '    delete: false',
+    '    identifier_field: id',
     '    fields:',
-    ...fields.map(field => galleryField(field.name, field.spec)),
+    ...configFields.map(field => galleryField(field.name, field.spec)),
     '  - name: page_media_slots',
     '    fields:',
     '      - name: id',
@@ -349,6 +369,50 @@ try {
   assert.equal(unsafeSchema.summary.approvalEligibleCount, 0);
   assert.ok(unsafeSchema.cmsSchema.defaultViolations.some(item => item.includes('review_status must default to draft')));
   assert.ok(unsafeSchema.records[0].blockers.includes('cms-schema-does-not-enforce-fail-closed-defaults'));
+
+  // Duplicate field declarations must fail closed even when the last declaration is safe.
+  makeGalleryFixture(currentRoot, {
+    includeEvidence: true,
+    safeDefaults: true,
+    duplicateReviewStatus: true,
+    duplicateEvidenceStatus: true,
+  }, reviewedRecord);
+  const duplicateSchema = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(duplicateSchema.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateSchema.cmsSchema.collectionValid, true);
+  assert.equal(duplicateSchema.cmsSchema.safeDefaults, false);
+  assert.ok(duplicateSchema.cmsSchema.duplicateFieldPaths.includes('review_status'));
+  assert.ok(duplicateSchema.cmsSchema.duplicateFieldPaths.includes('sourceEvidence.status'));
+  assert.equal(duplicateSchema.summary.approvalEligibleCount, 0);
+  assert.ok(duplicateSchema.records[0].blockers.includes('cms-schema-contains-duplicate-fields'));
+
+  // The audit must bind evidence fields to the real JSON gallery collection, not a lookalike.
+  makeGalleryFixture(currentRoot, {
+    includeEvidence: true,
+    safeDefaults: true,
+    collectionFolder: '/content/unrelated',
+    collectionFormat: 'yaml',
+  }, reviewedRecord);
+  const wrongCollection = auditAuthoritativeGallerySource({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(wrongCollection.status, 'REVIEW_REQUIRED');
+  assert.equal(wrongCollection.cmsSchema.collectionValid, false);
+  assert.equal(wrongCollection.cmsSchema.safeDefaults, false);
+  assert.ok(wrongCollection.cmsSchema.collectionContractViolations.some(item => item.includes('folder')));
+  assert.ok(wrongCollection.cmsSchema.collectionContractViolations.some(item => item.includes('format')));
+  assert.equal(wrongCollection.summary.approvalEligibleCount, 0);
+  assert.ok(wrongCollection.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
 
   const unsafeRecord = {
     ...unreviewedRecord,
