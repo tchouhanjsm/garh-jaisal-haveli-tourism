@@ -10,6 +10,7 @@ const { auditMedia, imageInfo, inspectImage, safeImagePath, imagePolicy, validat
 const { validateRecordPolicy, mediaSourceEvidenceIssues } = require('./validate-content');
 const { buildEditorialMediaReview } = require('./build-editorial-media-review');
 const { validateEditorialMediaDecisions } = require('./validate-editorial-media-decisions');
+const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
 
 const ROOT = path.resolve(__dirname, '..');
 const report = auditMedia(ROOT);
@@ -539,3 +540,104 @@ const tooLargeForSocial = validateForRole(sourceCandidate, 'socialPreview', sour
 assert.equal(tooLargeForSocial.valid, false, 'oversized source file must not be approved as a production social image');
 assert.ok(tooLargeForSocial.errors.some(message => /file exceeds 81920-byte policy/.test(message)), 'supporting budget failure must be explicit');
 console.log('PASS: editorial media readiness — 12-article coverage, contextual gaps, deterministic read-only reporting, invalid/missing candidates, unsafe paths, and approval/rights separation.');
+
+(async () => {
+  const expectedHead = 'a'.repeat(40);
+  const previousHead = 'b'.repeat(40);
+  const repository = 'tchouhanjsm/garh-jaisal-haveli-tourism';
+  const calls = [];
+  const mockFetch = async (url, init) => {
+    calls.push({ url, init });
+    if (url.endsWith('/pulls/74')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          number: 74,
+          state: 'open',
+          head: { sha: expectedHead, repo: { full_name: repository } },
+          base: { ref: 'main', repo: { full_name: repository } },
+        }),
+      };
+    }
+    if (url.endsWith('/pulls/74/reviews?per_page=100&page=1')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          { id: 101, user: { login: 'example-reviewer' }, state: 'APPROVED',
+            commit_id: expectedHead, submitted_at: '2026-11-02T00:00:00Z' },
+          { id: 102, user: { login: 'another-reviewer' }, state: 'COMMENTED',
+            commit_id: previousHead, submitted_at: '2026-11-01T23:00:00Z' },
+        ],
+      };
+    }
+    throw new Error('Unexpected GitHub API request: ' + url);
+  };
+  const reviewAudit = await auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: mockFetch,
+    observedAt: '2026-11-02T00:00:00.000Z',
+  });
+  assert.equal(reviewAudit.pullRequest.exactHeadMatch, true,
+    'review evidence must be bound to the exact live pull-request head');
+  assert.equal(reviewAudit.reviewEvidence.reviewCount, 2);
+  assert.equal(reviewAudit.reviewEvidence.currentHeadReviewCount, 1,
+    'reviews on earlier commits must not be counted as current-head evidence');
+  assert.equal(reviewAudit.reviewEvidence.currentHeadStateCounts.APPROVED, 1,
+    'current-head GitHub review state should be reported without granting editorial authority');
+  assert.equal(reviewAudit.reviewerAuthorization.state, 'NOT_CONFIGURED',
+    'a GitHub review must not configure owner/editor authority by itself');
+  assert.equal(reviewAudit.reviewerAuthorization.approvalAuthorized, false);
+  assert.equal(reviewAudit.reviewerAuthorization.trustedReviewerCount, 0);
+  assert.equal(reviewAudit.reviewerAuthorization.decisionReturnMechanism, null);
+  assert.equal(reviewAudit.releaseInvariants.publicationEligible, false);
+  assert.equal(reviewAudit.releaseInvariants.approvedMediaChanged, false);
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer test-token-not-a-secret',
+    'the evidence snapshot must use the authenticated GitHub API');
+  assert.equal(calls.length, 2, 'one pull-request metadata read and one review-list read are expected');
+
+  let mismatchCalls = 0;
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 74,
+    expectedHead: previousHead,
+    token: 'test-token-not-a-secret',
+    fetchImpl: async () => {
+      mismatchCalls += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          number: 74,
+          state: 'open',
+          head: { sha: expectedHead },
+          base: { ref: 'main', repo: { full_name: repository } },
+        }),
+      };
+    },
+  }), /head changed during review audit/,
+  'a stale workflow event must be rejected before review evidence is read');
+  assert.equal(mismatchCalls, 1, 'stale-head rejection must stop before reading reviews');
+
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository, pullRequestNumber: 74, expectedHead, token: '',
+    fetchImpl: mockFetch,
+  }), /GITHUB_TOKEN is required/,
+  'the audit must not silently fall back to unauthenticated identity data');
+
+  await assert.rejects(() => auditEditorialReviewAuthority({
+    repository, pullRequestNumber: 74, expectedHead, token: 'test-token-not-a-secret',
+    fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({}) }),
+  }), /GitHub API request failed \(403\)/,
+  'API permission/rate-limit failures must not be reported as a successful empty review audit');
+
+  console.log('PASS: authenticated GitHub review evidence is exact-head-bound and never grants editorial approval without owner policy.');
+})().catch(error => {
+  console.error('FAIL: authenticated editorial review audit regression:', error);
+  process.exitCode = 1;
+});
+

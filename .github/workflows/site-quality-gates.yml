@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: site-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -87,6 +88,20 @@ jobs:
             --source-root "${RUNNER_TEMP}/garh-jaisal-source" \
             --source-commit "$SOURCE_COMMIT"
 
+      - name: Audit authenticated GitHub editorial review evidence (informational only)
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/audit-editorial-review-authority.js \
+            --repo "$GITHUB_REPOSITORY" \
+            --pull-request "$REVIEW_PR_NUMBER" \
+            --expected-head "$REVIEW_EXPECTED_HEAD" \
+            > "${RUNNER_TEMP}/garh-jaisal-editorial-review-authority.json"
+          cat "${RUNNER_TEMP}/garh-jaisal-editorial-review-authority.json"
+
       - name: Upload responsive visual baseline evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -114,6 +129,16 @@ jobs:
           name: garh-jaisal-editorial-media-review-${{ github.run_id }}
           path: ${{ runner.temp }}/garh-jaisal-editorial-media-review/
           if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload authenticated GitHub editorial review evidence
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-editorial-review-authority-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-editorial-review-authority.json
+          if-no-files-found: warn
           retention-days: 7
           compression-level: 0
 
