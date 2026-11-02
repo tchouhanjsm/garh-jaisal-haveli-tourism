@@ -539,3 +539,13 @@ The technical implementation must consume an explicit owner-defined policy ident
 - [x] Assert the restored booking-form note explains that WhatsApp opens for an enquiry only and that no payment is taken on this website.
 - [ ] Do not interpret successful local recovery as live channel, booking-provider or staging verification.
 
+
+## M43 — single-source contact configuration on Dining
+
+- [x] Remove the Dining table form's duplicate `site-config.json` fetch; `assets/site.js` is the sole contact-configuration loader.
+- [x] Subscribe the table form to the shared `garh-jaisal:contact-ready` event and revalidate the supplied WhatsApp URL before enabling submission.
+- [x] Load the Dining listener before the shared runtime so the initial event cannot be missed.
+- [x] Reuse the same event for outage and retry transitions; keep the table enquiry disabled until a validated destination arrives.
+- [x] Extend the all-route HTTP 503/recovery test to verify Dining table-form disable/re-enable and the one-fetch-per-attempt contract.
+- [ ] Live WhatsApp responsiveness and actual table availability still require owner/staging verification.
+

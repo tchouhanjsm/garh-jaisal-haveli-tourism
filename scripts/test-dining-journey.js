@@ -108,13 +108,26 @@ assert.match(js, /recovery\.hidden = false/, 'The fallback appears only after a 
 assert.match(js, /navigator\.clipboard\.writeText/, 'Copy uses the browser clipboard when permitted');
 assert.match(js, /document\.execCommand\('copy'\)/, 'Clipboard failure has a selection-based recovery path');
 assert.match(js, /Nothing was sent/, 'Recovery copy continues to state that nothing is sent automatically');
-assert.match(js, /loadApprovedContact\(\)/);
-assert.match(js, /owner-authorized-source/);
-assert.match(js, /owner-verified/);
+
+
+
 assert.match(js, /not a reservation|not booked until|not reserved/i);
 assert.doesNotMatch(js, /localStorage|sessionStorage|fetch\s*\([^)]*POST|method:\s*['"]POST['"]/i,
   'No guest data is persisted or POSTed to a new backend');
 assert.doesNotMatch(js, /\+917727047567|77270\s*47567/,
   'The WhatsApp destination stays centralized in site-config.json');
+
+assert.match(js, /document\.addEventListener\('garh-jaisal:contact-ready'/,
+  'Dining table enquiries must consume the shared contact-ready event rather than fetching configuration independently');
+assert.match(js, /detail\.whatsappBaseUrl/,
+  'The table enquiry must receive the validated WhatsApp destination from the shared runtime');
+assert.match(js, /const url = new URL\(value\)/,
+  'Dining must revalidate the shared WhatsApp URL before enabling its form');
+assert.doesNotMatch(js, /fetch\s*\(|site-config\.json|document\.currentScript/,
+  'Dining must not own a second configuration fetch or depend on an asynchronous currentScript value');
+assert.doesNotMatch(js, /loadApprovedContact/,
+  'The page-specific independent contact loader must be removed');
+assert.ok(html.includes('<script src="assets/dining-tabs.js" defer></script><script src="assets/site.js" defer></script>'),
+  'The Dining listener must execute before the shared runtime dispatches its validated configuration event');
 
 console.log('PASS: Dining tabs and menu guard; minimized table enquiry includes a copyable recovery draft, accessible preferences, authorized contact and no-reservation/no-storage safeguards.');

@@ -3848,6 +3848,10 @@ def check_contact_configuration_recovery_all_routes(browser, base_url: str) -> N
                   f"{page_name}: initial outage must make exactly one central-config request")
             status = page.locator("#contact-status")
             retry_button = page.locator("[data-contact-config-retry]")
+            if page_name == "dining.html":
+                table_submit = page.locator("[data-restaurant-table-submit]")
+                check(table_submit.count() == 1 and table_submit.is_disabled(),
+                      "dining.html: table enquiry must fail closed through the shared contact event during outage")
             check(status.is_visible(),
                   f"{page_name}: the accessible contact fallback must be visible during outage")
 
@@ -3878,6 +3882,10 @@ def check_contact_configuration_recovery_all_routes(browser, base_url: str) -> N
                   f"{page_name}: recovery must issue exactly one additional config request")
             check(status.is_hidden(),
                   f"{page_name}: unavailable status must clear after a valid config response")
+            if page_name == "dining.html":
+                table_submit = page.locator("[data-restaurant-table-submit]")
+                check(table_submit.count() == 1 and not table_submit.is_disabled(),
+                      "dining.html: table enquiry must recover from the shared contact event without another config fetch")
 
             for selector, label in channel_contracts:
                 links = page.locator(selector)

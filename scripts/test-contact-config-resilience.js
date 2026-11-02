@@ -10,6 +10,9 @@ const smoke = fs.readFileSync(path.join(root, 'scripts', 'test-browser-smoke.py'
 const quality = fs.readFileSync(path.join(root, 'scripts', 'check-pr-quality.sh'), 'utf8');
 const runtime = fs.readFileSync(path.join(root, 'assets', 'site.js'), 'utf8');
 const enquiryTest = fs.readFileSync(path.join(root, 'scripts', 'test-enquiry-flow.js'), 'utf8');
+const diningRuntime = fs.readFileSync(path.join(root, 'assets', 'dining-tabs.js'), 'utf8');
+const diningHtml = fs.readFileSync(path.join(root, 'dining.html'), 'utf8');
+const diningTest = fs.readFileSync(path.join(root, 'scripts', 'test-dining-journey.js'), 'utf8');
 const arrival = fs.readFileSync(path.join(root, 'assets', 'js', 'arrival-enhancements.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'assets', 'site.css'), 'utf8');
 
@@ -66,3 +69,12 @@ assert.match(enquiryTest, /fetchFailure\.fetchCalls\(\), 3/,
   'The unit contract must verify recovery after two failed config responses.');
 
 console.log('PASS: contact outage recovery covers every public route, channel isolation and repeated retry failure without weakening fail-closed controls.');
+
+assert.match(diningRuntime, /document\.addEventListener\('garh-jaisal:contact-ready'/,
+  'Dining table enquiry must consume the same validated configuration event as the other public contact actions.');
+assert.doesNotMatch(diningRuntime, /fetch\s*\(|site-config\.json|document\.currentScript/,
+  'Dining must not initiate a duplicate or asynchronous-currentScript config request.');
+assert.ok(diningHtml.indexOf('assets/dining-tabs.js') < diningHtml.indexOf('assets/site.js'),
+  'The Dining event listener must load before the shared runtime dispatches contact-ready.');
+assert.match(diningTest, /must not own a second configuration fetch/,
+  'The Dining static contract must prevent a duplicate configuration loader from returning.');

@@ -530,3 +530,12 @@ Eleven related Jaisalmer articles are being prepared as source-backed drafts tha
 - [x] Recover the same page without reload; preserve the enquiry-only/no-payment copy and dormant map.
 - [ ] Live channel responsiveness, provider availability and staging UAT remain pending.
 
+
+## 2 November 2026 — M43: single-source Dining contact configuration
+
+- [x] Remove the page-specific duplicate contact configuration request.
+- [x] Drive the table-enquiry form from the shared validated contact event, including outage and retry states.
+- [x] Ensure the event listener loads before the central runtime and that the WhatsApp destination is independently revalidated.
+- [x] Cover disabled/recovered table form behavior in the route-wide Chromium recovery matrix.
+- [ ] Verify actual WhatsApp response and current restaurant table availability during owner-approved staging UAT.
+

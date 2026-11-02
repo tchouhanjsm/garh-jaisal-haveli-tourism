@@ -103,31 +103,28 @@
   updateDateConstraint();
 
 
-  async function loadApprovedContact() {
+  function applyApprovedContact(event) {
+    const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+    const value = typeof detail.whatsappBaseUrl === 'string' ? detail.whatsappBaseUrl : '';
     try {
-      if (typeof fetch !== 'function') throw new Error('Fetch is unavailable');
-      const scriptUrl = document.currentScript && document.currentScript.src;
-      const configUrl = new URL('../content/site-config.json', scriptUrl || window.location.href);
-      const response = await fetch(configUrl.toString(), { cache: 'no-store' });
-      if (!response.ok) throw new Error('Contact configuration could not be loaded');
-      const config = await response.json();
-      const contact = config && config.contact ? config.contact : {};
-      const authorized = (config.verificationStatus === 'owner-verified' && contact.status === 'verified')
-        || (config.verificationStatus === 'owner-authorized-source' && contact.status === 'source-authorized');
-      if (!authorized || typeof contact.whatsappBaseUrl !== 'string') throw new Error('Contact channel is not authorized');
-      const url = new URL(contact.whatsappBaseUrl);
+      const url = new URL(value);
       if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'wa.me' || url.port !== ''
-          || !/^\/\d{8,15}\/?$/.test(url.pathname) || url.username || url.password || url.search || url.hash) {
+          || !/^\\/\\d{8,15}\\/?$/.test(url.pathname) || url.username || url.password || url.search || url.hash) {
         throw new Error('Contact channel has an invalid destination');
       }
-      approvedWhatsAppBase = url.origin + url.pathname.replace(/\/$/, '');
+      approvedWhatsAppBase = url.origin + url.pathname.replace(/\\/$/, '');
       submit.disabled = false;
       status.dataset.state = 'ready';
       status.textContent = 'Ready. After submission, review the details in a WhatsApp draft. Nothing is sent automatically and no table is reserved yet.';
     } catch (_) {
+      approvedWhatsAppBase = '';
       disable('Table enquiries are temporarily unavailable because the approved contact channel could not be loaded. No details have been sent.');
     }
   }
+
+  // Subscribe before site.js runs. The shared runtime is the single source of
+  // validated contact configuration and re-emits this event after each retry.
+  document.addEventListener('garh-jaisal:contact-ready', applyApprovedContact);
 
   recovery.hidden = true;
   copyButton.disabled = true;
@@ -193,5 +190,4 @@
     status.textContent = 'Your table enquiry draft is ready. Review and send it yourself in WhatsApp. If the tab did not open, copy the prepared message below. Nothing was sent automatically and your table is not reserved.';
   });
 
-  loadApprovedContact();
 })();
