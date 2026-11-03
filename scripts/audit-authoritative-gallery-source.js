@@ -371,6 +371,10 @@ function gallerySchemaFields(root, errors) {
     duplicateFieldPaths
   );
 
+  for (const fieldPath of duplicateFieldPaths) {
+    schemaViolations.push('Gallery schema field is declared more than once: ' + fieldPath + '.');
+  }
+
   const fields = new Set();
   const collectFields = fieldMap => {
     for (const [name, field] of fieldMap) {
