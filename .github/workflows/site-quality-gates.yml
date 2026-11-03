@@ -118,6 +118,18 @@ jobs:
           cd "$SOURCE_ROOT"
           php tests/php/site-media-slots-contract.php
 
+      - name: Run authoritative CMS, owner-auth and SEO runtime contracts on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/runtime-config-validation.php
+          php tests/php/sveltia-cms-config-contract.php
+          php tests/php/admin-auth-contract.php
+          php tests/php/staging-noindex.php
+
       - name: Audit authoritative gallery drift and rights readiness
         env:
           PINNED_SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
