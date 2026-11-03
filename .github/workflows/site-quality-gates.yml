@@ -176,28 +176,6 @@ jobs:
             --audit "${{ runner.temp }}/garh-jaisal-authoritative-gallery-audit.json" \
             --output "${{ runner.temp }}/garh-jaisal-gallery-review"
 
-      - name: Build local-only fixed page-media owner-review bundle
-        env:
-          SOURCE_ROOT: \${{ runner.temp }}/garh-jaisal-source-current
-          SOURCE_MAIN_SHA: \${{ steps.media-source-main.outputs.source_commit }}
-        run: |
-          node scripts/build-page-media-review-bundle.js \\
-            --source-root "$SOURCE_ROOT" \\
-            --source-commit "$SOURCE_MAIN_SHA" \\
-            --audit "\${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json" \\
-            --output "\${RUNNER_TEMP}/garh-jaisal-page-media-review"
-
-      - name: Validate local-only fixed page-media decision worksheet integrity
-        env:
-          SOURCE_ROOT: \${{ runner.temp }}/garh-jaisal-source-current
-          SOURCE_MAIN_SHA: \${{ steps.media-source-main.outputs.source_commit }}
-        run: |
-          node scripts/validate-page-media-review-decisions.js \\
-            --bundle "\${RUNNER_TEMP}/garh-jaisal-page-media-review" \\
-            --source-root "$SOURCE_ROOT" \\
-            --source-commit "$SOURCE_MAIN_SHA" \\
-            --json > "\${RUNNER_TEMP}/garh-jaisal-page-media-review-validation.json"
-
       - name: Validate local-only authoritative Gallery decision worksheet integrity
         env:
           SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
@@ -208,6 +186,28 @@ jobs:
             --source-root "$SOURCE_ROOT" \
             --source-commit "$SOURCE_MAIN_SHA" \
             --json > "${RUNNER_TEMP}/garh-jaisal-gallery-review-validation.json"
+
+      - name: Build local-only fixed page-media owner-review bundle
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/build-page-media-review-bundle.js \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --audit "${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json" \
+            --output "${RUNNER_TEMP}/garh-jaisal-page-media-review"
+
+      - name: Validate local-only fixed page-media decision worksheet integrity
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/validate-page-media-review-decisions.js \
+            --bundle "${RUNNER_TEMP}/garh-jaisal-page-media-review" \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --json > "${RUNNER_TEMP}/garh-jaisal-page-media-review-validation.json"
 
       - name: Validate local-only editorial decision worksheet integrity
         env:
@@ -266,8 +266,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: garh-jaisal-page-media-owner-review-\${{ github.run_id }}
-          path: \${{ runner.temp }}/garh-jaisal-page-media-review/
+          name: garh-jaisal-page-media-owner-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-page-media-review/
           if-no-files-found: ignore
           retention-days: 7
           compression-level: 0
@@ -276,8 +276,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: garh-jaisal-page-media-review-validation-\${{ github.run_id }}
-          path: \${{ runner.temp }}/garh-jaisal-page-media-review-validation.json
+          name: garh-jaisal-page-media-review-validation-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-page-media-review-validation.json
           if-no-files-found: warn
           retention-days: 7
           compression-level: 0

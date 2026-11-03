@@ -133,13 +133,13 @@ assert.ok(galleryValidationStep > galleryReviewBuildStep &&
   pageMediaReviewValidationStep < galleryDecisionStep,
   'Fixed page-media review bundle and validation must run after the exact-source audit and before editorial validation');
 const pageMediaBuildBlock = QUALITY_WORKFLOW.slice(pageMediaReviewBuildStep, pageMediaReviewValidationStep);
-assert.ok(pageMediaBuildBlock.includes('SOURCE_MAIN_SHA: \${{ steps.media-source-main.outputs.source_commit }}') &&
+assert.ok(pageMediaBuildBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}') &&
   pageMediaBuildBlock.includes('garh-jaisal-authoritative-gallery-audit.json') &&
   pageMediaBuildBlock.includes('garh-jaisal-page-media-review') &&
   pageMediaBuildBlock.includes('build-page-media-review-bundle.js'),
   'Page-media review bundle must consume the exact-source audit and write to runner temporary storage');
 const pageMediaValidationBlock = QUALITY_WORKFLOW.slice(pageMediaReviewValidationStep, pageMediaReviewUploadStep);
-assert.ok(pageMediaValidationBlock.includes('SOURCE_MAIN_SHA: \${{ steps.media-source-main.outputs.source_commit }}') &&
+assert.ok(pageMediaValidationBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}') &&
   pageMediaValidationBlock.includes('validate-page-media-review-decisions.js') &&
   pageMediaValidationBlock.includes('--source-commit "$SOURCE_MAIN_SHA"') &&
   pageMediaValidationBlock.includes('garh-jaisal-page-media-review-validation.json'),
@@ -1641,7 +1641,7 @@ function testPageMediaOwnerReviewBundle() {
     };
     const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
     const gitBlobSha = bytes => crypto.createHash('sha1')
-      .update(Buffer.from('blob ' + bytes.length + '\\0', 'utf8')).update(bytes).digest('hex');
+      .update(Buffer.from('blob ' + bytes.length + '\0', 'utf8')).update(bytes).digest('hex');
     const stable = value => {
       if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
       if (value && typeof value === 'object') {
@@ -1674,7 +1674,7 @@ function testPageMediaOwnerReviewBundle() {
         });
       }
       fs.writeFileSync(path.join(sourceRoot, 'content', 'page-media', area + '.json'),
-        JSON.stringify(records, null, 2) + '\\n');
+        JSON.stringify(records, null, 2) + '\n');
     }
     const git = args => {
       const result = spawnSync('git', args, { cwd: sourceRoot, encoding: 'utf8', timeout: 15000 });
@@ -1722,7 +1722,7 @@ function testPageMediaOwnerReviewBundle() {
       structuralErrors: [],
       status: 'REVIEW_REQUIRED',
     };
-    fs.writeFileSync(auditPath, JSON.stringify(audit, null, 2) + '\\n');
+    fs.writeFileSync(auditPath, JSON.stringify(audit, null, 2) + '\n');
     const built = buildPageMediaReviewBundle({
       sourceRoot,
       sourceCommit,
@@ -1743,8 +1743,8 @@ function testPageMediaOwnerReviewBundle() {
     const html = fs.readFileSync(path.join(outputDirectory, 'index.html'), 'utf8');
     const csv = fs.readFileSync(path.join(outputDirectory, 'review.csv'), 'utf8');
     assert.ok(html.includes('Content-Security-Policy'));
-    assert.ok(html.includes("default-src \\'none\\'"));
-    assert.ok(html.includes("img-src \\'self\\'"));
+    assert.ok(html.includes("default-src 'none'"));
+    assert.ok(html.includes("img-src 'self'"));
     assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
     assert.ok(html.includes('name="referrer" content="no-referrer"'));
     assert.ok(!html.includes('<script'));
@@ -1771,7 +1771,7 @@ function testPageMediaOwnerReviewBundle() {
     first.altTextReviewStatus = 'approved';
     first.altTextReviewEvidence = 'Accessibility reviewer confirmed the alt text accurately conveys the visible subject';
     const completePath = path.join(fixtureRoot, 'complete-decisions.json');
-    fs.writeFileSync(completePath, JSON.stringify(complete, null, 2) + '\\n');
+    fs.writeFileSync(completePath, JSON.stringify(complete, null, 2) + '\n');
     const completeResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
       sourceRoot, sourceCommit, decisionsPath: completePath,
     });
@@ -1783,7 +1783,7 @@ function testPageMediaOwnerReviewBundle() {
     const mismatch = JSON.parse(JSON.stringify(complete));
     mismatch.decisions[0].visualMatchStatus = 'mismatch';
     const mismatchPath = path.join(fixtureRoot, 'mismatch-decisions.json');
-    fs.writeFileSync(mismatchPath, JSON.stringify(mismatch, null, 2) + '\\n');
+    fs.writeFileSync(mismatchPath, JSON.stringify(mismatch, null, 2) + '\n');
     const mismatchResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
       sourceRoot, sourceCommit, decisionsPath: mismatchPath,
     });
@@ -1793,7 +1793,7 @@ function testPageMediaOwnerReviewBundle() {
     const stale = JSON.parse(JSON.stringify(complete));
     stale.decisions[0].imageSha256 = 'f'.repeat(64);
     const stalePath = path.join(fixtureRoot, 'stale-decisions.json');
-    fs.writeFileSync(stalePath, JSON.stringify(stale, null, 2) + '\\n');
+    fs.writeFileSync(stalePath, JSON.stringify(stale, null, 2) + '\n');
     const staleResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
       sourceRoot, sourceCommit, decisionsPath: stalePath,
     });
@@ -1803,7 +1803,7 @@ function testPageMediaOwnerReviewBundle() {
     const duplicate = JSON.parse(JSON.stringify(built.worksheet));
     duplicate.decisions.push(JSON.parse(JSON.stringify(duplicate.decisions[0])));
     const duplicatePath = path.join(fixtureRoot, 'duplicate-decisions.json');
-    fs.writeFileSync(duplicatePath, JSON.stringify(duplicate, null, 2) + '\\n');
+    fs.writeFileSync(duplicatePath, JSON.stringify(duplicate, null, 2) + '\n');
     const duplicateResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
       sourceRoot, sourceCommit, decisionsPath: duplicatePath,
     });

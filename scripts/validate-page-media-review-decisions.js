@@ -158,14 +158,29 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
 
   const manifestFile = readJsonFile(bundle, 'manifest.json', 'Page-media manifest', 10 * 1024 * 1024, errors);
   const templateFile = readJsonFile(bundle, 'page-media-decisions.template.json', 'Page-media decision template', 8 * 1024 * 1024, errors);
+  let worksheetFile = templateFile;
+  if (options && options.decisionsPath) {
+    try {
+      const returnedPath = path.resolve(options.decisionsPath);
+      const returnedStat = fs.lstatSync(returnedPath);
+      if (returnedStat.isSymbolicLink() || !returnedStat.isFile() ||
+          returnedStat.size < 1 || returnedStat.size > 8 * 1024 * 1024) {
+        throw new Error('Returned page-media worksheet must be a bounded regular non-symlink JSON file.');
+      }
+      worksheetFile = { file: returnedPath, bytes: fs.readFileSync(returnedPath) };
+    } catch (error) {
+      errors.push('Returned page-media worksheet: ' + error.message);
+      worksheetFile = null;
+    }
+  }
   let manifest = null;
   let template = null;
   if (manifestFile) {
     try { manifest = parseStrictJsonBytes(manifestFile.bytes, 'Page-media manifest'); }
     catch (error) { errors.push(error.message); }
   }
-  if (templateFile) {
-    try { template = parseStrictJsonBytes(templateFile.bytes, 'Page-media decision template'); }
+  if (worksheetFile) {
+    try { template = parseStrictJsonBytes(worksheetFile.bytes, 'Page-media decision worksheet'); }
     catch (error) { errors.push(error.message); }
   }
 
@@ -385,7 +400,7 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
     },
     decisionWorksheet: {
       source: options && options.decisionsPath ? 'returned-file' : 'generated-template',
-      sha256: templateFile ? sha256(templateFile.bytes) : '',
+      sha256: worksheetFile ? sha256(worksheetFile.bytes) : '',
     },
     reviewerAuthorization: {
       state: 'NOT_CONFIGURED',

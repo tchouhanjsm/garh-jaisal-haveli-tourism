@@ -210,7 +210,15 @@ function buildPageMediaReviewBundle(options) {
       if (!record || typeof record !== 'object' || Array.isArray(record)) {
         throw new Error('Page-media source record is missing: ' + area + '/' + slotId + '.');
       }
-      exactKeys(record, ['src', 'alt', 'caption', 'approval'], 'Page-media source record ' + slotId);
+      const sourceRecordKeys = Object.keys(record).sort();
+      const allowedRecordKeys = [
+        ['alt', 'approval', 'src'],
+        ['alt', 'approval', 'caption', 'src'],
+      ];
+      if (!allowedRecordKeys.some(keys => keys.length === sourceRecordKeys.length &&
+          keys.every((key, index) => key === sourceRecordKeys[index]))) {
+        throw new Error('Page-media source record ' + slotId + ' has unsupported or missing fields.');
+      }
       const approval = record.approval;
       exactKeys(approval, APPROVAL_FIELDS, 'Page-media approval record ' + slotId);
       if (record.src !== audited.source || approval.status !== 'pending' ||
