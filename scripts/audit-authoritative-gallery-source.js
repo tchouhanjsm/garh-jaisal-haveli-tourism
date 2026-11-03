@@ -246,7 +246,7 @@ function gallerySchemaFields(root, errors) {
   // Count every root-level declaration, including inline comments or values.
   // A duplicate key can shadow an otherwise valid Gallery collection in YAML
   // parsers that apply last-key-wins semantics, so it must fail closed.
-  const collectionDeclarations = [...config.matchAll(/^collections[ \t]*:(.*)$/gm)];
+  const collectionDeclarations = [...config.matchAll(/^(?:collections|'collections'|"collections")[ \t]*:(.*)$/gm)];
   if (collectionDeclarations.length !== 1) {
     return unavailable('admin/config.yml must contain exactly one root collections section');
   }
@@ -259,7 +259,7 @@ function gallerySchemaFields(root, errors) {
   // Scope collection discovery to the actual root-level YAML collections section.
   // A later root key may itself contain a list with "- name: gallery"; it must
   // never be allowed to masquerade as a Sveltia collection.
-  const nextRootSection = remainingConfig.search(/^[A-Za-z0-9_-]+:(?:[ \t].*)?$/m);
+  const nextRootSection = remainingConfig.search(/^(?![ \t#])\S.*$/m);
   const collectionsSection = nextRootSection === -1
     ? remainingConfig
     : remainingConfig.slice(0, nextRootSection);
