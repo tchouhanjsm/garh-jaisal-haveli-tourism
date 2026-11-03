@@ -311,7 +311,7 @@ function buildGalleryReviewBundle(options) {
     ...prepared.map(record => [
       record.id, record.category, record.publicationStatus, record.reviewStatus,
       record.sourceImagePath, record.currentAltText, record.blockers.join('; '),
-    ].map(csvCell).join(','),
+    ].map(csvCell).join(',')),
   ].join('\n') + '\n');
 
   const cards = prepared.map(record => [
