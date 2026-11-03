@@ -103,6 +103,21 @@ jobs:
           git -C "$SOURCE_ROOT" checkout --detach FETCH_HEAD
           test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
 
+      - name: Set up PHP for authoritative page-media runtime contract
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Run authoritative page-media PHP runtime contract on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/site-media-slots-contract.php
+
       - name: Audit authoritative gallery drift and rights readiness
         env:
           PINNED_SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
