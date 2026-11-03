@@ -266,13 +266,16 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
   }
   const byId = new Map();
   const auditById = new Map();
-  for (const item of audit && audit.pageMediaGovernance && audit.pageMediaGovernance.records || []) {
+  const auditRecords = audit && audit.pageMediaGovernance && Array.isArray(audit.pageMediaGovernance.records)
+    ? audit.pageMediaGovernance.records : [];
+  for (const item of auditRecords) {
     if (!item || typeof item.id !== 'string' || auditById.has(item.id)) {
       errors.push('Exact-source page-media audit contains an invalid or duplicate slot ID.');
       continue;
     }
     auditById.set(item.id, item);
   }
+  if (auditById.size !== expectedCount) errors.push('Exact-source page-media audit must contain exactly ' + expectedCount + ' unique slot records.');
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     const expected = expectedIds[index];
@@ -508,6 +511,7 @@ function parseArgs(argv) {
     if (arg === '--bundle' && argv[index + 1]) values.bundle = argv[++index];
     else if (arg === '--source-root' && argv[index + 1]) values.sourceRoot = argv[++index];
     else if (arg === '--source-commit' && argv[index + 1]) values.sourceCommit = argv[++index];
+    else if (arg === '--audit' && argv[index + 1]) values.auditPath = argv[++index];
     else if (arg === '--decisions' && argv[index + 1]) values.decisions = argv[++index];
     else if (arg === '--json') values.json = true;
     else throw new Error('Unknown or incomplete argument: ' + arg);
