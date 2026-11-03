@@ -6,8 +6,29 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
+const STRICT_YAML_PARSER = path.join(ROOT, 'scripts', 'parse-strict-cms-yaml.py');
+
+function runStrictYamlParserFixture(source) {
+  const result = spawnSync(process.env.PYTHON || 'python3', [STRICT_YAML_PARSER], {
+    input: Buffer.from(source, 'utf8'),
+    encoding: 'utf8',
+    timeout: 15000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (result.error) throw result.error;
+  let report;
+  try {
+    report = JSON.parse(result.stdout || '');
+  } catch (error) {
+    throw new Error('Strict YAML parser fixture returned invalid JSON: ' +
+      String(result.stderr || result.stdout || error.message).trim());
+  }
+  return { status: result.status, report };
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'MEDIA-MIGRATION-MANIFEST.json'), 'utf8'));
 const pageCache = new Map();
 function pageContent(name) {
@@ -871,6 +892,42 @@ try {
   assert.ok(duplicateCollectionProperty.cmsSchema.duplicatePropertyPaths.some(pathName => pathName.endsWith('.folder')));
   assert.equal(duplicateCollectionProperty.summary.approvalEligibleCount, 0);
   assert.ok(duplicateCollectionProperty.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
+
+  // Parser complexity budgets are enforced during token scanning, before node composition.
+  const nestedYaml = depth => {
+    const lines = ['root:'];
+    for (let level = 0; level < depth; level += 1) {
+      lines.push('  '.repeat(level + 1) + '-');
+    }
+    lines.push('  '.repeat(depth + 1) + 'leaf');
+    return lines.join('\n') + '\n';
+  };
+  const maximumDepth = runStrictYamlParserFixture(nestedYaml(63));
+  assert.equal(maximumDepth.status, 0);
+  assert.equal(maximumDepth.report.ok, true);
+  const excessiveDepth = runStrictYamlParserFixture(nestedYaml(64));
+  assert.equal(excessiveDepth.status, 1);
+  assert.match(excessiveDepth.report.error, /nesting exceeds the 64-level parser limit/);
+
+  const maximumScalar = runStrictYamlParserFixture(
+    'value: "' + 'x'.repeat(64 * 1024) + '"\n'
+  );
+  assert.equal(maximumScalar.status, 0);
+  assert.equal(maximumScalar.report.ok, true);
+  const excessiveScalar = runStrictYamlParserFixture(
+    'value: "' + 'x'.repeat(64 * 1024 + 1) + '"\n'
+  );
+  assert.equal(excessiveScalar.status, 1);
+  assert.match(excessiveScalar.report.error, /scalar exceeds the 65,536-character parser limit/);
+
+  const tokenBudgetYaml = count =>
+    'extension:\n' + Array.from({ length: count }, () => '  - x').join('\n') + '\n';
+  const maximumTokenBudget = runStrictYamlParserFixture(tokenBudgetYaml(49995));
+  assert.equal(maximumTokenBudget.status, 0);
+  assert.equal(maximumTokenBudget.report.ok, true);
+  const excessiveTokenBudget = runStrictYamlParserFixture(tokenBudgetYaml(49996));
+  assert.equal(excessiveTokenBudget.status, 1);
+  assert.match(excessiveTokenBudget.report.error, /exceeds the 100,000 YAML token limit/);
 
   const unsafeRecord = {
     ...unreviewedRecord,
