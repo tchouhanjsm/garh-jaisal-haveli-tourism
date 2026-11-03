@@ -620,10 +620,12 @@ try {
   makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
   const collectionConfigPath = path.join(currentRoot, 'admin', 'config.yml');
   const originalCollectionConfig = fs.readFileSync(collectionConfigPath, 'utf8');
-  const malformedCollectionFieldsConfig = originalCollectionConfig.replace(
-    '    fields:\n      - name: status',
-    '    fields:\n      status: { widget: select }'
-  );
+  const collectionFieldsStart = originalCollectionConfig.indexOf('    fields:');
+  const nextCollectionStart = originalCollectionConfig.indexOf('\n  - name: page_media_slots', collectionFieldsStart);
+  assert.ok(nextCollectionStart > collectionFieldsStart);
+  const malformedCollectionFieldsConfig = originalCollectionConfig.slice(0, collectionFieldsStart) +
+    '    fields:\n      status: { widget: select }\n' +
+    originalCollectionConfig.slice(nextCollectionStart);
   assert.notEqual(malformedCollectionFieldsConfig, originalCollectionConfig);
   fs.writeFileSync(collectionConfigPath, malformedCollectionFieldsConfig, 'utf8');
   const malformedCollectionFields = auditFixture({
@@ -634,7 +636,11 @@ try {
     manifestPath,
   });
   assert.equal(malformedCollectionFields.status, 'REVIEW_REQUIRED');
+  assert.equal(malformedCollectionFields.cmsSchema.available, true);
   assert.equal(malformedCollectionFields.cmsSchema.collectionValid, false);
+  assert.ok(malformedCollectionFields.cmsSchema.collectionContractViolations.some(
+    item => item.includes('fields must be a YAML sequence')
+  ));
   assert.equal(malformedCollectionFields.summary.approvalEligibleCount, 0);
   assert.ok(malformedCollectionFields.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
 
@@ -642,10 +648,14 @@ try {
   makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
   const nestedConfigPath = path.join(currentRoot, 'admin', 'config.yml');
   const originalNestedConfig = fs.readFileSync(nestedConfigPath, 'utf8');
-  const malformedNestedFieldsConfig = originalNestedConfig.replace(
-    '        fields:\n          - name: status',
-    '        fields:\n          status: { widget: select }'
-  );
+  const sourceEvidenceStart = originalNestedConfig.indexOf('      - name: sourceEvidence');
+  const visualReviewStart = originalNestedConfig.indexOf('      - name: visualReview', sourceEvidenceStart);
+  const nestedFieldsStart = originalNestedConfig.indexOf('        fields:', sourceEvidenceStart);
+  assert.ok(sourceEvidenceStart >= 0 && nestedFieldsStart > sourceEvidenceStart);
+  assert.ok(visualReviewStart > nestedFieldsStart);
+  const malformedNestedFieldsConfig = originalNestedConfig.slice(0, nestedFieldsStart) +
+    '        fields:\n          status: { widget: select }\n' +
+    originalNestedConfig.slice(visualReviewStart);
   assert.notEqual(malformedNestedFieldsConfig, originalNestedConfig);
   fs.writeFileSync(nestedConfigPath, malformedNestedFieldsConfig, 'utf8');
   const malformedNestedFields = auditFixture({
