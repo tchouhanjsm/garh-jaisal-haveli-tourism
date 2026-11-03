@@ -10,6 +10,7 @@ const { spawnSync } = require('node:child_process');
 const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
 const { buildGalleryReviewBundle, csvCell } = require('./build-gallery-review-bundle');
+const { validateGalleryReviewDecisions } = require('./validate-gallery-review-decisions');
 
 
 const validDecisionJson = parseStrictJsonBytes(
@@ -109,6 +110,19 @@ assert.ok(galleryBuildBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-ma
 const galleryUploadStep = QUALITY_WORKFLOW.indexOf('Upload local-only authoritative Gallery owner-review bundle');
 assert.ok(galleryUploadStep > galleryReviewBuildStep && QUALITY_WORKFLOW.slice(galleryUploadStep).includes('garh-jaisal-gallery-review/'),
   'Local-only Gallery owner-review bundle must be uploaded as a short-retention CI artifact');
+const galleryValidationStep = QUALITY_WORKFLOW.indexOf('Validate local-only authoritative Gallery decision worksheet integrity');
+assert.ok(galleryValidationStep > galleryReviewBuildStep && galleryValidationStep < galleryDecisionStep,
+  'Gallery decision worksheet must be validated after its exact-source bundle is generated');
+const galleryValidationBlock = QUALITY_WORKFLOW.slice(galleryValidationStep, galleryDecisionStep);
+assert.ok(galleryValidationBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}')
+  && galleryValidationBlock.includes('validate-gallery-review-decisions.js')
+  && galleryValidationBlock.includes('--source-commit "$SOURCE_MAIN_SHA"')
+  && galleryValidationBlock.includes('garh-jaisal-gallery-review-validation.json'),
+  'Gallery decision validation must bind to exact source main and write its report outside both repositories');
+const galleryValidationUploadStep = QUALITY_WORKFLOW.indexOf('Upload local-only Gallery decision validation');
+assert.ok(galleryValidationUploadStep > galleryUploadStep &&
+  QUALITY_WORKFLOW.slice(galleryValidationUploadStep).includes('garh-jaisal-gallery-review-validation.json'),
+  'Gallery decision validation report must be uploaded as a short-retention CI artifact');
 const phpEditorialStep = QUALITY_WORKFLOW.indexOf('Run authoritative editorial SEO and image metadata runtime contracts on exact source-main SHA');
 assert.ok(phpEditorialStep > phpMediaLibraryStep && phpEditorialStep < galleryAuditStep,
   'Editorial SEO, discovery and image metadata contracts must run after media governance and before the read-only audit');
@@ -1448,6 +1462,109 @@ function testGalleryOwnerReviewBundle() {
     assert.ok(reviewCsv.includes('creator-source-rights-evidence-incomplete'));
     assert.ok(reviewCsv.includes(csvCell(galleryRecord.image.alt)));
     assert.ok(fs.existsSync(path.join(outputDirectory, 'gallery-decisions.template.json')));
+
+    const pendingValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot,
+      sourceCommit,
+    });
+    assert.equal(pendingValidation.state, 'PENDING_OWNER_REVIEW');
+    assert.equal(pendingValidation.sourceVerification.state, 'VERIFIED');
+    assert.equal(pendingValidation.summary.decisionRowCount, 1);
+    assert.equal(pendingValidation.summary.approvalEligibleCount, 0);
+    assert.equal(pendingValidation.policy.approvalAuthorized, false);
+    assert.equal(pendingValidation.policy.publicationEligible, false);
+
+    const completeWorksheet = JSON.parse(JSON.stringify(result.decisions));
+    const completeDecision = completeWorksheet.decisions[0];
+    completeDecision.ownerDecision = 'approve';
+    completeDecision.sourceEvidence = {
+      status: 'owner-confirmed',
+      creator: 'Owner-confirmed rights holder',
+      sourceUrl: '',
+      licenseName: '',
+      evidenceReference: 'Owner rights confirmation record',
+      verifiedBy: 'Gallery owner',
+      verifiedAt: '2026-11-03',
+    };
+    completeDecision.visualReview = {
+      status: 'matched',
+      evidence: 'Exact source image inspected against the documented subject',
+      reviewer: 'Gallery editor',
+      reviewedAt: '2026-11-03',
+    };
+    completeDecision.technicalValidation = {
+      status: 'verified',
+      evidenceReference: 'Image decode and SHA-256 verification report',
+    };
+    completeDecision.altText = 'Carved sandstone facade with a detailed arched entrance and stonework';
+    completeDecision.altTextReview = {
+      status: 'approved',
+      reviewer: 'Accessibility editor',
+      reviewedAt: '2026-11-03',
+    };
+    const returnedWorksheetPath = path.join(fixtureRoot, 'returned-gallery-decisions.json');
+    fs.writeFileSync(returnedWorksheetPath, JSON.stringify(completeWorksheet, null, 2) + '\n');
+    const completeValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot,
+      sourceCommit,
+      decisionsPath: returnedWorksheetPath,
+    });
+    assert.equal(completeValidation.state, 'EVIDENCE_COMPLETE_AWAITING_SEPARATE_REVIEW');
+    assert.equal(completeValidation.summary.evidenceCompleteApprovalCount, 1);
+    assert.equal(completeValidation.policy.approvalAuthorized, false);
+    assert.equal(completeValidation.policy.publicationEligible, false);
+    assert.equal(completeValidation.reviewerAuthorization.state, 'NOT_CONFIGURED');
+
+    const mismatchWorksheet = JSON.parse(JSON.stringify(completeWorksheet));
+    mismatchWorksheet.decisions[0].visualReview.status = 'mismatch';
+    const mismatchPath = path.join(fixtureRoot, 'mismatch-gallery-decisions.json');
+    fs.writeFileSync(mismatchPath, JSON.stringify(mismatchWorksheet, null, 2) + '\n');
+    const mismatchValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot,
+      sourceCommit,
+      decisionsPath: mismatchPath,
+    });
+    assert.equal(mismatchValidation.state, 'APPROVAL_REQUEST_BLOCKED');
+    assert.equal(mismatchValidation.summary.blockedApprovalCount, 1);
+    assert.ok(mismatchValidation.decisions[0].blockers.includes('visual-mismatch-must-be-rejected'));
+
+    const staleWorksheet = JSON.parse(JSON.stringify(completeWorksheet));
+    staleWorksheet.decisions[0].imageSha256 = 'f'.repeat(64);
+    const stalePath = path.join(fixtureRoot, 'stale-gallery-decisions.json');
+    fs.writeFileSync(stalePath, JSON.stringify(staleWorksheet, null, 2) + '\n');
+    const staleValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot,
+      sourceCommit,
+      decisionsPath: stalePath,
+    });
+    assert.equal(staleValidation.state, 'INVALID');
+    assert.ok(staleValidation.errors.some(error => error.includes('stale or does not bind')));
+
+    const duplicateWorksheet = JSON.parse(JSON.stringify(result.decisions));
+    duplicateWorksheet.decisions.push(JSON.parse(JSON.stringify(duplicateWorksheet.decisions[0])));
+    const duplicatePath = path.join(fixtureRoot, 'duplicate-gallery-decisions.json');
+    fs.writeFileSync(duplicatePath, JSON.stringify(duplicateWorksheet, null, 2) + '\n');
+    const duplicateValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot,
+      sourceCommit,
+      decisionsPath: duplicatePath,
+    });
+    assert.equal(duplicateValidation.state, 'INVALID');
+    assert.ok(duplicateValidation.errors.some(error => error.includes('duplicate Gallery ID')));
+
+    const unsafeUrlWorksheet = JSON.parse(JSON.stringify(completeWorksheet));
+    unsafeUrlWorksheet.decisions[0].sourceEvidence.status = 'licensed';
+    unsafeUrlWorksheet.decisions[0].sourceEvidence.sourceUrl = 'javascript:alert(1)';
+    unsafeUrlWorksheet.decisions[0].sourceEvidence.licenseName = 'Fixture licence';
+    const unsafeUrlPath = path.join(fixtureRoot, 'unsafe-url-gallery-decisions.json');
+    fs.writeFileSync(unsafeUrlPath, JSON.stringify(unsafeUrlWorksheet, null, 2) + '\n');
+    const unsafeUrlValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot,
+      sourceCommit,
+      decisionsPath: unsafeUrlPath,
+    });
+    assert.equal(unsafeUrlValidation.state, 'INVALID');
+    assert.ok(unsafeUrlValidation.errors.some(error => error.includes('source URL must be valid HTTPS')));
 
     fs.writeFileSync(path.join(sourceRoot, 'img', 'gallery', 'owner-review.png'), Buffer.from('changed'));
     assert.throws(

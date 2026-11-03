@@ -176,6 +176,17 @@ jobs:
             --audit "${{ runner.temp }}/garh-jaisal-authoritative-gallery-audit.json" \
             --output "${{ runner.temp }}/garh-jaisal-gallery-review"
 
+      - name: Validate local-only authoritative Gallery decision worksheet integrity
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/validate-gallery-review-decisions.js \
+            --bundle "${RUNNER_TEMP}/garh-jaisal-gallery-review" \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --json > "${RUNNER_TEMP}/garh-jaisal-gallery-review-validation.json"
+
       - name: Validate local-only editorial decision worksheet integrity
         env:
           SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
@@ -216,6 +227,16 @@ jobs:
           name: garh-jaisal-gallery-owner-review-${{ github.run_id }}
           path: ${{ runner.temp }}/garh-jaisal-gallery-review/
           if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload local-only Gallery decision validation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-gallery-review-validation-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-gallery-review-validation.json
+          if-no-files-found: warn
           retention-days: 7
           compression-level: 0
 
