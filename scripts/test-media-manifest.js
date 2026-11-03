@@ -1351,6 +1351,18 @@ function testGalleryOwnerReviewBundle() {
       .update(Buffer.from('blob ' + imageBytes.length + '\0', 'utf8'))
       .update(imageBytes)
       .digest('hex');
+    const stableFixtureJson = value => {
+      if (Array.isArray(value)) return '[' + value.map(stableFixtureJson).join(',') + ']';
+      if (value && typeof value === 'object') {
+        return '{' + Object.keys(value).sort().map(key =>
+          JSON.stringify(key) + ':' + stableFixtureJson(value[key])
+        ).join(',') + '}';
+      }
+      return JSON.stringify(value);
+    };
+    const recordSignature = crypto.createHash('sha256')
+      .update(stableFixtureJson(galleryRecord) + '\0' + imageSha256)
+      .digest('hex');
     const audit = {
       schemaVersion: 1,
       auditType: 'read-only-authoritative-gallery-source-drift',
@@ -1369,6 +1381,7 @@ function testGalleryOwnerReviewBundle() {
         imageBytes: imageBytes.length,
         imageSha256,
         imageGitBlobSha,
+        signature: recordSignature,
         imageDecodeComplete: true,
         imageWidth: 1,
         imageHeight: 1,
