@@ -1273,13 +1273,20 @@ async function testEditorialReviewAuthority() {
       requests.push(url);
       assert.equal(init.headers.Authorization, 'Bearer fixture-token');
       assert.equal(init.headers['X-GitHub-Api-Version'], '2022-11-28');
-      if (/\\/pulls\\/77$/.test(url)) {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.pathname.endsWith('/pulls/77')) {
         const index = Math.min(pullRequestReads, snapshots.length - 1);
         pullRequestReads += 1;
         return response(snapshots[index]);
       }
-      const match = url.match(/\\/pulls\\/77\\/reviews\\?per_page=100\\&page=(\\d+)$/);
-      if (match) return response(pages[Number(match[1])] || []);
+      if (parsedUrl.pathname.endsWith('/pulls/77/reviews') &&
+          parsedUrl.searchParams.get('per_page') === '100') {
+        const page = Number(parsedUrl.searchParams.get('page'));
+        if (!Number.isSafeInteger(page) || page < 1) {
+          throw new Error('Invalid review page number in fixture URL.');
+        }
+        return response(pages[page] || []);
+      }
       throw new Error('Unexpected GitHub API URL in fixture: ' + url);
     };
     return { fetchImpl, requests };
