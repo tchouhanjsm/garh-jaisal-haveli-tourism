@@ -11,6 +11,20 @@ const { spawnSync } = require('node:child_process');
 const ROOT = path.resolve(__dirname, '..');
 const STRICT_YAML_PARSER = path.join(ROOT, 'scripts', 'parse-strict-cms-yaml.py');
 
+const QUALITY_WORKFLOW = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'site-quality-gates.yml'), 'utf8');
+const phpSetupStep = QUALITY_WORKFLOW.indexOf('Set up PHP for authoritative page-media runtime contract');
+const phpContractStep = QUALITY_WORKFLOW.indexOf('Run authoritative page-media PHP runtime contract on exact source-main SHA');
+const sourceMainFetchStep = QUALITY_WORKFLOW.indexOf('Fetch current authoritative source main for read-only drift audit');
+const galleryAuditStep = QUALITY_WORKFLOW.indexOf('Audit authoritative gallery drift and rights readiness');
+assert.ok(phpSetupStep >= 0 && phpContractStep > phpSetupStep,
+  'Quality workflow must install PHP before running the authoritative page-media runtime contract');
+assert.ok(sourceMainFetchStep >= 0 && sourceMainFetchStep < phpSetupStep && phpContractStep < galleryAuditStep,
+  'PHP runtime contract must execute against the fetched authoritative source main before its read-only audit');
+assert.ok(QUALITY_WORKFLOW.includes('shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962'),
+  'PHP setup action must remain pinned to the reviewed immutable commit');
+assert.ok(QUALITY_WORKFLOW.includes('php tests/php/site-media-slots-contract.php'),
+  'Quality workflow must execute the authoritative PHP page-media contract');
+
 function runStrictYamlParserFixture(source) {
   const result = spawnSync(process.env.PYTHON || 'python3', [STRICT_YAML_PARSER], {
     input: Buffer.from(source, 'utf8'),
