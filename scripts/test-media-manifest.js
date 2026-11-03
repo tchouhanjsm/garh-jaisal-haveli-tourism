@@ -140,6 +140,7 @@ assert.ok(pageMediaBuildBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-
 const pageMediaValidationBlock = QUALITY_WORKFLOW.slice(pageMediaReviewValidationStep, pageMediaReviewUploadStep);
 assert.ok(pageMediaValidationBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}') &&
   pageMediaValidationBlock.includes('validate-page-media-review-decisions.js') &&
+  pageMediaValidationBlock.includes('--audit "${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json"') &&
   pageMediaValidationBlock.includes('--source-commit "$SOURCE_MAIN_SHA"') &&
   pageMediaValidationBlock.includes('garh-jaisal-page-media-review-validation.json'),
   'Page-media worksheet validation must bind to exact source main and write a JSON report outside the source checkout');
@@ -1752,7 +1753,7 @@ function testPageMediaOwnerReviewBundle() {
     assert.ok(csv.includes('home-hero-mobile'));
     assert.ok(fs.existsSync(path.join(outputDirectory, 'page-media-decisions.template.json')));
 
-    const pending = validatePageMediaReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit });
+    const pending = validatePageMediaReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit, auditPath });
     assert.equal(pending.state, 'PENDING_OWNER_REVIEW');
     assert.equal(pending.sourceVerification.state, 'VERIFIED');
     assert.equal(pending.summary.decisionRowCount, slotCount);
@@ -1772,7 +1773,7 @@ function testPageMediaOwnerReviewBundle() {
     const completePath = path.join(fixtureRoot, 'complete-decisions.json');
     fs.writeFileSync(completePath, JSON.stringify(complete, null, 2) + '\n');
     const completeResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
-      sourceRoot, sourceCommit, decisionsPath: completePath,
+      sourceRoot, sourceCommit, auditPath, decisionsPath: completePath,
     });
     assert.equal(completeResult.state, 'EVIDENCE_COMPLETE_AWAITING_SEPARATE_SIGNED_APPROVAL');
     assert.equal(completeResult.summary.evidenceCompleteRecommendations, 1);
@@ -1784,7 +1785,7 @@ function testPageMediaOwnerReviewBundle() {
     const mismatchPath = path.join(fixtureRoot, 'mismatch-decisions.json');
     fs.writeFileSync(mismatchPath, JSON.stringify(mismatch, null, 2) + '\n');
     const mismatchResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
-      sourceRoot, sourceCommit, decisionsPath: mismatchPath,
+      sourceRoot, sourceCommit, auditPath, decisionsPath: mismatchPath,
     });
     assert.equal(mismatchResult.state, 'RECOMMENDATION_BLOCKED');
     assert.ok(mismatchResult.decisions[0].blockers.includes('visual-mismatch-must-be-rejected'));
@@ -1794,7 +1795,7 @@ function testPageMediaOwnerReviewBundle() {
     const stalePath = path.join(fixtureRoot, 'stale-decisions.json');
     fs.writeFileSync(stalePath, JSON.stringify(stale, null, 2) + '\n');
     const staleResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
-      sourceRoot, sourceCommit, decisionsPath: stalePath,
+      sourceRoot, sourceCommit, auditPath, decisionsPath: stalePath,
     });
     assert.equal(staleResult.state, 'INVALID');
     assert.ok(staleResult.errors.some(error => error.includes('not bound to exact source bytes')));
@@ -1804,7 +1805,7 @@ function testPageMediaOwnerReviewBundle() {
     const duplicatePath = path.join(fixtureRoot, 'duplicate-decisions.json');
     fs.writeFileSync(duplicatePath, JSON.stringify(duplicate, null, 2) + '\n');
     const duplicateResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
-      sourceRoot, sourceCommit, decisionsPath: duplicatePath,
+      sourceRoot, sourceCommit, auditPath, decisionsPath: duplicatePath,
     });
     assert.equal(duplicateResult.state, 'INVALID');
     assert.ok(duplicateResult.errors.some(error => error.includes('duplicate slot ID')));

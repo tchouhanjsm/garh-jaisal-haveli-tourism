@@ -156,6 +156,22 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
     errors.push(error.message);
   }
 
+  const auditPath = path.resolve(options && options.auditPath || '');
+  let audit = null;
+  let auditBytes = null;
+  try {
+    const auditStat = fs.lstatSync(auditPath);
+    if (auditStat.isSymbolicLink() || !auditStat.isFile() ||
+        auditStat.size < 1 || auditStat.size > 10 * 1024 * 1024 ||
+        within(sourceRoot, auditPath)) {
+      throw new Error('Exact-source page-media audit must be a bounded regular file outside the source checkout.');
+    }
+    auditBytes = fs.readFileSync(auditPath);
+    audit = parseStrictJsonBytes(auditBytes, 'Exact-source page-media audit');
+  } catch (error) {
+    errors.push('Exact-source page-media audit: ' + error.message);
+  }
+
   const manifestFile = readJsonFile(bundle, 'manifest.json', 'Page-media manifest', 10 * 1024 * 1024, errors);
   const templateFile = readJsonFile(bundle, 'page-media-decisions.template.json', 'Page-media decision template', 8 * 1024 * 1024, errors);
   let worksheetFile = templateFile;
@@ -188,6 +204,29 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
   const manifestHash = manifestFile ? sha256(manifestFile.bytes) : '';
   if (manifest) {
     exactKeys(manifest, MANIFEST_KEYS, 'Page-media manifest', errors);
+    const pageAudit = audit && audit.pageMediaGovernance;
+    const auditExpectedCount = Object.values(PAGE_MEDIA_SLOT_DEFINITIONS).reduce((sum, ids) => sum + ids.length, 0);
+    if (!audit || audit.auditType !== 'read-only-authoritative-gallery-source-drift' ||
+        audit.sourceRepository !== SOURCE_REPOSITORY || audit.sourceBranch !== 'main' ||
+        audit.currentSourceCommit !== sourceCommit || !Array.isArray(audit.structuralErrors) ||
+        audit.structuralErrors.length !== 0 || !pageAudit ||
+        pageAudit.status !== 'PENDING_OWNER_REVIEW' || pageAudit.schemaAvailable !== true ||
+        !Array.isArray(pageAudit.schemaViolations) || pageAudit.schemaViolations.length !== 0 ||
+        !Array.isArray(pageAudit.structuralErrors) || pageAudit.structuralErrors.length !== 0 ||
+        !pageAudit.signatureVerification || pageAudit.signatureVerification.performed !== false ||
+        !pageAudit.controls || pageAudit.controls.readOnly !== true ||
+        pageAudit.controls.tourismImportAuthorized !== false || !pageAudit.summary ||
+        pageAudit.summary.slotCount !== auditExpectedCount ||
+        pageAudit.summary.expectedSlotCount !== auditExpectedCount ||
+        pageAudit.summary.pendingCount !== auditExpectedCount ||
+        pageAudit.summary.approvedStatusCount !== 0 ||
+        pageAudit.summary.imageDecodeVerifiedCount !== auditExpectedCount ||
+        pageAudit.summary.approvalEligibleCount !== 0 ||
+        pageAudit.summary.tourismImportEligibleCount !== 0 ||
+        !Array.isArray(pageAudit.records) || pageAudit.records.length !== auditExpectedCount ||
+        !auditBytes || sha256(auditBytes) !== manifest.sourceAuditSha256) {
+      errors.push('Page-media manifest is not bound to a complete, pending, exact-source audit.');
+    }
     if (manifest.schemaVersion !== 1 || manifest.artifactType !== 'fixed-page-media-owner-review-manifest' ||
         manifest.sourceRepository !== SOURCE_REPOSITORY || manifest.sourceBranch !== 'main' ||
         manifest.sourceCommit !== sourceCommit || !SHA256.test(manifest.sourceAuditSha256 || '') ||
@@ -226,6 +265,14 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
     for (const slotId of PAGE_MEDIA_SLOT_DEFINITIONS[area]) expectedIds.push({ area, slotId });
   }
   const byId = new Map();
+  const auditById = new Map();
+  for (const item of audit && audit.pageMediaGovernance && audit.pageMediaGovernance.records || []) {
+    if (!item || typeof item.id !== 'string' || auditById.has(item.id)) {
+      errors.push('Exact-source page-media audit contains an invalid or duplicate slot ID.');
+      continue;
+    }
+    auditById.set(item.id, item);
+  }
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     const expected = expectedIds[index];
@@ -236,10 +283,23 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
       continue;
     }
     byId.set(record.slotId, record);
+    const audited = auditById.get(record.slotId);
+    if (!audited || audited.area !== record.area || audited.source !== record.sourceImagePath ||
+        audited.approvalStatus !== 'pending' || audited.imageDecodeComplete !== true ||
+        audited.assetBytes !== record.imageBytes || audited.assetSha256 !== record.imageSha256 ||
+        audited.imageGitBlobSha !== record.imageGitBlobSha ||
+        audited.imageWidth !== record.imageWidth || audited.imageHeight !== record.imageHeight) {
+      errors.push('Page-media manifest record is not bound to exact-source decode evidence: ' + record.slotId + '.');
+    }
     if (record.sourceFilePath !== 'content/page-media/' + record.area + '.json' ||
         !SHA256.test(record.sourceFileSha256 || '') || !GIT_BLOB.test(record.sourceFileGitBlobSha || '') ||
         !SHA256.test(record.sourceRecordSha256 || '') ||
         typeof record.sourceImagePath !== 'string' || !record.sourceImagePath.startsWith('img/') ||
+        record.sourceImagePath.includes('\\') || path.isAbsolute(record.sourceImagePath) ||
+        record.sourceImagePath.split('/').some(part => !part || part === '.' || part === '..') ||
+        !IMAGE_EXTENSIONS.has(path.extname(record.sourceImagePath).toLowerCase()) ||
+        record.previewImagePath !== 'images/' + String(record.imageSha256 || '').toLowerCase() +
+          path.extname(record.sourceImagePath).toLowerCase() ||
         !Number.isSafeInteger(record.imageBytes) || record.imageBytes < 1 ||
         !SHA256.test(record.imageSha256 || '') || !GIT_BLOB.test(record.imageGitBlobSha || '') ||
         record.imageDecodeComplete !== true || !Number.isInteger(record.imageWidth) || record.imageWidth < 1 ||
@@ -394,6 +454,13 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
       commit: sourceCommit,
       cleanWorkingTree: sourceStatus === '',
     },
+    sourceAuditVerification: {
+      state: errors.length ? 'INVALID' : 'VERIFIED',
+      sha256: auditBytes ? sha256(auditBytes) : '',
+      exactSourceCommit: sourceCommit,
+      pageMediaSlotCount: auditById.size,
+      signatureVerificationPerformed: false,
+    },
     bundle: {
       manifestSha256: manifestHash,
       slotCount: records.length,
@@ -445,8 +512,8 @@ function parseArgs(argv) {
     else if (arg === '--json') values.json = true;
     else throw new Error('Unknown or incomplete argument: ' + arg);
   }
-  if (!values.bundle || !values.sourceRoot || !/^[a-f0-9]{40}$/i.test(values.sourceCommit || '')) {
-    throw new Error('Usage: node scripts/validate-page-media-review-decisions.js --bundle <bundle> --source-root <source-main> --source-commit <40-character-sha> [--decisions <returned-worksheet>] [--json]');
+  if (!values.bundle || !values.sourceRoot || !values.auditPath || !/^[a-f0-9]{40}$/i.test(values.sourceCommit || '')) {
+    throw new Error('Usage: node scripts/validate-page-media-review-decisions.js --bundle <bundle> --source-root <source-main> --source-commit <40-character-sha> --audit <exact-source-audit.json> [--decisions <returned-worksheet>] [--json]');
   }
   return values;
 }
@@ -457,6 +524,7 @@ if (require.main === module) {
     const report = validatePageMediaReviewDecisions(__dirname, args.bundle, {
       sourceRoot: args.sourceRoot,
       sourceCommit: args.sourceCommit,
+      auditPath: args.auditPath,
       decisionsPath: args.decisions,
     });
     if (args.json) console.log(JSON.stringify(report, null, 2));

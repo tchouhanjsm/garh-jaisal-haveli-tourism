@@ -207,6 +207,7 @@ jobs:
             --bundle "${RUNNER_TEMP}/garh-jaisal-page-media-review" \
             --source-root "$SOURCE_ROOT" \
             --source-commit "$SOURCE_MAIN_SHA" \
+            --audit "${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json" \
             --json > "${RUNNER_TEMP}/garh-jaisal-page-media-review-validation.json"
 
       - name: Validate local-only editorial decision worksheet integrity
