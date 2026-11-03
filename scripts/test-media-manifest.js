@@ -610,7 +610,8 @@ try {
       currentSourceCommit: currentCommit,
       manifestPath,
     });
-    assert.equal(duplicateQuotedCollections.status, 'REVIEW_REQUIRED');
+    assert.equal(duplicateQuotedCollections.status, 'INVALID');
+    assert.equal(duplicateQuotedCollections.pageMediaGovernance.status, 'INVALID');
     assert.equal(duplicateQuotedCollections.cmsSchema.available, false);
     assert.equal(duplicateQuotedCollections.cmsSchema.collectionValid, false);
     assert.equal(duplicateQuotedCollections.summary.approvalEligibleCount, 0);
@@ -628,7 +629,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(duplicateRootCollections.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateRootCollections.status, 'INVALID');
   assert.equal(duplicateRootCollections.cmsSchema.available, false);
   assert.equal(duplicateRootCollections.cmsSchema.collectionValid, false);
   assert.equal(duplicateRootCollections.summary.approvalEligibleCount, 0);
@@ -644,7 +645,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(duplicateCommentedRootCollections.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateCommentedRootCollections.status, 'INVALID');
   assert.equal(duplicateCommentedRootCollections.cmsSchema.available, false);
   assert.equal(duplicateCommentedRootCollections.summary.approvalEligibleCount, 0);
   assert.ok(duplicateCommentedRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
@@ -660,7 +661,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(duplicateSpacedRootCollections.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateSpacedRootCollections.status, 'INVALID');
   assert.equal(duplicateSpacedRootCollections.cmsSchema.available, false);
   assert.equal(duplicateSpacedRootCollections.summary.approvalEligibleCount, 0);
   assert.ok(duplicateSpacedRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
@@ -675,7 +676,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(escapedDuplicateCollectionKey.status, 'REVIEW_REQUIRED');
+  assert.equal(escapedDuplicateCollectionKey.status, 'INVALID');
   assert.equal(escapedDuplicateCollectionKey.cmsSchema.available, false);
   assert.ok(escapedDuplicateCollectionKey.cmsSchema.duplicatePropertyPaths.some(
     pathName => pathName.endsWith('.collections')
@@ -693,7 +694,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(explicitMappingKey.status, 'REVIEW_REQUIRED');
+  assert.equal(explicitMappingKey.status, 'INVALID');
   assert.equal(explicitMappingKey.cmsSchema.available, false);
   assert.ok(explicitMappingKey.cmsSchema.schemaViolations.some(
     item => item.includes('explicit YAML mapping keys are unsupported')
@@ -712,7 +713,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(yamlAlias.status, 'REVIEW_REQUIRED');
+  assert.equal(yamlAlias.status, 'INVALID');
   assert.equal(yamlAlias.cmsSchema.available, false);
   assert.ok(yamlAlias.cmsSchema.schemaViolations.some(
     item => item.includes('YAML anchors are unsupported') || item.includes('YAML aliases are unsupported')
@@ -729,7 +730,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(yamlMergeKey.status, 'REVIEW_REQUIRED');
+  assert.equal(yamlMergeKey.status, 'INVALID');
   assert.equal(yamlMergeKey.cmsSchema.available, false);
   assert.ok(yamlMergeKey.cmsSchema.schemaViolations.some(
     item => item.includes('YAML merge keys are unsupported')
@@ -751,7 +752,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(escapedDuplicateProperty.status, 'REVIEW_REQUIRED');
+  assert.equal(escapedDuplicateProperty.status, 'INVALID');
   assert.equal(escapedDuplicateProperty.cmsSchema.available, false);
   assert.ok(escapedDuplicateProperty.cmsSchema.duplicatePropertyPaths.some(
     pathName => pathName.endsWith('.default')
@@ -907,7 +908,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(invalidUtf8Config.status, 'REVIEW_REQUIRED');
+  assert.equal(invalidUtf8Config.status, 'INVALID');
   assert.equal(invalidUtf8Config.cmsSchema.available, false);
   assert.ok(invalidUtf8Config.cmsSchema.schemaViolations.some(item => item.includes('valid UTF-8')));
   assert.equal(invalidUtf8Config.summary.approvalEligibleCount, 0);
@@ -989,7 +990,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(duplicateFieldProperty.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateFieldProperty.status, 'INVALID');
   assert.equal(duplicateFieldProperty.cmsSchema.safeDefaults, false);
   assert.ok(duplicateFieldProperty.cmsSchema.duplicatePropertyPaths.some(pathName => pathName.endsWith('.default')));
   assert.ok(duplicateFieldProperty.records[0].blockers.includes('cms-schema-contains-duplicate-properties'));
@@ -1009,7 +1010,7 @@ try {
     currentSourceCommit: currentCommit,
     manifestPath,
   });
-  assert.equal(duplicateCollectionProperty.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateCollectionProperty.status, 'INVALID');
   assert.equal(duplicateCollectionProperty.cmsSchema.collectionValid, false);
   assert.equal(duplicateCollectionProperty.cmsSchema.safeDefaults, false);
   assert.ok(duplicateCollectionProperty.cmsSchema.duplicatePropertyPaths.some(pathName => pathName.endsWith('.folder')));
