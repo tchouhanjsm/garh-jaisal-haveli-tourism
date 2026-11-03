@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
+const { writeBundleIntegrityManifest } = require('./review-bundle-integrity');
 
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE_REPOSITORY = 'https://github.com/tchouhanjsm/garh-jaisal-website';
@@ -328,7 +329,6 @@ function buildGalleryReviewBundle(options) {
     fs.writeFileSync(path.join(outputDirectory, item.path), item.bytes, { flag: 'wx' });
   }
   fs.writeFileSync(path.join(outputDirectory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-  fs.writeFileSync(path.join(outputDirectory, 'gallery-decisions.template.json'), JSON.stringify(decisions, null, 2) + '\n');
   fs.writeFileSync(path.join(outputDirectory, 'review.csv'), [
     ['gallery_id', 'category', 'publication_status', 'review_status', 'source_image', 'current_alt_text', 'blockers'].join(','),
     ...prepared.map(record => [
@@ -388,6 +388,7 @@ function buildGalleryReviewBundle(options) {
     '- Unique images: ' + summary.uniqueImageCount,
     '- Review template: gallery-decisions.template.json',
     '- CSV inventory: review.csv',
+    '- Bundle integrity: bundle-integrity.json (SHA-256 inventory; worksheet binds to its digest)',
     '',
     'Inspect the images and records, then collect creator, source, rights basis, visual-match, alt-text, and technical evidence from the owner/editor. Do not infer permission from the filename, a live CMS flag, a migration manifest, or successful image decoding.',
     '',
@@ -395,6 +396,11 @@ function buildGalleryReviewBundle(options) {
     '',
     'Policy: source records unchanged; media not approved; rights not inferred; no import; no publication.',
   ].join('\n') + '\n');
+
+  const integrity = writeBundleIntegrityManifest(outputDirectory, ['gallery-decisions.template.json']);
+  decisions.bundleIntegritySha256 = integrity.sha256;
+  fs.writeFileSync(path.join(outputDirectory, 'gallery-decisions.template.json'),
+    JSON.stringify(decisions, null, 2) + '\n', { flag: 'wx' });
 
   return { outputDirectory, manifest, decisions, summary };
 }

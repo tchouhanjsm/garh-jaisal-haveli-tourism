@@ -11,6 +11,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
 const { PAGE_MEDIA_SLOT_DEFINITIONS } = require('./audit-authoritative-gallery-source');
+const { verifyBundleIntegrityManifest } = require('./review-bundle-integrity');
 
 const SOURCE_REPOSITORY = 'https://github.com/tchouhanjsm/garh-jaisal-website';
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
@@ -33,7 +34,7 @@ const RECORD_KEYS = [
 ];
 const WORKSHEET_KEYS = [
   'schemaVersion', 'artifactType', 'sourceRepository', 'sourceBranch', 'sourceCommit',
-  'sourceAuditSha256', 'manifestSha256', 'reviewOnly', 'approvalStatus',
+  'sourceAuditSha256', 'manifestSha256', 'bundleIntegritySha256', 'reviewOnly', 'approvalStatus',
   'publicationEligible', 'policy', 'decisions',
 ];
 const DECISION_KEYS = [
@@ -143,6 +144,11 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
   const errors = [];
   const sourceRoot = realDirectory(options && options.sourceRoot, 'Authoritative source checkout');
   const bundle = realDirectory(bundleDirectory, 'Page-media review bundle');
+  const repositoryRoot = fs.realpathSync(repoRoot || ROOT);
+  if (within(repositoryRoot, bundle) || within(sourceRoot, bundle)) errors.push('Page-media review bundle must be outside both repositories.');
+  let bundleIntegrity = null;
+  try { bundleIntegrity = verifyBundleIntegrityManifest(bundle, ['page-media-decisions.template.json']); }
+  catch (error) { errors.push('Page-media bundle integrity: ' + error.message); }
   const sourceCommit = String(options && options.sourceCommit || '').toLowerCase();
   if (!/^[a-f0-9]{40}$/.test(sourceCommit)) errors.push('Source commit must be an exact 40-character SHA.');
   let sourceHead = '';
@@ -182,6 +188,9 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
       if (returnedStat.isSymbolicLink() || !returnedStat.isFile() ||
           returnedStat.size < 1 || returnedStat.size > 8 * 1024 * 1024) {
         throw new Error('Returned page-media worksheet must be a bounded regular non-symlink JSON file.');
+      }
+      if (within(repositoryRoot, returnedPath) || within(sourceRoot, returnedPath) || within(bundle, returnedPath)) {
+        throw new Error('Returned page-media worksheet must be outside both repositories and the review bundle.');
       }
       worksheetFile = { file: returnedPath, bytes: fs.readFileSync(returnedPath) };
     } catch (error) {
@@ -247,7 +256,8 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
         template.sourceRepository !== SOURCE_REPOSITORY || template.sourceBranch !== 'main' ||
         template.sourceCommit !== sourceCommit || !manifest ||
         template.sourceAuditSha256 !== manifest.sourceAuditSha256 ||
-        template.manifestSha256 !== manifestHash || template.reviewOnly !== true ||
+        template.manifestSha256 !== manifestHash || !bundleIntegrity ||
+         template.bundleIntegritySha256 !== bundleIntegrity.sha256 || template.reviewOnly !== true ||
         template.approvalStatus !== 'not-approved' || template.publicationEligible !== false ||
         !template.policy || ['autoApplied', 'sourceRecordsChanged', 'approvedMediaChanged',
           'rightsInferred', 'visualRelevanceInferred', 'signatureCreated',
@@ -467,6 +477,8 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
     bundle: {
       manifestSha256: manifestHash,
       slotCount: records.length,
+      integrity: bundleIntegrity ? { state: 'VERIFIED', sha256: bundleIntegrity.sha256,
+        fileCount: bundleIntegrity.fileCount, totalBytes: bundleIntegrity.totalBytes } : { state: 'INVALID' },
     },
     decisionWorksheet: {
       source: options && options.decisionsPath ? 'returned-file' : 'generated-template',

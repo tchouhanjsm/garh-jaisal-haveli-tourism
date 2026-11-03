@@ -12,6 +12,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
 const { PAGE_MEDIA_SLOT_DEFINITIONS } = require('./audit-authoritative-gallery-source');
+const { writeBundleIntegrityManifest } = require('./review-bundle-integrity');
 
 const SOURCE_REPOSITORY = 'https://github.com/tchouhanjsm/garh-jaisal-website';
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif']);
@@ -361,8 +362,6 @@ function buildPageMediaReviewBundle(options) {
     fs.writeFileSync(path.join(outputDirectory, image.path), image.bytes, { flag: 'wx' });
   }
   fs.writeFileSync(path.join(outputDirectory, 'manifest.json'), manifestBytes, { flag: 'wx' });
-  fs.writeFileSync(path.join(outputDirectory, 'page-media-decisions.template.json'),
-    JSON.stringify(worksheet, null, 2) + '\n', { flag: 'wx' });
   fs.writeFileSync(path.join(outputDirectory, 'review.csv'), [
     ['slot_id', 'area', 'source_image', 'current_alt_text', 'caption', 'approval_status', 'image_sha256'].join(','),
     ...prepared.map(record => [
@@ -422,6 +421,7 @@ function buildPageMediaReviewBundle(options) {
     '- Unique images: ' + summary.uniqueImageCount,
     '- Decision template: page-media-decisions.template.json',
     '- CSV inventory: review.csv',
+    '- Bundle integrity: bundle-integrity.json (SHA-256 inventory; worksheet binds to its digest)',
     '',
     'Inspect each exact image. Record creator/source attribution, the documented rights basis, the visual match, and the alt-text review only from owner/editor evidence. The existing text is a candidate for review, not an approved description.',
     '',
@@ -429,6 +429,11 @@ function buildPageMediaReviewBundle(options) {
     '',
     'Policy: source records unchanged; approved media unchanged; no rights or visual relevance inferred; no signature; no import; no publication.',
   ].join('\n') + '\n', { flag: 'wx' });
+
+  const integrity = writeBundleIntegrityManifest(outputDirectory, ['page-media-decisions.template.json']);
+  worksheet.bundleIntegritySha256 = integrity.sha256;
+  fs.writeFileSync(path.join(outputDirectory, 'page-media-decisions.template.json'),
+    JSON.stringify(worksheet, null, 2) + '\n', { flag: 'wx' });
 
   return { outputDirectory, manifest, worksheet, summary };
 }

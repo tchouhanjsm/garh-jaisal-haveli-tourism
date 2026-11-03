@@ -1492,6 +1492,12 @@ function testGalleryOwnerReviewBundle() {
     assert.ok(reviewCsv.includes('creator-source-rights-evidence-incomplete'));
     assert.ok(reviewCsv.includes(csvCell(galleryRecord.image.alt)));
     assert.ok(fs.existsSync(path.join(outputDirectory, 'gallery-decisions.template.json')));
+    const galleryIntegrityPath = path.join(outputDirectory, 'bundle-integrity.json');
+    const galleryIntegrityBytes = fs.readFileSync(galleryIntegrityPath);
+    const galleryIntegrity = JSON.parse(galleryIntegrityBytes.toString('utf8'));
+    assert.equal(galleryIntegrity.algorithm, 'sha256');
+    assert.equal(galleryIntegrity.fileCount, galleryIntegrity.files.length);
+    assert.equal(result.decisions.bundleIntegritySha256, crypto.createHash('sha256').update(galleryIntegrityBytes).digest('hex'));
 
     const pendingValidation = validateGalleryReviewDecisions(ROOT, outputDirectory, {
       sourceRoot,
@@ -1595,6 +1601,20 @@ function testGalleryOwnerReviewBundle() {
     });
     assert.equal(unsafeUrlValidation.state, 'INVALID');
     assert.ok(unsafeUrlValidation.errors.some(error => error.includes('source URL must be valid HTTPS')));
+
+    const galleryCsvPath = path.join(outputDirectory, 'review.csv');
+    const originalGalleryCsv = fs.readFileSync(galleryCsvPath);
+    fs.writeFileSync(galleryCsvPath, Buffer.concat([originalGalleryCsv, Buffer.from([0x58])]));
+    const tamperedGalleryBundle = validateGalleryReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit });
+    assert.equal(tamperedGalleryBundle.state, 'INVALID');
+    assert.ok(tamperedGalleryBundle.errors.some(error => error.includes('Gallery bundle integrity')));
+    fs.writeFileSync(galleryCsvPath, originalGalleryCsv);
+    const unexpectedGalleryFile = path.join(outputDirectory, 'unexpected.txt');
+    fs.writeFileSync(unexpectedGalleryFile, 'unexpected');
+    const extraGalleryFile = validateGalleryReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit });
+    assert.equal(extraGalleryFile.state, 'INVALID');
+    assert.ok(extraGalleryFile.errors.some(error => error.includes('Gallery bundle integrity')));
+    fs.rmSync(unexpectedGalleryFile);
 
     fs.writeFileSync(path.join(sourceRoot, 'img', 'gallery', 'owner-review.png'), Buffer.from('changed'));
     assert.throws(
@@ -1752,6 +1772,12 @@ function testPageMediaOwnerReviewBundle() {
     assert.ok(!html.includes('href="https://'));
     assert.ok(csv.includes('home-hero-mobile'));
     assert.ok(fs.existsSync(path.join(outputDirectory, 'page-media-decisions.template.json')));
+    const pageIntegrityPath = path.join(outputDirectory, 'bundle-integrity.json');
+    const pageIntegrityBytes = fs.readFileSync(pageIntegrityPath);
+    const pageIntegrity = JSON.parse(pageIntegrityBytes.toString('utf8'));
+    assert.equal(pageIntegrity.algorithm, 'sha256');
+    assert.equal(pageIntegrity.fileCount, pageIntegrity.files.length);
+    assert.equal(built.worksheet.bundleIntegritySha256, crypto.createHash('sha256').update(pageIntegrityBytes).digest('hex'));
 
     const pending = validatePageMediaReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit, auditPath });
     assert.equal(pending.state, 'PENDING_OWNER_REVIEW');
@@ -1809,6 +1835,29 @@ function testPageMediaOwnerReviewBundle() {
     });
     assert.equal(duplicateResult.state, 'INVALID');
     assert.ok(duplicateResult.errors.some(error => error.includes('duplicate slot ID')));
+
+    const returnedInsideBundle = path.join(outputDirectory, 'returned-decisions.json');
+    fs.writeFileSync(returnedInsideBundle, JSON.stringify(built.worksheet, null, 2));
+    const insideBundleResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot, sourceCommit, auditPath, decisionsPath: returnedInsideBundle,
+    });
+    assert.equal(insideBundleResult.state, 'INVALID');
+    assert.ok(insideBundleResult.errors.some(error => error.includes('outside both repositories and the review bundle')));
+    fs.rmSync(returnedInsideBundle);
+
+    const pageHtmlPath = path.join(outputDirectory, 'index.html');
+    const originalPageHtml = fs.readFileSync(pageHtmlPath);
+    fs.writeFileSync(pageHtmlPath, Buffer.concat([originalPageHtml, Buffer.from([0x58])]));
+    const tamperedPageBundle = validatePageMediaReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit, auditPath });
+    assert.equal(tamperedPageBundle.state, 'INVALID');
+    assert.ok(tamperedPageBundle.errors.some(error => error.includes('Page-media bundle integrity')));
+    fs.writeFileSync(pageHtmlPath, originalPageHtml);
+    const unexpectedPageFile = path.join(outputDirectory, 'unexpected.txt');
+    fs.writeFileSync(unexpectedPageFile, 'unexpected');
+    const extraPageFile = validatePageMediaReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit, auditPath });
+    assert.equal(extraPageFile.state, 'INVALID');
+    assert.ok(extraPageFile.errors.some(error => error.includes('Page-media bundle integrity')));
+    fs.rmSync(unexpectedPageFile);
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }

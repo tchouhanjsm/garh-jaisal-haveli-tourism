@@ -6,6 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
+const { verifyBundleIntegrityManifest } = require('./review-bundle-integrity');
 
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE_REPOSITORY = 'https://github.com/tchouhanjsm/garh-jaisal-website';
@@ -112,6 +113,9 @@ function validateGalleryReviewDecisions(root, bundlePath, options = {}) {
   const bundle = realDirectory(bundlePath, 'Gallery review bundle');
   const repoRoot = fs.realpathSync(root || ROOT);
   if (within(repoRoot, bundle) || within(sourceRoot, bundle)) throw new Error('Review bundle must be outside both repositories.');
+  let bundleIntegrity = null;
+  try { bundleIntegrity = verifyBundleIntegrityManifest(bundle, ['gallery-decisions.template.json']); }
+  catch (error) { errors.push('Gallery bundle integrity: ' + error.message); }
   const sourceCommit = String(options.sourceCommit || '').toLowerCase();
   if (!/^[a-f0-9]{40}$/.test(sourceCommit)) throw new Error('Source commit must be an exact 40-character SHA.');
   let sourceClean = false;
@@ -174,12 +178,13 @@ function validateGalleryReviewDecisions(root, bundlePath, options = {}) {
     : readJson(bundle, 'gallery-decisions.template.json', 'Gallery decision worksheet');
   const worksheet = worksheetFile.value;
   const worksheetKeys = ['schemaVersion', 'artifactType', 'sourceRepository', 'sourceBranch', 'sourceCommit',
-    'sourceAuditSha256', 'reviewOnly', 'approvalStatus', 'publicationEligible', 'policy', 'decisions'];
+    'sourceAuditSha256', 'bundleIntegritySha256', 'reviewOnly', 'approvalStatus', 'publicationEligible', 'policy', 'decisions'];
   exactKeys(worksheet, worksheetKeys, 'Gallery decision worksheet', errors);
   if (!worksheet || worksheet.schemaVersion !== 1 ||
       worksheet.artifactType !== 'authoritative-gallery-owner-review-worksheet' ||
       worksheet.sourceRepository !== SOURCE_REPOSITORY || worksheet.sourceBranch !== SOURCE_BRANCH ||
       worksheet.sourceCommit !== sourceCommit || worksheet.sourceAuditSha256 !== manifest.sourceAuditSha256 ||
+       !bundleIntegrity || worksheet.bundleIntegritySha256 !== bundleIntegrity.sha256 ||
       worksheet.reviewOnly !== true || worksheet.approvalStatus !== 'not-approved' ||
       worksheet.publicationEligible !== false) errors.push('Gallery worksheet source binding or review-only invariant is invalid.');
   const worksheetPolicyKeys = ['autoApplied', 'sourceRecordsChanged', 'rightsInferred',
@@ -317,7 +322,9 @@ function validateGalleryReviewDecisions(root, bundlePath, options = {}) {
     state,
     sourceVerification: { state: errors.length ? 'INVALID' : sourceClean ? 'VERIFIED' : 'INVALID',
       repository: SOURCE_REPOSITORY, branch: SOURCE_BRANCH, commit: sourceCommit, cleanWorkingTree: sourceClean },
-    bundle: { manifestSha256: manifestHash, recordCount: records.length },
+    bundle: { manifestSha256: manifestHash, recordCount: records.length,
+      integrity: bundleIntegrity ? { state: 'VERIFIED', sha256: bundleIntegrity.sha256,
+        fileCount: bundleIntegrity.fileCount, totalBytes: bundleIntegrity.totalBytes } : { state: 'INVALID' } },
     decisionWorksheet: { source: options.decisionsPath ? 'returned-file' : 'generated-template', sha256: sha256(worksheetFile.bytes) },
     reviewerAuthorization: { state: 'NOT_CONFIGURED', policyConfigured: false, identityVerified: false, approvalAuthorized: false },
     summary: { decisionRowCount: decisions.length, pendingCount, rejectedCount, requestedApprovals,
