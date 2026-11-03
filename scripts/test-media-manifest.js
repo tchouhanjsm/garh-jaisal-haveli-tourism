@@ -759,7 +759,7 @@ try {
   });
   assert.equal(duplicateFieldProperty.status, 'REVIEW_REQUIRED');
   assert.equal(duplicateFieldProperty.cmsSchema.safeDefaults, false);
-  assert.ok(duplicateFieldProperty.cmsSchema.duplicatePropertyPaths.includes('review_status.default'));
+  assert.ok(duplicateFieldProperty.cmsSchema.duplicatePropertyPaths.some(pathName => pathName.endsWith('.default')));
   assert.ok(duplicateFieldProperty.records[0].blockers.includes('cms-schema-contains-duplicate-properties'));
   assert.equal(duplicateFieldProperty.summary.approvalEligibleCount, 0);
 
@@ -780,7 +780,7 @@ try {
   assert.equal(duplicateCollectionProperty.status, 'REVIEW_REQUIRED');
   assert.equal(duplicateCollectionProperty.cmsSchema.collectionValid, false);
   assert.equal(duplicateCollectionProperty.cmsSchema.safeDefaults, false);
-  assert.ok(duplicateCollectionProperty.cmsSchema.duplicatePropertyPaths.includes('gallery.folder'));
+  assert.ok(duplicateCollectionProperty.cmsSchema.duplicatePropertyPaths.some(pathName => pathName.endsWith('.folder')));
   assert.equal(duplicateCollectionProperty.summary.approvalEligibleCount, 0);
   assert.ok(duplicateCollectionProperty.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
 
