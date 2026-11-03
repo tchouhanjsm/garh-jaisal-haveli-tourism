@@ -92,7 +92,11 @@ function assertNoDuplicateJsonKeys(source) {
   }
 
   function whitespace() {
-    while (cursor < source.length && /[ \\t\\r\\n]/.test(source[cursor])) cursor += 1;
+    while (cursor < source.length) {
+      const code = source.charCodeAt(cursor);
+      if (code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d) cursor += 1;
+      else break;
+    }
   }
 
   function readString() {
@@ -101,7 +105,7 @@ function assertNoDuplicateJsonKeys(source) {
     cursor += 1;
     while (cursor < source.length) {
       const character = source[cursor];
-      if (character === '\\\\') {
+      if (character === '\\') {
         cursor += 2;
         continue;
       }
@@ -178,7 +182,7 @@ function assertNoDuplicateJsonKeys(source) {
     }
 
     const start = cursor;
-    while (cursor < source.length && !/[ \\t\\r\\n,\\]}]/.test(source[cursor])) cursor += 1;
+    while (cursor < source.length && !' \t\r\n,]}'.includes(source[cursor])) cursor += 1;
     if (cursor === start) fail('JSON value is missing.');
   }
 
@@ -186,7 +190,6 @@ function assertNoDuplicateJsonKeys(source) {
   whitespace();
   if (cursor !== source.length) fail('JSON contains trailing data.');
 }
-
 function parseStrictJsonBytes(bytes, label = 'JSON input') {
   if (!Buffer.isBuffer(bytes)) throw new Error(label + ' must be supplied as a byte buffer.');
   if (bytes.length < 1 || bytes.length > MAX_JSON_BYTES) {
