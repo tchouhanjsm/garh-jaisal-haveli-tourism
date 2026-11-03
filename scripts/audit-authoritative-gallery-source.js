@@ -155,74 +155,125 @@ function stableStringify(value) {
   return JSON.stringify(value);
 }
 
-function parseNamedFieldBlocks(source, indentation) {
-  const lines = source.split(/\r?\n/);
-  const marker = new RegExp('^ {' + indentation + '}- name: ([A-Za-z0-9_-]+)\\s*$');
-  const blocks = [];
-  let active = null;
-  for (const line of lines) {
-    const match = line.match(marker);
-    if (match) {
-      if (active) blocks.push(active);
-      active = { name: match[1], lines: [line] };
-    } else if (active) {
-      active.lines.push(line);
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseStrictCmsYaml(source) {
+  const helperPath = path.join(__dirname, 'parse-strict-cms-yaml.py');
+  const result = spawnSync(process.env.PYTHON || 'python3', [helperPath], {
+    input: source,
+    encoding: 'utf8',
+    timeout: 15000,
+    maxBuffer: 5 * 1024 * 1024,
+  });
+  if (result.error) throw new Error('Strict CMS YAML parser could not start: ' + result.error.message);
+
+  let report;
+  try {
+    report = JSON.parse(result.stdout || '');
+  } catch (error) {
+    throw new Error('Strict CMS YAML parser returned invalid JSON: ' +
+      String(result.stderr || result.stdout || error.message).trim());
+  }
+  if (result.status !== 0 || !report || report.ok !== true) {
+    const error = new Error(report && report.error
+      ? report.error
+      : String(result.stderr || 'CMS YAML validation failed.').trim());
+    error.duplicatePaths = report && Array.isArray(report.duplicatePaths)
+      ? report.duplicatePaths
+      : [];
+    throw error;
+  }
+  return report.data;
+}
+
+function parseSchemaFieldList(items, parentPath, schemaViolations, duplicateFieldPaths) {
+  const fields = new Map();
+  if (!Array.isArray(items)) {
+    schemaViolations.push(parentPath + ' must be a YAML sequence of field mappings.');
+    return fields;
+  }
+
+  items.forEach((raw, index) => {
+    if (!isRecord(raw)) {
+      schemaViolations.push(parentPath + '[' + index + '] must be a field mapping.');
+      return;
     }
-  }
-  if (active) blocks.push(active);
+    if (typeof raw.name !== 'string' || !/^[A-Za-z0-9_-]+$/.test(raw.name)) {
+      schemaViolations.push(parentPath + '[' + index + '].name must be a supported field identifier.');
+      return;
+    }
 
-  const byName = new Map();
-  const duplicates = [];
-  for (const block of blocks) {
-    if (byName.has(block.name)) duplicates.push(block.name);
-    byName.set(block.name, block.lines.join('\n'));
-  }
-  return { blocks: byName, duplicates };
-}
+    const fieldPath = parentPath + '.' + raw.name;
+    if (fields.has(raw.name)) {
+      duplicateFieldPaths.push(fieldPath);
+      return;
+    }
 
-function fieldProperty(block, indentation, property) {
-  const pattern = new RegExp('^ {' + (indentation + 2) + '}' + property + ':\\s*([^\\s#]+)\\s*$', 'm');
-  const match = block.match(pattern);
-  return match ? match[1] : null;
-}
+    const children = new Map();
+    if (raw.widget === 'object') {
+      if (!Array.isArray(raw.fields)) {
+        schemaViolations.push(fieldPath + '.fields must be a YAML sequence.');
+      } else {
+        for (const [name, child] of parseSchemaFieldList(
+          raw.fields, fieldPath, schemaViolations, duplicateFieldPaths
+        )) {
+          children.set(name, child);
+        }
+      }
+    } else if (Object.prototype.hasOwnProperty.call(raw, 'fields')) {
+      schemaViolations.push(fieldPath + '.fields is only valid for object widgets.');
+    }
 
-function duplicatePropertyNames(block, indentation) {
-  const marker = new RegExp('^ {' + (indentation + 2) + '}([A-Za-z0-9_-]+):(?:\\s|$)', 'gm');
-  const counts = new Map();
-  for (const match of block.matchAll(marker)) {
-    counts.set(match[1], (counts.get(match[1]) || 0) + 1);
-  }
-  return [...counts].filter(([, count]) => count > 1).map(([name]) => name);
-}
+    const options = [];
+    if (raw.options !== undefined) {
+      if (!Array.isArray(raw.options)) {
+        schemaViolations.push(fieldPath + '.options must be a YAML sequence.');
+      } else {
+        raw.options.forEach((option, optionIndex) => {
+          if (!isRecord(option) || typeof option.value !== 'string') {
+            schemaViolations.push(fieldPath + '.options[' + optionIndex + '] must contain a string value.');
+          } else {
+            options.push(option.value);
+          }
+        });
+      }
+    }
 
-function parseSchemaField(block, indentation, fieldPath) {
-  const parsedChildren = parseNamedFieldBlocks(block, indentation + 4);
-  const children = new Map();
-  const duplicatePaths = parsedChildren.duplicates.map(name => fieldPath + '.' + name);
-  const duplicatePropertyPaths = duplicatePropertyNames(block, indentation)
-    .map(name => fieldPath + '.' + name);
-  for (const [name, childBlock] of parsedChildren.blocks) {
-    const childPath = fieldPath + '.' + name;
-    const child = parseSchemaField(childBlock, indentation + 4, childPath);
-    children.set(name, child);
-    duplicatePaths.push(...child.duplicatePaths);
-    duplicatePropertyPaths.push(...child.duplicatePropertyPaths);
-  }
-  return {
-    block,
-    widget: fieldProperty(block, indentation, 'widget'),
-    required: fieldProperty(block, indentation, 'required'),
-    defaultValue: fieldProperty(block, indentation, 'default'),
-    options: [...block.matchAll(/^\s+value:\s*([A-Za-z0-9_-]+)\s*$/gm)].map(match => match[1]),
-    children,
-    duplicatePaths,
-    duplicatePropertyPaths,
-  };
+    const patterns = [];
+    if (raw.pattern !== undefined) {
+      if (!Array.isArray(raw.pattern)) {
+        schemaViolations.push(fieldPath + '.pattern must be a YAML sequence.');
+      } else {
+        raw.pattern.forEach((pattern, patternIndex) => {
+          if (typeof pattern !== 'string') {
+            schemaViolations.push(fieldPath + '.pattern[' + patternIndex + '] must be a string.');
+          } else {
+            patterns.push(pattern);
+          }
+        });
+      }
+    }
+
+    fields.set(raw.name, {
+      widget: typeof raw.widget === 'string' ? raw.widget : null,
+      required: typeof raw.required === 'string'
+        ? raw.required
+        : (typeof raw.required === 'boolean' ? String(raw.required) : null),
+      defaultValue: typeof raw.default === 'string' ? raw.default : null,
+      options,
+      patterns,
+      children,
+    });
+  });
+
+  return fields;
 }
 
 function gallerySchemaFields(root, errors) {
   const configPath = path.join(root, 'admin', 'config.yml');
-  const unavailable = reason => ({
+  const unavailable = (reason, details = {}) => ({
     available: false,
     fields: [],
     missing: REQUIRED_EVIDENCE_SCHEMA_PATHS.slice(),
@@ -231,50 +282,68 @@ function gallerySchemaFields(root, errors) {
     schemaViolations: [reason],
     collectionValid: false,
     collectionContractViolations: [reason],
-    duplicateFieldPaths: [],
-    duplicatePropertyPaths: [],
+    duplicateFieldPaths: Array.isArray(details.duplicateFieldPaths)
+      ? details.duplicateFieldPaths
+      : [],
+    duplicatePropertyPaths: Array.isArray(details.duplicatePropertyPaths)
+      ? details.duplicatePropertyPaths
+      : [],
     supportsRequiredEvidence: false,
   });
+
   if (!fs.existsSync(configPath)) return unavailable('admin/config.yml is missing');
   const stat = fs.lstatSync(configPath);
   if (stat.isSymbolicLink() || !stat.isFile()) {
     errors.push('admin/config.yml must be a regular file before CMS schema can be audited.');
     return unavailable('admin/config.yml is not a regular file');
   }
+  if (stat.size < 1 || stat.size > 2 * 1024 * 1024) {
+    return unavailable('admin/config.yml must be a non-empty file no larger than 2 MiB');
+  }
 
   const config = fs.readFileSync(configPath, 'utf8');
-  // Count every root-level declaration, including inline comments or values.
-  // A duplicate key can shadow an otherwise valid Gallery collection in YAML
-  // parsers that apply last-key-wins semantics, so it must fail closed.
-  const collectionDeclarations = [...config.matchAll(/^(?:collections|'collections'|"collections")[ \t]*:(.*)$/gm)];
-  if (collectionDeclarations.length !== 1) {
-    return unavailable('admin/config.yml must contain exactly one root collections section');
-  }
-  const collectionDeclarationValue = collectionDeclarations[0][1].trim();
-  if (collectionDeclarationValue && !collectionDeclarationValue.startsWith('#')) {
-    return unavailable('root collections section must be a block mapping');
-  }
-  const collectionsStart = collectionDeclarations[0].index + collectionDeclarations[0][0].length;
-  const remainingConfig = config.slice(collectionsStart);
-  // Scope collection discovery to the actual root-level YAML collections section.
-  // A later root key may itself contain a list with "- name: gallery"; it must
-  // never be allowed to masquerade as a Sveltia collection.
-  const nextRootSection = remainingConfig.search(/^(?![ \t#])\S.*$/m);
-  const collectionsSection = nextRootSection === -1
-    ? remainingConfig
-    : remainingConfig.slice(0, nextRootSection);
-  const parsedCollections = parseNamedFieldBlocks(collectionsSection, 2);
-  const collectionBlock = parsedCollections.blocks.get('gallery');
-  if (!collectionBlock) return unavailable('Gallery collection is missing');
-
-  const collectionContractViolations = [];
-  const duplicatePropertyPaths = duplicatePropertyNames(collectionBlock, 2)
-    .map(name => 'gallery.' + name);
-  for (const pathName of duplicatePropertyPaths) {
-    collectionContractViolations.push(
-      'Gallery collection ' + pathName.slice('gallery.'.length) + ' must be declared only once.'
+  let parsedConfig;
+  try {
+    parsedConfig = parseStrictCmsYaml(config);
+  } catch (error) {
+    return unavailable(
+      'admin/config.yml YAML validation failed: ' + error.message,
+      { duplicatePropertyPaths: error.duplicatePaths }
     );
   }
+  if (!isRecord(parsedConfig)) return unavailable('admin/config.yml root must be a mapping');
+  if (!Array.isArray(parsedConfig.collections)) {
+    return unavailable('admin/config.yml collections must be a root-level YAML sequence');
+  }
+
+  const collectionNames = new Set();
+  const duplicateCollectionNames = new Set();
+  for (let index = 0; index < parsedConfig.collections.length; index += 1) {
+    const collection = parsedConfig.collections[index];
+    if (!isRecord(collection) || typeof collection.name !== 'string' || !collection.name) {
+      return unavailable('every CMS collection must be a named mapping');
+    }
+    if (collectionNames.has(collection.name)) duplicateCollectionNames.add(collection.name);
+    collectionNames.add(collection.name);
+  }
+
+  const galleryMatches = parsedConfig.collections
+    .map((collection, index) => ({ collection, index }))
+    .filter(item => item.collection.name === 'gallery');
+  if (galleryMatches.length !== 1) {
+    return unavailable('admin/config.yml must contain exactly one named Gallery collection');
+  }
+
+  const gallery = galleryMatches[0].collection;
+  const galleryIndex = galleryMatches[0].index;
+  const collectionContractViolations = [];
+  const duplicatePropertyPaths = [];
+  if (duplicateCollectionNames.size) {
+    collectionContractViolations.push(
+      'CMS collection names must be unique: ' + [...duplicateCollectionNames].sort().join(', ') + '.'
+    );
+  }
+
   const expectedCollectionProperties = [
     ['folder', '/content/gallery'],
     ['format', 'json'],
@@ -283,37 +352,24 @@ function gallerySchemaFields(root, errors) {
     ['identifier_field', 'id'],
   ];
   for (const [property, expected] of expectedCollectionProperties) {
-    const actual = fieldProperty(collectionBlock, 2, property);
-    if (actual !== expected) {
+    if (gallery[property] !== expected) {
       collectionContractViolations.push(
         'Gallery collection ' + property + ' must be ' + expected + '.'
       );
     }
   }
-
-  const parsedFields = parseNamedFieldBlocks(collectionBlock, 6);
-  const topLevel = new Map();
-  const duplicateFieldPaths = parsedFields.duplicates.slice();
-  for (const [name, block] of parsedFields.blocks) {
-    const field = parseSchemaField(block, 6, name);
-    topLevel.set(name, field);
-    duplicateFieldPaths.push(...field.duplicatePaths);
-    duplicatePropertyPaths.push(...field.duplicatePropertyPaths);
+  if (!Array.isArray(gallery.fields)) {
+    collectionContractViolations.push('Gallery collection fields must be a YAML sequence.');
   }
 
   const schemaViolations = [];
-  if (parsedCollections.duplicates.length) {
-    for (const name of parsedCollections.duplicates) {
-      schemaViolations.push('CMS collection is declared more than once: ' + name + '.');
-    }
-  }
-  for (const name of duplicateFieldPaths) {
-    schemaViolations.push('Gallery schema field is declared more than once: ' + name + '.');
-  }
-  for (const name of duplicatePropertyPaths) {
-    schemaViolations.push('CMS schema property is declared more than once: ' + name + '.');
-  }
-  schemaViolations.push(...collectionContractViolations);
+  const duplicateFieldPaths = [];
+  const topLevel = parseSchemaFieldList(
+    Array.isArray(gallery.fields) ? gallery.fields : [],
+    'gallery',
+    schemaViolations,
+    duplicateFieldPaths
+  );
 
   const fields = new Set();
   const collectFields = fieldMap => {
@@ -421,21 +477,28 @@ function gallerySchemaFields(root, errors) {
     technicalChildren && technicalChildren.get('evidenceReference'), 'string');
 
   const sourceUrlField = sourceChildren && sourceChildren.get('sourceUrl');
-  if (sourceUrlField && !/^\s+-\s+['"]?\^https:\/\/['"]?\s*$/m.test(sourceUrlField.block)) {
+  if (sourceUrlField && !sourceUrlField.patterns.includes('^https://')) {
     defaultViolations.push('sourceEvidence.sourceUrl must constrain values to HTTPS.');
   }
 
+  schemaViolations.push(...collectionContractViolations);
   const uniqueMissing = [...new Set(missing)].sort();
   const uniqueViolations = [...new Set(defaultViolations)].sort();
   const uniqueSchemaViolations = [...new Set(schemaViolations)].sort();
   const uniqueCollectionContractViolations = [...new Set(collectionContractViolations)].sort();
   const uniqueDuplicateFieldPaths = [...new Set(duplicateFieldPaths)].sort();
   const uniqueDuplicatePropertyPaths = [...new Set(duplicatePropertyPaths)].sort();
+  const collectionPrefix = '$.collections[' + galleryIndex + '].';
+  const duplicateCollectionProperties = uniqueDuplicatePropertyPaths.some(pathName => {
+    if (!pathName.startsWith(collectionPrefix)) return false;
+    const property = pathName.slice(collectionPrefix.length);
+    return !property.includes('.') && !property.includes('[');
+  });
   const collectionValid = uniqueCollectionContractViolations.length === 0 &&
-    !uniqueDuplicatePropertyPaths.some(name => name.startsWith('gallery.')) &&
-    !parsedCollections.duplicates.includes('gallery');
+    !duplicateCollectionProperties;
   const safeDefaults = uniqueViolations.length === 0 && uniqueSchemaViolations.length === 0;
   const uniqueFields = [...fields].sort();
+
   return {
     available: true,
     fields: uniqueFields,
@@ -447,7 +510,7 @@ function gallerySchemaFields(root, errors) {
     collectionContractViolations: uniqueCollectionContractViolations,
     duplicateFieldPaths: uniqueDuplicateFieldPaths,
     duplicatePropertyPaths: uniqueDuplicatePropertyPaths,
-    supportsRequiredEvidence: uniqueMissing.length === 0 && safeDefaults,
+    supportsRequiredEvidence: uniqueMissing.length === 0 && safeDefaults && collectionValid,
   };
 }
 function readGallerySnapshot(directory, label) {

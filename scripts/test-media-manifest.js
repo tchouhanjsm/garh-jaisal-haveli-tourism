@@ -521,6 +521,149 @@ try {
   assert.equal(duplicateSpacedRootCollections.summary.approvalEligibleCount, 0);
   assert.ok(duplicateSpacedRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
 
+  // Quoted escape sequences are normalized by YAML before duplicate-key checks.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot, '"\\u0063ollections": []');
+  const escapedDuplicateCollectionKey = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(escapedDuplicateCollectionKey.status, 'REVIEW_REQUIRED');
+  assert.equal(escapedDuplicateCollectionKey.cmsSchema.available, false);
+  assert.ok(escapedDuplicateCollectionKey.cmsSchema.duplicatePropertyPaths.some(
+    pathName => pathName.endsWith('.collections')
+  ));
+  assert.equal(escapedDuplicateCollectionKey.summary.approvalEligibleCount, 0);
+
+  // Explicit YAML mapping keys are valid YAML but unsupported by the CMS contract;
+  // the audit must not reinterpret them as an ordinary root section.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot, '? extension\n: []');
+  const explicitMappingKey = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(explicitMappingKey.status, 'REVIEW_REQUIRED');
+  assert.equal(explicitMappingKey.cmsSchema.available, false);
+  assert.ok(explicitMappingKey.cmsSchema.schemaViolations.some(
+    item => item.includes('explicit YAML mapping keys are unsupported')
+  ));
+  assert.equal(explicitMappingKey.summary.approvalEligibleCount, 0);
+
+  // Anchors and aliases can make a text-local field appear different from the
+  // effective CMS configuration. They are rejected rather than expanded.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot,
+    'extension: &shared\n  enabled: true\nother_extension: *shared');
+  const yamlAlias = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(yamlAlias.status, 'REVIEW_REQUIRED');
+  assert.equal(yamlAlias.cmsSchema.available, false);
+  assert.ok(yamlAlias.cmsSchema.schemaViolations.some(
+    item => item.includes('YAML anchors are unsupported') || item.includes('YAML aliases are unsupported')
+  ));
+  assert.equal(yamlAlias.summary.approvalEligibleCount, 0);
+
+  // YAML merge keys are not expanded by the audit parser and must fail closed.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot, 'extension:\n  <<: { enabled: true }');
+  const yamlMergeKey = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(yamlMergeKey.status, 'REVIEW_REQUIRED');
+  assert.equal(yamlMergeKey.cmsSchema.available, false);
+  assert.ok(yamlMergeKey.cmsSchema.schemaViolations.some(
+    item => item.includes('YAML merge keys are unsupported')
+  ));
+  assert.equal(yamlMergeKey.summary.approvalEligibleCount, 0);
+
+  // Duplicate keys are compared after YAML escape decoding, not as raw source text.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  injectDuplicateYamlProperty(
+    currentRoot,
+    '      - name: review_status',
+    '        default: draft',
+    '        "\\u0064efault": approved'
+  );
+  const escapedDuplicateProperty = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(escapedDuplicateProperty.status, 'REVIEW_REQUIRED');
+  assert.equal(escapedDuplicateProperty.cmsSchema.available, false);
+  assert.ok(escapedDuplicateProperty.cmsSchema.duplicatePropertyPaths.some(
+    pathName => pathName.endsWith('.default')
+  ));
+  assert.ok(escapedDuplicateProperty.records[0].blockers.includes('cms-schema-contains-duplicate-properties'));
+  assert.equal(escapedDuplicateProperty.summary.approvalEligibleCount, 0);
+
+  // A mapping where the CMS contract requires a sequence must not be treated as
+  // a valid collection field list.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const collectionConfigPath = path.join(currentRoot, 'admin', 'config.yml');
+  const originalCollectionConfig = fs.readFileSync(collectionConfigPath, 'utf8');
+  const malformedCollectionFieldsConfig = originalCollectionConfig.replace(
+    '    fields:\n      - name: status',
+    '    fields:\n      status: { widget: select }'
+  );
+  assert.notEqual(malformedCollectionFieldsConfig, originalCollectionConfig);
+  fs.writeFileSync(collectionConfigPath, malformedCollectionFieldsConfig, 'utf8');
+  const malformedCollectionFields = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(malformedCollectionFields.status, 'REVIEW_REQUIRED');
+  assert.equal(malformedCollectionFields.cmsSchema.collectionValid, false);
+  assert.equal(malformedCollectionFields.summary.approvalEligibleCount, 0);
+  assert.ok(malformedCollectionFields.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
+
+  // Nested object fields also have to be sequences of named field mappings.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const nestedConfigPath = path.join(currentRoot, 'admin', 'config.yml');
+  const originalNestedConfig = fs.readFileSync(nestedConfigPath, 'utf8');
+  const malformedNestedFieldsConfig = originalNestedConfig.replace(
+    '        fields:\n          - name: status',
+    '        fields:\n          status: { widget: select }'
+  );
+  assert.notEqual(malformedNestedFieldsConfig, originalNestedConfig);
+  fs.writeFileSync(nestedConfigPath, malformedNestedFieldsConfig, 'utf8');
+  const malformedNestedFields = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(malformedNestedFields.status, 'REVIEW_REQUIRED');
+  assert.equal(malformedNestedFields.cmsSchema.available, true);
+  assert.equal(malformedNestedFields.cmsSchema.collectionValid, true);
+  assert.equal(malformedNestedFields.cmsSchema.safeDefaults, false);
+  assert.ok(malformedNestedFields.cmsSchema.schemaViolations.some(
+    item => item.includes('gallery.sourceEvidence.fields must be a YAML sequence')
+  ));
+  assert.equal(malformedNestedFields.summary.approvalEligibleCount, 0);
+
   const mismatchedImageHash = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
