@@ -15,12 +15,21 @@ const QUALITY_WORKFLOW = fs.readFileSync(path.join(ROOT, '.github', 'workflows',
 const phpSetupStep = QUALITY_WORKFLOW.indexOf('Set up PHP for authoritative page-media runtime contract');
 const phpContractStep = QUALITY_WORKFLOW.indexOf('Run authoritative page-media PHP runtime contract on exact source-main SHA');
 const phpGovernanceStep = QUALITY_WORKFLOW.indexOf('Run authoritative CMS, owner-auth and SEO runtime contracts on exact source-main SHA');
+const phpMediaLibraryStep = QUALITY_WORKFLOW.indexOf('Run authoritative media-library and Gallery curation runtime contracts on exact source-main SHA');
 const sourceMainFetchStep = QUALITY_WORKFLOW.indexOf('Fetch current authoritative source main for read-only drift audit');
 const galleryAuditStep = QUALITY_WORKFLOW.indexOf('Audit authoritative gallery drift and rights readiness');
 assert.ok(phpSetupStep >= 0 && phpContractStep > phpSetupStep && phpGovernanceStep > phpContractStep,
   'Quality workflow must install PHP, run the page-media contract, then run the CMS governance contracts');
 assert.ok(sourceMainFetchStep >= 0 && sourceMainFetchStep < phpSetupStep && phpGovernanceStep < galleryAuditStep,
   'All PHP runtime contracts must execute against the fetched authoritative source main before its read-only audit');
+assert.ok(phpMediaLibraryStep > phpGovernanceStep && phpMediaLibraryStep < galleryAuditStep,
+  'Media-library and Gallery curation runtime contracts must execute after CMS governance and before the read-only audit');
+const mediaLibraryStepBlock = QUALITY_WORKFLOW.slice(phpMediaLibraryStep, galleryAuditStep);
+assert.ok(mediaLibraryStepBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}')
+  && mediaLibraryStepBlock.includes('test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"')
+  && mediaLibraryStepBlock.indexOf('php tests/php/media-library-audit.php') >= 0
+  && mediaLibraryStepBlock.indexOf('php tests/php/gallery-curation.php') > mediaLibraryStepBlock.indexOf('php tests/php/media-library-audit.php'),
+  'Both read-only media runtime contracts must run in order against the verified source-main checkout');
 assert.ok(QUALITY_WORKFLOW.includes('shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962'),
   'PHP setup action must remain pinned to the reviewed immutable commit');
 for (const contract of [
@@ -29,6 +38,8 @@ for (const contract of [
   'sveltia-cms-config-contract.php',
   'admin-auth-contract.php',
   'staging-noindex.php',
+  'media-library-audit.php',
+  'gallery-curation.php',
 ]) {
   assert.ok(QUALITY_WORKFLOW.includes('php tests/php/' + contract),
     'Quality workflow must execute the authoritative PHP contract: ' + contract);
