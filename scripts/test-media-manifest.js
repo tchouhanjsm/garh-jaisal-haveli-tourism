@@ -134,7 +134,7 @@ for (const entry of manifest.entries) {
 }
 
 
-const { auditAuthoritativeGallerySource, decodeGalleryImages } = require('./audit-authoritative-gallery-source');
+const { auditAuthoritativeGallerySource, decodeGalleryImages, PAGE_MEDIA_SLOT_DEFINITIONS } = require('./audit-authoritative-gallery-source');
 
 function galleryField(name, spec, indentation = 6) {
   const spaces = ' '.repeat(indentation);
@@ -159,6 +159,41 @@ function galleryField(name, spec, indentation = 6) {
     for (const child of spec.children) lines.push(galleryField(child.name, child.spec, indentation + 4));
   }
   return lines.join('\n');
+}
+
+function pageMediaApprovalFieldSpecs() {
+  return [
+    { name: 'src', spec: { widget: 'image', required: true } },
+    { name: 'alt', spec: { widget: 'string', required: true } },
+    { name: 'caption', spec: { widget: 'string', required: false, defaultValue: '' } },
+    {
+      name: 'approval',
+      spec: {
+        widget: 'object',
+        required: false,
+        children: [
+          {
+            name: 'status',
+            spec: {
+              widget: 'select',
+              required: true,
+              defaultValue: 'pending',
+              options: ['pending', 'approved', 'rejected', 'revoked'],
+            },
+          },
+          { name: 'source_credit', spec: { widget: 'string', required: false, defaultValue: '' } },
+          { name: 'rights_basis', spec: { widget: 'string', required: false, defaultValue: '' } },
+          { name: 'visual_match_review', spec: { widget: 'text', required: false, defaultValue: '' } },
+          { name: 'alt_text_review', spec: { widget: 'text', required: false, defaultValue: '' } },
+          { name: 'technical_validation', spec: { widget: 'hidden', required: false, defaultValue: '' } },
+          { name: 'asset_sha256', spec: { widget: 'hidden', required: false, defaultValue: '' } },
+          { name: 'approved_by', spec: { widget: 'hidden', required: false, defaultValue: '' } },
+          { name: 'approved_at', spec: { widget: 'hidden', required: false, defaultValue: '' } },
+          { name: 'signature', spec: { widget: 'hidden', required: false, defaultValue: '' } },
+        ],
+      },
+    },
+  ];
 }
 
 function makeGalleryFixture(root, options, record) {
@@ -274,8 +309,11 @@ function makeGalleryFixture(root, options, record) {
 
   fs.mkdirSync(path.join(root, 'admin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'content', 'gallery'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'content', 'page-media'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'include'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
   fs.mkdirSync(path.join(root, 'img', 'gallery'), { recursive: true });
-  const config = [
+  const configLines = [
     'collections:',
     '  - name: gallery',
     '    folder: ' + (schemaOptions.collectionFolder || '/content/gallery'),
@@ -286,15 +324,88 @@ function makeGalleryFixture(root, options, record) {
     '    fields:',
     ...configFields.map(field => galleryField(field.name, field.spec)),
     '  - name: page_media_slots',
-    '    fields:',
-    '      - name: id',
-    '        widget: string',
-  ].join('\n') + '\n';
+    '    files:',
+  ];
+  for (const [area, slotIds] of Object.entries(PAGE_MEDIA_SLOT_DEFINITIONS)) {
+    configLines.push(
+      '    - name: ' + area,
+      '      file: content/page-media/' + area + '.json',
+      '      fields:'
+    );
+    for (const slotId of slotIds) {
+      configLines.push(galleryField(slotId, {
+        widget: 'object',
+        required: false,
+        children: pageMediaApprovalFieldSpecs(),
+      }, 8));
+    }
+  }
+  const config = configLines.join('\n') + '\n';
   fs.writeFileSync(path.join(root, 'admin', 'config.yml'), config, 'utf8');
   fs.writeFileSync(
     path.join(root, 'img', 'gallery', 'fixture.png'),
     Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
   );
+
+  const pendingApproval = {
+    status: 'pending',
+    source_credit: '',
+    rights_basis: '',
+    visual_match_review: '',
+    alt_text_review: '',
+    technical_validation: '',
+    asset_sha256: '',
+    approved_by: '',
+    approved_at: '',
+    signature: '',
+  };
+  for (const [area, slotIds] of Object.entries(PAGE_MEDIA_SLOT_DEFINITIONS)) {
+    const pageRecords = {};
+    for (const slotId of slotIds) {
+      pageRecords[slotId] = {
+        src: 'img/gallery/fixture.png',
+        alt: 'Descriptive fixture image for ' + slotId + ' used only in governance tests',
+        caption: '',
+        approval: { ...pendingApproval },
+      };
+    }
+    fs.writeFileSync(
+      path.join(root, 'content', 'page-media', area + '.json'),
+      JSON.stringify(pageRecords, null, 2)
+    );
+  }
+
+  const loaderIds = Object.values(PAGE_MEDIA_SLOT_DEFINITIONS).flat();
+  fs.writeFileSync(path.join(root, 'include', 'site-media-slots.php'), [
+    'function gj_load_site_media_slots() {',
+    ...loaderIds.map(id => "  '" + id + "' => '" + id + "',"),
+    '}',
+    'function gj_site_media_slot($slots, $slotId, $fallback) {',
+    "  if (!isset($slots[$slotId]['approved']) || $slots[$slotId]['approved'] !== true) {",
+    '    return is_array($fallback) ? $fallback : [];',
+    '  }',
+    '}',
+    'gj_page_media_approval_is_valid($id, $source, $alt, $caption, $approval, $imagePath, $key, $approvers);',
+  ].join('\n'));
+  fs.writeFileSync(path.join(root, 'include', 'page-media-approval.php'), [
+    "hash_hmac('sha256', $payload, $key);",
+    "hash_file('sha256', $imagePath);",
+    'hash_equals($expectedSignature, $signature);',
+    "'status' => 'approved', 'technical_validation', 'asset_sha256',",
+    "'approved_by', 'approved_at', 'signature',",
+  ].join('\n'));
+  fs.writeFileSync(path.join(root, 'scripts', 'sign-page-media-approval.php'), [
+    "if (PHP_SAPI !== 'cli') { exit(1); }",
+    "media_approval_hmac_key; media_approvers;",
+    'gj_page_media_approval_is_valid($slotId, $source, $alt, $caption, $approval, $imagePath, $key, $approvers);',
+    'tempnam($directory, $prefix); rename($tempFile, $file);',
+  ].join('\n'));
+  fs.writeFileSync(path.join(root, 'include', 'site-config.php'), [
+    "'media_approvers' => [],",
+    "'media_approval_hmac_key' => '',",
+    "getenv('GJ_MEDIA_APPROVAL_HMAC_KEY');",
+    "'site-config.local.php';",
+  ].join('\n'));
   fs.writeFileSync(path.join(root, 'content', 'gallery', record.id + '.json'), JSON.stringify(record, null, 2));
 }
 
@@ -380,7 +491,11 @@ try {
   assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).width, 1);
   assert.equal(decodedFixtureImages.get(unreviewedRecord.image.src).height, 1);
   function auditFixture(options) {
-    return auditAuthoritativeGallerySource({ ...options, decodedImages: decodedFixtureImages });
+    return auditAuthoritativeGallerySource({
+      ...options,
+      decodedImages: decodedFixtureImages,
+      decodedPageMediaImages: decodedFixtureImages,
+    });
   }
   const unreviewed = auditFixture({
     pinnedSourceRoot: pinnedRoot,
@@ -398,6 +513,14 @@ try {
   assert.equal(unreviewed.summary.approvalEligibleCount, 0);
   assert.equal(unreviewed.controls.automaticImportPerformed, false);
   assert.equal(unreviewed.controls.approvalAuthorized, false);
+  assert.equal(unreviewed.pageMediaGovernance.summary.slotCount, 33);
+  assert.equal(unreviewed.pageMediaGovernance.summary.expectedSlotCount, 33);
+  assert.equal(unreviewed.pageMediaGovernance.summary.pendingCount, 33);
+  assert.equal(unreviewed.pageMediaGovernance.summary.approvedStatusCount, 0);
+  assert.equal(unreviewed.pageMediaGovernance.summary.approvalEligibleCount, 0);
+  assert.equal(unreviewed.pageMediaGovernance.summary.tourismImportEligibleCount, 0);
+  assert.equal(unreviewed.pageMediaGovernance.signatureVerification.performed, false);
+  assert.equal(unreviewed.controls.pageMediaApprovalAuthorized, false);
 
   const reviewedRecord = {
     ...unreviewedRecord,
@@ -943,6 +1066,121 @@ try {
   });
   assert.equal(unsafe.status, 'INVALID');
   assert.equal(unsafe.summary.recordCount, 0);
+
+  // Page-media approval defaults must remain pending in the real CMS file collection.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const pageMediaConfigPath = path.join(currentRoot, 'admin', 'config.yml');
+  const pageMediaConfig = fs.readFileSync(pageMediaConfigPath, 'utf8');
+  const pageMediaCollectionStart = pageMediaConfig.indexOf('  - name: page_media_slots');
+  const pendingDefaultIndex = pageMediaConfig.indexOf('default: pending', pageMediaCollectionStart);
+  assert.ok(pageMediaCollectionStart >= 0 && pendingDefaultIndex > pageMediaCollectionStart);
+  fs.writeFileSync(
+    pageMediaConfigPath,
+    pageMediaConfig.slice(0, pendingDefaultIndex) + 'default: approved' +
+      pageMediaConfig.slice(pendingDefaultIndex + 'default: pending'.length),
+    'utf8'
+  );
+  const unsafePageMediaDefault = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unsafePageMediaDefault.pageMediaGovernance.status, 'INVALID');
+  assert.ok(unsafePageMediaDefault.pageMediaGovernance.schemaViolations.some(
+    item => item.includes('.approval.status default must be "pending"')
+  ));
+  assert.equal(unsafePageMediaDefault.pageMediaGovernance.summary.approvalEligibleCount, 0);
+
+  // A syntactically complete approval is still not eligible until the private HMAC is verified.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const approvedHomePath = path.join(currentRoot, 'content', 'page-media', 'home.json');
+  const approvedHome = JSON.parse(fs.readFileSync(approvedHomePath, 'utf8'));
+  const approvedSlotId = PAGE_MEDIA_SLOT_DEFINITIONS.home[0];
+  const approvedRecord = approvedHome[approvedSlotId];
+  const approvedAssetHash = crypto.createHash('sha256')
+    .update(fs.readFileSync(path.join(currentRoot, 'img', 'gallery', 'fixture.png')))
+    .digest('hex');
+  approvedRecord.approval = {
+    status: 'approved',
+    source_credit: 'Photograph supplied by the hotel owner',
+    rights_basis: 'Owner confirms permission for use on the hotel website',
+    visual_match_review: 'Reviewer confirms the image matches the fixed page slot subject',
+    alt_text_review: 'Reviewer confirms the descriptive alt text matches the visible image',
+    technical_validation: 'passed',
+    asset_sha256: approvedAssetHash,
+    approved_by: 'Owner Reviewer',
+    approved_at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    signature: 'a'.repeat(64),
+  };
+  fs.writeFileSync(approvedHomePath, JSON.stringify(approvedHome, null, 2));
+  const unverifiedPageMediaApproval = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unverifiedPageMediaApproval.pageMediaGovernance.summary.approvedStatusCount, 1);
+  assert.equal(unverifiedPageMediaApproval.pageMediaGovernance.summary.approvedEvidenceCompleteCount, 1);
+  assert.equal(unverifiedPageMediaApproval.pageMediaGovernance.signatureVerification.performed, false);
+  assert.equal(unverifiedPageMediaApproval.pageMediaGovernance.summary.approvalEligibleCount, 0);
+  assert.equal(unverifiedPageMediaApproval.pageMediaGovernance.summary.tourismImportEligibleCount, 0);
+  assert.equal(unverifiedPageMediaApproval.pageMediaGovernance.status, 'REVIEW_REQUIRED_UNVERIFIED_SIGNATURES');
+
+  // A missing fixed slot must not be hidden by the remaining valid records.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const missingSlotPath = path.join(currentRoot, 'content', 'page-media', 'home.json');
+  const missingSlotRecords = JSON.parse(fs.readFileSync(missingSlotPath, 'utf8'));
+  delete missingSlotRecords[PAGE_MEDIA_SLOT_DEFINITIONS.home[0]];
+  fs.writeFileSync(missingSlotPath, JSON.stringify(missingSlotRecords, null, 2));
+  const missingPageMediaSlot = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(missingPageMediaSlot.pageMediaGovernance.status, 'INVALID');
+  assert.ok(missingPageMediaSlot.pageMediaGovernance.structuralErrors.some(
+    item => item.includes('must contain exactly its 13 fixed slot records')
+  ));
+
+  // Unsafe image paths in page-media JSON must fail closed before import or approval.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const unsafePagePath = path.join(currentRoot, 'content', 'page-media', 'home.json');
+  const unsafePageRecords = JSON.parse(fs.readFileSync(unsafePagePath, 'utf8'));
+  unsafePageRecords[PAGE_MEDIA_SLOT_DEFINITIONS.home[0]].src = 'img/../outside.webp';
+  fs.writeFileSync(unsafePagePath, JSON.stringify(unsafePageRecords, null, 2));
+  const unsafePageMediaPath = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unsafePageMediaPath.pageMediaGovernance.status, 'INVALID');
+  assert.equal(unsafePageMediaPath.pageMediaGovernance.summary.approvalEligibleCount, 0);
+  assert.equal(unsafePageMediaPath.controls.pageMediaTourismImportAuthorized, false);
+
+  // The PHP runtime fallback must remain fail-closed and the signing CLI must remain non-web.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  fs.writeFileSync(
+    path.join(currentRoot, 'include', 'site-media-slots.php'),
+    "function gj_site_media_slot($slots, $slotId, $fallback) { return $slots[$slotId]['approved'] === true ? $slots[$slotId]['image'] : []; }"
+  );
+  const unsafePageMediaRuntime = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unsafePageMediaRuntime.pageMediaGovernance.status, 'INVALID');
+  assert.ok(unsafePageMediaRuntime.pageMediaGovernance.structuralErrors.some(
+    item => item.includes('PHP fixed-slot loader is missing its fail-closed contract')
+  ));
 } finally {
   fs.rmSync(sourceAuditDirectory, { recursive: true, force: true });
 }
