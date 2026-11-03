@@ -1417,7 +1417,7 @@ function testGalleryOwnerReviewBundle() {
         outputDirectory: path.join(fixtureRoot, 'tampered-bundle'),
         generatedAt: '2026-11-03T12:00:00Z',
       }),
-      /image byte\/SHA identity changed/
+      /working tree is not clean/
     );
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true });

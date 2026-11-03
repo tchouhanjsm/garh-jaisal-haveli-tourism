@@ -29,6 +29,16 @@ function gitBlobSha(bytes) {
     .digest('hex');
 }
 
+function stableStringify(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort().map(key =>
+      JSON.stringify(key) + ':' + stableStringify(value[key])
+    ).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
 function isWithin(parent, candidate) {
   const relative = path.relative(parent, candidate);
   return relative === '' || (!relative.startsWith('..' + path.sep) &&
@@ -103,6 +113,9 @@ function buildGalleryReviewBundle(options) {
   if (runGit(sourceRoot, ['rev-parse', 'HEAD']).toLowerCase() !== sourceCommit) {
     throw new Error('Authoritative source checkout does not match the requested exact commit.');
   }
+  if (runGit(sourceRoot, ['status', '--porcelain', '--untracked-files=all'])) {
+    throw new Error('Authoritative source working tree is not clean; rebuild the source audit before creating a review bundle.');
+  }
 
   const auditPath = path.resolve(options && options.auditPath || '');
   const auditStat = fs.lstatSync(auditPath);
@@ -155,12 +168,17 @@ function buildGalleryReviewBundle(options) {
     const sourceRecordPath = regularFile(sourceRoot, recordPath, 'Gallery source record ' + sourceRecord.id);
     const sourceRecordBytes = fs.readFileSync(sourceRecordPath);
     const galleryRecord = parseStrictJsonBytes(sourceRecordBytes, 'Gallery source record ' + sourceRecord.id);
+    const expectedRecordSignature = sha256(Buffer.from(
+      stableStringify(galleryRecord) + '\0' + sourceRecord.imageSha256.toLowerCase(),
+      'utf8'
+    ));
     if (!galleryRecord || galleryRecord.id !== sourceRecord.id ||
         galleryRecord.category !== sourceRecord.category ||
         galleryRecord.status !== sourceRecord.publicationStatus ||
         (galleryRecord.review_status || 'missing') !== sourceRecord.reviewStatus ||
-        !galleryRecord.image || galleryRecord.image.src !== sourceRecord.imagePath) {
-      throw new Error('Gallery source record identity changed after the read-only audit: ' + sourceRecord.id);
+        !galleryRecord.image || galleryRecord.image.src !== sourceRecord.imagePath ||
+        expectedRecordSignature !== String(sourceRecord.signature || '').toLowerCase()) {
+      throw new Error('Gallery source record identity/signature changed after the read-only audit: ' + sourceRecord.id);
     }
 
     const extension = path.extname(sourceImage).toLowerCase();
