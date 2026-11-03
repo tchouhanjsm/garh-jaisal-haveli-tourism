@@ -86,8 +86,9 @@ function testReviewBundleIntegrityPortability() {
 
     const missingExcluded = makeDirectory('missing-excluded');
     createFile(missingExcluded, 'index.html');
+    writeBundleIntegrityManifest(missingExcluded, ['review-decisions.template.json']);
     assert.throws(
-      () => writeBundleIntegrityManifest(missingExcluded, ['review-decisions.template.json']),
+      () => verifyBundleIntegrityManifest(missingExcluded, ['review-decisions.template.json']),
       /excluded worksheet file is missing/
     );
 

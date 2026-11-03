@@ -138,7 +138,7 @@ function readRegularFile(filePath, expectedStat, label, maximumBytes) {
   }
 }
 
-function walkBundleFiles(directory, excludedPaths) {
+function walkBundleFiles(directory, excludedPaths, requireExcludedFiles = false) {
   const root = realDirectory(directory);
   const excluded = new Set(excludedPaths);
   const files = [];
@@ -195,9 +195,11 @@ function walkBundleFiles(directory, excludedPaths) {
 
   visit(root, 0);
   assertPortablePathSet(portableEntries, 'Bundle filesystem');
-  for (const relative of excluded) {
-    if (!excludedFound.has(relative)) {
-      throw new Error('Bundle excluded worksheet file is missing: ' + relative);
+  if (requireExcludedFiles) {
+    for (const relative of excluded) {
+      if (!excludedFound.has(relative)) {
+        throw new Error('Bundle excluded worksheet file is missing: ' + relative);
+      }
     }
   }
   files.sort((left, right) =>
@@ -213,7 +215,7 @@ function walkBundleFiles(directory, excludedPaths) {
 function writeBundleIntegrityManifest(directory, excludedPaths) {
   const root = realDirectory(directory);
   const excluded = normalizeExcludedPaths(excludedPaths);
-  const inventory = walkBundleFiles(root, excluded);
+  const inventory = walkBundleFiles(root, excluded, false);
   if (!inventory.files.length) throw new Error('Bundle integrity inventory cannot be empty.');
   const manifest = {
     schemaVersion: 1,
@@ -284,7 +286,7 @@ function verifyBundleIntegrityManifest(directory, expectedExcludedPaths) {
     throw new Error('Bundle integrity total byte count does not match its entries.');
   }
 
-  const actual = walkBundleFiles(root, excluded);
+  const actual = walkBundleFiles(root, excluded, true);
   if (actual.files.length !== manifest.files.length) {
     throw new Error('Bundle file inventory has missing or unexpected files.');
   }
