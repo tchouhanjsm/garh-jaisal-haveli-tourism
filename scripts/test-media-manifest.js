@@ -292,7 +292,7 @@ function injectDuplicateYamlProperty(root, blockMarker, existingLine, duplicateL
   const updated = config.slice(0, insertionPoint) + '\n' + duplicateLine + config.slice(insertionPoint);
   fs.writeFileSync(configPath, updated, 'utf8');
 }
-function moveGalleryCollectionOutsideRootCollections(root) {
+function moveGalleryCollectionOutsideRootCollections(root, rootKey = 'extension:') {
   const configPath = path.join(root, 'admin', 'config.yml');
   const lines = fs.readFileSync(configPath, 'utf8').split(/\r?\n/);
   const galleryIndex = lines.indexOf('  - name: gallery');
@@ -316,7 +316,7 @@ function moveGalleryCollectionOutsideRootCollections(root) {
   ];
   lines.splice(galleryIndex, nextCollectionIndex - galleryIndex, ...unrelatedCollection);
   // This is valid YAML but is not a child of the root "collections" key.
-  lines.push('extension:', ...decoyGallery);
+  lines.push(rootKey, ...decoyGallery);
   fs.writeFileSync(configPath, lines.join('\n'), 'utf8');
 }
 
@@ -434,6 +434,44 @@ try {
   assert.equal(outOfScopeGallery.cmsSchema.supportsRequiredEvidence, false);
   assert.equal(outOfScopeGallery.summary.approvalEligibleCount, 0);
   assert.ok(outOfScopeGallery.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
+
+  // Root-level YAML keys can contain spaces before the colon or be quoted.
+  // None may allow a Gallery-shaped extension block to masquerade as a collection.
+  for (const rootKey of ['extension :', "'extension':", '"extension":']) {
+    makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+    moveGalleryCollectionOutsideRootCollections(currentRoot, rootKey);
+    const rootKeyGallery = auditFixture({
+      pinnedSourceRoot: pinnedRoot,
+      pinnedSourceCommit: pinnedCommit,
+      currentSourceRoot: currentRoot,
+      currentSourceCommit: currentCommit,
+      manifestPath,
+    });
+    assert.equal(rootKeyGallery.status, 'REVIEW_REQUIRED');
+    assert.equal(rootKeyGallery.cmsSchema.available, false);
+    assert.equal(rootKeyGallery.cmsSchema.collectionValid, false);
+    assert.equal(rootKeyGallery.summary.approvalEligibleCount, 0);
+    assert.ok(rootKeyGallery.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
+  }
+
+  // Quoted YAML keys are equivalent to the unquoted collections key.
+  // A later quoted duplicate must be counted before trusting the first section.
+  for (const declaration of ["'collections': []", '"collections": []']) {
+    makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+    appendRootCollectionsDeclaration(currentRoot, declaration);
+    const duplicateQuotedCollections = auditFixture({
+      pinnedSourceRoot: pinnedRoot,
+      pinnedSourceCommit: pinnedCommit,
+      currentSourceRoot: currentRoot,
+      currentSourceCommit: currentCommit,
+      manifestPath,
+    });
+    assert.equal(duplicateQuotedCollections.status, 'REVIEW_REQUIRED');
+    assert.equal(duplicateQuotedCollections.cmsSchema.available, false);
+    assert.equal(duplicateQuotedCollections.cmsSchema.collectionValid, false);
+    assert.equal(duplicateQuotedCollections.summary.approvalEligibleCount, 0);
+    assert.ok(duplicateQuotedCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
+  }
 
   // A later root-level collections key can shadow the valid collection in YAML.
   // The audit must count declarations rather than silently trusting the first.
