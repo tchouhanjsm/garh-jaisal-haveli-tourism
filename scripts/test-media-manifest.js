@@ -8,6 +8,54 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
+const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
+
+
+const validDecisionJson = parseStrictJsonBytes(
+  Buffer.from('{"ownerDecision":"reject","visualReview":{"status":"mismatch"}}', 'utf8'),
+  'valid decision worksheet fixture'
+);
+assert.equal(validDecisionJson.ownerDecision, 'reject');
+assert.equal(validDecisionJson.visualReview.status, 'mismatch');
+
+assert.throws(
+  () => parseStrictJsonBytes(
+    Buffer.from('{"ownerDecision":"reject","ownerDecision":"approve"}', 'utf8'),
+    'duplicate decision fixture'
+  ),
+  /duplicate object key: ownerDecision/
+);
+assert.throws(
+  () => parseStrictJsonBytes(
+    Buffer.from('{"visualReview":{"status":"matched","status":"mismatch"}}', 'utf8'),
+    'duplicate nested evidence fixture'
+  ),
+  /duplicate object key: status/
+);
+assert.throws(
+  () => parseStrictJsonBytes(
+    Buffer.from(String.raw`{"ownerDecision":"reject","owner\u0044ecision":"approve"}`, 'utf8'),
+    'escaped duplicate decision fixture'
+  ),
+  /duplicate object key: ownerDecision/
+);
+assert.throws(
+  () => parseStrictJsonBytes(
+    Buffer.from([0x7b, 0x22, 0x61, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]),
+    'invalid UTF-8 worksheet fixture'
+  ),
+  /valid UTF-8/
+);
+const maximumDepthJson = '['.repeat(64) + '0' + ']'.repeat(64);
+assert.equal(
+  parseStrictJsonBytes(Buffer.from(maximumDepthJson, 'utf8'), 'maximum depth JSON fixture').length,
+  1
+);
+const excessiveDepthJson = '['.repeat(65) + '0' + ']'.repeat(65);
+assert.throws(
+  () => parseStrictJsonBytes(Buffer.from(excessiveDepthJson, 'utf8'), 'over-depth JSON fixture'),
+  /nesting exceeds the 64-level safety limit/
+);
 
 const ROOT = path.resolve(__dirname, '..');
 const STRICT_YAML_PARSER = path.join(ROOT, 'scripts', 'parse-strict-cms-yaml.py');

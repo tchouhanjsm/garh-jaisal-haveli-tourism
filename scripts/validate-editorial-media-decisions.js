@@ -76,11 +76,139 @@ function regularFile(root, relative, label) {
   return absolute;
 }
 
+const MAX_JSON_BYTES = 8 * 1024 * 1024;
+const MAX_JSON_DEPTH = 64;
+
+/**
+ * Reject duplicate keys before JSON.parse applies last-key-wins semantics.
+ * Keys are decoded before comparison, so escaped spellings of the same key
+ * are treated as duplicates too.
+ */
+function assertNoDuplicateJsonKeys(source) {
+  let cursor = 0;
+
+  function fail(message) {
+    throw new Error(message);
+  }
+
+  function whitespace() {
+    while (cursor < source.length && /[ \\t\\r\\n]/.test(source[cursor])) cursor += 1;
+  }
+
+  function readString() {
+    const start = cursor;
+    if (source[cursor] !== '"') fail('JSON string token expected.');
+    cursor += 1;
+    while (cursor < source.length) {
+      const character = source[cursor];
+      if (character === '\\\\') {
+        cursor += 2;
+        continue;
+      }
+      if (character === '"') {
+        cursor += 1;
+        try {
+          return JSON.parse(source.slice(start, cursor));
+        } catch (error) {
+          fail('JSON string token is malformed: ' + error.message);
+        }
+      }
+      if (source.charCodeAt(cursor) < 0x20) fail('JSON string contains an unescaped control character.');
+      cursor += 1;
+    }
+    fail('JSON string is unterminated.');
+  }
+
+  function readValue(depth) {
+    if (depth > MAX_JSON_DEPTH) fail('JSON nesting exceeds the ' + MAX_JSON_DEPTH + '-level safety limit.');
+    whitespace();
+    const character = source[cursor];
+
+    if (character === '"') {
+      readString();
+      return;
+    }
+
+    if (character === '{') {
+      cursor += 1;
+      whitespace();
+      if (source[cursor] === '}') {
+        cursor += 1;
+        return;
+      }
+      const keys = new Set();
+      while (cursor < source.length) {
+        whitespace();
+        const key = readString();
+        if (keys.has(key)) fail('JSON contains duplicate object key: ' + key);
+        keys.add(key);
+        whitespace();
+        if (source[cursor] !== ':') fail('JSON object key must be followed by a colon.');
+        cursor += 1;
+        readValue(depth + 1);
+        whitespace();
+        if (source[cursor] === '}') {
+          cursor += 1;
+          return;
+        }
+        if (source[cursor] !== ',') fail('JSON object entries must be comma-separated.');
+        cursor += 1;
+      }
+      fail('JSON object is unterminated.');
+    }
+
+    if (character === '[') {
+      cursor += 1;
+      whitespace();
+      if (source[cursor] === ']') {
+        cursor += 1;
+        return;
+      }
+      while (cursor < source.length) {
+        readValue(depth + 1);
+        whitespace();
+        if (source[cursor] === ']') {
+          cursor += 1;
+          return;
+        }
+        if (source[cursor] !== ',') fail('JSON array entries must be comma-separated.');
+        cursor += 1;
+      }
+      fail('JSON array is unterminated.');
+    }
+
+    const start = cursor;
+    while (cursor < source.length && !/[ \\t\\r\\n,\\]}]/.test(source[cursor])) cursor += 1;
+    if (cursor === start) fail('JSON value is missing.');
+  }
+
+  readValue(0);
+  whitespace();
+  if (cursor !== source.length) fail('JSON contains trailing data.');
+}
+
+function parseStrictJsonBytes(bytes, label = 'JSON input') {
+  if (!Buffer.isBuffer(bytes)) throw new Error(label + ' must be supplied as a byte buffer.');
+  if (bytes.length < 1 || bytes.length > MAX_JSON_BYTES) {
+    throw new Error(label + ' must be a non-empty JSON file no larger than ' + MAX_JSON_BYTES + ' bytes.');
+  }
+  const source = bytes.toString('utf8');
+  if (!Buffer.from(source, 'utf8').equals(bytes)) {
+    throw new Error(label + ' must contain valid UTF-8 bytes.');
+  }
+  assertNoDuplicateJsonKeys(source);
+  try {
+    return JSON.parse(source);
+  } catch (error) {
+    throw new Error(label + ' is not valid strict JSON: ' + error.message);
+  }
+}
+
 function readJsonFile(root, relative, label) {
   const absolute = regularFile(root, relative, label);
   const bytes = fs.readFileSync(absolute);
   try {
-    return { bytes, value: JSON.parse(bytes.toString('utf8')) };
+    return { bytes, value: parseStrictJsonBytes(bytes, label) };
   } catch (error) {
     throw new Error(label + ' is not valid JSON: ' + error.message);
   }
@@ -117,7 +245,7 @@ function readExternalJsonFile(root, filePath, label) {
   }
   const bytes = fs.readFileSync(real);
   try {
-    return { bytes, value: JSON.parse(bytes.toString('utf8')) };
+    return { bytes, value: parseStrictJsonBytes(bytes, label) };
   } catch (error) {
     throw new Error(label + ' is not valid JSON: ' + error.message);
   }
@@ -917,4 +1045,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { validateEditorialMediaDecisions, technicalReference, meaningfulAlt, validDate };
+module.exports = { validateEditorialMediaDecisions, technicalReference, meaningfulAlt, validDate, parseStrictJsonBytes };
