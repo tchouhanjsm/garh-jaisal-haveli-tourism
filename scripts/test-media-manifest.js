@@ -752,6 +752,84 @@ try {
   assert.ok(wrongCollection.records[0].blockers.includes('cms-gallery-collection-contract-invalid'));
 
 
+  // Invalid UTF-8 inside a YAML comment must not be normalized by Node before parsing.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const invalidUtf8ConfigPath = path.join(currentRoot, 'admin', 'config.yml');
+  fs.appendFileSync(invalidUtf8ConfigPath, Buffer.from('# ignored invalid byte: \\xff\\n', 'binary'));
+  const invalidUtf8Config = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(invalidUtf8Config.status, 'REVIEW_REQUIRED');
+  assert.equal(invalidUtf8Config.cmsSchema.available, false);
+  assert.ok(invalidUtf8Config.cmsSchema.schemaViolations.some(item => item.includes('valid UTF-8')));
+  assert.equal(invalidUtf8Config.summary.approvalEligibleCount, 0);
+
+  // CMS select fields must expose exactly the supported state values, not an
+  // additional state that could bypass the editorial/publication vocabulary.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const optionConfigPath = path.join(currentRoot, 'admin', 'config.yml');
+  const optionConfig = fs.readFileSync(optionConfigPath, 'utf8');
+  const reviewFieldStart = optionConfig.indexOf('      - name: review_status');
+  const nextReviewField = optionConfig.indexOf('\\n      - name:', reviewFieldStart + 1);
+  assert.ok(reviewFieldStart >= 0 && nextReviewField > reviewFieldStart);
+  const reviewFieldBlock = optionConfig.slice(reviewFieldStart, nextReviewField);
+  assert.ok(reviewFieldBlock.includes('            value: rejected'));
+  const extendedReviewFieldBlock = reviewFieldBlock.replace(
+    '            value: rejected',
+    '            value: rejected\\n          - label: Unsupported state\\n            value: published'
+  );
+  assert.notEqual(extendedReviewFieldBlock, reviewFieldBlock);
+  fs.writeFileSync(optionConfigPath,
+    optionConfig.slice(0, reviewFieldStart) + extendedReviewFieldBlock + optionConfig.slice(nextReviewField),
+    'utf8');
+  const unexpectedChoice = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unexpectedChoice.status, 'REVIEW_REQUIRED');
+  assert.equal(unexpectedChoice.cmsSchema.safeDefaults, false);
+  assert.ok(unexpectedChoice.cmsSchema.defaultViolations.some(
+    item => item.includes('review_status options must match the exact allowed values')
+  ));
+  assert.equal(unexpectedChoice.summary.approvalEligibleCount, 0);
+
+  // A select option without a non-empty display label is not a valid CMS choice.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  const unlabeledOptionConfigPath = path.join(currentRoot, 'admin', 'config.yml');
+  const unlabeledOptionConfig = fs.readFileSync(unlabeledOptionConfigPath, 'utf8');
+  const statusFieldStart = unlabeledOptionConfig.indexOf('      - name: status');
+  const nextStatusField = unlabeledOptionConfig.indexOf('\\n      - name:', statusFieldStart + 1);
+  assert.ok(statusFieldStart >= 0 && nextStatusField > statusFieldStart);
+  const statusFieldBlock = unlabeledOptionConfig.slice(statusFieldStart, nextStatusField);
+  const unlabeledStatusFieldBlock = statusFieldBlock.replace(
+    '          - label: draft\\n            value: draft',
+    '          - value: draft'
+  );
+  assert.notEqual(unlabeledStatusFieldBlock, statusFieldBlock);
+  fs.writeFileSync(unlabeledOptionConfigPath,
+    unlabeledOptionConfig.slice(0, statusFieldStart) + unlabeledStatusFieldBlock + unlabeledOptionConfig.slice(nextStatusField),
+    'utf8');
+  const unlabeledOption = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(unlabeledOption.status, 'REVIEW_REQUIRED');
+  assert.equal(unlabeledOption.cmsSchema.safeDefaults, false);
+  assert.ok(unlabeledOption.cmsSchema.schemaViolations.some(
+    item => item.includes('options[0] must contain non-empty string label and value')
+  ));
+  assert.equal(unlabeledOption.summary.approvalEligibleCount, 0);
+
   // Duplicate scalar YAML properties must fail closed; the CMS parser may use the later value.
   makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
   injectDuplicateYamlProperty(
