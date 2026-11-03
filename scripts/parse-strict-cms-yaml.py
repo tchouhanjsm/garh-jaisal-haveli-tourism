@@ -5,10 +5,27 @@ import sys
 
 import yaml
 from yaml.nodes import MappingNode, ScalarNode, SequenceNode
-from yaml.tokens import AliasToken, AnchorToken, DirectiveToken, KeyToken, TagToken
+from yaml.tokens import (
+    AliasToken,
+    AnchorToken,
+    BlockEndToken,
+    BlockMappingStartToken,
+    BlockSequenceStartToken,
+    DirectiveToken,
+    FlowMappingEndToken,
+    FlowMappingStartToken,
+    FlowSequenceEndToken,
+    FlowSequenceStartToken,
+    KeyToken,
+    ScalarToken,
+    TagToken,
+)
 
 
 MAX_CONFIG_BYTES = 2 * 1024 * 1024
+MAX_YAML_TOKENS = 100_000
+MAX_YAML_NESTING = 64
+MAX_SCALAR_CHARS = 64 * 1024
 
 
 class StrictYamlError(Exception):
@@ -66,8 +83,50 @@ def convert_node(node, path, duplicate_paths):
 
 
 def parse_config(source):
+    token_count = 0
+    nesting_depth = 0
+    container_starts = (
+        BlockMappingStartToken,
+        BlockSequenceStartToken,
+        FlowMappingStartToken,
+        FlowSequenceStartToken,
+    )
+    container_ends = (
+        BlockEndToken,
+        FlowMappingEndToken,
+        FlowSequenceEndToken,
+    )
+
     for token in yaml.scan(source, Loader=yaml.BaseLoader):
+        token_count += 1
         line = token.start_mark.line + 1
+        if token_count > MAX_YAML_TOKENS:
+            raise StrictYamlError(
+                "CMS config exceeds the {:,} YAML token limit at line {}".format(
+                    MAX_YAML_TOKENS, line
+                )
+            )
+        if isinstance(token, ScalarToken) and len(token.value) > MAX_SCALAR_CHARS:
+            raise StrictYamlError(
+                "YAML scalar exceeds the {:,}-character parser limit at line {}".format(
+                    MAX_SCALAR_CHARS, line
+                )
+            )
+        if isinstance(token, container_starts):
+            nesting_depth += 1
+            if nesting_depth > MAX_YAML_NESTING:
+                raise StrictYamlError(
+                    "YAML nesting exceeds the {}-level parser limit at line {}".format(
+                        MAX_YAML_NESTING, line
+                    )
+                )
+        elif isinstance(token, container_ends):
+            nesting_depth -= 1
+            if nesting_depth < 0:
+                raise StrictYamlError(
+                    "YAML container nesting is unbalanced at line {}".format(line)
+                )
+
         if isinstance(token, AliasToken):
             raise StrictYamlError("YAML aliases are unsupported at line {}".format(line))
         if isinstance(token, AnchorToken):
@@ -118,7 +177,7 @@ def main():
 if __name__ == "__main__":
     try:
         response = main()
-    except (StrictYamlError, yaml.YAMLError) as error:
+    except (StrictYamlError, yaml.YAMLError, RecursionError) as error:
         response = {
             "ok": False,
             "error": str(error),
