@@ -40,6 +40,36 @@ const REQUIRED_EVIDENCE_SCHEMA_PATHS = [
   'technicalValidation.evidenceReference',
 ];
 
+const PAGE_MEDIA_SLOT_DEFINITIONS = Object.freeze({
+  home: [
+    'home-hero-mobile', 'home-hero-desktop', 'home-heritage-intro',
+    'home-rooftop-feature', 'home-desert-safari-feature', 'home-swiss-tent-feature',
+    'home-sleep-under-stars-feature', 'home-city-discovery-feature',
+    'home-gallery-city', 'home-gallery-courtyard', 'home-gallery-reception',
+    'home-gallery-rooftop', 'home-gallery-entrance',
+  ],
+  rooms: [
+    'rooms-hero', 'room-sweet-purple-room-primary', 'room-rising-sun-room-primary',
+    'room-scarlet-room-primary', 'room-opium-room-primary', 'room-red-maharani-room-primary',
+    'room-green-room-primary', 'room-bluesky-room-primary',
+  ],
+  dining: ['dining-hero'],
+  experiences: [
+    'experience-desert-safari-hero', 'experience-guided-jaisalmer-tour-hero',
+    'experience-sunset-camel-safari-hero', 'experience-sleep-under-the-stars-hero',
+    'experience-swiss-tent-safari-hero', 'experience-cultural-safari-hero',
+    'experience-explore-the-desert-hero', 'experience-half-day-jaisalmer-tour-hero',
+    'experience-full-day-jaisalmer-tour-hero', 'experience-longewala-tour-hero',
+    'experience-rajasthan-tours-hero',
+  ],
+});
+const PAGE_MEDIA_APPROVAL_FIELDS = [
+  'status', 'source_credit', 'rights_basis', 'visual_match_review',
+  'alt_text_review', 'technical_validation', 'asset_sha256',
+  'approved_by', 'approved_at', 'signature',
+];
+const PAGE_MEDIA_APPROVAL_STATES = ['pending', 'approved', 'rejected', 'revoked'];
+
 function nonEmpty(value, minimum = 2) {
   return typeof value === 'string' && value.trim().length >= minimum;
 }
@@ -540,6 +570,437 @@ function gallerySchemaFields(root, errors) {
     supportsRequiredEvidence: uniqueMissing.length === 0 && safeDefaults && collectionValid,
   };
 }
+function readGovernanceSource(root, relativePath, errors) {
+  const absolute = path.join(root, ...relativePath.split('/'));
+  try {
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > 512 * 1024) {
+      errors.push(relativePath + ' must be a bounded, regular non-symlink file.');
+      return '';
+    }
+    return fs.readFileSync(absolute, 'utf8');
+  } catch (error) {
+    errors.push(relativePath + ' is unavailable: ' + error.message);
+    return '';
+  }
+}
+
+function pageMediaGovernanceAudit(directory, suppliedDecodedImages) {
+  const root = realDirectory(directory, 'current source main');
+  const errors = [];
+  const schemaViolations = [];
+  const records = [];
+  const areas = Object.keys(PAGE_MEDIA_SLOT_DEFINITIONS);
+  const expectedSlotCount = areas.reduce((total, area) => total + PAGE_MEDIA_SLOT_DEFINITIONS[area].length, 0);
+  const configPath = path.join(root, 'admin', 'config.yml');
+  let parsedConfig = null;
+
+  try {
+    const stat = fs.lstatSync(configPath);
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size < 1 || stat.size > 2 * 1024 * 1024) {
+      throw new Error('admin/config.yml must be a bounded, regular non-symlink file.');
+    }
+    parsedConfig = parseStrictCmsYaml(fs.readFileSync(configPath));
+  } catch (error) {
+    errors.push('Page-media CMS configuration is unavailable: ' + error.message);
+  }
+
+  let pageMediaCollection = null;
+  if (parsedConfig) {
+    if (!isRecord(parsedConfig) || !Array.isArray(parsedConfig.collections)) {
+      errors.push('CMS root collections must be a YAML sequence before page-media governance can be audited.');
+    } else {
+      const matches = parsedConfig.collections.filter(item =>
+        isRecord(item) && item.name === 'page_media_slots'
+      );
+      if (matches.length !== 1) {
+        errors.push('CMS must contain exactly one page_media_slots collection.');
+      } else {
+        pageMediaCollection = matches[0];
+      }
+    }
+  }
+
+  if (pageMediaCollection) {
+    if (!Array.isArray(pageMediaCollection.files)) {
+      schemaViolations.push('page_media_slots.files must be a YAML sequence.');
+    } else {
+      const fileEntries = pageMediaCollection.files;
+      const entryNames = fileEntries.map(entry => isRecord(entry) ? entry.name : null);
+      if (entryNames.length !== areas.length || areas.some((area, index) => entryNames[index] !== area)) {
+        schemaViolations.push('page_media_slots.files must contain the four fixed areas in canonical order: ' + areas.join(', ') + '.');
+      }
+
+      const seenFiles = new Set();
+      for (const area of areas) {
+        const matches = fileEntries.filter(entry => isRecord(entry) && entry.name === area);
+        if (matches.length !== 1) {
+          schemaViolations.push('page_media_slots must define exactly one ' + area + ' file entry.');
+          continue;
+        }
+        const entry = matches[0];
+        const expectedFile = 'content/page-media/' + area + '.json';
+        if (entry.file !== expectedFile) {
+          schemaViolations.push('page_media_slots.' + area + '.file must be ' + expectedFile + '.');
+        }
+        if (seenFiles.has(entry.file)) schemaViolations.push('Page-media CMS file paths must be unique: ' + String(entry.file) + '.');
+        seenFiles.add(entry.file);
+
+        const duplicateFields = [];
+        const fields = parseSchemaFieldList(
+          entry.fields,
+          'page_media_slots.' + area,
+          schemaViolations,
+          duplicateFields
+        );
+        for (const duplicate of duplicateFields) {
+          schemaViolations.push('Page-media field is declared more than once: ' + duplicate + '.');
+        }
+
+        const expectedIds = PAGE_MEDIA_SLOT_DEFINITIONS[area];
+        const actualIds = [...fields.keys()];
+        if (actualIds.length !== expectedIds.length ||
+            actualIds.some((id, index) => id !== expectedIds[index])) {
+          schemaViolations.push(
+            'page_media_slots.' + area + ' must declare exactly these fixed slots in order: ' +
+            expectedIds.join(', ') + '.'
+          );
+        }
+
+        const requireField = (fieldMap, name, widget, required, defaultValue, fieldPath) => {
+          const field = fieldMap && fieldMap.get(name);
+          if (!field) {
+            schemaViolations.push(fieldPath + ' is missing.');
+            return null;
+          }
+          if (field.widget !== widget) schemaViolations.push(fieldPath + ' must use the ' + widget + ' widget.');
+          if (required !== null && field.required !== required) {
+            schemaViolations.push(fieldPath + ' required must be ' + required + '.');
+          }
+          if (defaultValue !== undefined && field.defaultValue !== defaultValue) {
+            schemaViolations.push(fieldPath + ' default must be ' + JSON.stringify(defaultValue) + '.');
+          }
+          return field;
+        };
+
+        for (const slotId of expectedIds) {
+          const slotPath = 'page_media_slots.' + area + '.' + slotId;
+          const slot = requireField(fields, slotId, 'object', null, undefined, slotPath);
+          if (!slot) continue;
+          const children = slot.children;
+          requireField(children, 'src', 'image', 'true', undefined, slotPath + '.src');
+          requireField(children, 'alt', 'string', 'true', undefined, slotPath + '.alt');
+          requireField(children, 'caption', 'string', 'false', '', slotPath + '.caption');
+          const approval = requireField(children, 'approval', 'object', null, undefined, slotPath + '.approval');
+          if (!approval) continue;
+
+          const approvalChildren = approval.children;
+          const status = requireField(
+            approvalChildren, 'status', 'select', 'true', 'pending', slotPath + '.approval.status'
+          );
+          if (status && (status.options.length !== PAGE_MEDIA_APPROVAL_STATES.length ||
+              status.options.some((value, index) => value !== PAGE_MEDIA_APPROVAL_STATES[index]))) {
+            schemaViolations.push(
+              slotPath + '.approval.status options must match exactly: ' +
+              PAGE_MEDIA_APPROVAL_STATES.join(', ') + '.'
+            );
+          }
+          for (const [name, widget] of [
+            ['source_credit', 'string'],
+            ['rights_basis', 'string'],
+            ['visual_match_review', 'text'],
+            ['alt_text_review', 'text'],
+          ]) {
+            requireField(
+              approvalChildren, name, widget, 'false', '', slotPath + '.approval.' + name
+            );
+          }
+          for (const name of ['technical_validation', 'asset_sha256', 'approved_by', 'approved_at', 'signature']) {
+            requireField(
+              approvalChildren, name, 'hidden', null, '', slotPath + '.approval.' + name
+            );
+          }
+
+          const expectedApprovalNames = PAGE_MEDIA_APPROVAL_FIELDS;
+          const actualApprovalNames = [...approvalChildren.keys()];
+          if (actualApprovalNames.length !== expectedApprovalNames.length ||
+              actualApprovalNames.some((name, index) => name !== expectedApprovalNames[index])) {
+            schemaViolations.push(
+              slotPath + '.approval.fields must contain the exact signed-evidence field contract.'
+            );
+          }
+          const expectedSlotFields = ['src', 'alt', 'caption', 'approval'];
+          const actualSlotFields = [...children.keys()];
+          if (actualSlotFields.length !== expectedSlotFields.length ||
+              actualSlotFields.some((name, index) => name !== expectedSlotFields[index])) {
+            schemaViolations.push(slotPath + '.fields must contain only src, alt, caption and approval in order.');
+          }
+        }
+      }
+    }
+  }
+
+  const loader = readGovernanceSource(root, 'include/site-media-slots.php', errors);
+  const approvalHelper = readGovernanceSource(root, 'include/page-media-approval.php', errors);
+  const signer = readGovernanceSource(root, 'scripts/sign-page-media-approval.php', errors);
+  const siteConfig = readGovernanceSource(root, 'include/site-config.php', errors);
+
+  for (const area of areas) {
+    for (const slotId of PAGE_MEDIA_SLOT_DEFINITIONS[area]) {
+      const occurrences = loader.match(new RegExp("'" + slotId + "'\\s*=>", 'g')) || [];
+      if (occurrences.length !== 1) {
+        errors.push('PHP fixed-slot loader must define ' + slotId + ' exactly once.');
+      }
+    }
+  }
+  for (const marker of [
+    'function gj_load_site_media_slots',
+    'function gj_site_media_slot',
+    "['approved'] !== true",
+    'return is_array($fallback) ? $fallback : [];',
+    'gj_page_media_approval_is_valid',
+  ]) {
+    if (!loader.includes(marker)) errors.push('PHP fixed-slot loader is missing its fail-closed contract: ' + marker);
+  }
+  for (const marker of [
+    "hash_hmac('sha256'",
+    "hash_file('sha256'",
+    'hash_equals',
+    'technical_validation',
+    'asset_sha256',
+    'approved_by',
+    'approved_at',
+    'signature',
+  ]) {
+    if (!approvalHelper.includes(marker)) errors.push('Signed page-media approval helper is missing: ' + marker);
+  }
+  for (const marker of [
+    "PHP_SAPI !== 'cli'",
+    'media_approval_hmac_key',
+    'media_approvers',
+    'gj_page_media_approval_is_valid',
+    'tempnam',
+    'rename',
+  ]) {
+    if (!signer.includes(marker)) errors.push('Page-media signer is missing its CLI/atomic-write contract: ' + marker);
+  }
+  for (const marker of [
+    "'media_approvers' => []",
+    "'media_approval_hmac_key' => ''",
+    "getenv('GJ_MEDIA_APPROVAL_HMAC_KEY')",
+    'site-config.local.php',
+  ]) {
+    if (!siteConfig.includes(marker)) errors.push('Public site configuration must keep page-media secrets external: ' + marker);
+  }
+
+  const mediaRoot = path.join(root, 'content', 'page-media');
+  let mediaRootReady = false;
+  try {
+    const stat = fs.lstatSync(mediaRoot);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('content/page-media must be a regular non-symlink directory.');
+    mediaRootReady = true;
+    const expectedFiles = areas.map(area => area + '.json').sort();
+    const actualFiles = fs.readdirSync(mediaRoot).filter(name => name.endsWith('.json')).sort();
+    if (actualFiles.length !== expectedFiles.length ||
+        actualFiles.some((name, index) => name !== expectedFiles[index])) {
+      errors.push('content/page-media must contain exactly the four fixed JSON files.');
+    }
+  } catch (error) {
+    errors.push('Page-media content directory is unavailable: ' + error.message);
+  }
+
+  const imageRecords = [];
+  const recordById = new Map();
+  if (mediaRootReady) {
+    for (const area of areas) {
+      const filePath = path.join(mediaRoot, area + '.json');
+      let fileRecords = null;
+      try {
+        const stat = fs.lstatSync(filePath);
+        if (stat.isSymbolicLink() || !stat.isFile() || stat.size < 1 || stat.size > 2 * 1024 * 1024) {
+          throw new Error('file must be a bounded, regular non-symlink JSON file');
+        }
+        fileRecords = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (!isRecord(fileRecords)) throw new Error('file root must be a JSON object');
+      } catch (error) {
+        errors.push('content/page-media/' + area + '.json: ' + error.message);
+        continue;
+      }
+
+      const expectedIds = PAGE_MEDIA_SLOT_DEFINITIONS[area];
+      const actualIds = Object.keys(fileRecords);
+      if (actualIds.length !== expectedIds.length ||
+          expectedIds.some(id => !Object.prototype.hasOwnProperty.call(fileRecords, id))) {
+        errors.push('content/page-media/' + area + '.json must contain exactly its ' + expectedIds.length + ' fixed slot records.');
+      }
+
+      for (const slotId of expectedIds) {
+        const record = fileRecords[slotId];
+        const recordPath = area + '/' + slotId;
+        if (!isRecord(record)) {
+          errors.push('Page-media record ' + recordPath + ' must be a JSON object.');
+          continue;
+        }
+        const unexpectedRecordFields = Object.keys(record).filter(name =>
+          !['src', 'alt', 'caption', 'approval'].includes(name)
+        );
+        if (unexpectedRecordFields.length) {
+          errors.push('Page-media record ' + recordPath + ' contains unsupported fields: ' + unexpectedRecordFields.join(', ') + '.');
+        }
+
+        const source = record.src;
+        const alt = record.alt;
+        const caption = record.caption === undefined ? '' : record.caption;
+        if (typeof alt !== 'string' || alt.trim().length < 15 || alt.length > 300) {
+          errors.push('Page-media record ' + recordPath + ' requires a descriptive 15–300 character alt string.');
+        }
+        if (typeof caption !== 'string' || caption.length > 180) {
+          errors.push('Page-media record ' + recordPath + ' caption must be a string no longer than 180 characters.');
+        }
+
+        let asset = null;
+        try {
+          asset = safeImageBytes(root, source);
+          imageRecords.push({ id: slotId, imagePath: source, assetSha256: asset.sha256 });
+        } catch (error) {
+          errors.push('Page-media record ' + recordPath + ' image is unsafe or unavailable: ' + error.message);
+        }
+
+        const approval = record.approval;
+        if (!isRecord(approval)) {
+          errors.push('Page-media record ' + recordPath + ' must contain an approval object.');
+          continue;
+        }
+        const approvalKeys = Object.keys(approval).sort();
+        const expectedApprovalKeys = PAGE_MEDIA_APPROVAL_FIELDS.slice().sort();
+        if (approvalKeys.length !== expectedApprovalKeys.length ||
+            approvalKeys.some((key, index) => key !== expectedApprovalKeys[index])) {
+          errors.push('Page-media record ' + recordPath + ' approval object must contain the exact signed-evidence fields.');
+        }
+        for (const name of PAGE_MEDIA_APPROVAL_FIELDS) {
+          if (typeof approval[name] !== 'string') {
+            errors.push('Page-media record ' + recordPath + ' approval.' + name + ' must be a string.');
+          }
+        }
+        if (!PAGE_MEDIA_APPROVAL_STATES.includes(approval.status)) {
+          errors.push('Page-media record ' + recordPath + ' has an unsupported approval status.');
+          continue;
+        }
+
+        const signingMetadata = [
+          'technical_validation', 'asset_sha256', 'approved_by', 'approved_at', 'signature',
+        ];
+        if (approval.status === 'pending' && signingMetadata.some(name => approval[name] !== '')) {
+          errors.push('Pending page-media record ' + recordPath + ' must not carry signing metadata.');
+        }
+
+        const item = {
+          id: slotId,
+          area,
+          source,
+          altLength: typeof alt === 'string' ? alt.trim().length : 0,
+          approvalStatus: approval.status,
+          assetBytes: asset ? asset.bytes : null,
+          assetSha256: asset ? asset.sha256 : null,
+          imageDecodeComplete: false,
+          approvalEvidenceComplete: false,
+          signatureVerified: false,
+          eligibleForTourismImport: false,
+        };
+        if (approval.status === 'approved') {
+          const approvedAt = typeof approval.approved_at === 'string' ? Date.parse(approval.approved_at) : NaN;
+          const timestampValid = typeof approval.approved_at === 'string' &&
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(approval.approved_at) &&
+            Number.isFinite(approvedAt) && approvedAt <= Date.now() + 300000;
+          item.approvalEvidenceComplete = Boolean(
+            nonEmpty(approval.source_credit, 5) &&
+            nonEmpty(approval.rights_basis, 15) &&
+            nonEmpty(approval.visual_match_review, 15) &&
+            nonEmpty(approval.alt_text_review, 15) &&
+            approval.technical_validation === 'passed' &&
+            asset && typeof approval.asset_sha256 === 'string' &&
+            /^[a-f0-9]{64}$/i.test(approval.asset_sha256) &&
+            approval.asset_sha256.toLowerCase() === asset.sha256 &&
+            nonEmpty(approval.approved_by) &&
+            timestampValid &&
+            typeof approval.signature === 'string' &&
+            /^[a-f0-9]{64}$/i.test(approval.signature)
+          );
+        }
+        records.push(item);
+        recordById.set(slotId, { item, asset, approval });
+      }
+    }
+  }
+
+  let decodedImages = suppliedDecodedImages instanceof Map ? suppliedDecodedImages : null;
+  if (!decodedImages) {
+    try {
+      decodedImages = decodeGalleryImages(root, imageRecords);
+    } catch (error) {
+      errors.push('Page-media image decoder failed: ' + error.message);
+      decodedImages = new Map();
+    }
+  }
+
+  let imageDecodeVerifiedCount = 0;
+  for (const { item, asset } of recordById.values()) {
+    const decoded = decodedImages.get(item.source);
+    const verified = Boolean(
+      asset && decoded && decoded.status === 'verified' &&
+      decoded.sha256 === asset.sha256 &&
+      Number.isInteger(decoded.width) && decoded.width > 0 &&
+      Number.isInteger(decoded.height) && decoded.height > 0
+    );
+    item.imageDecodeComplete = verified;
+    if (verified) imageDecodeVerifiedCount += 1;
+    else errors.push('Page-media image decode/hash verification failed for ' + item.area + '/' + item.id + '.');
+  }
+
+  const approvalStatusCounts = countBy(records, item => item.approvalStatus);
+  const summary = {
+    expectedSlotCount,
+    slotCount: records.length,
+    pendingCount: approvalStatusCounts.pending || 0,
+    approvedStatusCount: approvalStatusCounts.approved || 0,
+    rejectedCount: approvalStatusCounts.rejected || 0,
+    revokedCount: approvalStatusCounts.revoked || 0,
+    invalidCount: errors.length,
+    imageDecodeVerifiedCount,
+    uniqueAssetCount: new Set(records.map(item => item.source)).size,
+    approvedEvidenceCompleteCount: records.filter(item => item.approvalEvidenceComplete).length,
+    signatureVerificationPerformed: false,
+    approvalEligibleCount: 0,
+    tourismImportEligibleCount: 0,
+  };
+  const status = errors.length || schemaViolations.length
+    ? 'INVALID'
+    : (summary.approvedStatusCount ? 'REVIEW_REQUIRED_UNVERIFIED_SIGNATURES' : 'PENDING_OWNER_REVIEW');
+
+  return {
+    auditType: 'read-only-fixed-page-media-governance',
+    sourceRepository: SOURCE_REPOSITORY,
+    sourceBranch: 'main',
+    schemaAvailable: Boolean(pageMediaCollection),
+    schemaViolations: [...new Set(schemaViolations)].sort(),
+    summary,
+    records: records.sort((left, right) => left.id.localeCompare(right.id)),
+    structuralErrors: [...new Set(errors)].sort(),
+    signatureVerification: {
+      performed: false,
+      reason: 'The read-only audit never loads or receives the private HMAC key; PHP runtime validation remains authoritative.',
+    },
+    controls: {
+      readOnly: true,
+      sourceRepositoryMutated: false,
+      approvalAuthorized: false,
+      publicationAuthorized: false,
+      tourismImportAuthorized: false,
+    },
+    status,
+  };
+}
+
 function readGallerySnapshot(directory, label) {
   const root = realDirectory(directory, label);
   const errors = [];
@@ -732,7 +1193,11 @@ function auditAuthoritativeGallerySource(options) {
     ? options.decodedImages
     : decodeGalleryImages(options.currentSourceRoot, [...current.records.values()]);
   applyImageDecodeResults(current, decodedImages);
-  const errors = [...pinned.errors, ...current.errors];
+  const pageMediaGovernance = pageMediaGovernanceAudit(
+    options.currentSourceRoot,
+    options.decodedPageMediaImages
+  );
+  const errors = [...pinned.errors, ...current.errors, ...pageMediaGovernance.structuralErrors, ...pageMediaGovernance.schemaViolations];
   const diff = compareSnapshots(pinned, current);
   const records = [...current.records.values()].sort((left, right) => left.id.localeCompare(right.id));
   for (const record of records) {
@@ -769,6 +1234,7 @@ function auditAuthoritativeGallerySource(options) {
     currentSourceCommit: currentCommit,
     sourcePinDrift: pinnedCommit !== currentCommit,
     sourceDiff: diff,
+    pageMediaGovernance,
     cmsSchema: {
       available: current.schema.available,
       fields: current.schema.fields,
@@ -792,6 +1258,9 @@ function auditAuthoritativeGallerySource(options) {
       imageDecodePerformed: true,
       approvalAuthorized: false,
       publicationAuthorized: false,
+      pageMediaApprovalAuthorized: false,
+      pageMediaSignatureVerificationPerformed: pageMediaGovernance.signatureVerification.performed,
+      pageMediaTourismImportAuthorized: false,
     },
     status: errors.length ? 'INVALID' : (summary.approvalEligibleCount ? 'EVIDENCE_COMPLETE_AWAITING_HUMAN_REVIEW' : 'REVIEW_REQUIRED'),
   };
@@ -842,6 +1311,12 @@ function main() {
     ? 'complete with fail-closed defaults'
     : 'blocked; missing fields: ' + report.cmsSchema.missingEvidenceFields.join(', ') +
       '; default violations: ' + report.cmsSchema.defaultViolations.join(', ')) + '.');
+  console.log('Page-media governance: ' + report.pageMediaGovernance.summary.slotCount + '/' +
+    report.pageMediaGovernance.summary.expectedSlotCount + ' fixed slots; pending: ' +
+    report.pageMediaGovernance.summary.pendingCount + '; approved status: ' +
+    report.pageMediaGovernance.summary.approvedStatusCount + '; decoded assets: ' +
+    report.pageMediaGovernance.summary.imageDecodeVerifiedCount + '; tourism-import eligible: 0; HMAC verified: no. Status: ' +
+    report.pageMediaGovernance.status + '.');
   console.log('PASS: read-only source drift and media-evidence audit; no records imported or approved. Status: ' + report.status + '.');
   if (report.status === 'INVALID') {
     console.error(report.structuralErrors.join('\n'));
@@ -858,4 +1333,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { auditAuthoritativeGallerySource, decodeGalleryImages };
+module.exports = { auditAuthoritativeGallerySource, decodeGalleryImages, pageMediaGovernanceAudit, PAGE_MEDIA_SLOT_DEFINITIONS };
