@@ -903,6 +903,9 @@ function pageMediaGovernanceAudit(directory, suppliedDecodedImages) {
           assetBytes: asset ? asset.bytes : null,
           assetSha256: asset ? asset.sha256 : null,
           imageDecodeComplete: false,
+          imageGitBlobSha: asset ? asset.gitBlobSha : null,
+          imageWidth: null,
+          imageHeight: null,
           approvalEvidenceComplete: false,
           signatureVerified: false,
           eligibleForTourismImport: false,
@@ -953,7 +956,11 @@ function pageMediaGovernanceAudit(directory, suppliedDecodedImages) {
       Number.isInteger(decoded.height) && decoded.height > 0
     );
     item.imageDecodeComplete = verified;
-    if (verified) imageDecodeVerifiedCount += 1;
+    if (verified) {
+      item.imageWidth = decoded.width;
+      item.imageHeight = decoded.height;
+      imageDecodeVerifiedCount += 1;
+    }
     else errors.push('Page-media image decode/hash verification failed for ' + item.area + '/' + item.id + '.');
   }
 

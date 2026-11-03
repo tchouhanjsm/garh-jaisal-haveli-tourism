@@ -11,6 +11,9 @@ const { auditEditorialReviewAuthority } = require('./audit-editorial-review-auth
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
 const { buildGalleryReviewBundle, csvCell } = require('./build-gallery-review-bundle');
 const { validateGalleryReviewDecisions } = require('./validate-gallery-review-decisions');
+const { PAGE_MEDIA_SLOT_DEFINITIONS } = require('./audit-authoritative-gallery-source');
+const { buildPageMediaReviewBundle } = require('./build-page-media-review-bundle');
+const { validatePageMediaReviewDecisions } = require('./validate-page-media-review-decisions');
 
 
 const validDecisionJson = parseStrictJsonBytes(
@@ -119,6 +122,33 @@ assert.ok(galleryValidationBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-sour
   && galleryValidationBlock.includes('--source-commit "$SOURCE_MAIN_SHA"')
   && galleryValidationBlock.includes('garh-jaisal-gallery-review-validation.json'),
   'Gallery decision validation must bind to exact source main and write its report outside both repositories');
+
+const pageMediaReviewBuildStep = QUALITY_WORKFLOW.indexOf('Build local-only fixed page-media owner-review bundle');
+const pageMediaReviewValidationStep = QUALITY_WORKFLOW.indexOf('Validate local-only fixed page-media decision worksheet integrity');
+const pageMediaReviewUploadStep = QUALITY_WORKFLOW.indexOf('Upload local-only fixed page-media owner-review bundle');
+const pageMediaValidationUploadStep = QUALITY_WORKFLOW.indexOf('Upload local-only fixed page-media decision validation');
+assert.ok(galleryValidationStep > galleryReviewBuildStep &&
+  pageMediaReviewBuildStep > galleryValidationStep &&
+  pageMediaReviewValidationStep > pageMediaReviewBuildStep &&
+  pageMediaReviewValidationStep < galleryDecisionStep,
+  'Fixed page-media review bundle and validation must run after the exact-source audit and before editorial validation');
+const pageMediaBuildBlock = QUALITY_WORKFLOW.slice(pageMediaReviewBuildStep, pageMediaReviewValidationStep);
+assert.ok(pageMediaBuildBlock.includes('SOURCE_MAIN_SHA: \${{ steps.media-source-main.outputs.source_commit }}') &&
+  pageMediaBuildBlock.includes('garh-jaisal-authoritative-gallery-audit.json') &&
+  pageMediaBuildBlock.includes('garh-jaisal-page-media-review') &&
+  pageMediaBuildBlock.includes('build-page-media-review-bundle.js'),
+  'Page-media review bundle must consume the exact-source audit and write to runner temporary storage');
+const pageMediaValidationBlock = QUALITY_WORKFLOW.slice(pageMediaReviewValidationStep, pageMediaReviewUploadStep);
+assert.ok(pageMediaValidationBlock.includes('SOURCE_MAIN_SHA: \${{ steps.media-source-main.outputs.source_commit }}') &&
+  pageMediaValidationBlock.includes('validate-page-media-review-decisions.js') &&
+  pageMediaValidationBlock.includes('--source-commit "$SOURCE_MAIN_SHA"') &&
+  pageMediaValidationBlock.includes('garh-jaisal-page-media-review-validation.json'),
+  'Page-media worksheet validation must bind to exact source main and write a JSON report outside the source checkout');
+assert.ok(pageMediaReviewUploadStep > pageMediaReviewValidationStep &&
+  pageMediaValidationUploadStep > pageMediaReviewUploadStep &&
+  QUALITY_WORKFLOW.slice(pageMediaReviewUploadStep).includes('garh-jaisal-page-media-review/'),
+  'Page-media owner-review bundle and validation report must be uploaded as short-retention CI artifacts');
+
 const galleryValidationUploadStep = QUALITY_WORKFLOW.indexOf('Upload local-only Gallery decision validation');
 assert.ok(galleryValidationUploadStep > galleryUploadStep &&
   QUALITY_WORKFLOW.slice(galleryValidationUploadStep).includes('garh-jaisal-gallery-review-validation.json'),
@@ -1582,6 +1612,209 @@ function testGalleryOwnerReviewBundle() {
   }
 }
 testGalleryOwnerReviewBundle();
+
+function testPageMediaOwnerReviewBundle() {
+  const os = require('node:os');
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-page-media-review-fixture-'));
+  const sourceRoot = path.join(fixtureRoot, 'source');
+  const outputDirectory = path.join(fixtureRoot, 'review-bundle');
+  const auditPath = path.join(fixtureRoot, 'audit.json');
+  try {
+    fs.mkdirSync(path.join(sourceRoot, 'img'), { recursive: true });
+    fs.mkdirSync(path.join(sourceRoot, 'content', 'page-media'), { recursive: true });
+    const imageBytes = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    );
+    fs.writeFileSync(path.join(sourceRoot, 'img', 'fixture.png'), imageBytes);
+    const approvalFields = {
+      status: 'pending',
+      source_credit: '',
+      rights_basis: '',
+      visual_match_review: '',
+      alt_text_review: '',
+      technical_validation: '',
+      asset_sha256: '',
+      approved_by: '',
+      approved_at: '',
+      signature: '',
+    };
+    const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+    const gitBlobSha = bytes => crypto.createHash('sha1')
+      .update(Buffer.from('blob ' + bytes.length + '\\0', 'utf8')).update(bytes).digest('hex');
+    const stable = value => {
+      if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+      if (value && typeof value === 'object') {
+        return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stable(value[key])).join(',') + '}';
+      }
+      return JSON.stringify(value);
+    };
+    const auditRecords = [];
+    for (const area of Object.keys(PAGE_MEDIA_SLOT_DEFINITIONS)) {
+      const records = {};
+      for (const slotId of PAGE_MEDIA_SLOT_DEFINITIONS[area]) {
+        const record = {
+          src: 'img/fixture.png',
+          alt: 'Descriptive owner-review candidate for fixed slot ' + slotId,
+          caption: '',
+          approval: { ...approvalFields },
+        };
+        records[slotId] = record;
+        auditRecords.push({
+          id: slotId,
+          area,
+          source: record.src,
+          approvalStatus: 'pending',
+          assetBytes: imageBytes.length,
+          assetSha256: sha256(imageBytes),
+          imageGitBlobSha: gitBlobSha(imageBytes),
+          imageDecodeComplete: true,
+          imageWidth: 1,
+          imageHeight: 1,
+        });
+      }
+      fs.writeFileSync(path.join(sourceRoot, 'content', 'page-media', area + '.json'),
+        JSON.stringify(records, null, 2) + '\\n');
+    }
+    const git = args => {
+      const result = spawnSync('git', args, { cwd: sourceRoot, encoding: 'utf8', timeout: 15000 });
+      if (result.error || result.status !== 0) {
+        throw new Error('Page-media fixture Git command failed: ' +
+          String(result.stderr || (result.error && result.error.message) || 'unknown error'));
+      }
+      return String(result.stdout || '').trim();
+    };
+    git(['init', '-q']);
+    git(['config', 'user.name', 'Page Media Fixture']);
+    git(['config', 'user.email', 'page-media-fixture@example.invalid']);
+    git(['add', '.']);
+    git(['commit', '-q', '-m', 'fixture source']);
+    const sourceCommit = git(['rev-parse', 'HEAD']);
+    const slotCount = Object.values(PAGE_MEDIA_SLOT_DEFINITIONS).reduce((sum, ids) => sum + ids.length, 0);
+    const audit = {
+      schemaVersion: 1,
+      auditType: 'read-only-authoritative-gallery-source-drift',
+      sourceRepository: 'https://github.com/tchouhanjsm/garh-jaisal-website',
+      sourceBranch: 'main',
+      pinnedSourceCommit: sourceCommit,
+      currentSourceCommit: sourceCommit,
+      sourcePinDrift: false,
+      pageMediaGovernance: {
+        status: 'PENDING_OWNER_REVIEW',
+        schemaAvailable: true,
+        schemaViolations: [],
+        structuralErrors: [],
+        summary: {
+          expectedSlotCount: slotCount,
+          slotCount,
+          pendingCount: slotCount,
+          approvedStatusCount: 0,
+          imageDecodeVerifiedCount: slotCount,
+          approvalEligibleCount: 0,
+          tourismImportEligibleCount: 0,
+        },
+        signatureVerification: { performed: false },
+        controls: { readOnly: true, tourismImportAuthorized: false },
+        records: auditRecords,
+      },
+      summary: { recordCount: 0 },
+      records: [],
+      structuralErrors: [],
+      status: 'REVIEW_REQUIRED',
+    };
+    fs.writeFileSync(auditPath, JSON.stringify(audit, null, 2) + '\\n');
+    const built = buildPageMediaReviewBundle({
+      sourceRoot,
+      sourceCommit,
+      auditPath,
+      outputDirectory,
+      generatedAt: '2026-11-03T13:00:00Z',
+    });
+    assert.equal(built.summary.slotCount, slotCount);
+    assert.equal(built.summary.uniqueImageCount, 1);
+    assert.equal(built.summary.pendingCount, slotCount);
+    assert.equal(built.summary.approvalEligibleCount, 0);
+    assert.equal(built.worksheet.decisions[0].reviewDecision, 'pending');
+    assert.equal(built.worksheet.decisions[0].visualMatchStatus, 'not-assessed');
+    assert.equal(built.worksheet.decisions[0].altTextReviewStatus, 'pending');
+    assert.equal(built.manifest.policy.signatureCreated, false);
+    assert.deepEqual(fs.readFileSync(path.join(outputDirectory, built.manifest.records[0].previewImagePath)), imageBytes);
+
+    const html = fs.readFileSync(path.join(outputDirectory, 'index.html'), 'utf8');
+    const csv = fs.readFileSync(path.join(outputDirectory, 'review.csv'), 'utf8');
+    assert.ok(html.includes('Content-Security-Policy'));
+    assert.ok(html.includes("default-src \\'none\\'"));
+    assert.ok(html.includes("img-src \\'self\\'"));
+    assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
+    assert.ok(html.includes('name="referrer" content="no-referrer"'));
+    assert.ok(!html.includes('<script'));
+    assert.ok(!html.includes('src="https://'));
+    assert.ok(!html.includes('href="https://'));
+    assert.ok(csv.includes('home-hero-mobile'));
+    assert.ok(fs.existsSync(path.join(outputDirectory, 'page-media-decisions.template.json')));
+
+    const pending = validatePageMediaReviewDecisions(ROOT, outputDirectory, { sourceRoot, sourceCommit });
+    assert.equal(pending.state, 'PENDING_OWNER_REVIEW');
+    assert.equal(pending.sourceVerification.state, 'VERIFIED');
+    assert.equal(pending.summary.decisionRowCount, slotCount);
+    assert.equal(pending.summary.approvalEligibleCount, 0);
+    assert.equal(pending.reviewerAuthorization.state, 'NOT_CONFIGURED');
+    assert.equal(pending.policy.signatureCreated, false);
+
+    const complete = JSON.parse(JSON.stringify(built.worksheet));
+    const first = complete.decisions[0];
+    first.reviewDecision = 'recommend-approval';
+    first.sourceCredit = 'Owner-confirmed photographer attribution';
+    first.rightsBasis = 'Owner-provided licence record and permitted website usage scope';
+    first.visualMatchStatus = 'matched';
+    first.visualMatchEvidence = 'Owner/editor inspected the exact image and confirmed the intended page subject';
+    first.altTextReviewStatus = 'approved';
+    first.altTextReviewEvidence = 'Accessibility reviewer confirmed the alt text accurately conveys the visible subject';
+    const completePath = path.join(fixtureRoot, 'complete-decisions.json');
+    fs.writeFileSync(completePath, JSON.stringify(complete, null, 2) + '\\n');
+    const completeResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot, sourceCommit, decisionsPath: completePath,
+    });
+    assert.equal(completeResult.state, 'EVIDENCE_COMPLETE_AWAITING_SEPARATE_SIGNED_APPROVAL');
+    assert.equal(completeResult.summary.evidenceCompleteRecommendations, 1);
+    assert.equal(completeResult.summary.approvalEligibleCount, 0);
+    assert.equal(completeResult.policy.approvalAuthorized, false);
+
+    const mismatch = JSON.parse(JSON.stringify(complete));
+    mismatch.decisions[0].visualMatchStatus = 'mismatch';
+    const mismatchPath = path.join(fixtureRoot, 'mismatch-decisions.json');
+    fs.writeFileSync(mismatchPath, JSON.stringify(mismatch, null, 2) + '\\n');
+    const mismatchResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot, sourceCommit, decisionsPath: mismatchPath,
+    });
+    assert.equal(mismatchResult.state, 'RECOMMENDATION_BLOCKED');
+    assert.ok(mismatchResult.decisions[0].blockers.includes('visual-mismatch-must-be-rejected'));
+
+    const stale = JSON.parse(JSON.stringify(complete));
+    stale.decisions[0].imageSha256 = 'f'.repeat(64);
+    const stalePath = path.join(fixtureRoot, 'stale-decisions.json');
+    fs.writeFileSync(stalePath, JSON.stringify(stale, null, 2) + '\\n');
+    const staleResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot, sourceCommit, decisionsPath: stalePath,
+    });
+    assert.equal(staleResult.state, 'INVALID');
+    assert.ok(staleResult.errors.some(error => error.includes('not bound to exact source bytes')));
+
+    const duplicate = JSON.parse(JSON.stringify(built.worksheet));
+    duplicate.decisions.push(JSON.parse(JSON.stringify(duplicate.decisions[0])));
+    const duplicatePath = path.join(fixtureRoot, 'duplicate-decisions.json');
+    fs.writeFileSync(duplicatePath, JSON.stringify(duplicate, null, 2) + '\\n');
+    const duplicateResult = validatePageMediaReviewDecisions(ROOT, outputDirectory, {
+      sourceRoot, sourceCommit, decisionsPath: duplicatePath,
+    });
+    assert.equal(duplicateResult.state, 'INVALID');
+    assert.ok(duplicateResult.errors.some(error => error.includes('duplicate slot ID')));
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+testPageMediaOwnerReviewBundle();
+
 
 async function testEditorialReviewAuthority() {
   const expectedHead = 'a'.repeat(40);
