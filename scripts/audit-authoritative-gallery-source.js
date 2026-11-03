@@ -246,7 +246,7 @@ function gallerySchemaFields(root, errors) {
   // Count every root-level declaration, including inline comments or values.
   // A duplicate key can shadow an otherwise valid Gallery collection in YAML
   // parsers that apply last-key-wins semantics, so it must fail closed.
-  const collectionDeclarations = [...config.matchAll(/^collections:(.*)$/gm)];
+  const collectionDeclarations = [...config.matchAll(/^collections[ \t]*:(.*)$/gm)];
   if (collectionDeclarations.length !== 1) {
     return unavailable('admin/config.yml must contain exactly one root collections section');
   }
