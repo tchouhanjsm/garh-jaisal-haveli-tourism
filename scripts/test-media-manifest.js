@@ -11,7 +11,6 @@ const { auditEditorialReviewAuthority } = require('./audit-editorial-review-auth
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
 const { buildGalleryReviewBundle, csvCell } = require('./build-gallery-review-bundle');
 const { validateGalleryReviewDecisions } = require('./validate-gallery-review-decisions');
-const { PAGE_MEDIA_SLOT_DEFINITIONS } = require('./audit-authoritative-gallery-source');
 const { buildPageMediaReviewBundle } = require('./build-page-media-review-bundle');
 const { validatePageMediaReviewDecisions } = require('./validate-page-media-review-decisions');
 
