@@ -86,7 +86,12 @@ function escapeHtml(value) {
 }
 
 function csvCell(value) {
-  const text = String(value === null || value === undefined ? '' : value);
+  let text = String(value === null || value === undefined ? '' : value);
+  // CSV quoting alone does not stop spreadsheet formula execution. Preserve
+  // the source value but force risky cells to be interpreted as literal text.
+  const formulaPrefix = /^[\\uFEFF\\s]*[=+@-]/u.test(text);
+  const controlPrefix = /^[\\u0000-\\u001f\\u007f]/.test(text);
+  if (formulaPrefix || controlPrefix) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 }
 
@@ -347,7 +352,9 @@ function buildGalleryReviewBundle(options) {
   const html = [
     '<!doctype html>',
     '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-    '<meta name="robots" content="noindex,nofollow"><title>Authoritative Gallery — Local Owner Review</title>',
+    '<meta name="robots" content="noindex,nofollow">',
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; object-src 'none'; connect-src 'none'; media-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">`,
+    '<meta name="referrer" content="no-referrer"><title>Authoritative Gallery — Local Owner Review</title>',
     '<style>',
     ':root{color-scheme:light;--ink:#2b211b;--muted:#6d625a;--sand:#eee5d8;--paper:#fbf8f3;--line:#ded2c4}',
     '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,sans-serif}',
@@ -427,4 +434,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { buildGalleryReviewBundle };
+module.exports = { buildGalleryReviewBundle, csvCell };

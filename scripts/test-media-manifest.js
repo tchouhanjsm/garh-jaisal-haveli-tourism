@@ -9,7 +9,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
-const { buildGalleryReviewBundle } = require('./build-gallery-review-bundle');
+const { buildGalleryReviewBundle, csvCell } = require('./build-gallery-review-bundle');
 
 
 const validDecisionJson = parseStrictJsonBytes(
@@ -18,6 +18,22 @@ const validDecisionJson = parseStrictJsonBytes(
 );
 assert.equal(validDecisionJson.ownerDecision, 'reject');
 assert.equal(validDecisionJson.visualReview.status, 'mismatch');
+
+assert.equal(csvCell('ordinary text'), '"ordinary text"');
+assert.equal(csvCell('quoted "text"'), '"quoted ""text"""');
+for (const formulaValue of [
+  '=1+1',
+  '+SUM(1,1)',
+  '-1+2',
+  '@SUM(1,1)',
+  '\\t=1+1',
+  '\\r=1+1',
+  '\\n=1+1',
+  ' \\t=1+1',
+]) {
+  const expectedCell = '"' + ("'" + formulaValue).replace(/"/g, '""') + '"';
+  assert.equal(csvCell(formulaValue), expectedCell, 'CSV formula/control prefix must be neutralized.');
+}
 
 assert.throws(
   () => parseStrictJsonBytes(
@@ -596,7 +612,7 @@ try {
     order: 1,
     image: {
       src: 'img/gallery/fixture.png',
-      alt: 'Carved sandstone facade inside the historic Jaisalmer Fort',
+      alt: '=HYPERLINK("https://attacker.invalid","Open")',
       crop: 'landscape',
     },
   };
@@ -1385,7 +1401,7 @@ function testGalleryOwnerReviewBundle() {
         imageDecodeComplete: true,
         imageWidth: 1,
         imageHeight: 1,
-        meaningfulAltText: true,
+        meaningfulAltText: false,
         rightsEvidenceComplete: false,
         visualReviewComplete: false,
         technicalValidationComplete: false,
@@ -1417,8 +1433,17 @@ function testGalleryOwnerReviewBundle() {
       fs.readFileSync(path.join(outputDirectory, result.manifest.records[0].previewImagePath)),
       imageBytes
     );
-    assert.ok(fs.readFileSync(path.join(outputDirectory, 'index.html'), 'utf8').includes('hotel-01-facade'));
-    assert.ok(fs.readFileSync(path.join(outputDirectory, 'review.csv'), 'utf8').includes('creator-source-rights-evidence-incomplete'));
+    const reviewHtml = fs.readFileSync(path.join(outputDirectory, 'index.html'), 'utf8');
+    const reviewCsv = fs.readFileSync(path.join(outputDirectory, 'review.csv'), 'utf8');
+    assert.ok(reviewHtml.includes('hotel-01-facade'));
+    assert.ok(reviewHtml.includes('Content-Security-Policy'));
+    assert.ok(reviewHtml.includes("default-src 'none'"));
+    assert.ok(reviewHtml.includes("img-src 'self'"));
+    assert.ok(reviewHtml.includes('name="referrer" content="no-referrer"'));
+    assert.ok(!reviewHtml.includes('<script'));
+    assert.ok(!reviewHtml.includes('https://'));
+    assert.ok(reviewCsv.includes('creator-source-rights-evidence-incomplete'));
+    assert.ok(reviewCsv.includes(csvCell(galleryRecord.image.alt)));
     assert.ok(fs.existsSync(path.join(outputDirectory, 'gallery-decisions.template.json')));
 
     fs.writeFileSync(path.join(sourceRoot, 'img', 'gallery', 'owner-review.png'), Buffer.from('changed'));
