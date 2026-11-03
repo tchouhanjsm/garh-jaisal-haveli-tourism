@@ -207,7 +207,9 @@ function parseSchemaFieldList(items, parentPath, schemaViolations, duplicateFiel
 
     const fieldPath = parentPath + '.' + raw.name;
     if (fields.has(raw.name)) {
-      duplicateFieldPaths.push(fieldPath);
+      duplicateFieldPaths.push(fieldPath.startsWith('gallery.')
+        ? fieldPath.slice('gallery.'.length)
+        : fieldPath);
       return;
     }
 
