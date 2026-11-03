@@ -167,7 +167,7 @@ async function auditEditorialReviewAuthority(options) {
 
   const observedAt = options.observedAt === undefined ? new Date().toISOString() : options.observedAt;
   if (typeof observedAt !== 'string' ||
-      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$/.test(observedAt) ||
+      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$/.test(observedAt) ||
       !Number.isFinite(Date.parse(observedAt))) {
     throw new Error('Observed-at timestamp must be a valid ISO-8601 date-time with an explicit timezone.');
   }
