@@ -229,16 +229,32 @@ function parseSchemaFieldList(items, parentPath, schemaViolations, duplicateFiel
     }
 
     const options = [];
+    const optionValues = new Set();
+    const optionLabels = new Set();
     if (raw.options !== undefined) {
       if (!Array.isArray(raw.options)) {
         schemaViolations.push(fieldPath + '.options must be a YAML sequence.');
       } else {
         raw.options.forEach((option, optionIndex) => {
-          if (!isRecord(option) || typeof option.value !== 'string') {
-            schemaViolations.push(fieldPath + '.options[' + optionIndex + '] must contain a string value.');
-          } else {
-            options.push(option.value);
+          if (!isRecord(option) ||
+              typeof option.label !== 'string' || !option.label.trim() ||
+              typeof option.value !== 'string' || !option.value.trim()) {
+            schemaViolations.push(
+              fieldPath + '.options[' + optionIndex + '] must contain non-empty string label and value.'
+            );
+            return;
           }
+          if (optionValues.has(option.value)) {
+            schemaViolations.push(fieldPath + '.options contains duplicate value: ' + option.value + '.');
+          } else {
+            optionValues.add(option.value);
+          }
+          if (optionLabels.has(option.label)) {
+            schemaViolations.push(fieldPath + '.options contains duplicate label: ' + option.label + '.');
+          } else {
+            optionLabels.add(option.label);
+          }
+          options.push(option.value);
         });
       }
     }
@@ -303,7 +319,8 @@ function gallerySchemaFields(root, errors) {
     return unavailable('admin/config.yml must be a non-empty file no larger than 2 MiB');
   }
 
-  const config = fs.readFileSync(configPath, 'utf8');
+  // Preserve the original bytes so the strict parser can reject invalid UTF-8.
+  const config = fs.readFileSync(configPath);
   let parsedConfig;
   try {
     parsedConfig = parseStrictCmsYaml(config);
@@ -417,6 +434,10 @@ function gallerySchemaFields(root, errors) {
       if (!field.options.includes(option)) {
         defaultViolations.push(pathName + ' must include the ' + option + ' option.');
       }
+    }
+    const unexpectedOptions = field.options.filter(option => !expected.options.includes(option));
+    if (unexpectedOptions.length) {
+      defaultViolations.push(pathName + ' options must match the exact allowed values.');
     }
   }
 
