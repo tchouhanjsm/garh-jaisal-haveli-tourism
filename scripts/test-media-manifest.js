@@ -9,6 +9,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
 const { parseStrictJsonBytes } = require('./validate-editorial-media-decisions');
+const { buildGalleryReviewBundle } = require('./build-gallery-review-bundle');
 
 
 const validDecisionJson = parseStrictJsonBytes(
@@ -79,6 +80,19 @@ assert.ok(mediaLibraryStepBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-sourc
   && mediaLibraryStepBlock.indexOf('php tests/php/media-library-audit.php') >= 0
   && mediaLibraryStepBlock.indexOf('php tests/php/gallery-curation.php') > mediaLibraryStepBlock.indexOf('php tests/php/media-library-audit.php'),
   'Both read-only media runtime contracts must run in order against the verified source-main checkout');
+const galleryReviewBuildStep = QUALITY_WORKFLOW.indexOf('Build local-only authoritative Gallery owner-review bundle');
+const galleryDecisionStep = QUALITY_WORKFLOW.indexOf('Validate local-only editorial decision worksheet integrity');
+assert.ok(galleryAuditStep >= 0 && galleryReviewBuildStep > galleryAuditStep && galleryReviewBuildStep < galleryDecisionStep,
+  'Local Gallery owner-review bundle must build only after the exact-source read-only audit and before decision validation');
+const galleryBuildBlock = QUALITY_WORKFLOW.slice(galleryReviewBuildStep, galleryDecisionStep);
+assert.ok(galleryBuildBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}')
+  && galleryBuildBlock.includes('garh-jaisal-authoritative-gallery-audit.json')
+  && galleryBuildBlock.includes('garh-jaisal-gallery-review')
+  && galleryBuildBlock.includes('build-gallery-review-bundle.js'),
+  'Gallery review bundle must consume the exact-source audit and write only to the runner temporary directory');
+const galleryUploadStep = QUALITY_WORKFLOW.indexOf('Upload local-only authoritative Gallery owner-review bundle');
+assert.ok(galleryUploadStep > galleryReviewBuildStep && QUALITY_WORKFLOW.slice(galleryUploadStep).includes('garh-jaisal-gallery-review/'),
+  'Local-only Gallery owner-review bundle must be uploaded as a short-retention CI artifact');
 const phpEditorialStep = QUALITY_WORKFLOW.indexOf('Run authoritative editorial SEO and image metadata runtime contracts on exact source-main SHA');
 assert.ok(phpEditorialStep > phpMediaLibraryStep && phpEditorialStep < galleryAuditStep,
   'Editorial SEO, discovery and image metadata contracts must run after media governance and before the read-only audit');
@@ -1287,6 +1301,129 @@ try {
   fs.rmSync(sourceAuditDirectory, { recursive: true, force: true });
 }
 
+
+
+function testGalleryOwnerReviewBundle() {
+  const os = require('node:os');
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-gallery-review-fixture-'));
+  const sourceRoot = path.join(fixtureRoot, 'source');
+  const outputDirectory = path.join(fixtureRoot, 'review-bundle');
+  const auditPath = path.join(fixtureRoot, 'audit.json');
+  try {
+    fs.mkdirSync(path.join(sourceRoot, 'img', 'gallery'), { recursive: true });
+    fs.mkdirSync(path.join(sourceRoot, 'content', 'gallery'), { recursive: true });
+    const imageBytes = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    );
+    fs.writeFileSync(path.join(sourceRoot, 'img', 'gallery', 'owner-review.png'), imageBytes);
+    const galleryRecord = {
+      id: 'hotel-01-facade',
+      category: 'hotel',
+      status: 'live',
+      review_status: 'draft',
+      order: 1,
+      image: {
+        src: 'img/gallery/owner-review.png',
+        alt: 'Carved sandstone facade inside the historic Jaisalmer Fort',
+        crop: 'landscape',
+      },
+    };
+    const recordBytes = Buffer.from(JSON.stringify(galleryRecord, null, 2) + '\n', 'utf8');
+    fs.writeFileSync(path.join(sourceRoot, 'content', 'gallery', 'hotel-01-facade.json'), recordBytes);
+
+    const git = (args) => {
+      const result = spawnSync('git', args, { cwd: sourceRoot, encoding: 'utf8', timeout: 15000 });
+      if (result.error || result.status !== 0) {
+        throw new Error('Gallery bundle fixture Git command failed: ' +
+          String(result.stderr || (result.error && result.error.message) || 'unknown error'));
+      }
+      return String(result.stdout || '').trim();
+    };
+    git(['init', '-q']);
+    git(['config', 'user.name', 'Gallery Fixture']);
+    git(['config', 'user.email', 'gallery-fixture@example.invalid']);
+    git(['add', '.']);
+    git(['commit', '-q', '-m', 'fixture source']);
+    const sourceCommit = git(['rev-parse', 'HEAD']);
+    const imageSha256 = crypto.createHash('sha256').update(imageBytes).digest('hex');
+    const imageGitBlobSha = crypto.createHash('sha1')
+      .update(Buffer.from('blob ' + imageBytes.length + '\0', 'utf8'))
+      .update(imageBytes)
+      .digest('hex');
+    const audit = {
+      schemaVersion: 1,
+      auditType: 'read-only-authoritative-gallery-source-drift',
+      sourceRepository: 'https://github.com/tchouhanjsm/garh-jaisal-website',
+      sourceBranch: 'main',
+      pinnedSourceCommit: sourceCommit,
+      currentSourceCommit: sourceCommit,
+      sourcePinDrift: false,
+      summary: { recordCount: 1, missingRightsEvidenceCount: 1, missingVisualReviewCount: 1 },
+      records: [{
+        id: 'hotel-01-facade',
+        category: 'hotel',
+        publicationStatus: 'live',
+        reviewStatus: 'draft',
+        imagePath: 'img/gallery/owner-review.png',
+        imageBytes: imageBytes.length,
+        imageSha256,
+        imageGitBlobSha,
+        imageDecodeComplete: true,
+        imageWidth: 1,
+        imageHeight: 1,
+        meaningfulAltText: true,
+        rightsEvidenceComplete: false,
+        visualReviewComplete: false,
+        technicalValidationComplete: false,
+        blockers: ['creator-source-rights-evidence-incomplete', 'documented-visual-match-missing'],
+      }],
+      structuralErrors: [],
+      status: 'REVIEW_REQUIRED',
+    };
+    fs.writeFileSync(auditPath, JSON.stringify(audit, null, 2) + '\n');
+    const result = buildGalleryReviewBundle({
+      sourceRoot,
+      sourceCommit,
+      auditPath,
+      outputDirectory,
+      generatedAt: '2026-11-03T12:00:00Z',
+    });
+    assert.equal(result.summary.recordCount, 1);
+    assert.equal(result.summary.uniqueImageCount, 1);
+    assert.equal(result.summary.missingRightsEvidenceCount, 1);
+    assert.equal(result.summary.missingVisualReviewCount, 1);
+    assert.equal(result.summary.approvalEligibleCount, 0);
+    assert.equal(result.manifest.policy.mediaApproved, false);
+    assert.equal(result.manifest.policy.sourceRecordsChanged, false);
+    assert.equal(result.decisions.decisions[0].ownerDecision, 'pending');
+    assert.equal(result.decisions.decisions[0].sourceEvidence.status, 'unverified');
+    assert.equal(result.decisions.decisions[0].visualReview.status, 'not_assessed');
+    assert.equal(result.decisions.decisions[0].technicalValidation.status, 'pending');
+    assert.deepEqual(
+      fs.readFileSync(path.join(outputDirectory, result.manifest.records[0].previewImagePath)),
+      imageBytes
+    );
+    assert.ok(fs.readFileSync(path.join(outputDirectory, 'index.html'), 'utf8').includes('hotel-01-facade'));
+    assert.ok(fs.readFileSync(path.join(outputDirectory, 'review.csv'), 'utf8').includes('creator-source-rights-evidence-incomplete'));
+    assert.ok(fs.existsSync(path.join(outputDirectory, 'gallery-decisions.template.json')));
+
+    fs.writeFileSync(path.join(sourceRoot, 'img', 'gallery', 'owner-review.png'), Buffer.from('changed'));
+    assert.throws(
+      () => buildGalleryReviewBundle({
+        sourceRoot,
+        sourceCommit,
+        auditPath,
+        outputDirectory: path.join(fixtureRoot, 'tampered-bundle'),
+        generatedAt: '2026-11-03T12:00:00Z',
+      }),
+      /image byte\/SHA identity changed/
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+testGalleryOwnerReviewBundle();
 
 async function testEditorialReviewAuthority() {
   const expectedHead = 'a'.repeat(40);
