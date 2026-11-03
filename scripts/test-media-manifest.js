@@ -467,6 +467,22 @@ try {
   assert.equal(duplicateCommentedRootCollections.summary.approvalEligibleCount, 0);
   assert.ok(duplicateCommentedRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
 
+  // YAML treats whitespace before the mapping colon as the same root key.
+  // A spaced duplicate must not bypass the duplicate-declaration guard.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot, 'collections : []');
+  const duplicateSpacedRootCollections = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(duplicateSpacedRootCollections.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateSpacedRootCollections.cmsSchema.available, false);
+  assert.equal(duplicateSpacedRootCollections.summary.approvalEligibleCount, 0);
+  assert.ok(duplicateSpacedRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
+
   const mismatchedImageHash = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
