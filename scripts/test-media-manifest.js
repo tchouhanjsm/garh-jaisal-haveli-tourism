@@ -26,10 +26,10 @@ for (const formulaValue of [
   '+SUM(1,1)',
   '-1+2',
   '@SUM(1,1)',
-  '\\t=1+1',
-  '\\r=1+1',
-  '\\n=1+1',
-  ' \\t=1+1',
+  '\t=1+1',
+  '\r=1+1',
+  '\n=1+1',
+  ' \t=1+1',
 ]) {
   const expectedCell = '"' + ("'" + formulaValue).replace(/"/g, '""') + '"';
   assert.equal(csvCell(formulaValue), expectedCell, 'CSV formula/control prefix must be neutralized.');

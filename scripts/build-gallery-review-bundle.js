@@ -89,8 +89,8 @@ function csvCell(value) {
   let text = String(value === null || value === undefined ? '' : value);
   // CSV quoting alone does not stop spreadsheet formula execution. Preserve
   // the source value but force risky cells to be interpreted as literal text.
-  const formulaPrefix = /^[\\uFEFF\\s]*[=+@-]/u.test(text);
-  const controlPrefix = /^[\\u0000-\\u001f\\u007f]/.test(text);
+  const formulaPrefix = /^[\uFEFF\s]*[=+@-]/u.test(text);
+  const controlPrefix = /^[\u0000-\u001f\u007f]/.test(text);
   if (formulaPrefix || controlPrefix) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 }
