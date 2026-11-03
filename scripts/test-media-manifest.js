@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { auditEditorialReviewAuthority } = require('./audit-editorial-review-authority');
 
 const ROOT = path.resolve(__dirname, '..');
 const STRICT_YAML_PARSER = path.join(ROOT, 'scripts', 'parse-strict-cms-yaml.py');
@@ -1237,5 +1238,181 @@ try {
 } finally {
   fs.rmSync(sourceAuditDirectory, { recursive: true, force: true });
 }
+
+
+async function testEditorialReviewAuthority() {
+  const expectedHead = 'a'.repeat(40);
+  const otherHead = 'b'.repeat(40);
+  const baseSha = 'c'.repeat(40);
+  const repository = 'owner/repository';
+  const observedAt = '2026-11-03T11:30:00Z';
+
+  const pullRequest = (overrides = {}) => ({
+    number: 77,
+    state: 'open',
+    base: { ref: 'main', sha: baseSha, repo: { full_name: repository } },
+    head: { sha: expectedHead, repo: { full_name: repository } },
+    ...overrides,
+  });
+  const review = (id, overrides = {}) => ({
+    id,
+    state: 'COMMENTED',
+    commit_id: expectedHead,
+    submitted_at: observedAt,
+    user: { login: 'reviewer-' + id, id: 10000 + id },
+    ...overrides,
+  });
+  const response = data => ({ ok: true, status: 200, json: async () => data });
+
+  function mockFetch(options = {}) {
+    const snapshots = options.pullRequests || [pullRequest(), pullRequest()];
+    const pages = options.reviewPages || { 1: [] };
+    const requests = [];
+    let pullRequestReads = 0;
+    const fetchImpl = async (url, init) => {
+      requests.push(url);
+      assert.equal(init.headers.Authorization, 'Bearer fixture-token');
+      assert.equal(init.headers['X-GitHub-Api-Version'], '2022-11-28');
+      if (/\\/pulls\\/77$/.test(url)) {
+        const index = Math.min(pullRequestReads, snapshots.length - 1);
+        pullRequestReads += 1;
+        return response(snapshots[index]);
+      }
+      const match = url.match(/\\/pulls\\/77\\/reviews\\?per_page=100\\&page=(\\d+)$/);
+      if (match) return response(pages[Number(match[1])] || []);
+      throw new Error('Unexpected GitHub API URL in fixture: ' + url);
+    };
+    return { fetchImpl, requests };
+  }
+
+  const runAudit = (fixture, overrides = {}) => auditEditorialReviewAuthority({
+    repository,
+    pullRequestNumber: 77,
+    expectedHead,
+    token: 'fixture-token',
+    observedAt,
+    fetchImpl: fixture.fetchImpl,
+    ...overrides,
+  });
+
+  // An APPROVED code review is evidence only; it never authorizes editorial media.
+  const approvedFixture = mockFetch({ reviewPages: { 1: [review(1, { state: 'APPROVED' })] } });
+  const approvedEvidence = await runAudit(approvedFixture);
+  assert.equal(approvedEvidence.pullRequest.exactHeadMatch, true);
+  assert.equal(approvedEvidence.pullRequest.metadataRevalidatedAfterReviewRead, true);
+  assert.equal(approvedEvidence.reviewEvidence.snapshotComplete, true);
+  assert.equal(approvedEvidence.reviewEvidence.reviewCount, 1);
+  assert.equal(approvedEvidence.reviewEvidence.currentHeadReviewCount, 1);
+  assert.deepEqual(approvedEvidence.reviewEvidence.currentHeadReviewIds, [1]);
+  assert.equal(approvedEvidence.reviewEvidence.currentHeadStateCounts.APPROVED, 1);
+  assert.equal(approvedEvidence.reviewerAuthorization.state, 'NOT_CONFIGURED');
+  assert.equal(approvedEvidence.reviewerAuthorization.policyConfigured, false);
+  assert.equal(approvedEvidence.reviewerAuthorization.identityVerified, false);
+  assert.equal(approvedEvidence.reviewerAuthorization.approvalAuthorized, false);
+  assert.equal(approvedEvidence.releaseInvariants.reviewEvidenceIsAuthorization, false);
+  assert.equal(approvedEvidence.releaseInvariants.publicationEligible, false);
+  assert.equal(approvedEvidence.releaseInvariants.approvedMediaChanged, false);
+  assert.equal(approvedEvidence.releaseInvariants.contentRecordsChanged, false);
+  assert.equal(approvedEvidence.releaseInvariants.publicationTriggered, false);
+
+  // Submitted reviews on older commits are recorded but never counted as current-head reviews.
+  const staleReviewFixture = mockFetch({ reviewPages: { 1: [review(2, { commit_id: otherHead })] } });
+  const staleReviewEvidence = await runAudit(staleReviewFixture);
+  assert.equal(staleReviewEvidence.reviewEvidence.offHeadSubmittedReviewCount, 1);
+  assert.equal(staleReviewEvidence.reviewEvidence.currentHeadReviewCount, 0);
+  assert.equal(staleReviewEvidence.reviewEvidence.currentHeadReviewerIds.length, 0);
+  assert.equal(staleReviewEvidence.reviewerAuthorization.approvalAuthorized, false);
+
+  // Pagination must include the next page when a full page of 100 records is returned.
+  const firstPage = Array.from({ length: 100 }, (_, index) => review(index + 1));
+  const secondPage = [review(101)];
+  const paginationFixture = mockFetch({ reviewPages: { 1: firstPage, 2: secondPage } });
+  const paginatedEvidence = await runAudit(paginationFixture);
+  assert.equal(paginatedEvidence.reviewEvidence.reviewCount, 101);
+  assert.equal(paginatedEvidence.reviewEvidence.submittedReviewCount, 101);
+  assert.equal(paginatedEvidence.reviewEvidence.currentHeadReviewCount, 101);
+  assert.equal(paginatedEvidence.reviewEvidence.unsubmittedReviewCount, 0);
+  assert.ok(paginationFixture.requests.some(url => url.endsWith('page=2')));
+
+  // A repeated review ID across pages makes the snapshot ambiguous and must fail closed.
+  const duplicateIdFixture = mockFetch({
+    reviewPages: {
+      1: [...Array.from({ length: 99 }, (_, index) => review(index + 1)), review(500)],
+      2: [review(500)],
+    },
+  });
+  await assert.rejects(
+    () => runAudit(duplicateIdFixture),
+    /duplicate review id: 500/
+  );
+
+  // Re-read the PR after review pagination: head movement invalidates the whole snapshot.
+  const movedHeadFixture = mockFetch({
+    pullRequests: [
+      pullRequest(),
+      pullRequest({ head: { sha: otherHead, repo: { full_name: repository } } }),
+    ],
+  });
+  await assert.rejects(() => runAudit(movedHeadFixture), /head changed during review audit/);
+
+  // A base branch or source repository change during pagination also invalidates the snapshot.
+  const movedBaseFixture = mockFetch({
+    pullRequests: [
+      pullRequest(),
+      pullRequest({ base: { ref: 'main', sha: otherHead, repo: { full_name: repository } } }),
+    ],
+  });
+  await assert.rejects(() => runAudit(movedBaseFixture), /base changed during review audit/);
+
+  const movedHeadRepositoryFixture = mockFetch({
+    pullRequests: [
+      pullRequest(),
+      pullRequest({ head: { sha: expectedHead, repo: { full_name: 'owner/other-repo' } } }),
+    ],
+  });
+  await assert.rejects(() => runAudit(movedHeadRepositoryFixture), /head repository changed/);
+
+  // Incomplete identities and malformed review metadata cannot enter the evidence snapshot.
+  const missingIdentity = mockFetch({
+    reviewPages: { 1: [review(600, { user: { login: 'missing-stable-id' } })] },
+  });
+  await assert.rejects(() => runAudit(missingIdentity), /stable authenticated reviewer identity/);
+
+  const invalidState = mockFetch({ reviewPages: { 1: [review(601, { state: 'PUBLISHED' })] } });
+  await assert.rejects(() => runAudit(invalidState), /unsupported review state/);
+
+  const invalidTimestamp = mockFetch({ reviewPages: { 1: [review(602, { submitted_at: 'not-a-date' })] } });
+  await assert.rejects(() => runAudit(invalidTimestamp), /invalid submission timestamp/);
+
+  const invalidCommit = mockFetch({ reviewPages: { 1: [review(603, { commit_id: 'not-a-sha' })] } });
+  await assert.rejects(() => runAudit(invalidCommit), /invalid commit identity/);
+
+  const closedPullRequest = mockFetch({
+    pullRequests: [pullRequest({ state: 'closed' })],
+  });
+  await assert.rejects(() => runAudit(closedPullRequest), /incomplete, closed/);
+
+  // A full final page at the configured ceiling is incomplete until another page is checked.
+  const ceilingPages = {};
+  for (let page = 1; page <= 20; page += 1) {
+    ceilingPages[page] = Array.from({ length: 100 }, (_, index) => review((page - 1) * 100 + index + 1));
+  }
+  const ceilingFixture = mockFetch({ reviewPages: ceilingPages });
+  await assert.rejects(() => runAudit(ceilingFixture), /pagination exceeded the safe audit limit/);
+
+  const invalidObservedAtFixture = mockFetch();
+  await assert.rejects(
+    () => runAudit(invalidObservedAtFixture, { observedAt: 'yesterday' }),
+    /valid ISO-8601/
+  );
+}
+
+testEditorialReviewAuthority()
+  .then(() => console.log('PASS: exact-head GitHub editorial review snapshot, pagination, identity integrity and non-authorization contracts.'))
+  .catch(error => {
+    console.error('FAIL: GitHub editorial review authority regression: ' + error.stack);
+    process.exitCode = 1;
+  });
+
 
 console.log('PASS: curated media manifest, exact Git blob SHA/bytes, dimensions, role-based image budgets, picture/JPEG references, and page-specific image/alt contracts.');

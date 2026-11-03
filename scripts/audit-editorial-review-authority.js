@@ -125,6 +125,7 @@ async function auditEditorialReviewAuthority(options) {
   const initialSnapshot = validatePullRequestSnapshot(pullRequest, input);
 
   const reviews = [];
+  const reviewIds = new Set();
   for (let page = 1; page <= MAX_REVIEW_PAGES; page += 1) {
     const url = API_ROOT + repositoryPath + '/pulls/' + input.pullRequestNumber +
       '/reviews?per_page=100&page=' + page;
@@ -132,7 +133,14 @@ async function auditEditorialReviewAuthority(options) {
     if (!Array.isArray(pageReviews)) {
       throw new Error('GitHub review endpoint returned a non-array response.');
     }
-    for (const review of pageReviews) reviews.push(normalizeReview(review, input.expectedHead));
+    for (const review of pageReviews) {
+      const normalized = normalizeReview(review, input.expectedHead);
+      if (reviewIds.has(normalized.id)) {
+        throw new Error('GitHub review pagination returned duplicate review id: ' + normalized.id + '.');
+      }
+      reviewIds.add(normalized.id);
+      reviews.push(normalized);
+    }
     if (pageReviews.length < 100) break;
     if (page === MAX_REVIEW_PAGES) {
       throw new Error('GitHub review pagination exceeded the safe audit limit; evidence is incomplete.');
@@ -149,15 +157,25 @@ async function auditEditorialReviewAuthority(options) {
   }
 
   const currentHeadReviews = reviews.filter(review => review.onExpectedHead && review.submitted);
+  const submittedReviews = reviews.filter(review => review.submitted);
+  const offHeadSubmittedReviews = submittedReviews.filter(review => !review.onExpectedHead);
+  const unsubmittedReviews = reviews.filter(review => !review.submitted);
   const currentHeadStateCounts = {};
   for (const review of currentHeadReviews) {
     currentHeadStateCounts[review.state] = (currentHeadStateCounts[review.state] || 0) + 1;
   }
 
+  const observedAt = options.observedAt === undefined ? new Date().toISOString() : options.observedAt;
+  if (typeof observedAt !== 'string' ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(observedAt) ||
+      !Number.isFinite(Date.parse(observedAt))) {
+    throw new Error('Observed-at timestamp must be a valid ISO-8601 date-time with an explicit timezone.');
+  }
+
   return {
     schemaVersion: 1,
     artifactType: 'editorial-github-review-evidence-audit',
-    observedAt: options.observedAt || new Date().toISOString(),
+    observedAt,
     repository: input.repository,
     pullRequest: {
       number: input.pullRequestNumber,
@@ -175,8 +193,11 @@ async function auditEditorialReviewAuthority(options) {
       snapshotComplete: true,
       reviewerIdentityEvidenceComplete: true,
       reviewCount: reviews.length,
-      submittedReviewCount: reviews.filter(review => review.submitted).length,
+      submittedReviewCount: submittedReviews.length,
+      offHeadSubmittedReviewCount: offHeadSubmittedReviews.length,
+      unsubmittedReviewCount: unsubmittedReviews.length,
       currentHeadReviewCount: currentHeadReviews.length,
+      currentHeadReviewIds: currentHeadReviews.map(review => review.id).sort((left, right) => left - right),
       currentHeadReviewerIds: [...new Set(currentHeadReviews.map(review => review.userId))].sort((left, right) => left - right),
       currentHeadStateCounts,
       reviews,
