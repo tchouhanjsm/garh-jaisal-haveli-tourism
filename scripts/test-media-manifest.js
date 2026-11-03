@@ -13,7 +13,112 @@ const { buildGalleryReviewBundle, csvCell } = require('./build-gallery-review-bu
 const { validateGalleryReviewDecisions } = require('./validate-gallery-review-decisions');
 const { buildPageMediaReviewBundle } = require('./build-page-media-review-bundle');
 const { validatePageMediaReviewDecisions } = require('./validate-page-media-review-decisions');
+const { writeBundleIntegrityManifest, verifyBundleIntegrityManifest } = require('./review-bundle-integrity');
 
+
+
+function testReviewBundleIntegrityPortability() {
+  const os = require('node:os');
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'garh-review-integrity-portability-'));
+  const makeDirectory = name => {
+    const directory = path.join(fixtureRoot, name);
+    fs.mkdirSync(directory, { recursive: true });
+    return directory;
+  };
+  const createFile = (directory, relative, content = 'fixture') => {
+    const target = path.join(directory, ...relative.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content);
+    return target;
+  };
+  try {
+    const valid = makeDirectory('valid');
+    createFile(valid, 'index.html', '<main>Review package</main>');
+    createFile(valid, 'images/asset-01.jpg', 'image bytes');
+    createFile(valid, 'page-media-decisions.template.json', '{}');
+    const written = writeBundleIntegrityManifest(valid, ['page-media-decisions.template.json']);
+    const verified = verifyBundleIntegrityManifest(valid, ['page-media-decisions.template.json']);
+    assert.equal(verified.sha256, written.sha256);
+    assert.equal(verified.fileCount, 2);
+    assert.equal(verified.totalBytes, Buffer.byteLength('<main>Review package</main>') + Buffer.byteLength('image bytes'));
+
+    const invalidNames = [
+      ['reserved-device', 'CON.txt'],
+      ['trailing-dot', 'photo.jpg.'],
+      ['unicode-name', 'café.txt'],
+      ['windows-stream', 'record:stream.txt'],
+      ['overlong-segment', 'a'.repeat(101) + '.txt'],
+    ];
+    for (const [name, relative] of invalidNames) {
+      const directory = makeDirectory(name);
+      createFile(directory, relative);
+      assert.throws(
+        () => writeBundleIntegrityManifest(directory, []),
+        /unsafe or non-portable path/
+      );
+    }
+
+    const caseCollision = makeDirectory('case-collision');
+    createFile(caseCollision, 'Images/first.txt');
+    createFile(caseCollision, 'images/second.txt');
+    const caseNames = fs.readdirSync(caseCollision);
+    if (caseNames.includes('Images') && caseNames.includes('images')) {
+      assert.throws(
+        () => writeBundleIntegrityManifest(caseCollision, []),
+        /case-insensitive path collision/
+      );
+    }
+
+    const hardLinkBundle = makeDirectory('hard-link');
+    const externalFile = createFile(fixtureRoot, 'external-review-source.txt', 'external bytes');
+    fs.linkSync(externalFile, path.join(hardLinkBundle, 'linked-copy.txt'));
+    assert.throws(
+      () => writeBundleIntegrityManifest(hardLinkBundle, []),
+      /hard-linked file/
+    );
+
+    const symlinkBundle = makeDirectory('symlink');
+    fs.symlinkSync(externalFile, path.join(symlinkBundle, 'linked-copy.txt'));
+    assert.throws(
+      () => writeBundleIntegrityManifest(symlinkBundle, []),
+      /symbolic link/
+    );
+
+    const missingExcluded = makeDirectory('missing-excluded');
+    createFile(missingExcluded, 'index.html');
+    assert.throws(
+      () => writeBundleIntegrityManifest(missingExcluded, ['review-decisions.template.json']),
+      /excluded worksheet file is missing/
+    );
+
+    const tamperedManifest = makeDirectory('tampered-manifest');
+    createFile(tamperedManifest, 'a.txt', 'a');
+    writeBundleIntegrityManifest(tamperedManifest, []);
+    const manifestPath = path.join(tamperedManifest, 'bundle-integrity.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.files = [
+      { path: 'A.txt', bytes: 1, sha256: '0'.repeat(64) },
+      { path: 'a.txt', bytes: 1, sha256: '0'.repeat(64) },
+    ];
+    manifest.fileCount = 2;
+    manifest.totalBytes = 2;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => verifyBundleIntegrityManifest(tamperedManifest, []),
+      /case-insensitive path collision/
+    );
+
+    const symlinkRoot = path.join(fixtureRoot, 'valid-root-link');
+    fs.symlinkSync(valid, symlinkRoot, 'dir');
+    assert.throws(
+      () => writeBundleIntegrityManifest(symlinkRoot, ['page-media-decisions.template.json']),
+      /non-symlink directory/
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+testReviewBundleIntegrityPortability();
 
 const validDecisionJson = parseStrictJsonBytes(
   Buffer.from('{"ownerDecision":"reject","visualReview":{"status":"mismatch"}}', 'utf8'),
