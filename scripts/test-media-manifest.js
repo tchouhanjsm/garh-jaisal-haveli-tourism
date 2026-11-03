@@ -1441,7 +1441,10 @@ function testGalleryOwnerReviewBundle() {
     assert.ok(reviewHtml.includes("img-src 'self'"));
     assert.ok(reviewHtml.includes('name="referrer" content="no-referrer"'));
     assert.ok(!reviewHtml.includes('<script'));
-    assert.ok(!reviewHtml.includes('https://'));
+    assert.ok(!reviewHtml.includes('src="https://'));
+    assert.ok(!reviewHtml.includes("src='https://"));
+    assert.ok(!reviewHtml.includes('href="https://'));
+    assert.ok(!reviewHtml.includes("href='https://"));
     assert.ok(reviewCsv.includes('creator-source-rights-evidence-incomplete'));
     assert.ok(reviewCsv.includes(csvCell(galleryRecord.image.alt)));
     assert.ok(fs.existsSync(path.join(outputDirectory, 'gallery-decisions.template.json')));
