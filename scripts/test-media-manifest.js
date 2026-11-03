@@ -321,6 +321,11 @@ function moveGalleryCollectionOutsideRootCollections(root) {
 }
 
 
+function appendRootCollectionsDeclaration(root, declaration) {
+  const configPath = path.join(root, 'admin', 'config.yml');
+  fs.appendFileSync(configPath, '\n' + declaration + '\n', 'utf8');
+}
+
 const sourceAuditDirectory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'garh-source-gallery-audit-'));
 try {
   const pinnedRoot = path.join(sourceAuditDirectory, 'pinned');
@@ -429,6 +434,38 @@ try {
   assert.equal(outOfScopeGallery.cmsSchema.supportsRequiredEvidence, false);
   assert.equal(outOfScopeGallery.summary.approvalEligibleCount, 0);
   assert.ok(outOfScopeGallery.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
+
+  // A later root-level collections key can shadow the valid collection in YAML.
+  // The audit must count declarations rather than silently trusting the first.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot, 'collections: []');
+  const duplicateRootCollections = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(duplicateRootCollections.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateRootCollections.cmsSchema.available, false);
+  assert.equal(duplicateRootCollections.cmsSchema.collectionValid, false);
+  assert.equal(duplicateRootCollections.summary.approvalEligibleCount, 0);
+  assert.ok(duplicateRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
+
+  // Inline comments do not make a duplicate root-level declaration invisible.
+  makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
+  appendRootCollectionsDeclaration(currentRoot, 'collections: # duplicate declaration');
+  const duplicateCommentedRootCollections = auditFixture({
+    pinnedSourceRoot: pinnedRoot,
+    pinnedSourceCommit: pinnedCommit,
+    currentSourceRoot: currentRoot,
+    currentSourceCommit: currentCommit,
+    manifestPath,
+  });
+  assert.equal(duplicateCommentedRootCollections.status, 'REVIEW_REQUIRED');
+  assert.equal(duplicateCommentedRootCollections.cmsSchema.available, false);
+  assert.equal(duplicateCommentedRootCollections.summary.approvalEligibleCount, 0);
+  assert.ok(duplicateCommentedRootCollections.records[0].blockers.includes('cms-schema-does-not-capture-required-evidence'));
 
   const mismatchedImageHash = auditAuthoritativeGallerySource({
     pinnedSourceRoot: pinnedRoot,
