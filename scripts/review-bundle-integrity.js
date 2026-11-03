@@ -17,7 +17,8 @@ function exactKeys(value, expected, label) {
 }
 function safeRelative(value) {
   return typeof value === 'string' && value.length > 0 && !value.includes('\\') &&
-    !path.isAbsolute(value) && !value.split('/').some(part => !part || part === '.' || part === '..');
+    !/^[a-z]:/i.test(value) && !path.isAbsolute(value) &&
+    !value.split('/').some(part => !part || part === '.' || part === '..');
 }
 function normalizeExcludedPaths(values) {
   if (!Array.isArray(values)) throw new Error('Excluded bundle paths must be an array.');
@@ -34,14 +35,15 @@ function walkBundleFiles(directory, excludedPaths) {
   const root = fs.realpathSync(directory);
   const excluded = new Set(excludedPaths);
   const files = [];
-  function visit(current) {
+  function visit(current, depth) {
+    if (depth > 8) throw new Error('Bundle directory nesting exceeds its limit.');
     const entries = fs.readdirSync(current, { withFileTypes: true });
     entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const entry of entries) {
       const absolute = path.join(current, entry.name);
       const stat = fs.lstatSync(absolute);
       if (stat.isSymbolicLink()) throw new Error('Bundle contains a symbolic link: ' + absolute);
-      if (stat.isDirectory()) { visit(absolute); continue; }
+      if (stat.isDirectory()) { visit(absolute, depth + 1); continue; }
       if (!stat.isFile()) throw new Error('Bundle contains a non-regular filesystem entry: ' + absolute);
       const relative = path.relative(root, absolute).split(path.sep).join('/');
       if (relative === 'bundle-integrity.json' || excluded.has(relative)) continue;
@@ -52,7 +54,7 @@ function walkBundleFiles(directory, excludedPaths) {
       if (files.length > MAX_FILES) throw new Error('Bundle contains too many files.');
     }
   }
-  visit(root);
+  visit(root, 0);
   files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   const totalBytes = files.reduce((sum, file) => sum + file.bytes, 0);
   if (!Number.isSafeInteger(totalBytes) || totalBytes > MAX_TOTAL_BYTES) throw new Error('Bundle exceeds its total byte limit.');

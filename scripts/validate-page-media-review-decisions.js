@@ -144,7 +144,7 @@ function validatePageMediaReviewDecisions(repoRoot, bundleDirectory, options) {
   const errors = [];
   const sourceRoot = realDirectory(options && options.sourceRoot, 'Authoritative source checkout');
   const bundle = realDirectory(bundleDirectory, 'Page-media review bundle');
-  const repositoryRoot = fs.realpathSync(repoRoot || ROOT);
+  const repositoryRoot = fs.realpathSync(ROOT);
   if (within(repositoryRoot, bundle) || within(sourceRoot, bundle)) errors.push('Page-media review bundle must be outside both repositories.');
   let bundleIntegrity = null;
   try { bundleIntegrity = verifyBundleIntegrityManifest(bundle, ['page-media-decisions.template.json']); }
@@ -537,7 +537,7 @@ function parseArgs(argv) {
 if (require.main === module) {
   try {
     const args = parseArgs(process.argv.slice(2));
-    const report = validatePageMediaReviewDecisions(__dirname, args.bundle, {
+    const report = validatePageMediaReviewDecisions(ROOT, args.bundle, {
       sourceRoot: args.sourceRoot,
       sourceCommit: args.sourceCommit,
       auditPath: args.auditPath,
