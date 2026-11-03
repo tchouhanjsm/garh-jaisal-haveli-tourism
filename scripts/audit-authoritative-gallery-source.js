@@ -243,11 +243,18 @@ function gallerySchemaFields(root, errors) {
   }
 
   const config = fs.readFileSync(configPath, 'utf8');
-  const collectionMarkers = [...config.matchAll(/^collections:\s*$/gm)];
-  if (collectionMarkers.length !== 1) {
+  // Count every root-level declaration, including inline comments or values.
+  // A duplicate key can shadow an otherwise valid Gallery collection in YAML
+  // parsers that apply last-key-wins semantics, so it must fail closed.
+  const collectionDeclarations = [...config.matchAll(/^collections:(.*)$/gm)];
+  if (collectionDeclarations.length !== 1) {
     return unavailable('admin/config.yml must contain exactly one root collections section');
   }
-  const collectionsStart = collectionMarkers[0].index + collectionMarkers[0][0].length;
+  const collectionDeclarationValue = collectionDeclarations[0][1].trim();
+  if (collectionDeclarationValue && !collectionDeclarationValue.startsWith('#')) {
+    return unavailable('root collections section must be a block mapping');
+  }
+  const collectionsStart = collectionDeclarations[0].index + collectionDeclarations[0][0].length;
   const remainingConfig = config.slice(collectionsStart);
   // Scope collection discovery to the actual root-level YAML collections section.
   // A later root key may itself contain a list with "- name: gallery"; it must
