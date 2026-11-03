@@ -755,7 +755,7 @@ try {
   // Invalid UTF-8 inside a YAML comment must not be normalized by Node before parsing.
   makeGalleryFixture(currentRoot, { includeEvidence: true, safeDefaults: true }, reviewedRecord);
   const invalidUtf8ConfigPath = path.join(currentRoot, 'admin', 'config.yml');
-  fs.appendFileSync(invalidUtf8ConfigPath, Buffer.from('# ignored invalid byte: \\xff\\n', 'binary'));
+  fs.appendFileSync(invalidUtf8ConfigPath, Buffer.from('# ignored invalid byte: \xff\n', 'binary'));
   const invalidUtf8Config = auditFixture({
     pinnedSourceRoot: pinnedRoot,
     pinnedSourceCommit: pinnedCommit,
@@ -774,13 +774,13 @@ try {
   const optionConfigPath = path.join(currentRoot, 'admin', 'config.yml');
   const optionConfig = fs.readFileSync(optionConfigPath, 'utf8');
   const reviewFieldStart = optionConfig.indexOf('      - name: review_status');
-  const nextReviewField = optionConfig.indexOf('\\n      - name:', reviewFieldStart + 1);
+  const nextReviewField = optionConfig.indexOf('\n      - name:', reviewFieldStart + 1);
   assert.ok(reviewFieldStart >= 0 && nextReviewField > reviewFieldStart);
   const reviewFieldBlock = optionConfig.slice(reviewFieldStart, nextReviewField);
   assert.ok(reviewFieldBlock.includes('            value: rejected'));
   const extendedReviewFieldBlock = reviewFieldBlock.replace(
     '            value: rejected',
-    '            value: rejected\\n          - label: Unsupported state\\n            value: published'
+    '            value: rejected\n          - label: Unsupported state\n            value: published'
   );
   assert.notEqual(extendedReviewFieldBlock, reviewFieldBlock);
   fs.writeFileSync(optionConfigPath,
@@ -805,11 +805,11 @@ try {
   const unlabeledOptionConfigPath = path.join(currentRoot, 'admin', 'config.yml');
   const unlabeledOptionConfig = fs.readFileSync(unlabeledOptionConfigPath, 'utf8');
   const statusFieldStart = unlabeledOptionConfig.indexOf('      - name: status');
-  const nextStatusField = unlabeledOptionConfig.indexOf('\\n      - name:', statusFieldStart + 1);
+  const nextStatusField = unlabeledOptionConfig.indexOf('\n      - name:', statusFieldStart + 1);
   assert.ok(statusFieldStart >= 0 && nextStatusField > statusFieldStart);
   const statusFieldBlock = unlabeledOptionConfig.slice(statusFieldStart, nextStatusField);
   const unlabeledStatusFieldBlock = statusFieldBlock.replace(
-    '          - label: draft\\n            value: draft',
+    '          - label: draft\n            value: draft',
     '          - value: draft'
   );
   assert.notEqual(unlabeledStatusFieldBlock, statusFieldBlock);
