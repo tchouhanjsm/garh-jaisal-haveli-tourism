@@ -30,6 +30,20 @@ assert.ok(mediaLibraryStepBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-sourc
   && mediaLibraryStepBlock.indexOf('php tests/php/media-library-audit.php') >= 0
   && mediaLibraryStepBlock.indexOf('php tests/php/gallery-curation.php') > mediaLibraryStepBlock.indexOf('php tests/php/media-library-audit.php'),
   'Both read-only media runtime contracts must run in order against the verified source-main checkout');
+const phpEditorialStep = QUALITY_WORKFLOW.indexOf('Run authoritative editorial SEO and image metadata runtime contracts on exact source-main SHA');
+assert.ok(phpEditorialStep > phpMediaLibraryStep && phpEditorialStep < galleryAuditStep,
+  'Editorial SEO, discovery and image metadata contracts must run after media governance and before the read-only audit');
+const editorialStepBlock = QUALITY_WORKFLOW.slice(phpEditorialStep, galleryAuditStep);
+const editorialContracts = [
+  'editorial-discovery-graph.php',
+  'editorial-release-readiness.php',
+  'image-metadata-contract.php',
+  'social-image-alt-contract.php',
+];
+assert.ok(editorialStepBlock.includes('SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}')
+  && editorialStepBlock.includes('test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"')
+  && editorialContracts.every(contract => editorialStepBlock.includes('php tests/php/' + contract)),
+  'Editorial SEO and image metadata contracts must execute on the verified source-main checkout');
 assert.ok(QUALITY_WORKFLOW.includes('shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962'),
   'PHP setup action must remain pinned to the reviewed immutable commit');
 for (const contract of [
@@ -40,6 +54,10 @@ for (const contract of [
   'staging-noindex.php',
   'media-library-audit.php',
   'gallery-curation.php',
+  'editorial-discovery-graph.php',
+  'editorial-release-readiness.php',
+  'image-metadata-contract.php',
+  'social-image-alt-contract.php',
 ]) {
   assert.ok(QUALITY_WORKFLOW.includes('php tests/php/' + contract),
     'Quality workflow must execute the authoritative PHP contract: ' + contract);

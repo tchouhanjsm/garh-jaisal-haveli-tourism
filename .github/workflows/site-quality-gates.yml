@@ -140,6 +140,18 @@ jobs:
           php tests/php/media-library-audit.php
           php tests/php/gallery-curation.php
 
+      - name: Run authoritative editorial SEO and image metadata runtime contracts on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/editorial-discovery-graph.php
+          php tests/php/editorial-release-readiness.php
+          php tests/php/image-metadata-contract.php
+          php tests/php/social-image-alt-contract.php
+
       - name: Audit authoritative gallery drift and rights readiness
         env:
           PINNED_SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
