@@ -103,6 +103,55 @@ jobs:
           git -C "$SOURCE_ROOT" checkout --detach FETCH_HEAD
           test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
 
+      - name: Set up PHP for authoritative page-media runtime contract
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Run authoritative page-media PHP runtime contract on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/site-media-slots-contract.php
+
+      - name: Run authoritative CMS, owner-auth and SEO runtime contracts on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/runtime-config-validation.php
+          php tests/php/sveltia-cms-config-contract.php
+          php tests/php/admin-auth-contract.php
+          php tests/php/staging-noindex.php
+
+      - name: Run authoritative media-library and Gallery curation runtime contracts on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/media-library-audit.php
+          php tests/php/gallery-curation.php
+
+      - name: Run authoritative editorial SEO and image metadata runtime contracts on exact source-main SHA
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          test "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$SOURCE_MAIN_SHA"
+          cd "$SOURCE_ROOT"
+          php tests/php/editorial-discovery-graph.php
+          php tests/php/editorial-release-readiness.php
+          php tests/php/image-metadata-contract.php
+          php tests/php/social-image-alt-contract.php
+
       - name: Audit authoritative gallery drift and rights readiness
         env:
           PINNED_SOURCE_COMMIT: ${{ steps.media-source-pin.outputs.source_commit }}
@@ -115,6 +164,51 @@ jobs:
             --current-source-commit "$CURRENT_SOURCE_COMMIT" \
             --manifest docs/MEDIA-MIGRATION-MANIFEST.json \
             --output "${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json"
+
+      - name: Build local-only authoritative Gallery owner-review bundle
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/build-gallery-review-bundle.js \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --audit "${{ runner.temp }}/garh-jaisal-authoritative-gallery-audit.json" \
+            --output "${{ runner.temp }}/garh-jaisal-gallery-review"
+
+      - name: Validate local-only authoritative Gallery decision worksheet integrity
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/validate-gallery-review-decisions.js \
+            --bundle "${RUNNER_TEMP}/garh-jaisal-gallery-review" \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --json > "${RUNNER_TEMP}/garh-jaisal-gallery-review-validation.json"
+
+      - name: Build local-only fixed page-media owner-review bundle
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/build-page-media-review-bundle.js \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --audit "${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json" \
+            --output "${RUNNER_TEMP}/garh-jaisal-page-media-review"
+
+      - name: Validate local-only fixed page-media decision worksheet integrity
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/garh-jaisal-source-current
+          SOURCE_MAIN_SHA: ${{ steps.media-source-main.outputs.source_commit }}
+        run: |
+          node scripts/validate-page-media-review-decisions.js \
+            --bundle "${RUNNER_TEMP}/garh-jaisal-page-media-review" \
+            --source-root "$SOURCE_ROOT" \
+            --source-commit "$SOURCE_MAIN_SHA" \
+            --audit "${RUNNER_TEMP}/garh-jaisal-authoritative-gallery-audit.json" \
+            --json > "${RUNNER_TEMP}/garh-jaisal-page-media-review-validation.json"
 
       - name: Validate local-only editorial decision worksheet integrity
         env:
@@ -145,6 +239,46 @@ jobs:
         with:
           name: garh-jaisal-authoritative-gallery-audit-${{ github.run_id }}
           path: ${{ runner.temp }}/garh-jaisal-authoritative-gallery-audit.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload local-only authoritative Gallery owner-review bundle
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-gallery-owner-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-gallery-review/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload local-only Gallery decision validation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-gallery-review-validation-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-gallery-review-validation.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload local-only fixed page-media owner-review bundle
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-page-media-owner-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-page-media-review/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload local-only fixed page-media decision validation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: garh-jaisal-page-media-review-validation-${{ github.run_id }}
+          path: ${{ runner.temp }}/garh-jaisal-page-media-review-validation.json
           if-no-files-found: warn
           retention-days: 7
           compression-level: 0
