@@ -1,0 +1,19 @@
+/* Enhancement layer; the existing visual design and photography remain intact. */
+a[href="booking.php"]:focus-visible,.hotel-form input:focus-visible,.hotel-form select:focus-visible,.hotel-form textarea:focus-visible { outline:3px solid #bd9357; outline-offset:3px; }
+.hotel-booking { background:#f6f1e9; color:#25231f; min-height:70vh; padding: clamp(3rem,7vw,7rem) 1.5rem; }
+.hotel-booking__inner { max-width:1050px; margin:auto; display:grid; grid-template-columns: minmax(0, .85fr) minmax(0,1.15fr); gap:clamp(2rem,5vw,5rem); align-items:start; }
+.hotel-booking h1 { font-family:"Playfair Display",Georgia,serif; font-size:clamp(2.8rem,5vw,5rem); line-height:1.08; margin:.5rem 0 1.5rem; }
+.hotel-booking .eyebrow { text-transform:uppercase; letter-spacing:.19em; color:#936b38; font-weight:700; font-size:.76rem; }
+.hotel-booking p { line-height:1.8; }
+.hotel-form { background:#fff; border:1px solid #e0d8cb; padding:clamp(1.3rem,4vw,2.5rem); box-shadow:0 22px 65px rgba(50,37,15,.08); }
+.hotel-form__grid {display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.hotel-form label { display:block; font-size:.87rem; font-weight:600; margin-bottom:.35rem; }
+.hotel-form input,.hotel-form select,.hotel-form textarea { width:100%; max-width:100%; border:1px solid #d7cfc3; background:#fff; padding:.85rem; font:inherit; border-radius:0; }
+.hotel-form .field { margin-bottom:1rem; }
+.hotel-form textarea { min-height:105px; resize:vertical; }
+.hotel-form button { width:100%; border:0; background:#8a6436; color:#fff; font-weight:700; cursor:pointer; padding:1rem 1.2rem; }
+.hotel-form button:hover { background:#5f462b; }
+.hotel-form .honeypot { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+.hotel-alert {border-left:4px solid #9d642b;background:#fff8ed;padding:1rem;margin:1rem 0}
+.hotel-alert--success {border-color:#416b49;background:#f0f7ed}
+@media(max-width:760px){.hotel-booking__inner{grid-template-columns:1fr}.hotel-form__grid{grid-template-columns:1fr}}
