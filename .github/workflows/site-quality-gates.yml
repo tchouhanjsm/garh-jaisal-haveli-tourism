@@ -19,7 +19,7 @@ concurrency:
 jobs:
   quality:
     name: quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The full Chromium route/viewport and packaged-image suites exceed 20 minutes.
     # Keep a bounded job timeout with enough headroom for the complete acceptance run.
     timeout-minutes: 45
