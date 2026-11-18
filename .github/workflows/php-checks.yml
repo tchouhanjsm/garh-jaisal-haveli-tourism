@@ -1,12 +1,14 @@
 name: PHP integration checks
 on:
   push:
-    branches: [feat/premium-php-enquiries]
+    branches: [main, fix/post-merge-hardening-ux-seo]
   pull_request:
     paths:
       - '**/*.php'
       - '.github/workflows/php-checks.yml'
       - 'includes/**'
+      - 'scripts/test-php-browser.py'
+      - 'assets/css/php-upgrade.css'
 permissions:
   contents: read
 jobs:
@@ -54,3 +56,20 @@ jobs:
           curl -fsS http://127.0.0.1:8787/booking.php | grep -q 'Send stay enquiry'
           curl -fsS http://127.0.0.1:8787/rooms.php | grep -q 'room-card-grid'
           curl -sS -X POST http://127.0.0.1:8787/booking.php -d 'name=X' | grep -q 'couldn.t submit your enquiry'
+
+      - name: Install Python Playwright
+        run: python3 -m pip install -r requirements-test.txt --break-system-packages
+      - name: Install browser
+        run: python3 -m playwright install --with-deps chromium
+      - name: Responsive PHP browser QA and screenshot evidence
+        env:
+          PHP_VISUAL_EVIDENCE: ${{ runner.temp }}/php-visual-evidence
+        run: python3 scripts/test-php-browser.py
+      - name: Upload PHP visual screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-responsive-evidence
+          path: ${{ runner.temp }}/php-visual-evidence/
+          if-no-files-found: warn
+          retention-days: 7
