@@ -1,4 +1,9 @@
 # PHP upgrade: preserve legacy HTML bookmarks and prioritize the PHP entry point.
+# Keep directory listings and internal configuration unavailable over HTTP.
+Options -Indexes
+<FilesMatch "^(?:\\.env(?:\\..*)?|composer\\.(?:json|lock)|(?:phpunit|PHP-DEPLOYMENT)\\.xml)$">
+  Require all denied
+</FilesMatch>
 DirectoryIndex index.php index.html
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -50,6 +55,8 @@ ErrorDocument 404 /404.html
     Header always set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
   Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Cross-Origin-Resource-Policy "same-origin"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
 </IfModule>
