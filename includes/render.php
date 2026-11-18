@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
+
 /**
- * Transitional PHP renderer: preserves the verified original layout, images,
- * text, room filters and interactive scripts without duplicating page bodies.
- * All primary navigation and enquiry routes resolve to PHP.
+ * Transitional renderer: retain original hotel design, assets and source-authorized
+ * booking/WhatsApp contact integrations; map navigation to PHP routes.
  */
 function hotel_render_static(string $slug): void {
     $allowed = ['index','about','rooms','gallery','dining','directions','experiences','experience-details'];
@@ -13,18 +13,30 @@ function hotel_render_static(string $slug): void {
     if (!is_file($source)) { http_response_code(500); exit('Page source missing'); }
     $html = file_get_contents($source);
     if ($html === false) { http_response_code(500); exit('Unable to render page'); }
-    $html = preg_replace_callback('~(href=["\x27])((?:index|about|rooms|gallery|dining|directions|experiences|experience-details)\.html)(#[^"\x27]*)?(["\x27])~i', static function(array $m): string {
-        return $m[1] . substr($m[2], 0, -5) . '.php' . ($m[3] ?? '') . $m[4];
-    }, $html);
-    // Original booking provider is not configured. Send visitors to a functional enquiry workflow.
-    $html = preg_replace('~href=(["\x27])#contact-status\1(?=[^>]*data-(?:booking-link|enquiry-link))~i', 'href="booking.php"', $html);
-    $html = preg_replace('~\sdata-(?:booking-link|enquiry-link)(?:="[^"]*")?~', '', $html);
-    // Remove stale disabled states from links now routing to the enquiry form.
-    $html = preg_replace('~(<a\b[^>]*href="booking\.php"[^>]*?)\saria-disabled="true"~i', '$1', $html);
-    $html = preg_replace('~(<a\b[^>]*href="booking\.php"[^>]*?)\saria-describedby="contact-status"~i', '$1', $html);
-    $html = str_replace('Book Now opens the external booking provider; it does not confirm availability or a reservation.', 'Book Now opens an enquiry form; availability and reservations are confirmed only by the hotel.', $html);
-    $html = str_replace('Choose Book Now to open the external booking provider,', 'Choose Book Now to send a booking enquiry,', $html);
-    $html = str_replace('data-enquiry-message=', 'data-original-enquiry-message=', $html);
+
+    // Rewrite same-site page references without changing images, CSS or scripts.
+    $html = preg_replace_callback(
+        '~(href=["\x27])((?:index|about|rooms|gallery|dining|directions|experiences|experience-details)\.html)(#[^"\x27]*)?(["\x27])~i',
+        static function(array $m): string {
+            return $m[1] . substr($m[2], 0, -5) . '.php' . ($m[3] ?? '') . $m[4];
+        },
+        $html
+    );
+    // Preserve data-booking-link, data-enquiry-link, and their original labels.
+    // assets/site.js validates the owner-authorized booking/WhatsApp URLs.
+    // Add a separate server-side enquiry route that doesn't pretend to reserve rooms.
+    $html = preg_replace(
+        '~(<a\b[^>]*class=["\x27][^"\x27]*nav-book[^"\x27]*["\x27][^>]*>.*?</a>)(\s*</nav>)~is',
+        '$1<a class="nav-enquiry" href="booking.php">Stay Enquiry</a>$2',
+        $html, 1
+    );
+    if ($slug === 'index') {
+        $html = str_replace(
+            '<div class="hero__actions">',
+            '<div class="hero__actions"><a class="text-link text-link--light" href="booking.php">Request a stay enquiry <span aria-hidden="true">→</span></a>',
+            $html
+        );
+    }
     $html = str_replace('</head>', '<link rel="stylesheet" href="assets/css/php-upgrade.css"></head>', $html);
     header('Content-Type: text/html; charset=UTF-8');
     header('X-Content-Type-Options: nosniff');
