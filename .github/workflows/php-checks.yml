@@ -1,0 +1,25 @@
+name: PHP compatibility checks
+on:
+  push:
+    branches: [feat/premium-php-enquiries]
+  pull_request:
+    paths:
+      - '**/*.php'
+      - '.github/workflows/php-checks.yml'
+jobs:
+  php-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show PHP runtime
+        run: php -v
+      - name: PHP syntax checks
+        run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Check required project files
+        run: |
+          test -f index.php
+          test -f booking.php
+          test -f includes/bootstrap.php
+          test -f includes/render.php
+          test -f assets/site.css
+          test -f assets/css/php-upgrade.css
