@@ -79,6 +79,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && ($_GET['sent'] ?? '') ===
 $csrf = hotel_csrf_token();
 $emailConfigured = filter_var(hotel_config('HOTEL_ENQUIRY_EMAIL'), FILTER_VALIDATE_EMAIL) !== false;
 $minimumDate = (new DateTimeImmutable('today', new DateTimeZone('Asia/Kolkata')))->format('Y-m-d');
+$publicContact = json_decode((string) @file_get_contents(__DIR__ . '/content/site-config.json'), true);
+$whatsappUrl = '';
+if (is_array($publicContact)
+    && ($publicContact['contact']['status'] ?? '') === 'source-authorized') {
+    $candidate = $publicContact['contact']['whatsappBaseUrl'] ?? '';
+    if (is_string($candidate) && preg_match('~^https://wa\\.me/[1-9][0-9]{7,14}$~D', $candidate)) {
+        $whatsappUrl = $candidate . '?text=' . rawurlencode('Namaste Garh Jaisal Haveli, I would like to enquire about room availability and rates for my dates.');
+    }
+}
+
 function old_value(array $values, string $key): string { return hotel_escape($values[$key] ?? ''); }
 ?><!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -93,8 +103,8 @@ function old_value(array $values, string $key): string { return hotel_escape($va
 </head><body><a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header hotel-booking-header"><a class="brand" href="index.php" aria-label="Garh Jaisal Haveli home"><span class="brand__mark">GJ</span><span class="brand__wordmark"><strong>GARH JAISAL</strong><small>HAVELI · JAISALMER</small></span></a>
 <nav class="hotel-booking-nav" aria-label="Booking page navigation"><a href="index.php">Home</a><a href="rooms.php">Rooms</a><a href="directions.php">Find us</a></nav></header>
-<main id="main" class="hotel-booking"><div class="hotel-booking__inner"><div><p class="eyebrow">Your heritage stay, thoughtfully planned</p><h1>Enquire about <em>your stay.</em></h1><p>Tell us your preferred dates and room. The hotel team can respond with current room options and rates once your enquiry reaches their configured email.</p><p><strong>Important:</strong> This form requests information only. It does not check live availability or create a reservation. Wait for direct written confirmation from the hotel before making travel arrangements.</p><p><a href="rooms.php">Explore all seven rooms →</a></p><p><a href="directions.php">Plan your arrival inside Jaisalmer Fort →</a></p></div><div class="hotel-form">
-<?php if (!$emailConfigured): ?><div class="hotel-alert" role="status"><strong>Email enquiries are not configured on this server yet.</strong><p>The hotel must configure HOTEL_ENQUIRY_EMAIL before this form can send requests. The original WhatsApp and external booking options remain on the main website.</p></div><?php endif; ?>
+<main id="main" class="hotel-booking"><div class="hotel-booking__inner"><div><p class="eyebrow">Your heritage stay, thoughtfully planned</p><h1>Enquire about <em>your stay.</em></h1><p>Tell us your preferred dates and room. The hotel team can respond with current room options and rates once your enquiry reaches their configured email.</p><p class="hotel-booking__quick-actions"><a href="#stay-enquiry-form" class="hotel-booking__quick-link">Go to stay enquiry form ↓</a><?php if ($whatsappUrl !== ''): ?><a href="<?= hotel_escape($whatsappUrl) ?>" target="_blank" rel="noopener noreferrer" class="hotel-booking__whatsapp-link">Enquire on WhatsApp ↗</a><?php endif; ?></p><p><strong>Important:</strong> This form requests information only. It does not check live availability or create a reservation. Wait for direct written confirmation from the hotel before making travel arrangements.</p><p><a href="rooms.php">Explore all seven rooms →</a></p><p><a href="directions.php">Plan your arrival inside Jaisalmer Fort →</a></p></div><div class="hotel-form" id="stay-enquiry-form">
+<?php if (!$emailConfigured): ?><div class="hotel-alert" role="status"><strong>Email enquiries are not configured on this server yet.</strong><p>The hotel must configure HOTEL_ENQUIRY_EMAIL before this form can send requests. <?php if ($whatsappUrl !== ''): ?><a href="<?= hotel_escape($whatsappUrl) ?>" target="_blank" rel="noopener noreferrer">Enquire via WhatsApp instead ↗</a><?php else: ?>The original contact and booking options remain on the main website.<?php endif; ?></p></div><?php endif; ?>
 <?php if ($success): ?><div class="hotel-alert hotel-alert--success" role="status"><strong>Your request was submitted to the server's mail service.</strong><p>It is not a reservation. Email delivery and a reply from the hotel are not guaranteed; please contact the hotel if you do not receive a response.</p></div><?php endif; ?>
 <?php if ($errors): ?><div class="hotel-alert" role="alert"><strong>We couldn't submit your enquiry.</strong><ul><?php foreach ($errors as $error): ?><li><?= hotel_escape($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <form method="post" action="booking.php" class="hotel-form__form"><input type="hidden" name="csrf" value="<?= hotel_escape($csrf) ?>"><div class="honeypot" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
