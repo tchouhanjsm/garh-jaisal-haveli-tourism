@@ -1,12 +1,28 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/includes/bootstrap.php';
+// Keep personal guest details and session-bound forms out of intermediary caches.
+header('Cache-Control: no-store, private');
+header('X-Robots-Tag: noindex, nofollow');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD', 'POST'], true)) {
+    header('Allow: GET, HEAD, POST');
+    http_response_code(405);
+    exit('Method not allowed');
+}
 hotel_session();
 $errors = [];
 $success = false;
 $values = ['name'=>'','email'=>'','phone'=>'','arrival'=>'','departure'=>'','guests'=>'2','room'=>'','message'=>''];
 $rooms = ['','Sweet Purple','Rising Sun','Scarlet','Opium','Red Maharani','Green','BlueSky','Not sure yet'];
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    // Reject abusive requests before processing user-supplied values.
+    $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($length > 12000) {
+        http_response_code(413);
+        exit('Enquiry is too large.');
+    }
     foreach ($values as $key => $default) {
         $field = $_POST[$key] ?? '';
         $values[$key] = is_string($field) ? trim($field) : '';
@@ -15,7 +31,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!empty($_POST['website'])) $errors[] = 'Unable to accept this request.';
     if (strlen($values['name']) < 2 || strlen($values['name']) > 100) $errors[] = 'Enter a name between 2 and 100 characters.';
     if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL) || strlen($values['email']) > 254) $errors[] = 'Enter a valid email address.';
-    if (strlen($values['phone']) > 40) $errors[] = 'Phone number is too long.';
+    if (strlen($values['phone']) > 40 || preg_match('/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/', $values['phone']) === 1) $errors[] = 'Phone number is too long.';
     if (!hotel_valid_date($values['arrival']) || !hotel_valid_date($values['departure'])) {
         $errors[] = 'Choose valid arrival and departure dates.';
     } else {
@@ -35,6 +51,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!filter_var($sender, FILTER_VALIDATE_EMAIL)) $sender = $recipient;
     if (!$errors && !filter_var($recipient, FILTER_VALIDATE_EMAIL)) $errors[] = 'Online enquiries are not configured yet. Please contact the hotel using its verified phone or WhatsApp channel.';
     if (!$errors) {
+        // Throttle repeated attempts in this session even when mail transport fails.
+        // A WAF/edge limit remains recommended against distributed abuse.
+        $_SESSION['hotel_last_enquiry'] = $now;
         $safe = static fn (string $s): string => str_replace(["\r","\n"], ' ', $s);
         $body = "New website stay enquiry\n\n";
         foreach ($values as $key => $value) $body .= ucfirst($key) . ': ' . $safe($value) . "\n";
@@ -87,4 +106,4 @@ function old_value(array $values, string $key): string { return hotel_escape($va
 <div class="field"><label for="departure">Check-out *</label><input id="departure" type="date" name="departure" required min="<?= hotel_escape($minimumDate) ?>" value="<?= old_value($values,'departure') ?>"></div></div>
 <div class="field"><label for="room">Preferred room</label><select id="room" name="room"><?php foreach ($rooms as $room): ?><option value="<?= hotel_escape($room) ?>" <?= $values['room'] === $room ? 'selected' : '' ?>><?= hotel_escape($room === '' ? 'Select a room (optional)' : $room) ?></option><?php endforeach; ?></select></div>
 <div class="field"><label for="message">Anything else we should know?</label><textarea id="message" name="message" maxlength="2000"><?= old_value($values,'message') ?></textarea></div>
-<button type="submit" <?= $emailConfigured ? "" : "disabled" ?>>Send stay enquiry ↗</button><p style="font-size:.8rem">By submitting, you request a reply about your stay. Your details are emailed to the hotel when email is configured. No room is reserved by this form.</p></form></div></div></main><footer style="padding:2rem;text-align:center;background:#171b19;color:#fff">Garh Jaisal Haveli · Inside Jaisalmer Fort · <a style="color:#e9cb92" href="index.php">Return home</a></footer></body></html>
+<button type="submit" <?= $emailConfigured ? "" : "disabled aria-disabled=\"true\"" ?>>Send stay enquiry ↗</button><p style="font-size:.8rem">By submitting, you request a reply about your stay. Your details are emailed to the hotel when email is configured. No room is reserved by this form.</p></form></div></div></main><footer style="padding:2rem;text-align:center;background:#171b19;color:#fff">Garh Jaisal Haveli · Inside Jaisalmer Fort · <a style="color:#e9cb92" href="index.php">Return home</a></footer></body></html>
