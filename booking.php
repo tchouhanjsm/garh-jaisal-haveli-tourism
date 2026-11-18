@@ -58,7 +58,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $body = "New website stay enquiry\n\n";
         foreach ($values as $key => $value) $body .= ucfirst($key) . ': ' . $safe($value) . "\n";
         $body .= "\nThis is an enquiry, not a confirmed booking.\n";
-        $sent = @mail($recipient, 'Garh Jaisal Haveli — Stay Enquiry', $body,
+        $sent = @mail($recipient, 'Garh Jaisal Haveli - Stay Enquiry', $body,
             "From: ".$safe($sender)."\r\n".
             "Reply-To: ".$safe($values['email'])."\r\n".
             "Content-Type: text/plain; charset=UTF-8");
