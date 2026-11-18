@@ -8,6 +8,7 @@ on:
       - '.github/workflows/php-checks.yml'
       - 'includes/**'
       - 'scripts/test-php-browser.py'
+      - 'scripts/test-php-seo.py'
       - 'assets/css/php-upgrade.css'
 permissions:
   contents: read
@@ -24,6 +25,8 @@ jobs:
           coverage: none
       - name: Syntax check
         run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Rendered PHP SEO audit
+        run: python3 scripts/test-php-seo.py
       - name: HTML route and content integration assertions
         shell: bash
         run: |
