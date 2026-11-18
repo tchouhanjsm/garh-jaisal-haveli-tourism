@@ -54,3 +54,20 @@ a[href="booking.php"]:focus-visible,.hotel-form input:focus-visible,.hotel-form 
 @media (prefers-reduced-motion: reduce) {
   .hotel-form button, .primary-nav .nav-enquiry { transition: none; }
 }
+
+/* Booking-page header is independent of the legacy collapsible navigation. */
+.hotel-booking-header { gap: 1rem; }
+.hotel-booking-nav { display:flex; align-items:center; flex-wrap:wrap; gap:clamp(.8rem,1.8vw,1.5rem); }
+.hotel-booking-nav a { font-size:.85rem; font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
+.hotel-booking-nav a:hover { text-decoration:underline; text-underline-offset:4px; }
+@media (max-width:760px) {
+  .hotel-booking-header { flex-wrap:wrap; justify-content:center; padding:1rem; text-align:center; }
+  .hotel-booking-header .brand { justify-content:center; }
+  .hotel-booking-nav { justify-content:center; width:100%; gap:1.25rem; }
+  .hotel-booking-nav a { font-size:.8rem; }
+}
+@media (max-width:1050px) and (min-width:761px) {
+  .primary-nav { gap:clamp(7px,1vw,14px); }
+  .primary-nav .nav-enquiry { padding:.5rem; }
+  .primary-nav .nav-book { padding:11px 12px; gap:8px; }
+}
