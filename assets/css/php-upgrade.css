@@ -71,3 +71,22 @@ a[href="booking.php"]:focus-visible,.hotel-form input:focus-visible,.hotel-form 
   .primary-nav .nav-enquiry { padding:.5rem; }
   .primary-nav .nav-book { padding:11px 12px; gap:8px; }
 }
+
+/* Make the stay enquiry discoverable before scrolling on compact screens. */
+.hotel-booking__quick-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.65rem; margin:1.5rem 0 1.25rem; }
+.hotel-booking__quick-link,.hotel-booking__whatsapp-link {
+  display:inline-flex; align-items:center; justify-content:center; min-height:46px;
+  padding:.68rem 1rem; font-weight:700; font-size:.83rem; line-height:1.35;
+  text-decoration:none; border:1px solid #765735;
+}
+.hotel-booking__quick-link { background:#765735; color:#fff; }
+.hotel-booking__whatsapp-link { background:transparent; color:#594125; }
+.hotel-booking__quick-link:hover { background:#53402a; }
+.hotel-booking__whatsapp-link:hover { background:#f1e7d7; }
+.hotel-form { scroll-margin-top:110px; }
+.hotel-alert a { font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+.hotel-form button:disabled { background:#7c7b74; cursor:not-allowed; opacity:.85; }
+@media (max-width:760px) {
+  .hotel-booking__quick-actions { margin:1rem 0 1.25rem; }
+  .hotel-booking__quick-link,.hotel-booking__whatsapp-link { flex:1 1 100%; }
+}
