@@ -59,6 +59,8 @@ try:
                     else:
                         assert_ok(page.locator("form[method='post']").count() == 1, "Booking form missing")
                         assert_ok(page.locator("input[name='csrf']").count() == 1, "Missing CSRF input")
+                        assert_ok(page.locator("a[href='#stay-enquiry-form']").count() == 1, "Missing stay enquiry jump")
+                        assert_ok(page.locator("a.hotel-booking__whatsapp-link").count() == 1, "Missing verified WhatsApp fallback")
                         assert_ok(page.locator("button[type='submit']").is_disabled(),
                                   "Unconfigured email form must be disabled")
                     # One screenshot per page and viewport for visual review.
