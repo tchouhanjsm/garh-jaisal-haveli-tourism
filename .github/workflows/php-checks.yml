@@ -56,6 +56,13 @@ jobs:
           curl -fsS http://127.0.0.1:8787/booking.php | grep -q 'Send stay enquiry'
           curl -fsS http://127.0.0.1:8787/rooms.php | grep -q 'room-card-grid'
           curl -sS -X POST http://127.0.0.1:8787/booking.php -d 'name=X' | grep -q 'couldn.t submit your enquiry'
+          # Malformed CSRF must fail cleanly, without PHP fatal errors.
+          curl -sS -X POST http://127.0.0.1:8787/booking.php --data-urlencode 'csrf[]=invalid' | grep -q 'couldn.t submit your enquiry'
+          # Reject unapproved HTTP verbs.
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -X PUT http://127.0.0.1:8787/booking.php)" = '405'
+          # Enquiry pages must not be cached or indexed.
+          curl -sSI http://127.0.0.1:8787/booking.php | grep -qi 'cache-control: no-store'
+          curl -sSI http://127.0.0.1:8787/booking.php | grep -qi 'x-robots-tag: noindex'
 
       - name: Install Python Playwright
         run: python3 -m pip install -r requirements-test.txt --break-system-packages
