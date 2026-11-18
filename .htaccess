@@ -1,3 +1,13 @@
+# PHP upgrade: preserve legacy HTML bookmarks and prioritize the PHP entry point.
+DirectoryIndex index.php index.html
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(index|about|rooms|gallery|dining|directions|experiences|experience-details)\.html$ $1.php [R=302,L,NC]
+</IfModule>
+<FilesMatch "(?i)^(bootstrap|render)\.php$">
+  Require all denied
+</FilesMatch>
+
 # Apache/cPanel defaults for the static website.
 ErrorDocument 404 /404.html
 
