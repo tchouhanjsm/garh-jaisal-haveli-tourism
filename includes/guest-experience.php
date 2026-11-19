@@ -111,6 +111,12 @@ HTML;
 HTML;
 }
 
+/** Expand the existing small discovery dropdown without overcrowding the header. */
+function guest_enhance_nav(string $html): string {
+    $html = str_replace('href="gallery.php">Gallery</a>', 'href="gallery.php">Gallery</a><a href="journal.php">Journal</a><a href="car-services.php">Car services</a>', $html);
+    return $html;
+}
+
 function guest_simple_document(string $slug): void {
     $titles = [
       'journal' => 'Jaisalmer Journal | Garh Jaisal Haveli',
