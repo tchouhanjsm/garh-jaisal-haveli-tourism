@@ -34,12 +34,22 @@ function hotel_render_static(string $slug): void {
     }
         // Preserve data-booking-link, data-enquiry-link, and their original labels.
     // assets/site.js validates the owner-authorized booking/WhatsApp URLs.
-    // Add a separate server-side enquiry route that doesn't pretend to reserve rooms.
-    $html = preg_replace(
-        '~(<a\b[^>]*class=["\x27][^"\x27]*nav-book[^"\x27]*["\x27][^>]*>.*?</a>)(\s*</nav>)~is',
-        '$1<a class="nav-enquiry" href="booking.php">Stay Enquiry</a>$2',
-        $html, 1
+    // Booking remains the primary navigation CTA; secondary enquiries live in the footer.
+    if ($slug === 'index') {
+        $html = str_replace('<link rel="stylesheet" href="assets/css/homepage-room-discovery.css">', '', $html);
+    }
+    $html = str_replace(
+        '<div class="mobile-booking-bar"><span>Inside the Golden Fort</span>',
+        '<div class="mobile-booking-bar"><span>Inside the Golden Fort</span><a href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to ask about a stay." aria-disabled="true" aria-describedby="contact-status" class="guest-mobile-whatsapp">WhatsApp</a>',
+        $html
     );
+    if ($slug === 'directions') {
+        $html = str_replace(
+            '<section class="guest-journey" aria-label="Plan your stay">',
+            '<div class="guest-arrival-shortcut wrap"><strong>Arriving by car, train or plane?</strong><span>Arrange the journey to the fort, then confirm the last walking stretch.</span><a href="car-services.php">Car service guidance →</a></div><section class="guest-journey" aria-label="Plan your stay">',
+            $html
+        );
+    }
     $html = str_replace('</head>', '<link rel="stylesheet" href="assets/css/php-upgrade.css"><link rel="stylesheet" href="assets/css/guest-first.css"></head>', $html);
     header('Content-Type: text/html; charset=UTF-8');
     header('X-Content-Type-Options: nosniff');
