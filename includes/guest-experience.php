@@ -132,6 +132,7 @@ function guest_simple_document(string $slug): void {
     if ($start === false || $mainStart === false) { http_response_code(500); exit('Page layout unavailable'); }
     $bodyStart = substr($home, $start + 6, $mainStart - ($start + 6));
     $bodyStart = preg_replace('~href="(index|about|rooms|gallery|dining|directions|experiences|experience-details)\.html~', 'href="$1.php', $bodyStart);
+    $bodyStart = guest_enhance_nav($bodyStart);
     $descriptions = [
       'journal' => 'Explore the living Jaisalmer Fort, heritage rooms and Thar experiences through the Garh Jaisal Haveli journal.',
       'car-services' => 'Plan car transfers, railway station and airport arrivals for Garh Jaisal Haveli inside Jaisalmer Fort.',
