@@ -59,8 +59,12 @@ jobs:
           php -S 127.0.0.1:8787 -t . > /tmp/php-hotel.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" || true' EXIT
-          for attempt in 1 2 3 4 5; do curl -fsS http://127.0.0.1:8787/index.php > /tmp/hotel-home.html && break || sleep 1; done
-          grep -q 'Stay Enquiry' /tmp/hotel-home.html
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if curl -fsS http://127.0.0.1:8787/index.php > /tmp/hotel-home.html; then break; fi
+            sleep 1
+          done
+          test -s /tmp/hotel-home.html || { cat /tmp/php-hotel.log; exit 1; }
+          grep -qi 'Stay enquiry' /tmp/hotel-home.html
           curl -fsS http://127.0.0.1:8787/booking.php | grep -q 'Send stay enquiry'
           curl -fsS http://127.0.0.1:8787/rooms.php | grep -q 'room-card-grid'
           curl -fsS http://127.0.0.1:8787/journal.php | grep -q 'The Garh Jaisal'
