@@ -1,7 +1,7 @@
 name: PHP integration checks
 on:
   push:
-    branches: [main, fix/post-merge-hardening-ux-seo]
+    branches: [main, feat/guest-first-home-navigation-20261119]
   pull_request:
     paths:
       - '**/*.php'
@@ -10,6 +10,7 @@ on:
       - 'scripts/test-php-browser.py'
       - 'scripts/test-php-seo.py'
       - 'assets/css/php-upgrade.css'
+      - 'assets/css/guest-first.css'
 permissions:
   contents: read
 jobs:
@@ -31,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for route in index about rooms gallery dining directions experiences experience-details; do
+          for route in index about rooms gallery dining directions experiences experience-details journal car-services privacy-policy booking-policy; do
             html="$(php "${route}.php")"
             grep -qi '<!doctype html' <<<"$html"
             grep -q 'assets/css/php-upgrade.css' <<<"$html"
@@ -44,6 +45,10 @@ jobs:
           grep -q 'href="rooms.php"' <<<"$home"
           grep -q 'href="booking.php"' <<<"$home"
           grep -q 'assets/images/rest3.jpg' <<<"$home"
+          grep -q 'href="car-services.php"' <<<"$home"
+          grep -q 'href="journal.php"' <<<"$home"
+          grep -q 'href="privacy-policy.php"' <<<"$home"
+          test "$(grep -o '<section' <<<"$home" | wc -l | tr -d ' ')" -le 7
           grep -q '<form method="post"' <(php booking.php)
           test -f content/site-config.json
           test -f assets/site.js
@@ -58,6 +63,9 @@ jobs:
           grep -q 'Stay Enquiry' /tmp/hotel-home.html
           curl -fsS http://127.0.0.1:8787/booking.php | grep -q 'Send stay enquiry'
           curl -fsS http://127.0.0.1:8787/rooms.php | grep -q 'room-card-grid'
+          curl -fsS http://127.0.0.1:8787/journal.php | grep -q 'The Garh Jaisal'
+          curl -fsS http://127.0.0.1:8787/car-services.php | grep -q 'Car services'
+          curl -fsS http://127.0.0.1:8787/privacy-policy.php | grep -q 'Privacy information'
           curl -sS -X POST http://127.0.0.1:8787/booking.php -d 'name=X' | grep -q 'couldn.t submit your enquiry'
           # Malformed CSRF must fail cleanly, without PHP fatal errors.
           curl -sS -X POST http://127.0.0.1:8787/booking.php --data-urlencode 'csrf[]=invalid' | grep -q 'couldn.t submit your enquiry'
