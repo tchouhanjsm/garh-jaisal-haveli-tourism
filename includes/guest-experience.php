@@ -113,9 +113,9 @@ HTML;
 
 /** Expand the existing small discovery dropdown without overcrowding the header. */
 function guest_enhance_nav(string $html): string {
-    $html = str_replace('href="about.php">Our story</a>', 'href="about.php">Discover</a>', $html);
+    $html = preg_replace('~(<a\\b[^>]*href="about\\.php"[^>]*>)Our story(</a>)~', '$1Discover$2', $html, 1);
     $html = str_replace('aria-label="Open About menu"', 'aria-label="Open Discover menu"', $html);
-    $html = str_replace('href="gallery.php">Gallery</a>', 'href="about.php">Our story</a><a href="gallery.php">Gallery</a><a href="journal.php">Journal</a><a href="car-services.php">Car services</a>', $html);
+    $html = str_replace('<div class="nav-dropdown__menu">', '<div class="nav-dropdown__menu"><a href="about.php">Our story</a><a href="journal.php">Journal</a><a href="car-services.php">Car services</a>', $html);
     return $html;
 }
 
