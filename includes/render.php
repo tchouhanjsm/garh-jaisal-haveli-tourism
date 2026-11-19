@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/guest-experience.php';
 
 /**
  * Transitional renderer: retain original hotel design, assets and source-authorized
@@ -22,22 +23,34 @@ function hotel_render_static(string $slug): void {
         },
         $html
     );
-    // Preserve data-booking-link, data-enquiry-link, and their original labels.
-    // assets/site.js validates the owner-authorized booking/WhatsApp URLs.
-    // Add a separate server-side enquiry route that doesn't pretend to reserve rooms.
-    $html = preg_replace(
-        '~(<a\b[^>]*class=["\x27][^"\x27]*nav-book[^"\x27]*["\x27][^>]*>.*?</a>)(\s*</nav>)~is',
-        '$1<a class="nav-enquiry" href="booking.php">Stay Enquiry</a>$2',
-        $html, 1
-    );
+    // One shared navigation and footer for PHP routes; keep static source untouched.
+    $html = guest_enhance_nav($html);
+    $html = preg_replace('~<footer class="site-footer">[\\s\\S]*?</footer>~', guest_footer(), $html, 1);
+    $html = str_replace('A direct enquiry', 'WhatsApp the hotel', $html);
+    $html = str_replace('Ask for current details for your dates. Nothing is sent automatically.', 'Chat about rooms, dates and arrival.', $html);
+    $html = str_replace('Prepare enquiry <span aria-hidden="true">↗</span>', 'WhatsApp us <span aria-hidden="true">↗</span>', $html);
     if ($slug === 'index') {
+        $html = preg_replace('~<main id="main" tabindex="-1">[\\s\\S]*?</main>~', guest_home(), $html, 1);
+    }
+        // Preserve data-booking-link, data-enquiry-link, and their original labels.
+    // assets/site.js validates the owner-authorized booking/WhatsApp URLs.
+    // Booking remains the primary navigation CTA; secondary enquiries live in the footer.
+    if ($slug === 'index') {
+        $html = str_replace('<link rel="stylesheet" href="assets/css/homepage-room-discovery.css">', '', $html);
+    }
+    $html = str_replace(
+        '<div class="mobile-booking-bar"><span>Inside the Golden Fort</span>',
+        '<div class="mobile-booking-bar"><span>Inside the Golden Fort</span><a href="#contact-status" data-enquiry-link data-enquiry-message="Namaste Garh Jaisal Haveli, I would like to ask about a stay." aria-disabled="true" aria-describedby="contact-status" class="guest-mobile-whatsapp">WhatsApp</a>',
+        $html
+    );
+    if ($slug === 'directions') {
         $html = str_replace(
-            '<div class="hero__actions">',
-            '<div class="hero__actions"><a class="text-link text-link--light" href="booking.php">Request a stay enquiry <span aria-hidden="true">→</span></a>',
+            '<section class="guest-journey" aria-label="Plan your stay">',
+            '<div class="guest-arrival-shortcut wrap"><strong>Arriving by car, train or plane?</strong><span>Arrange the journey to the fort, then confirm the last walking stretch.</span><a href="car-services.php">Car service guidance →</a></div><section class="guest-journey" aria-label="Plan your stay">',
             $html
         );
     }
-    $html = str_replace('</head>', '<link rel="stylesheet" href="assets/css/php-upgrade.css"></head>', $html);
+    $html = str_replace('</head>', '<link rel="stylesheet" href="assets/css/php-upgrade.css"><link rel="stylesheet" href="assets/css/guest-first.css"></head>', $html);
     header('Content-Type: text/html; charset=UTF-8');
     header('X-Content-Type-Options: nosniff');
     echo $html;

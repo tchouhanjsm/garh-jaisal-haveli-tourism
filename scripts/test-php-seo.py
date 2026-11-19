@@ -7,7 +7,7 @@ import json
 import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
-SLUGS = ["index", "about", "rooms", "gallery", "dining", "directions", "experiences", "experience-details"]
+SLUGS = ["index", "about", "rooms", "gallery", "dining", "directions", "experiences", "experience-details", "journal", "car-services", "privacy-policy", "booking-policy"]
 class Page(HTMLParser):
     def __init__(self):
         super().__init__()

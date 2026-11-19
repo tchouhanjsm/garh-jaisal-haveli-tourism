@@ -41,3 +41,32 @@ Enquiry forms do **not** confirm a booking, show live inventory or quote verifie
 - Desktop and responsive PHP browser tests are implemented in `scripts/test-php-browser.py` (36 route/viewport checks with screenshot evidence) and SEO-source tests in `scripts/test-php-seo.py`. These supplement, but do not replace, the existing comprehensive static-site suite.
 - Confirm the HTML-to-PHP redirects work under **actual Apache**; the local PHP development server does not interpret `.htaccess`.
 - The SEO production publication guard is intentionally unchanged. Do not enable robots indexing or canonical metadata without owner approval for the canonical host.
+
+## Guest-first redesign (PR #80)
+
+- The PHP homepage now renders a focused six-section composition using existing property photography. The source `index.html` remains as historical/static source and redirects to `index.php` under Apache.
+- `includes/guest-experience.php` owns reusable PHP guest compositions and the shared footer across main PHP routes.
+- New PHP pages: `journal.php` (curated Journal hub), `car-services.php` (transport enquiry guidance), `privacy-policy.php` and `booking-policy.php` (information requiring owner approval).
+- The main header uses a compact **Discover** menu for Our Story, Gallery, Journal and Car Services. The main booking action continues to use the source-authorized external booking URL.
+- WhatsApp is explicitly labeled in the desktop floating pill and mobile booking bar, with the original `data-enquiry-link` security validation retained.
+- Footer navigation and legal links are consistent across all PHP guest routes, including the PHP enquiry form.
+
+### Mandatory owner decisions before publishing
+
+1. **Legal:** Confirm the property operator's actual privacy retention practices, rights/request contact, booking conditions, cancellation deadlines and refund policy. The new information pages deliberately avoid fabricating these terms and are noindex pending review.
+2. **Transport:** Confirm whether the property offers or arranges car transfers, authorized pickup points, quoted charges and availability. Current pages merely invite enquiries.
+3. **Editorial:** Blog JSON records may be `draft`; do not turn drafts into published indexed articles without factual and editorial approval. The Journal index currently points to existing verified guide pages.
+4. **SEO:** Do not disable the staging crawler block or approve the canonical host without explicit owner sign-off.
+
+### Local review
+
+From the repository root, with PHP 8.1+:
+```bash
+php -S 127.0.0.1:8000
+```
+Open `http://127.0.0.1:8000/index.php`, `/journal.php`, `/car-services.php`, `/directions.php` and the legal links in the footer. To run the automated browser and SEO checks after installing the test requirements:
+```bash
+python3 scripts/test-php-seo.py
+python3 scripts/test-php-browser.py
+```
+Browser acceptance now covers 13 PHP routes at four viewport sizes. The full repository quality suite must also pass before merge.
