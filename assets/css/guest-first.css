@@ -145,3 +145,17 @@
   .guest-arrival__inner>img { height:220px; }
   .guest-closing { padding-block:3rem 3.6rem; }
 }
+
+/* Screenshot RCA: auto-height media preserved intrinsic portrait dimensions and
+   made the three room cards stagger vertically. Explicit heights prevent it. */
+.guest-room-grid { align-items:start; }
+.guest-room-card img {
+  display:block; width:100%; height:clamp(230px,30vw,400px);
+  aspect-ratio:auto; object-fit:cover; object-position:center 52%;
+}
+.guest-room-card:first-child img { object-position:center 62%; }
+.guest-discover__grid img { display:block; width:100%; height:clamp(190px,22vw,295px); aspect-ratio:auto; object-fit:cover; }
+@media(max-width:760px) {
+  .guest-room-card img { height:clamp(220px,70vw,320px); }
+  .guest-discover__grid img { width:108px; height:94px; }
+}
