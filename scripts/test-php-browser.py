@@ -58,6 +58,14 @@ try:
                                   f"Homepage has regained repetitive sections: {vp_name}")
                         assert_ok(page.locator(".guest-hero a[data-booking-link]").count() == 1,
                                   f"Missing hero booking action: {vp_name}")
+                        page.wait_for_function(
+                            "() => Array.from(document.querySelectorAll('a[data-booking-link]')).some(a => a.href.startsWith('https://asiatech.in/booking_engine/'))",
+                            timeout=8000
+                        )
+                        page.wait_for_function(
+                            "() => Array.from(document.querySelectorAll('a.guest-mobile-whatsapp')).some(a => a.href.startsWith('https://wa.me/'))",
+                            timeout=8000
+                        )
                         cta = page.locator(".guest-hero a[data-booking-link]").bounding_box()
                         assert_ok(cta is not None and cta["y"] < height,
                                   f"Primary CTA below first screen: {vp_name}")
