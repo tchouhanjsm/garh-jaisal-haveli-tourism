@@ -23,7 +23,7 @@ def assert_ok(condition: bool, message: str) -> None:
 
 server = subprocess.Popen(
     ["php", "-S", "127.0.0.1:8767", "-t", str(ROOT)],
-    cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 )
 try:
     for _ in range(40):
