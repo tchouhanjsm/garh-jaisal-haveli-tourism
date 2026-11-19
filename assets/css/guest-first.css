@@ -114,3 +114,16 @@
 .guest-arrival-shortcut strong { font-size:.91rem; }
 .guest-arrival-shortcut span { font-size:.83rem; color:#586159; flex:1; min-width:175px; }
 .guest-arrival-shortcut a { font-weight:700; font-size:.83rem; border-bottom:1px solid #765735; padding-bottom:3px; }
+
+/* Guest-ready floating WhatsApp control, not an explanatory box. */
+@media(min-width:761px) {
+  .direct-enquiry-dock { width:auto; max-width:240px; padding:7px; gap:5px; border:0; border-radius:100px; background:transparent; box-shadow:none; }
+  .direct-enquiry-dock__copy { display:none; }
+  .direct-enquiry-dock__action { min-height:48px; border-radius:100px; background:#117658; padding:12px 20px; font-size:13px; box-shadow:0 9px 24px rgba(14,55,37,.22); }
+  .direct-enquiry-dock__action:hover,.direct-enquiry-dock__action:focus-visible { background:#0d5b44; color:#fff; }
+  .direct-enquiry-dock__dismiss { width:32px; min-width:32px; min-height:32px; height:32px; border-radius:100px; background:var(--white); font-size:17px; }
+}
+@media(max-width:760px) {
+  .mobile-booking-bar .guest-mobile-whatsapp { background:transparent; border:1px solid #75bb94; color:#f5fffa; box-shadow:none; }
+  .mobile-booking-bar .guest-mobile-whatsapp:hover,.mobile-booking-bar .guest-mobile-whatsapp:focus-visible { background:#117658; color:#fff; }
+}
