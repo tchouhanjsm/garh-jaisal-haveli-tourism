@@ -28,7 +28,7 @@ function hotel_render_static(string $slug): void {
     $html = preg_replace('~<footer class="site-footer">[\\s\\S]*?</footer>~', guest_footer(), $html, 1);
     $html = str_replace('A direct enquiry', 'WhatsApp the hotel', $html);
     $html = str_replace('Ask for current details for your dates. Nothing is sent automatically.', 'Chat about rooms, dates and arrival.', $html);
-    $html = str_replace('Prepare enquiry <span aria-hidden="true">↗</span>', 'Open WhatsApp <span aria-hidden="true">↗</span>', $html);
+    $html = str_replace('Prepare enquiry <span aria-hidden="true">↗</span>', 'WhatsApp us <span aria-hidden="true">↗</span>', $html);
     if ($slug === 'index') {
         $html = preg_replace('~<main id="main" tabindex="-1">[\\s\\S]*?</main>~', guest_home(), $html, 1);
     }
