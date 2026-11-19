@@ -81,6 +81,11 @@ try:
                         assert_ok(page.locator("a[href='booking.php']").count() > 0,
                                   f"Missing enquiry CTA: {route}, {vp_name}")
                     if route != "booking":
+                        assert_ok(page.locator("nav#primary-navigation a[href='journal.php']").count() == 1,
+                                  f"Journal missing from discovery dropdown: {route}, {vp_name}")
+                        assert_ok(page.locator("nav#primary-navigation a[href='car-services.php']").count() == 1,
+                                  f"Car services missing from discovery dropdown: {route}, {vp_name}")
+                    if route != "booking":
                         assert_ok(page.locator("footer.guest-footer").count() == 1,
                                   f"Missing shared footer: {route}, {vp_name}")
                         assert_ok(page.locator("footer a[href='privacy-policy.php']").count() == 1,
