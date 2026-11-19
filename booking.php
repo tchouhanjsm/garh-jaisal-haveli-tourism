@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/includes/bootstrap.php';
+require __DIR__ . '/includes/guest-experience.php';
 // Keep personal guest details and session-bound forms out of intermediary caches.
 header('Cache-Control: no-store, private');
 header('X-Robots-Tag: noindex, nofollow');
@@ -116,4 +117,4 @@ function old_value(array $values, string $key): string { return hotel_escape($va
 <div class="field"><label for="departure">Check-out *</label><input id="departure" type="date" name="departure" required min="<?= hotel_escape($minimumDate) ?>" value="<?= old_value($values,'departure') ?>"></div></div>
 <div class="field"><label for="room">Preferred room</label><select id="room" name="room"><?php foreach ($rooms as $room): ?><option value="<?= hotel_escape($room) ?>" <?= $values['room'] === $room ? 'selected' : '' ?>><?= hotel_escape($room === '' ? 'Select a room (optional)' : $room) ?></option><?php endforeach; ?></select></div>
 <div class="field"><label for="message">Anything else we should know?</label><textarea id="message" name="message" maxlength="2000"><?= old_value($values,'message') ?></textarea></div>
-<button type="submit" <?= $emailConfigured ? "" : "disabled aria-disabled=\"true\"" ?>>Send stay enquiry ↗</button><p style="font-size:.8rem">By submitting, you request a reply about your stay. Your details are emailed to the hotel when email is configured. No room is reserved by this form.</p></form></div></div></main><footer style="padding:2rem;text-align:center;background:#171b19;color:#fff">Garh Jaisal Haveli · Inside Jaisalmer Fort · <a style="color:#e9cb92" href="index.php">Return home</a></footer></body></html>
+<button type="submit" <?= $emailConfigured ? "" : "disabled aria-disabled=\"true\"" ?>>Send stay enquiry ↗</button><p style="font-size:.8rem">By submitting, you request a reply about your stay. Your details are emailed to the hotel when email is configured. No room is reserved by this form.</p></form></div></div></main><?= guest_contact_status() ?><?= guest_footer() ?><script src="assets/site.js" defer></script></body></html>
