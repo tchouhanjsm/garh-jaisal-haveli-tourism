@@ -53,6 +53,23 @@ try:
                     )
                     assert_ok(overflow["scroll"] <= overflow["width"] + 2,
                               f"Horizontal overflow: {route}, {vp_name}: {overflow}")
+                    if route == "index":
+                        assert_ok(page.locator(".guest-home section").count() <= 6,
+                                  f"Homepage has regained repetitive sections: {vp_name}")
+                        assert_ok(page.locator(".guest-hero a[data-booking-link]").count() == 1,
+                                  f"Missing hero booking action: {vp_name}")
+                        cta = page.locator(".guest-hero a[data-booking-link]").bounding_box()
+                        assert_ok(cta is not None and cta["y"] < height,
+                                  f"Primary CTA below first screen: {vp_name}")
+                        assert_ok(page.get_by_text("Choose what you need to plan first.").count() == 0,
+                                  "Old verbose planning section reappeared")
+                        assert_ok(page.locator(".direct-enquiry-dock__action").count() == 1,
+                                  "Missing desktop WhatsApp dock")
+                        assert_ok(page.locator(".guest-mobile-whatsapp").count() == 1,
+                                  "Missing mobile WhatsApp shortcut")
+                    if route == "directions":
+                        assert_ok(page.locator("a[href='car-services.php']").count() >= 1,
+                                  "Direction page should link to car services")
                     if route in ("index", "about", "rooms", "gallery", "dining", "directions", "experiences", "experience-details"):
                         assert_ok(page.locator("a[href='booking.php']").count() > 0,
                                   f"Missing enquiry CTA: {route}, {vp_name}")
@@ -70,7 +87,7 @@ try:
                                   "Unconfigured email form must be disabled")
                     # One screenshot per page and viewport for visual review.
                     page.screenshot(path=str(OUTPUT / f"{route}-{vp_name}.png"),
-                                    full_page=False, animations="disabled")
+                                    full_page=(route == "index" and vp_name in ("phone-360", "laptop-1280")), animations="disabled")
                     RESULTS.append({"route": route, "viewport": vp_name, "overflow": overflow})
                 assert_ok(not errors, f"JS exceptions at {vp_name}: {errors[:5]}")
                 context.close()
