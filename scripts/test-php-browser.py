@@ -67,6 +67,13 @@ try:
                                   "Missing desktop WhatsApp dock")
                         assert_ok(page.locator(".guest-mobile-whatsapp").count() == 1,
                                   "Missing mobile WhatsApp shortcut")
+                        sizes = page.locator(".guest-room-card:visible img").evaluate_all(
+                            "(imgs) => imgs.map(img => Math.round(img.getBoundingClientRect().height))"
+                        )
+                        assert_ok(len(sizes) >= 2 and max(sizes) - min(sizes) <= 2,
+                                  f"Inconsistent featured room image heights: {vp_name}: {sizes}")
+                        assert_ok(max(sizes) <= 405,
+                                  f"Room images exceed compact design height: {vp_name}: {sizes}")
                     if route == "directions":
                         assert_ok(page.locator("a[href='car-services.php']").count() >= 1,
                                   "Direction page should link to car services")
